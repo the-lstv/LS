@@ -102,4 +102,4 @@
 
         return { header, body, padding, timestamp, id, instanceID }
     }
-})
+});
