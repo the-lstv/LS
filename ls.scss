@@ -18,7 +18,10 @@
 
 %font {
     font-family: var(--font);
-    color: var(--color);
+}
+
+body {
+    margin: 0;
 }
 
 [ls] {
@@ -27,16 +30,19 @@
     --padding-control-h: 16px;
     --padding-control-v: 8px;
     --padding-content-h: 16px;
-    --padding-content-v: 14px;
+    --padding-content-v: 8px;
     --padding-control-h-pill: 18px;
     --padding-label-h: 4px;
     --padding-label-h-pill: 8px;
     --padding-input-h: 8px;
 
+    --margin-control-v: 0;
+    --margin-control-h: 0;
     --margin-content-v: 8px;
     --margin-content-v-large: 18px;
 
     background: var(--background);
+    color: var(--color);
     overflow-y: overlay;
 
     * {
@@ -44,6 +50,8 @@
     }
 
     :is(#{$button}, input, select, textarea) {
+        @extend %font;
+
         box-sizing: border-box;
         line-height: 1;
         border: 0;
@@ -53,6 +61,7 @@
 
     #{$button} {
         padding: var(--padding-control-v) var(--padding-control-h);
+        margin: var(--margin-control-v) var(--margin-control-h);
 
         cursor: pointer;
 
@@ -68,6 +77,7 @@
     input {
         height: calc(1em + (var(--padding-control-v) * 2));
         padding: 0 var(--padding-input-h);
+        margin: var(--margin-control-v) var(--margin-control-h);
         color: inherit;
     }
 
@@ -112,6 +122,18 @@
         font-weight: 600
     }
 
+    h3 {
+        font-weight: 500;
+    }
+
+    h4 {
+        font-weight: 300;
+    }
+
+    h3, h4 {
+        color: var(--elevate-3);
+    }
+
     table {
         background-color: #fff1;
         border-collapse: collapse;
@@ -124,5 +146,23 @@
             text-align: center;
             padding: 5px
         }
+    }
+
+    ::-webkit-scrollbar {
+        width: var(--scrollbar-size, 6px);
+        height: var(--scrollbar-size, 6px)
+    }
+    
+    ::-webkit-scrollbar-track {
+        background: rgba(0,0,0,0)
+    }
+    
+    ::-webkit-scrollbar-thumb {
+        border-radius: var(--scrollbar-radius,8px);
+        background: var(--scrollbar-color, #0004)
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+        background: var(--scrollbar-color-hover, #fff4)
     }
 }

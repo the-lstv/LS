@@ -83,13 +83,18 @@ ls-box {
         display: inline-block;
         outline: 2px solid rgb(var(--accent-raw), 10%);
         border-radius: var(--border-radius-small);
-        padding: 0 var(--padding-label-h);
+
+        &:not(.full-padding) {
+            padding: 0 var(--padding-label-h);
+        }
     }
     
     &.inline.pill {
         border-radius: var(--border-radius-full);
-        padding: 0 var(--padding-label-h-pill);
-        // border: 1px solid var(--accent-dark);
+
+        &:not(.full-padding) {
+            padding: 0 var(--padding-label-h-pill);
+        }
     }
     
     &.color {
@@ -109,12 +114,17 @@ ls-div {
 
 ls-group {
     display: inline-flex;
+    margin: var(--margin-control-v) var(--margin-control-h);
 
     > * {
-        margin: 0;
+        margin: 0 !important;
     }
 
     > *:not(:only-child) {
+        &:not(:first-child, :last-child){
+            border-radius: 0 !important;
+        }
+        
         &:first-child {
             border-top-right-radius: 0 !important;
             border-bottom-right-radius: 0 !important;

@@ -12,7 +12,7 @@
 }
 
 [ls-theme=dark], [ls-theme=amoled], [ls-theme=default], body:not([ls-theme]) {
-  --background-raw: 19, 19, 19;
+  --background-raw: 25, 25, 25;
   --transparent-overlay: #fff1;
   --transparent-overlay-strong: #fff4;
   --transparent-overlay-dark: #00000018;
@@ -181,10 +181,14 @@ ls-box.inline {
   display: inline-block;
   outline: 2px solid rgb(var(--accent-raw), 10%);
   border-radius: var(--border-radius-small);
+}
+ls-box.inline:not(.full-padding) {
   padding: 0 var(--padding-label-h);
 }
 ls-box.inline.pill {
   border-radius: var(--border-radius-full);
+}
+ls-box.inline.pill:not(.full-padding) {
   padding: 0 var(--padding-label-h-pill);
 }
 ls-box.color {
@@ -202,9 +206,13 @@ ls-div {
 
 ls-group {
   display: inline-flex;
+  margin: var(--margin-control-v) var(--margin-control-h);
 }
 ls-group > * {
-  margin: 0;
+  margin: 0 !important;
+}
+ls-group > *:not(:only-child):not(:first-child, :last-child) {
+  border-radius: 0 !important;
 }
 ls-group > *:not(:only-child):first-child {
   border-top-right-radius: 0 !important;
@@ -599,7 +607,6 @@ button.ls-toast-close.ls-toast-close {
  * 2. Prevent adjustments of font size after orientation changes in iOS.
  */
 html {
-  line-height: 1.15;
   /* 1 */
   -webkit-text-size-adjust: 100%;
   /* 2 */
@@ -930,23 +937,29 @@ template {
   display: none;
 }
 
-[ls] {
+[ls] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), input, select, textarea), [ls] {
   font-family: var(--font);
-  color: var(--color);
+}
+
+body {
+  margin: 0;
 }
 
 [ls] {
   --padding-control-h: 16px;
   --padding-control-v: 8px;
   --padding-content-h: 16px;
-  --padding-content-v: 14px;
+  --padding-content-v: 8px;
   --padding-control-h-pill: 18px;
   --padding-label-h: 4px;
   --padding-label-h-pill: 8px;
   --padding-input-h: 8px;
+  --margin-control-v: 0;
+  --margin-control-h: 0;
   --margin-content-v: 8px;
   --margin-content-v-large: 18px;
   background: var(--background);
+  color: var(--color);
   overflow-y: overlay;
 }
 [ls] * {
@@ -961,6 +974,7 @@ template {
 }
 [ls] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button) {
   padding: var(--padding-control-v) var(--padding-control-h);
+  margin: var(--margin-control-v) var(--margin-control-h);
   cursor: pointer;
 }
 [ls] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button) i {
@@ -972,6 +986,7 @@ template {
 [ls] input {
   height: calc(1em + var(--padding-control-v) * 2);
   padding: 0 var(--padding-input-h);
+  margin: var(--margin-control-v) var(--margin-control-h);
   color: inherit;
 }
 [ls] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button).circle {
@@ -1007,6 +1022,15 @@ template {
 [ls] h2 {
   font-weight: 600;
 }
+[ls] h3 {
+  font-weight: 500;
+}
+[ls] h4 {
+  font-weight: 300;
+}
+[ls] h3, [ls] h4 {
+  color: var(--elevate-3);
+}
 [ls] table {
   background-color: rgba(255, 255, 255, 0.0666666667);
   border-collapse: collapse;
@@ -1018,6 +1042,20 @@ template {
   border: 1px solid rgba(255, 255, 255, 0.1333333333);
   text-align: center;
   padding: 5px;
+}
+[ls] ::-webkit-scrollbar {
+  width: var(--scrollbar-size, 6px);
+  height: var(--scrollbar-size, 6px);
+}
+[ls] ::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0);
+}
+[ls] ::-webkit-scrollbar-thumb {
+  border-radius: var(--scrollbar-radius, 8px);
+  background: var(--scrollbar-color, rgba(0, 0, 0, 0.2666666667));
+}
+[ls] ::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-color-hover, rgba(255, 255, 255, 0.2666666667));
 }
 
 /*# sourceMappingURL=ls.css.map */

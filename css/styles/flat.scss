@@ -26,11 +26,11 @@
             }
 
             &:focus {
-                outline: 2px solid rgb(var(--accent-raw), 10%);
+                outline: 3px solid rgb(var(--accent-raw), 10%);
             }
 
             &:focus-visible {
-                outline: 2px solid rgb(var(--accent-raw), 50%);
+                outline: 3px solid var(--accent-text);
             }
         }
 
@@ -44,12 +44,29 @@
         border-radius: 50%;
     }
 
+    #{$button}:is(.clear, .outline) {
+        background: none;
+        color: var(--accent-light);
+
+        &:hover, &:focus {
+            background-color: var(--accent-transparent);
+        }
+    }
+
+    #{$button}.outline {
+        border: 1px solid var(--accent);
+    }
+
     #{$button}.elevated {
         background-color: var(--accent-transparent);
         color: var(--accent-light);
 
         &:hover, &:focus {
             background-color: rgb(var(--accent-raw), 40%);
+        }
+
+        &:focus-visible {
+            outline: 3px solid var(--accent-light);
         }
     }
 

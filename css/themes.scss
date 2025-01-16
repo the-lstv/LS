@@ -1,10 +1,9 @@
-// Global theme variables
 [ls-theme] {
     --background: rgb(var(--background-raw));
 }
 
 [ls-theme="dark"], [ls-theme="amoled"], [ls-theme="default"], body:not([ls-theme]) {
-    --background-raw: #{toRaw(#131313)};
+    --background-raw: 25, 25, 25;
 
     --transparent-overlay: #fff1;
     --transparent-overlay-strong: #fff4;

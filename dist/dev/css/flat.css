@@ -19,10 +19,10 @@
   filter: brightness(0.9);
 }
 [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):not(:disabled):focus {
-  outline: 2px solid rgb(var(--accent-raw), 10%);
+  outline: 3px solid rgb(var(--accent-raw), 10%);
 }
 [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):not(:disabled):focus-visible {
-  outline: 2px solid rgb(var(--accent-raw), 50%);
+  outline: 3px solid var(--accent-text);
 }
 [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):disabled {
   opacity: 0.8;
@@ -31,12 +31,25 @@
 [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button).circle {
   border-radius: 50%;
 }
+[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):is(.clear, .outline) {
+  background: none;
+  color: var(--accent-light);
+}
+[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):is(.clear, .outline):hover, [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):is(.clear, .outline):focus {
+  background-color: var(--accent-transparent);
+}
+[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button).outline {
+  border: 1px solid var(--accent);
+}
 [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button).elevated {
   background-color: var(--accent-transparent);
   color: var(--accent-light);
 }
 [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button).elevated:hover, [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button).elevated:focus {
   background-color: rgb(var(--accent-raw), 40%);
+}
+[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button).elevated:focus-visible {
+  outline: 3px solid var(--accent-light);
 }
 [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button).pill {
   border-radius: var(--border-radius-full);
