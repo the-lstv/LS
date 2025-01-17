@@ -33,8 +33,8 @@
         LS._topLayerInherit = function () { console.error("LS._topLayerInherit is deprecated and no longer serves any purpose, you can safely remove it from your code.") }
 
         function bodyAvailable(){
-            LS.Tiny._events.completed("body-available")
             document.body.append(LS._topLayer)
+            LS._events.completed("body-available")
         }
 
         if(document.body) bodyAvailable(); else window.addEventListener("load", bodyAvailable);
@@ -806,306 +806,306 @@
         GetComponent(name){
             return LS.components.get(name)
         },
-
-        /**
-         * @description Color and theme utilities
-         */
-        Color: class {
-            constructor(r, g, b, a) {
-                if (typeof r === "string") {
-                    let div = document.createElement('div');
-                    div.style.display = 'none';
-                    div.style.color = r;
-                    document.body.appendChild(div);
-                    let m = getComputedStyle(div).color.match(/^rgb\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)$/i);
-                    document.body.removeChild(div);
-        
-                    if (m) {
-                        return new LS.Color(+m[1], +m[2], +m[3]);
-                    } else {
-                        throw new Error("Colour " + r + " could not be parsed.");
-                    }
-                }
-        
-                if (r === null || typeof r === "undefined") r = 255;
-                if (g === null || typeof g === "undefined") g = 255;
-                if (b === null || typeof b === "undefined") b = 255;
-                if (a === null || typeof a === "undefined") a = 1;
-        
-                this.r = Math.round(Math.min(255, Math.max(0, r)));
-                this.g = Math.round(Math.min(255, Math.max(0, g)));
-                this.b = Math.round(Math.min(255, Math.max(0, b)));
-                this.a = Math.min(1, Math.max(0, a));
-            }
-        
-            get hex() {
-                return "#" + (1 << 24 | this.r << 16 | this.g << 8 | this.b).toString(16).slice(1);
-            }
-        
-            get rgb() {
-                return `rgb(${this.r}, ${this.g}, ${this.b})`;
-            }
-        
-            get rgba() {
-                return `rgba(${this.r}, ${this.g}, ${this.b}, ${this.a})`;
-            }
-        
-            get hsl() {
-                let r = this.r / 255;
-                let g = this.g / 255;
-                let b = this.b / 255;
-        
-                let max = Math.max(r, g, b);
-                let min = Math.min(r, g, b);
-        
-                let l = (max + min) / 2;
-                let h, s;
-        
-                if (max === min) {
-                    h = s = 0;
-                } else {
-                    let delta = max - min;
-                    s = l > 0.5 ? delta / (2 - max - min) : delta / (max + min);
-        
-                    switch (max) {
-                        case r:
-                            h = (g - b) / delta + (g < b ? 6 : 0);
-                            break;
-                        case g:
-                            h = (b - r) / delta + 2;
-                            break;
-                        case b:
-                            h = (r - g) / delta + 4;
-                            break;
-                    }
-                    h /= 6;
-                }
-        
-                h = Math.round(h * 360);
-                s = Math.round(s * 100);
-                l = Math.round(l * 100);
-        
-                return [h, s, l];
-            }
-        
-            static fromHSL(h, s, l) {
-                s /= 100;
-                l /= 100;
-        
-                let k = n => (n + h / 30) % 12,
-                    a = s * Math.min(l, 1 - l),
-                    f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
-        
-                return new LS.Color(255 * f(0), 255 * f(8), 255 * f(4));
-            }
-        
-            get color() {
-                return [this.r, this.g, this.b, this.a];
-            }
-        
-            get pixel() {
-                return [this.r, this.g, this.b, this.a * 255];
-            }
-        
-            get brightness() {
-                return Math.sqrt(
-                    0.299 * (this.r * this.r) +
-                    0.587 * (this.g * this.g) +
-                    0.114 * (this.b * this.b)
-                );
-            }
-        
-            get isDark() {
-                return this.brightness < 127.5;
-            }
-        
-            hue(hue) {
-                let [h, s, l] = this.hsl;
-                l = Math.max(Math.min(hue, 360), 0);
-                return new LS.Color().fromHSL(h, s, l);
-            }
-        
-            saturation(percent) {
-                let [h, s, l] = this.hsl;
-                s = Math.max(Math.min(percent, 100), 0);
-                return new LS.Color().fromHSL(h, s, l);
-            }
-        
-            lighten(percent) {
-                let [h, s, l] = this.hsl;
-                l = Math.max(Math.min(l + percent, 100), 0);
-                return new LS.Color().fromHSL(h, s, l);
-            }
-        
-            darken(percent) {
-                let [h, s, l] = this.hsl;
-                l = Math.max(Math.min(l - percent, 100), 0);
-                return new LS.Color().fromHSL(h, s, l);
-            }
-        
-            hueShift(deg) {
-                let [h, s, l] = this.hsl;
-                h = (h + deg) % 360;
-                return new LS.Color().fromHSL(h, s, l);
-            }
-        
-            multiply(r2, g2, b2, a2) {
-                let color = new LS.Color(r2, g2, b2, a2).color;
-                return new LS.Color(this.r * color[0], this.g * color[1], this.b * color[2], this.a * color[3]);
-            }
-        
-            divide(r2, g2, b2, a2) {
-                let color = new LS.Color(r2, g2, b2, a2).color;
-                return new LS.Color(this.r / color[0], this.g / color[1], this.b / color[2], this.a / color[3]);
-            }
-        
-            add(r2, g2, b2, a2) {
-                let color = new LS.Color(r2, g2, b2, a2).color;
-                return new LS.Color(this.r + color[0], this.g + color[1], this.b + color[2], this.a + color[3]);
-            }
-        
-            subtract(r2, g2, b2, a2) {
-                let color = new LS.Color(r2, g2, b2, a2).color;
-                return new LS.Color(this.r - color[0], this.g - color[1], this.b - color[2], this.a - color[3]);
-            }
-        
-            alpha(v) {
-                return new LS.Color(this.r, this.g, this.b, v);
-            }
-        
-            static random() {
-                return new LS.Color(Math.floor(Math.random() * 256), Math.floor(Math.random() * 256), Math.floor(Math.random() * 256));
-            }
-
-            // default: {
-            //     colors: ["auto", "rich-black", "navy", "blue", "lapis", "pastel-indigo", "teal", "pastel-teal", "aquamarine", "mint", "green" ,"lime", "neon", "yellow", "orange", "deep-orange", "red", "rusty-red", "pink", "hotpink", "purple", "soap", "burple", "gray", "gray-light", "white", "black", "sand", "cozy", "icepop", "sport"],
-            //     themes: ["dark", "light", "amoled"]
-            // }
-
-            // constructor(){
-
-            //     this._events = new LS.EventHandler(this);
-
-            //     // Custom colors and themes
-            //     this.colors = {};
-            //     this.themes = {};
-
-            //     // Style tag to manage
-            //     this.style = document.querySelector("#ls-colors");
-
-            //     if(!this.style){
-            //         LS.once("body-available", ()=>{
-            //             this.style = LS.Tiny.N("style", {id: "ls-colors"});
-    
-            //             document.querySelector("#ls-top-layer").add(this.style)
-            //         })
-            //     }
-    
-            //     Object.defineProperties(this, {
-            //         lightModePreffered: {
-            //             get(){
-            //                 return window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches
-            //             }
-            //         }
-            //     })
-    
-            //     if(window.matchMedia) {
-            //         window.matchMedia('(prefers-color-scheme: light)').addListener(thing => {
-            //             this.invoke("scheme-changed", thing.matches)
-            //         })
-            //     }
-            // }
-    
-            static add(name, r, g, b){
-                if(this.default.colors.includes(name) || this.colors[name]) return false;
-    
-                let color = C(r, g, b), values = color.color
-    
-                this.colors[name] = values;
-    
-                this.style.add(`[ls-accent="${name}"]{--accent-raw:${values[0]},${values[1]},${values[2]};--accent-dark-raw:${color.darken(10).color.slice(0, 3).join(",")};--accent-background-raw:${color.darken(20).saturation(20).color.slice(0, 3).join(",")};--accent-light-raw:${color.lighten(10).color.slice(0, 3).join(",")};--color-bg:${color.hsl[2] > 50? "#222": "#eee"}}`)
-                return true
-            }
-    
-            static setAccent(accent){
-                O().setAttribute("ls-accent", accent)
-                LS._topLayerInherit()
-            }
-    
-            static setTheme(theme){
-                O().setAttribute("ls-theme", theme)
-                this.invoke("theme-changed", theme)
-    
-                LS._topLayerInherit()
-            }
-
-            static adaptiveTheme(amoled){
-                LS.Color.setTheme(this.lightModePreffered? "light": amoled? "amoled" : "dark")
-            }
-    
-            static watchScheme(amoled){
-                LS.once("body-available", () => {
-                    this.adaptiveTheme();
-                    this.on("scheme-changed", () => this.adaptiveTheme())
-                })
-            }
-    
-            static all(){
-                return [...this.default.colors, ...Object.keys(this.colors)]
-            }
-    
-            static random(){
-                return C(Math.floor(Math.random() * 256), Math.floor(Math.random() * 256), Math.floor(Math.random() * 256))
-            }
-    
-            static andomAccent(){
-                let colors = this.all();
-                return colors[Math.floor(Math.random() * colors.length)];
-            }
-    
-            static getAverageRGB(image, sampleGap = 20){
-                if(!(image instanceof HTMLImageElement)) {
-                    throw new TypeError("The first argument must be an image element");
-                }
-
-                let canvas = document.createElement("canvas"),
-                    context = canvas.getContext && canvas.getContext("2d"),
-                    index = -4,
-                    color = [0, 0, 0],
-                    sampleCount = 0
-                ;
-    
-                if (!context) return new LS.Color(...color);
-    
-                canvas.height = image.naturalHeight || image.offsetHeight || image.height;
-                canvas.width = image.naturalWidth || image.offsetWidth || image.width;
-                
-                context.drawImage(image, 0, 0);
-    
-                let imageData;
-                try {
-                    imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-                } catch (error) {
-                    console.error(error);
-                    return new LS.Color(...color);
-                }
-    
-                for (let i = imageData.data.length; (index += sampleGap) < i; ) {
-                    ++sampleCount
-                    color[0] += imageData.data[index]
-                    color[1] += imageData.data[index + 1]
-                    color[2] += imageData.data[index + 2]
-                }
-            
-                return (color[0] = ~~(color[0] / sampleCount)), (color[1] = ~~(color[1] / sampleCount)), (color[2] = ~~(color[2] / sampleCount)), C(...color);
-            }
-        }
     }
 
-    LS.Tiny._events = new LS.EventHandler(LS)
+    new LS.EventHandler(LS);
     LS.SelectAll = LS.Tiny.Q;
     LS.Select = LS.Tiny.O;
     LS.Create = LS.Tiny.N;
+
+    /**
+     * @description Color and theme utilities
+     */
+    LS.Color = class {
+        constructor(r, g, b, a) {
+            if (typeof r === "string") {
+                let div = document.createElement('div');
+                div.style.display = 'none';
+                div.style.color = r;
+                document.body.appendChild(div);
+                let m = getComputedStyle(div).color.match(/^rgb\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)$/i);
+                document.body.removeChild(div);
+    
+                if (m) {
+                    return new LS.Color(+m[1], +m[2], +m[3]);
+                } else {
+                    throw new Error("Colour " + r + " could not be parsed.");
+                }
+            }
+    
+            if (r === null || typeof r === "undefined") r = 255;
+            if (g === null || typeof g === "undefined") g = 255;
+            if (b === null || typeof b === "undefined") b = 255;
+            if (a === null || typeof a === "undefined") a = 1;
+    
+            this.r = Math.round(Math.min(255, Math.max(0, r)));
+            this.g = Math.round(Math.min(255, Math.max(0, g)));
+            this.b = Math.round(Math.min(255, Math.max(0, b)));
+            this.a = Math.min(1, Math.max(0, a));
+        }
+    
+        get hex() {
+            return "#" + (1 << 24 | this.r << 16 | this.g << 8 | this.b).toString(16).slice(1);
+        }
+    
+        get rgb() {
+            return `rgb(${this.r}, ${this.g}, ${this.b})`;
+        }
+    
+        get rgba() {
+            return `rgba(${this.r}, ${this.g}, ${this.b}, ${this.a})`;
+        }
+    
+        get hsl() {
+            let r = this.r / 255;
+            let g = this.g / 255;
+            let b = this.b / 255;
+    
+            let max = Math.max(r, g, b);
+            let min = Math.min(r, g, b);
+    
+            let l = (max + min) / 2;
+            let h, s;
+    
+            if (max === min) {
+                h = s = 0;
+            } else {
+                let delta = max - min;
+                s = l > 0.5 ? delta / (2 - max - min) : delta / (max + min);
+    
+                switch (max) {
+                    case r:
+                        h = (g - b) / delta + (g < b ? 6 : 0);
+                        break;
+                    case g:
+                        h = (b - r) / delta + 2;
+                        break;
+                    case b:
+                        h = (r - g) / delta + 4;
+                        break;
+                }
+                h /= 6;
+            }
+    
+            h = Math.round(h * 360);
+            s = Math.round(s * 100);
+            l = Math.round(l * 100);
+    
+            return [h, s, l];
+        }
+    
+        static fromHSL(h, s, l) {
+            s /= 100;
+            l /= 100;
+    
+            let k = n => (n + h / 30) % 12,
+                a = s * Math.min(l, 1 - l),
+                f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+    
+            return new LS.Color(255 * f(0), 255 * f(8), 255 * f(4));
+        }
+    
+        get color() {
+            return [this.r, this.g, this.b, this.a];
+        }
+    
+        get pixel() {
+            return [this.r, this.g, this.b, this.a * 255];
+        }
+    
+        get brightness() {
+            return Math.sqrt(
+                0.299 * (this.r * this.r) +
+                0.587 * (this.g * this.g) +
+                0.114 * (this.b * this.b)
+            );
+        }
+    
+        get isDark() {
+            return this.brightness < 127.5;
+        }
+    
+        hue(hue) {
+            let [h, s, l] = this.hsl;
+            l = Math.max(Math.min(hue, 360), 0);
+            return new LS.Color().fromHSL(h, s, l);
+        }
+    
+        saturation(percent) {
+            let [h, s, l] = this.hsl;
+            s = Math.max(Math.min(percent, 100), 0);
+            return new LS.Color().fromHSL(h, s, l);
+        }
+    
+        lighten(percent) {
+            let [h, s, l] = this.hsl;
+            l = Math.max(Math.min(l + percent, 100), 0);
+            return new LS.Color().fromHSL(h, s, l);
+        }
+    
+        darken(percent) {
+            let [h, s, l] = this.hsl;
+            l = Math.max(Math.min(l - percent, 100), 0);
+            return new LS.Color().fromHSL(h, s, l);
+        }
+    
+        hueShift(deg) {
+            let [h, s, l] = this.hsl;
+            h = (h + deg) % 360;
+            return new LS.Color().fromHSL(h, s, l);
+        }
+    
+        multiply(r2, g2, b2, a2) {
+            let color = new LS.Color(r2, g2, b2, a2).color;
+            return new LS.Color(this.r * color[0], this.g * color[1], this.b * color[2], this.a * color[3]);
+        }
+    
+        divide(r2, g2, b2, a2) {
+            let color = new LS.Color(r2, g2, b2, a2).color;
+            return new LS.Color(this.r / color[0], this.g / color[1], this.b / color[2], this.a / color[3]);
+        }
+    
+        add(r2, g2, b2, a2) {
+            let color = new LS.Color(r2, g2, b2, a2).color;
+            return new LS.Color(this.r + color[0], this.g + color[1], this.b + color[2], this.a + color[3]);
+        }
+    
+        subtract(r2, g2, b2, a2) {
+            let color = new LS.Color(r2, g2, b2, a2).color;
+            return new LS.Color(this.r - color[0], this.g - color[1], this.b - color[2], this.a - color[3]);
+        }
+    
+        alpha(v) {
+            return new LS.Color(this.r, this.g, this.b, v);
+        }
+    
+        static random() {
+            return new LS.Color(Math.floor(Math.random() * 256), Math.floor(Math.random() * 256), Math.floor(Math.random() * 256));
+        }
+
+        static {
+            this._events = new LS.EventHandler(this);
+
+            this.colors = new Map;
+            this.themes = new Map;
+
+            for(let color of ["auto", "rich-black", "navy", "blue", "lapis", "pastel-indigo", "teal", "pastel-teal", "aquamarine", "mint", "green" ,"lime", "neon", "yellow", "orange", "deep-orange", "red", "rusty-red", "pink", "hotpink", "purple", "soap", "burple", "gray", "gray-light", "white", "black", "sand", "cozy", "icepop", "sport"]) {
+                this.colors.set(color, new LS.Color(0, 0, 0));
+            }
+
+            this.default = {
+                themes: ["dark", "light", "amoled"]
+            }
+
+            // Style tag to manage
+            this.style = document.querySelector("#ls-colors");
+
+            if(!this.style){
+                LS.once("body-available", ()=>{
+                    this.style = LS.Tiny.N("style", {id: "ls-colors"});
+                    LS._topLayer.add(this.style)
+                })
+            }
+
+            Object.defineProperties(this, {
+                lightModePreffered: {
+                    get(){
+                        return window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches
+                    }
+                }
+            })
+
+            if(window.matchMedia) {
+                window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', thing => {
+                    this.emit("scheme-changed", [thing.matches])
+                })
+            }
+        }
+
+        static add(name, r, g, b){
+            if(this.colors.has(name)) return false;
+
+            let color = new LS.Color(r, g, b), values = color.color;
+            this.colors.set(name, color);
+
+            this.style.add(`[ls-accent="${name}"]{--accent-raw:${values[0]},${values[1]},${values[2]};--accent-dark-raw:${color.darken(10).color.slice(0, 3).join(",")};--accent-background-raw:${color.darken(20).saturation(20).color.slice(0, 3).join(",")};--accent-light-raw:${color.lighten(10).color.slice(0, 3).join(",")};--color-bg:${color.hsl[2] > 50? "#222": "#eee"}}`)
+            return color
+        }
+
+        static setAccent(accent){
+            document.body.setAttribute("ls-accent", accent)
+            return this
+        }
+
+        static setTheme(theme){
+            document.body.setAttribute("ls-theme", theme)
+            this.invoke("theme-changed", theme)
+            return this
+        }
+
+        static setAdaptiveTheme(amoled){
+            LS.Color.setTheme(this.lightModePreffered? "light": amoled? "amoled" : "dark")
+            return this
+        }
+
+        static autoScheme(amoled){
+            LS.once("body-available", () => {
+                this.setAdaptiveTheme();
+                this.on("scheme-changed", () => this.setAdaptiveTheme())
+            })
+            return this
+        }
+
+        static all(){
+            return this.colors.keys()
+        }
+
+        static random(){
+            return new LS.Color(Math.floor(Math.random() * 256), Math.floor(Math.random() * 256), Math.floor(Math.random() * 256))
+        }
+
+        static andomAccent(){
+            let colors = this.all();
+            return colors[Math.floor(Math.random() * colors.length)];
+        }
+
+        static getAverageRGB(image, sampleGap = 20){
+            if(!(image instanceof HTMLImageElement)) {
+                throw new TypeError("The first argument must be an image element");
+            }
+
+            let canvas = document.createElement("canvas"),
+                context = canvas.getContext && canvas.getContext("2d"),
+                index = -4,
+                color = [0, 0, 0],
+                sampleCount = 0
+            ;
+
+            if (!context) return new LS.Color(...color);
+
+            canvas.height = image.naturalHeight || image.offsetHeight || image.height;
+            canvas.width = image.naturalWidth || image.offsetWidth || image.width;
+            
+            context.drawImage(image, 0, 0);
+
+            let imageData;
+            try {
+                imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+            } catch (error) {
+                console.error(error);
+                return new LS.Color(...color);
+            }
+
+            for (let i = imageData.data.length; (index += sampleGap) < i; ) {
+                ++sampleCount
+                color[0] += imageData.data[index]
+                color[1] += imageData.data[index + 1]
+                color[2] += imageData.data[index + 2]
+            }
+        
+            return (color[0] = ~~(color[0] / sampleCount)), (color[1] = ~~(color[1] / sampleCount)), (color[2] = ~~(color[2] / sampleCount)), new LS.Color(...color);
+        }
+    }
 
     if(LS.isWeb){
         LS.Tiny.M.on("keydown", event => {
