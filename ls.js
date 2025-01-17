@@ -987,15 +987,7 @@
             this._events = new LS.EventHandler(this);
 
             this.colors = new Map;
-            this.themes = new Map;
-
-            for(let color of ["auto", "rich-black", "navy", "blue", "lapis", "pastel-indigo", "teal", "pastel-teal", "aquamarine", "mint", "green" ,"lime", "neon", "yellow", "orange", "deep-orange", "red", "rusty-red", "pink", "hotpink", "purple", "soap", "burple", "gray", "gray-light", "white", "black", "sand", "cozy", "icepop", "sport"]) {
-                this.colors.set(color, new LS.Color(0, 0, 0));
-            }
-
-            this.default = {
-                themes: ["dark", "light", "amoled"]
-            }
+            this.themes = new Set(["light", "dark", "amoled"]);
 
             // Style tag to manage
             this.style = document.querySelector("#ls-colors");
@@ -1020,6 +1012,22 @@
                     this.emit("scheme-changed", [thing.matches])
                 })
             }
+        }
+
+        static get theme(){
+            return document.body.getAttribute("ls-theme")
+        }
+
+        static set theme(theme){
+            this.setTheme(theme)
+        }
+        
+        static get accent(){
+            return document.body.getAttribute("ls-accent")
+        }
+
+        static set accent(color){
+            this.setAccent(color)
         }
 
         static add(name, r, g, b){
@@ -1105,6 +1113,10 @@
         
             return (color[0] = ~~(color[0] / sampleCount)), (color[1] = ~~(color[1] / sampleCount)), (color[2] = ~~(color[2] / sampleCount)), new LS.Color(...color);
         }
+    }
+
+    for(let color of ["auto", "rich-black", "navy", "blue", "lapis", "pastel-indigo", "teal", "pastel-teal", "aquamarine", "mint", "green" ,"lime", "neon", "yellow", "orange", "deep-orange", "red", "rusty-red", "pink", "hotpink", "purple", "soap", "burple", "gray", "gray-light", "white", "black", "sand", "cozy", "icepop", "sport"]) {
+        LS.Color.colors.set(color, new LS.Color(0, 0, 0));
     }
 
     if(LS.isWeb){
