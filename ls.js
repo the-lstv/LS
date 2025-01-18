@@ -986,7 +986,7 @@
         static {
             this._events = new LS.EventHandler(this);
 
-            this.colors = new Map;
+            this.colors = null; // Will be set below
             this.themes = new Set(["light", "dark", "amoled"]);
 
             // Style tag to manage
@@ -1047,7 +1047,7 @@
 
         static setTheme(theme){
             document.body.setAttribute("ls-theme", theme)
-            this.invoke("theme-changed", theme)
+            this.emit("theme-changed", [theme])
             return this
         }
 
@@ -1058,7 +1058,7 @@
 
         static autoScheme(amoled){
             LS.once("body-available", () => {
-                this.setAdaptiveTheme();
+                this.setAdaptiveTheme(amoled);
                 this.on("scheme-changed", () => this.setAdaptiveTheme())
             })
             return this
@@ -1115,9 +1115,38 @@
         }
     }
 
-    for(let color of ["auto", "rich-black", "navy", "blue", "lapis", "pastel-indigo", "teal", "pastel-teal", "aquamarine", "mint", "green" ,"lime", "neon", "yellow", "orange", "deep-orange", "red", "rusty-red", "pink", "hotpink", "purple", "soap", "burple", "gray", "gray-light", "white", "black", "sand", "cozy", "icepop", "sport"]) {
-        LS.Color.colors.set(color, new LS.Color(0, 0, 0));
-    }
+    LS.Color.colors = new Map([
+        ['rich_black', new LS.Color(6, 0, 35)],
+        ['navy', new LS.Color(40, 28, 108)],
+        ['blue', new LS.Color(0, 133, 255)],
+        ['pastel_indigo', new LS.Color(70, 118, 181)],
+        ['lapis', new LS.Color(34, 114, 154)],
+        ['teal', new LS.Color(0, 128, 128)],
+        ['pastel_teal', new LS.Color(69, 195, 205)],
+        ['aquamarine', new LS.Color(58, 160, 125)],
+        ['mint', new LS.Color(106, 238, 189)],
+        ['green', new LS.Color(25, 135, 84)],
+        ['lime', new LS.Color(133, 210, 50)],
+        ['neon', new LS.Color(173, 255, 110)],
+        ['yellow', new LS.Color(255, 236, 32)],
+        ['lstv_red', new LS.Color(237, 108, 48)],
+        ['lstv_yellow', new LS.Color(252, 194, 27)],
+        ['lstv_blue', new LS.Color(64, 192, 231)],
+        ['orange', new LS.Color(255, 140, 32)],
+        ['deep_orange', new LS.Color(255, 112, 52)],
+        ['red', new LS.Color(245, 47, 47)],
+        ['rusty_red', new LS.Color(220, 53, 69)],
+        ['pink', new LS.Color(230, 52, 164)],
+        ['hotpink', new LS.Color(245, 100, 169)],
+        ['purple', new LS.Color(155, 77, 175)],
+        ['soap', new LS.Color(210, 190, 235)],
+        ['burple', new LS.Color(81, 101, 246)],
+        ['gray', new LS.Color(73, 73, 73)],
+        ['gray_light', new LS.Color(107, 107, 107)],
+        ['white', new LS.Color(225, 225, 225)],
+        ['black', new LS.Color(16, 16, 16)],
+    ]);
+      
 
     if(LS.isWeb){
         LS.Tiny.M.on("keydown", event => {

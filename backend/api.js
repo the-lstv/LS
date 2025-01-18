@@ -30,6 +30,9 @@ var Path = path.resolve(__dirname, ".."),
     This also differs from legacy versions where there were separate distribution files for minified code.
 */
 
+const Enum = Object.freeze({
+    all: 1
+});
 
 const latest = fs.readFileSync(Path + "/version", "utf8").trim();
 
@@ -59,8 +62,8 @@ function Handle({ req, res, segments, error, send }){
         cache.set(version, file_cache);
     }
 
-    const file = segments.length === 2? segments[1]: segments[2];
-    const list = new Set(segments.length === 2? []: segments[1].split(","));
+    let file = segments.length === 2? segments[1]: segments[2];
+    let list = segments[1] === "*"? Enum.all : new Set(segments.length === 2? []: segments[1].split(","));
 
     const first_index = file.indexOf(".");
     const last_index = file.lastIndexOf(".");
@@ -97,7 +100,11 @@ function Handle({ req, res, segments, error, send }){
 
         result.push(content);
     } else { if(file_name !== "bundle") list.add(file_name) }
-    
+
+    if(list === Enum.all) {
+        list = new Set(fs.readdirSync(VersionPath + type + "/").filter(file => file.endsWith(type)).map(file => file.slice(0, file.lastIndexOf("."))));
+    }
+
     for(let component of list) {
         const component_path = VersionPath + type + "/" + component + "." + type;
 

@@ -292,8 +292,40 @@ button.ls-toast-close.ls-toast-close {
   margin-left: -0.4em;
 }
 
+:root {
+  --ls-accent-rich-black-raw: 6, 0, 35;
+  --ls-accent-navy-raw: 40, 28, 108;
+  --ls-accent-blue-raw: 0, 133, 255;
+  --ls-accent-pastel-indigo-raw: 70, 118, 181;
+  --ls-accent-lapis-raw: 34, 114, 154;
+  --ls-accent-teal-raw: 0, 128, 128;
+  --ls-accent-pastel-teal-raw: 69, 195, 205;
+  --ls-accent-aquamarine-raw: 58, 160, 125;
+  --ls-accent-mint-raw: 106, 238, 189;
+  --ls-accent-green-raw: 25, 135, 84;
+  --ls-accent-lime-raw: 133, 210, 50;
+  --ls-accent-neon-raw: 173, 255, 110;
+  --ls-accent-yellow-raw: 255, 236, 32;
+  --ls-accent-lstv-red-raw: 237, 108, 48;
+  --ls-accent-lstv-yellow-raw: 252, 194, 27;
+  --ls-accent-lstv-blue-raw: 64, 192, 231;
+  --ls-accent-orange-raw: 255, 140, 32;
+  --ls-accent-deep-orange-raw: 255, 112, 52;
+  --ls-accent-red-raw: 245, 47, 47;
+  --ls-accent-rusty-red-raw: 220, 53, 69;
+  --ls-accent-pink-raw: 230, 52, 164;
+  --ls-accent-hotpink-raw: 245, 100, 169;
+  --ls-accent-purple-raw: 155, 77, 175;
+  --ls-accent-soap-raw: 210, 190, 235;
+  --ls-accent-burple-raw: 81, 101, 246;
+  --ls-accent-gray-raw: 73, 73, 73;
+  --ls-accent-gray-light-raw: 107, 107, 107;
+  --ls-accent-white-raw: 225, 225, 225;
+  --ls-accent-black-raw: 16, 16, 16;
+}
+
 [ls-accent=rich-black] {
-  --accent-raw: 6, 0, 35;
+  --accent-raw: var(--ls-accent-rich-black-raw);
   --accent-background-raw: 0, 0, 0;
   --accent-dark-raw: 0, 0, 0;
   --accent-light-raw: 19, 4, 92;
@@ -302,7 +334,7 @@ button.ls-toast-close.ls-toast-close {
 }
 
 [ls-accent=navy] {
-  --accent-raw: 40, 28, 108;
+  --accent-raw: var(--ls-accent-navy-raw);
   --accent-background-raw: 14, 13, 21;
   --accent-dark-raw: 24, 18, 56;
   --accent-light-raw: 64, 48, 149;
@@ -311,7 +343,7 @@ button.ls-toast-close.ls-toast-close {
 }
 
 [ls-accent=blue], html {
-  --accent-raw: 0, 133, 255;
+  --accent-raw: var(--ls-accent-blue-raw);
   --accent-background-raw: 13, 26, 38;
   --accent-dark-raw: 8, 101, 186;
   --accent-light-raw: 69, 162, 247;
@@ -320,7 +352,7 @@ button.ls-toast-close.ls-toast-close {
 }
 
 [ls-accent=pastel-indigo] {
-  --accent-raw: 70, 118, 181;
+  --accent-raw: var(--ls-accent-pastel-indigo-raw);
   --accent-background-raw: 60,72,89;
   --accent-dark-raw: 61, 90, 129;
   --accent-light-raw: 120, 151, 192;
@@ -329,7 +361,7 @@ button.ls-toast-close.ls-toast-close {
 }
 
 [ls-accent=lapis] {
-  --accent-raw: 34, 114, 154;
+  --accent-raw: var(--ls-accent-lapis-raw);
   --accent-background-raw: 0, 0, 0;
   --accent-dark-raw: 28, 75, 99;
   --accent-light-raw: 55, 148, 194;
@@ -338,7 +370,7 @@ button.ls-toast-close.ls-toast-close {
 }
 
 [ls-accent=teal] {
-  --accent-raw: 0, 128, 128;
+  --accent-raw: var(--ls-accent-teal-raw);
   --accent-background-raw: 7, 20, 20;
   --accent-dark-raw: 3, 64, 64;
   --accent-light-raw: 8, 182, 182;
@@ -347,7 +379,7 @@ button.ls-toast-close.ls-toast-close {
 }
 
 [ls-accent=pastel-teal] {
-  --accent-raw: 69, 195, 205;
+  --accent-raw: var(--ls-accent-pastel-teal-raw);
   --accent-background-raw: 69,100,103;
   --accent-dark-raw: 54, 151, 159;
   --accent-light-raw: 124, 205, 211;
@@ -356,7 +388,7 @@ button.ls-toast-close.ls-toast-close {
 }
 
 [ls-accent=aquamarine] {
-  --accent-raw: 58, 160, 125;
+  --accent-raw: var(--ls-accent-aquamarine-raw);
   --accent-background-raw: 35, 55, 48;
   --accent-dark-raw: 48, 109, 88;
   --accent-light-raw: 95, 184, 154;
@@ -365,7 +397,7 @@ button.ls-toast-close.ls-toast-close {
 }
 
 [ls-accent=mint] {
-  --accent-raw: 106, 238, 189;
+  --accent-raw: var(--ls-accent-mint-raw);
   --accent-background-raw: 49, 167, 123;
   --accent-dark-raw: 60, 223, 162;
   --accent-light-raw: 165, 240, 212;
@@ -374,7 +406,7 @@ button.ls-toast-close.ls-toast-close {
 }
 
 [ls-accent=green] {
-  --accent-raw: 25, 135, 84;
+  --accent-raw: var(--ls-accent-green-raw);
   --accent-background-raw: 24, 34, 29;
   --accent-dark-raw: 19, 79, 52;
   --accent-light-raw: 43, 178, 115;
@@ -383,7 +415,7 @@ button.ls-toast-close.ls-toast-close {
 }
 
 [ls-accent=lime] {
-  --accent-raw: 133, 210, 50;
+  --accent-raw: var(--ls-accent-lime-raw);
   --accent-background-raw: 28, 32, 24;
   --accent-dark-raw: 80, 114, 44;
   --accent-light-raw: 163, 213, 108;
@@ -392,7 +424,7 @@ button.ls-toast-close.ls-toast-close {
 }
 
 [ls-accent=neon] {
-  --accent-raw: 173, 255, 110;
+  --accent-raw: var(--ls-accent-neon-raw);
   --accent-background-raw: 28, 44, 15;
   --accent-dark-raw: 124, 187, 76;
   --accent-light-raw: 225, 253, 204;
@@ -401,7 +433,7 @@ button.ls-toast-close.ls-toast-close {
 }
 
 [ls-accent=yellow] {
-  --accent-raw: 255, 236, 32;
+  --accent-raw: var(--ls-accent-yellow-raw);
   --accent-background-raw: 62, 59, 21;
   --accent-dark-raw: 217, 199, 9;
   --accent-light-raw: 255, 248, 175;
@@ -410,7 +442,7 @@ button.ls-toast-close.ls-toast-close {
 }
 
 [ls-accent=lstv-red] {
-  --accent-raw: 237, 108, 48;
+  --accent-raw: var(--ls-accent-lstv-red-raw);
   --accent-background-raw: 54, 35, 27;
   --accent-dark-raw: 197, 81, 27;
   --accent-light-raw: 235, 150, 111;
@@ -419,7 +451,7 @@ button.ls-toast-close.ls-toast-close {
 }
 
 [ls-accent=lstv-yellow] {
-  --accent-raw: 252, 194, 27;
+  --accent-raw: var(--ls-accent-lstv-yellow-raw);
   --accent-background-raw: 55, 46, 20;
   --accent-dark-raw: 206, 156, 12;
   --accent-light-raw: 246, 207, 94;
@@ -428,7 +460,7 @@ button.ls-toast-close.ls-toast-close {
 }
 
 [ls-accent=lstv-blue] {
-  --accent-raw: 64, 192, 231;
+  --accent-raw: var(--ls-accent-lstv-blue-raw);
   --accent-background-raw: 33, 52, 58;
   --accent-dark-raw: 35, 160, 198;
   --accent-light-raw: 125, 207, 232;
@@ -437,7 +469,7 @@ button.ls-toast-close.ls-toast-close {
 }
 
 [ls-accent=orange] {
-  --accent-raw: 255, 140, 32;
+  --accent-raw: var(--ls-accent-orange-raw);
   --accent-background-raw: 62, 41, 21;
   --accent-dark-raw: 217, 110, 9;
   --accent-light-raw: 249, 172, 100;
@@ -446,7 +478,7 @@ button.ls-toast-close.ls-toast-close {
 }
 
 [ls-accent=deep-orange] {
-  --accent-raw: 255, 112, 52;
+  --accent-raw: var(--ls-accent-deep-orange-raw);
   --accent-background-raw: 77, 41, 26;
   --accent-dark-raw: 236, 77, 10;
   --accent-light-raw: 249, 157, 119;
@@ -455,7 +487,7 @@ button.ls-toast-close.ls-toast-close {
 }
 
 [ls-accent=red] {
-  --accent-raw: 245, 47, 47;
+  --accent-raw: var(--ls-accent-red-raw);
   --accent-background-raw: 62, 26, 26;
   --accent-dark-raw: 157, 33, 33;
   --accent-light-raw: 242, 112, 112;
@@ -464,7 +496,7 @@ button.ls-toast-close.ls-toast-close {
 }
 
 [ls-accent=rusty-red], [ls-accent=bright-red] {
-  --accent-raw: 220, 53, 69;
+  --accent-raw: var(--ls-accent-rusty-red-raw);
   --accent-background-raw: 42, 27, 29;
   --accent-dark-raw: 172, 40, 52;
   --accent-light-raw: 222, 112, 123;
@@ -473,26 +505,26 @@ button.ls-toast-close.ls-toast-close {
 }
 
 [ls-accent=pink] {
-  --accent-raw: 230, 52, 164;
-  --accent-background-raw: 61, 42, 54;
+  --accent-raw: var(--ls-accent-pink-raw);
+  --accent-background-raw: 50, 28, 42;
   --accent-dark-raw: 188, 33, 130;
   --accent-light-raw: 230, 113, 187;
   --accent-text-raw: 92, 11, 62;
-  --accent-contrast: #222;
+  --accent-contrast: #eee;
 }
 
 [ls-accent=hotpink] {
-  --accent-raw: 245, 100, 169;
+  --accent-raw: var(--ls-accent-hotpink-raw);
   --accent-background-raw: 97, 44, 69;
   --accent-dark-raw: 232, 52, 138;
   --accent-light-raw: 245, 162, 201;
   --accent-text-raw: 156, 10, 80;
-  --accent-contrast: #222;
+  --accent-contrast: #eee;
 }
 
 [ls-accent=purple] {
-  --accent-raw: 155, 77, 175;
-  --accent-background-raw: 54, 43, 56;
+  --accent-raw: var(--ls-accent-purple-raw);
+  --accent-background-raw: 24, 24, 24;
   --accent-dark-raw: 113, 66, 125;
   --accent-light-raw: 175, 126, 187;
   --accent-text-raw: 45, 22, 51;
@@ -500,16 +532,16 @@ button.ls-toast-close.ls-toast-close {
 }
 
 [ls-accent=soap] {
-  --accent-raw: 210, 190, 235;
-  --accent-background-raw: 145, 119, 178;
+  --accent-raw: var(--ls-accent-soap-raw);
+  --accent-background-raw: 110, 107, 114;
   --accent-dark-raw: 178, 149, 215;
   --accent-light-raw: 243, 238, 248;
   --accent-text-raw: 116, 58, 189;
-  --accent-contrast: #222;
+  --accent-contrast: #eee;
 }
 
 [ls-accent=burple] {
-  --accent-raw: 81, 101, 246;
+  --accent-raw: var(--ls-accent-burple-raw);
   --accent-background-raw: 37, 43, 86;
   --accent-dark-raw: 33, 57, 233;
   --accent-light-raw: 144, 156, 244;
@@ -519,7 +551,7 @@ button.ls-toast-close.ls-toast-close {
 
 [ls-accent=gray],
 :disabled {
-  --accent-raw: 73, 73, 73;
+  --accent-raw: var(--ls-accent-gray-raw);
   --accent-background-raw: 22, 22, 22;
   --accent-dark-raw: 42, 42, 42;
   --accent-light-raw: 104, 104, 104;
@@ -528,7 +560,7 @@ button.ls-toast-close.ls-toast-close {
 }
 
 [ls-accent=gray-light] {
-  --accent-raw: 107, 107, 107;
+  --accent-raw: var(--ls-accent-gray-light-raw);
   --accent-background-raw: 43, 43, 43;
   --accent-dark-raw: 76, 76, 76;
   --accent-light-raw: 138, 138, 138;
@@ -537,7 +569,7 @@ button.ls-toast-close.ls-toast-close {
 }
 
 [ls-accent=white] {
-  --accent-raw: 225, 225, 225;
+  --accent-raw: var(--ls-accent-white-raw);
   --accent-background-raw: 123, 123, 123;
   --accent-dark-raw: 194, 194, 194;
   --accent-light-raw: 255, 255, 255;
@@ -546,7 +578,7 @@ button.ls-toast-close.ls-toast-close {
 }
 
 [ls-accent=black] {
-  --accent-raw: 16, 16, 16;
+  --accent-raw: var(--ls-accent-black-raw);
   --accent-background-raw: 42, 42, 42;
   --accent-dark-raw: 0, 0, 0;
   --accent-light-raw: 47, 47, 47;
