@@ -1,372 +1,94 @@
-$accent_rich_black: rgb(6, 0, 35);
-$accent_navy: rgb(40, 28, 108);
-$accent_blue: rgb(0, 133, 255);
-$accent_pastel_indigo: rgb(70, 118, 181);
-$accent_lapis: rgb(34, 114, 154);
-$accent_teal: rgb(0, 128, 128);
-$accent_pastel_teal: rgb(69, 195, 205);
-$accent_aquamarine: rgb(58, 160, 125);
-$accent_mint: rgb(106, 238, 189);
-$accent_green: rgb(25, 135, 84);
-$accent_lime: rgb(133, 210, 50);
-$accent_neon: rgb(173, 255, 110);
-$accent_yellow: rgb(255, 236, 32);
-$accent_lstv_red: rgb(237, 108, 48);
-$accent_lstv_yellow: rgb(252, 194, 27);
-$accent_lstv_blue: rgb(64, 192, 231);
-$accent_orange: rgb(255, 140, 32);
-$accent_deep_orange: rgb(255, 112, 52);
-$accent_red: rgb(245, 47, 47);
-$accent_rusty_red: rgb(220, 53, 69);
-$accent_pink: rgb(230, 52, 164);
-$accent_hotpink: rgb(245, 100, 169);
-$accent_purple: rgb(155, 77, 175);
-$accent_soap: rgb(210, 190, 235);
-$accent_burple: rgb(81, 101, 246);
-$accent_gray: rgb(73, 73, 73);
-$accent_gray_light: rgb(107, 107, 107);
-$accent_white: rgb(225, 225, 225);
-$accent_black: rgb(16, 16, 16);
+@use "sass:map";
+@use "sass:color";
+
+$colors: (
+    "navy":           rgb(40, 28, 108),
+    "blue":           rgb(0, 133, 255),
+    "pastel-indigo":  rgb(70, 118, 181),
+    "lapis":          rgb(34, 114, 154),
+    "teal":           rgb(0, 128, 128),
+    "pastel-teal":    rgb(69, 195, 205),
+    "aquamarine":     rgb(58, 160, 125),
+    "mint":           rgb(106, 238, 189),
+    "green":          rgb(25, 135, 84),
+    "lime":           rgb(133, 210, 50),
+    "neon":           rgb(173, 255, 110),
+    "yellow":         rgb(255, 236, 32),
+    "lstv-red":       rgb(237, 108, 48),
+    "lstv-yellow":    rgb(252, 194, 27),
+    "lstv-blue":      rgb(64, 192, 231),
+    "orange":         rgb(255, 140, 32),
+    "deep-orange":    rgb(255, 112, 52),
+    "red":            rgb(245, 47, 47),
+    "rusty-red":      rgb(220, 53, 69),
+    "pink":           rgb(230, 52, 164),
+    "hotpink":        rgb(245, 100, 169),
+    "purple":         rgb(155, 77, 175),
+    "soap":           rgb(210, 190, 235),
+    "burple":         rgb(81, 101, 246),
+    "white":          rgb(255, 255, 255),
+);
 
 :root {
-    --ls-accent-rich-black-raw: #{toRaw($accent_rich_black)};
-    --ls-accent-navy-raw: #{toRaw($accent_navy)};
-    --ls-accent-blue-raw: #{toRaw($accent_blue)};
-    --ls-accent-pastel-indigo-raw: #{toRaw($accent_pastel_indigo)};
-    --ls-accent-lapis-raw: #{toRaw($accent_lapis)};
-    --ls-accent-teal-raw: #{toRaw($accent_teal)};
-    --ls-accent-pastel-teal-raw: #{toRaw($accent_pastel_teal)};
-    --ls-accent-aquamarine-raw: #{toRaw($accent_aquamarine)};
-    --ls-accent-mint-raw: #{toRaw($accent_mint)};
-    --ls-accent-green-raw: #{toRaw($accent_green)};
-    --ls-accent-lime-raw: #{toRaw($accent_lime)};
-    --ls-accent-neon-raw: #{toRaw($accent_neon)};
-    --ls-accent-yellow-raw: #{toRaw($accent_yellow)};
-    --ls-accent-lstv-red-raw: #{toRaw($accent_lstv_red)};
-    --ls-accent-lstv-yellow-raw: #{toRaw($accent_lstv_yellow)};
-    --ls-accent-lstv-blue-raw: #{toRaw($accent_lstv_blue)};
-    --ls-accent-orange-raw: #{toRaw($accent_orange)};
-    --ls-accent-deep-orange-raw: #{toRaw($accent_deep_orange)};
-    --ls-accent-red-raw: #{toRaw($accent_red)};
-    --ls-accent-rusty-red-raw: #{toRaw($accent_rusty_red)};
-    --ls-accent-pink-raw: #{toRaw($accent_pink)};
-    --ls-accent-hotpink-raw: #{toRaw($accent_hotpink)};
-    --ls-accent-purple-raw: #{toRaw($accent_purple)};
-    --ls-accent-soap-raw: #{toRaw($accent_soap)};
-    --ls-accent-burple-raw: #{toRaw($accent_burple)};
-    --ls-accent-gray-raw: #{toRaw($accent_gray)};
-    --ls-accent-gray-light-raw: #{toRaw($accent_gray_light)};
-    --ls-accent-white-raw: #{toRaw($accent_white)};
-    --ls-accent-black-raw: #{toRaw($accent_black)};
+    @each $name, $color in $colors {
+        --ls-accent-#{$name}: #{$color};
+    }
 }
 
-[ls-accent="rich-black"] {
-    --accent-raw: var(--ls-accent-rich-black-raw);
-    --accent-background-raw: #{toRaw(darken(desaturate($accent_rich_black, 35%), 20%))};
-    --accent-dark-raw: #{toRaw(darken(desaturate($accent_rich_black, 8%), 12%))};
-    --accent-light-raw: #{toRaw(lighten(desaturate($accent_rich_black, 8%), 12%))};
-    --accent-text-raw: #{toRaw(lighten(desaturate($accent_rich_black, 25%), 35%))};
-    --accent-contrast: #{lighten(desaturate($accent_rich_black, 18%), 60%)};
-}
+@each $name, $color in $colors {
+    $selector: "[ls-accent=\"#{$name}\"]";
 
-[ls-accent="navy"] {
-    --accent-raw: var(--ls-accent-navy-raw);
-    --accent-background-raw: #{toRaw(darken(desaturate($accent_navy, 35%), 20%))};
-    --accent-dark-raw: #{toRaw(darken(desaturate($accent_navy, 8%), 12%))};
-    --accent-light-raw: #{toRaw(lighten(desaturate($accent_navy, 8%), 12%))};
-    --accent-text-raw: #{toRaw(lighten(desaturate($accent_navy, 25%), 35%))};
-    --accent-contrast: #{lighten(desaturate($accent_navy, 18%), 60%)};
-}
+    @if $name == "blue" {
+        $selector: "#{$selector}, html";
+    }
+    
+    @else if $name == "white" {
+        $selector: "#{$selector}, :disabled, [ls-accent=\"gray\"], [ls-accent=\"auto\"], [ls-accent=\"black\"]";
+    }
 
-[ls-accent="blue"], html {
-    --accent-raw: var(--ls-accent-blue-raw);
-    --accent-background-raw: #{toRaw(darken(desaturate($accent_blue, 50%), 40%))};
-    --accent-dark-raw: #{toRaw(darken(desaturate($accent_blue, 8%), 12%))};
-    --accent-light-raw: #{toRaw(lighten(desaturate($accent_blue, 8%), 12%))};
-    --accent-text-raw: #{toRaw(darken($accent_blue, 35%))};
-    --accent-contrast: #{lighten(desaturate($accent_blue, 18%), 50%)};
-}
+    // Generate CSS for the modified selector
+    #{$selector} {
+        --accent-10: #{generate-tone($color, 10)};
+        --accent-20: #{generate-tone($color, 20)};
+        --accent-30: #{generate-tone($color, 30)};
+        --accent-35: #{generate-tone($color, 35)};
+        --accent-40: #{generate-tone($color, 40)};
+        --accent-45: #{generate-tone($color, 45)};
+        --accent-50: #{generate-tone($color, 50)};
+        --accent-55: #{generate-tone($color, 55)};
+        --accent-60: #{generate-tone($color, 60)};
+        --accent-70: #{generate-tone($color, 70)};
+        --accent-80: #{generate-tone($color, 80)};
+        --accent-90: #{generate-tone($color, 90)};
+        --accent-95: #{generate-tone($color, 95)};
 
-[ls-accent="pastel-indigo"] {
-    --accent-raw: var(--ls-accent-pastel-indigo-raw);
-    --accent-background-raw: 60,72,89;
-    --accent-dark-raw: #{toRaw(darken(desaturate($accent_pastel_indigo, 8%), 12%))};
-    --accent-light-raw: #{toRaw(lighten(desaturate($accent_pastel_indigo, 8%), 12%))};
-    --accent-text-raw: #{toRaw(darken($accent_pastel_indigo, 35%))};
-    --accent-contrast: #222;
-}
+        --surface-5: #{generate-tone($color,  5,  12)};
+        --surface-6: #{generate-tone($color,  6,  12)};
+        --surface-8: #{generate-tone($color,  8,  12)};
+        --surface-10: #{generate-tone($color, 10,  12)};
+        --surface-15: #{generate-tone($color, 15,  12)};
+        --surface-20: #{generate-tone($color, 20, 12)};
+        --surface-25: #{generate-tone($color, 25, 12)};
+        --surface-30: #{generate-tone($color, 30, 12)};
+        --surface-35: #{generate-tone($color, 35, 12)};
+        --surface-40: #{generate-tone($color, 40, 12)};
+        --surface-45: #{generate-tone($color, 45, 12)};
+        --surface-50: #{generate-tone($color, 50, 12)};
+        --surface-55: #{generate-tone($color, 55, 12)};
+        --surface-60: #{generate-tone($color, 60, 12)};
+        --surface-65: #{generate-tone($color, 65, 12)};
+        --surface-70: #{generate-tone($color, 70, 12)};
+        --surface-75: #{generate-tone($color, 75, 12)};
+        --surface-80: #{generate-tone($color, 80, 12)};
+        --surface-85: #{generate-tone($color, 85, 12)};
+        --surface-90: #{generate-tone($color, 90, 12)};
+        --surface-95: #{generate-tone($color, 95, 12)};
 
-[ls-accent="lapis"] {
-    --accent-raw: var(--ls-accent-lapis-raw);
-    --accent-background-raw: #{toRaw(darken(desaturate($accent_lapis, 50%), 40%))};
-    --accent-dark-raw: #{toRaw(darken(desaturate($accent_lapis, 8%), 12%))};
-    --accent-light-raw: #{toRaw(lighten(desaturate($accent_lapis, 8%), 12%))};
-    --accent-text-raw: #{toRaw(darken($accent_lapis, 25%))};
-    --accent-contrast: #{lighten(desaturate($accent_lapis, 18%), 50%)};
-}
-
-[ls-accent="teal"] {
-    --accent-raw: var(--ls-accent-teal-raw);
-    --accent-background-raw: #{toRaw(darken(desaturate($accent_teal, 50%), 20%))};
-    --accent-dark-raw: #{toRaw(darken(desaturate($accent_teal, 8%), 12%))};
-    --accent-light-raw: #{toRaw(lighten(desaturate($accent_teal, 8%), 12%))};
-    --accent-text-raw: #{toRaw(darken($accent_teal, 35%))};
-    --accent-contrast: #222;
-}
-
-[ls-accent="pastel-teal"] {
-    --accent-raw: var(--ls-accent-pastel-teal-raw);
-    --accent-background-raw: 69,100,103;
-    --accent-dark-raw: #{toRaw(darken(desaturate($accent_pastel_teal, 8%), 12%))};
-    --accent-light-raw: #{toRaw(lighten(desaturate($accent_pastel_teal, 8%), 12%))};
-    --accent-text-raw: #{toRaw(darken($accent_pastel_teal, 35%))};
-    --accent-contrast: #222;
-}
-
-[ls-accent="aquamarine"] {
-    --accent-raw: var(--ls-accent-aquamarine-raw);
-    --accent-background-raw: #{toRaw(darken(desaturate($accent_aquamarine, 25%), 25%))};
-    --accent-dark-raw: #{toRaw(darken(desaturate($accent_aquamarine, 8%), 12%))};
-    --accent-light-raw: #{toRaw(lighten(desaturate($accent_aquamarine, 8%), 12%))};
-    --accent-text-raw: #{toRaw(darken($accent_aquamarine, 25%))};
-    --accent-contrast: #222;
-}
-
-[ls-accent="mint"] {
-    --accent-raw: var(--ls-accent-mint-raw);
-    --accent-background-raw: #{toRaw(darken(desaturate($accent_mint, 25%), 25%))};
-    --accent-dark-raw: #{toRaw(darken(desaturate($accent_mint, 8%), 12%))};
-    --accent-light-raw: #{toRaw(lighten(desaturate($accent_mint, 8%), 12%))};
-    --accent-text-raw: #{toRaw(darken($accent_mint, 40%))};
-    --accent-contrast: #222;
-}
-
-[ls-accent="green"] {
-    --accent-raw: var(--ls-accent-green-raw);
-    --accent-background-raw: #{toRaw(darken(desaturate($accent_green, 50%), 20%))};
-    --accent-dark-raw: #{toRaw(darken(desaturate($accent_green, 8%), 12%))};
-    --accent-light-raw: #{toRaw(lighten(desaturate($accent_green, 8%), 12%))};
-    --accent-text-raw: #{toRaw(darken($accent_green, 20%))};
-    --accent-contrast: #fff;
-}
-
-[ls-accent="lime"] {
-    --accent-raw: var(--ls-accent-lime-raw);
-    --accent-background-raw: #{toRaw(darken(desaturate($accent_lime, 50%), 40%))};
-    --accent-dark-raw: #{toRaw(darken(desaturate($accent_lime, 20%), 20%))};
-    --accent-light-raw: #{toRaw(lighten(desaturate($accent_lime, 8%), 12%))};
-    --accent-text-raw: #{toRaw(darken($accent_lime, 35%))};
-    --accent-contrast: #222;
-}
-
-[ls-accent="neon"] {
-    --accent-raw: var(--ls-accent-neon-raw);
-    --accent-background-raw: #{toRaw(darken(desaturate($accent_neon, 50%), 60%))};
-    --accent-dark-raw: #{toRaw(darken(desaturate($accent_neon, 55%), 20%))};
-    --accent-light-raw: #{toRaw(lighten(desaturate($accent_neon, 8%), 18%))};
-    --accent-text-raw: #{toRaw(darken($accent_neon, 45%))};
-    --accent-contrast: #222;
-}
-
-[ls-accent="yellow"] {
-    --accent-raw: var(--ls-accent-yellow-raw);
-    --accent-background-raw: #{toRaw(darken(desaturate($accent_yellow, 50%), 40%))};
-    --accent-dark-raw: #{toRaw(darken(desaturate($accent_yellow, 8%), 12%))};
-    --accent-light-raw: #{toRaw(lighten(saturate($accent_yellow, 5%), 28%))};
-    --accent-text-raw: #{toRaw(darken($accent_yellow, 35%))};
-    --accent-contrast: #222;
-}
-
-[ls-accent="lstv-red"] {
-    --accent-raw: var(--ls-accent-lstv-red-raw);
-    --accent-background-raw: #{toRaw(darken(desaturate($accent_lstv_red, 50%), 40%))};
-    --accent-dark-raw: #{toRaw(darken(desaturate($accent_lstv_red, 8%), 12%))};
-    --accent-light-raw: #{toRaw(lighten(desaturate($accent_lstv_red, 8%), 12%))};
-    --accent-text-raw: #{toRaw(darken($accent_lstv_red, 35%))};
-    --accent-contrast: #222;
-}
-
-[ls-accent="lstv-yellow"] {
-    --accent-raw: var(--ls-accent-lstv-yellow-raw);
-    --accent-background-raw: #{toRaw(darken(desaturate($accent_lstv_yellow, 50%), 40%))};
-    --accent-dark-raw: #{toRaw(darken(desaturate($accent_lstv_yellow, 8%), 12%))};
-    --accent-light-raw: #{toRaw(lighten(desaturate($accent_lstv_yellow, 8%), 12%))};
-    --accent-text-raw: #{toRaw(darken($accent_lstv_yellow, 35%))};
-    --accent-contrast: #222;
-}
-
-[ls-accent="lstv-blue"] {
-    --accent-raw: var(--ls-accent-lstv-blue-raw);
-    --accent-background-raw: #{toRaw(darken(desaturate($accent_lstv_blue, 50%), 40%))};
-    --accent-dark-raw: #{toRaw(darken(desaturate($accent_lstv_blue, 8%), 12%))};
-    --accent-light-raw: #{toRaw(lighten(desaturate($accent_lstv_blue, 8%), 12%))};
-    --accent-text-raw: #{toRaw(darken($accent_lstv_blue, 35%))};
-    --accent-contrast: #222;
-}
-
-[ls-accent="orange"] {
-    --accent-raw: var(--ls-accent-orange-raw);
-    --accent-background-raw: #{toRaw(darken(desaturate($accent_orange, 50%), 40%))};
-    --accent-dark-raw: #{toRaw(darken(desaturate($accent_orange, 8%), 12%))};
-    --accent-light-raw: #{toRaw(lighten(desaturate($accent_orange, 8%), 12%))};
-    --accent-text-raw: #{toRaw(darken($accent_orange, 35%))};
-    --accent-contrast: #222;
-}
-
-[ls-accent="deep-orange"] {
-    --accent-raw: var(--ls-accent-deep-orange-raw);
-    --accent-background-raw: #{toRaw(darken(desaturate($accent_deep_orange, 50%), 40%))};
-    --accent-dark-raw: #{toRaw(darken(desaturate($accent_deep_orange, 8%), 12%))};
-    --accent-light-raw: #{toRaw(lighten(desaturate($accent_deep_orange, 8%), 12%))};
-    --accent-text-raw: #{toRaw(darken($accent_deep_orange, 35%))};
-    --accent-contrast: #222;
-}
-
-[ls-accent="red"] {
-    --accent-raw: var(--ls-accent-red-raw);
-    --accent-background-raw: #{toRaw(darken(desaturate($accent_red, 50%), 40%))};
-    --accent-dark-raw: #{toRaw(darken(desaturate($accent_red, 26%), 20%))};
-    --accent-light-raw: #{toRaw(lighten(desaturate($accent_red, 8%), 12%))};
-    --accent-text-raw: #{toRaw(darken($accent_red, 35%))};
-    --accent-contrast: #222;
-}
-
-[ls-accent="rusty-red"], [ls-accent="bright-red"] {
-    --accent-raw: var(--ls-accent-rusty-red-raw);
-    --accent-background-raw: #{toRaw(darken(desaturate($accent_rusty_red, 50%), 40%))};
-    --accent-dark-raw: #{toRaw(darken(desaturate($accent_rusty_red, 8%), 12%))};
-    --accent-light-raw: #{toRaw(lighten(desaturate($accent_rusty_red, 8%), 12%))};
-    --accent-text-raw: #{toRaw(darken($accent_rusty_red, 35%))};
-    --accent-contrast: #222;
-}
-
-[ls-accent="pink"] {
-    --accent-raw: var(--ls-accent-pink-raw);
-    --accent-background-raw: #{toRaw(darken(desaturate($accent_pink, 50%), 40%))};
-    --accent-dark-raw: #{toRaw(darken(desaturate($accent_pink, 8%), 12%))};
-    --accent-light-raw: #{toRaw(lighten(desaturate($accent_pink, 8%), 12%))};
-    --accent-text-raw: #{toRaw(darken($accent_pink, 35%))};
-    --accent-contrast: #eee;
-}
-
-[ls-accent="hotpink"] {
-    --accent-raw: var(--ls-accent-hotpink-raw);
-    --accent-background-raw: #{toRaw(darken(desaturate($accent_hotpink, 50%), 40%))};
-    --accent-dark-raw: #{toRaw(darken(desaturate($accent_hotpink, 8%), 12%))};
-    --accent-light-raw: #{toRaw(lighten(desaturate($accent_hotpink, 8%), 12%))};
-    --accent-text-raw: #{toRaw(darken($accent_hotpink, 35%))};
-    --accent-contrast: #eee;
-}
-
-[ls-accent="purple"] {
-    --accent-raw: var(--ls-accent-purple-raw);
-    --accent-background-raw: #{toRaw(darken(desaturate($accent_purple, 50%), 40%))};
-    --accent-dark-raw: #{toRaw(darken(desaturate($accent_purple, 8%), 12%))};
-    --accent-light-raw: #{toRaw(lighten(desaturate($accent_purple, 8%), 12%))};
-    --accent-text-raw: #{toRaw(darken($accent_purple, 35%))};
-    --accent-contrast: #eee;
-}
-
-[ls-accent="soap"] {
-    --accent-raw: var(--ls-accent-soap-raw);
-    --accent-background-raw: #{toRaw(darken(desaturate($accent_soap, 50%), 40%))};
-    --accent-dark-raw: #{toRaw(darken(desaturate($accent_soap, 8%), 12%))};
-    --accent-light-raw: #{toRaw(lighten(desaturate($accent_soap, 8%), 12%))};
-    --accent-text-raw: #{toRaw(darken($accent_soap, 35%))};
-    --accent-contrast: #eee;
-}
-
-[ls-accent="burple"] {
-    --accent-raw: var(--ls-accent-burple-raw);
-    --accent-background-raw: #{toRaw(darken(desaturate($accent_burple, 50%), 40%))};
-    --accent-dark-raw: #{toRaw(darken(desaturate($accent_burple, 8%), 12%))};
-    --accent-light-raw: #{toRaw(lighten(desaturate($accent_burple, 8%), 12%))};
-    --accent-text-raw: #{toRaw(darken($accent_burple, 35%))};
-    --accent-contrast: #eee;
-}
-
-[ls-accent="gray"],
-:disabled {
-    --accent-raw: var(--ls-accent-gray-raw);
-    --accent-background-raw: #{toRaw(darken(desaturate($accent_gray, 50%), 20%))};
-    --accent-dark-raw: #{toRaw(darken(desaturate($accent_gray, 8%), 12%))};
-    --accent-light-raw: #{toRaw(lighten(desaturate($accent_gray, 8%), 12%))};
-    --accent-text-raw: #{toRaw(darken($accent_gray, 35%))};
-    --accent-contrast: #eee;
-}
-
-[ls-accent="gray-light"] {
-    --accent-raw: var(--ls-accent-gray-light-raw);
-    --accent-background-raw: #{toRaw(darken(desaturate($accent_gray_light, 50%), 25%))};
-    --accent-dark-raw: #{toRaw(darken(desaturate($accent_gray_light, 8%), 12%))};
-    --accent-light-raw: #{toRaw(lighten(desaturate($accent_gray_light, 8%), 12%))};
-    --accent-text-raw: #{toRaw(darken($accent_gray_light, 30%))};
-    --accent-contrast: #222;
-}
-
-[ls-accent="white"] {
-    --accent-raw: var(--ls-accent-white-raw);
-    --accent-background-raw: #{toRaw(darken(desaturate($accent_white, 50%), 40%))};
-    --accent-dark-raw: #{toRaw(darken(desaturate($accent_white, 8%), 12%))};
-    --accent-light-raw: #{toRaw(lighten(desaturate($accent_white, 8%), 12%))};
-    --accent-text-raw: #{toRaw(darken($accent_white, 35%))};
-    --accent-contrast: #222;
-}
-
-[ls-accent="black"] {
-    --accent-raw: var(--ls-accent-black-raw);
-    --accent-background-raw: #{toRaw(lighten(desaturate($accent_black, 50%), 10%))};
-    --accent-dark-raw: #{toRaw(darken(desaturate($accent_black, 8%), 12%))};
-    --accent-light-raw: #{toRaw(lighten(desaturate($accent_black, 8%), 12%))};
-    --accent-text-raw: #{toRaw(#fff)};
-    --accent-contrast: #fff;
-}
-
-[ls-accent="sand"] {
-    --accent-raw: 236, 98, 111;
-    --accent-dark-raw: 230, 103, 53;
-    --accent-background-raw: 109, 93, 139;
-    --accent-light-raw: 242, 171, 143;
-    --accent-contrast: #222;
-}
-
-[ls-accent="icepop"] {
-    --accent-raw: 206, 38, 38;
-    --accent-dark-raw: 36, 102, 157;
-    --accent-light-raw: 80, 154, 215;
-    --accent-background-raw: 13, 26, 38;
-    --accent-contrast: #ddd;
-}
-
-[ls-accent="cozy"] {
-    --accent-raw: 180, 133, 124;
-    --accent-dark-raw: 92, 133, 161;
-    --accent-background-raw: 81, 105, 121;
-    --accent-light-raw: 156, 181, 199;
-    --accent-contrast: #222;
-}
-
-[ls-accent="sport"] {
-    --accent-raw: 246, 66, 35;
-    --accent-dark-raw: 94, 221, 9;
-    --accent-light-raw: 150, 248, 84;
-    --accent-text-raw: 150, 248, 84;
-    --accent-background-raw: 39, 52, 4;
-    --accent-contrast: #000;
+        --accent-raw: #{toRaw($color)};
+    }
 }
 
 [ls-accent], :disabled, html {
-    --accent: rgb(var(--accent-raw));
+    --accent: var(--accent-40);
     --accent-transparent: rgb(var(--accent-raw), 20%);
-    
-    --accent-background: rgb(var(--accent-background-raw));
-
-    --accent-dark: rgb(var(--accent-dark-raw));
-    --accent-dark-transparent: rgb(var(--accent-dark-raw), 50%);
-
-    --accent-light: rgb(var(--accent-light-raw));
-    --accent-light-transparent: rgb(var(--accent-light-raw), 50%);
-
-    --accent-text: rgb(var(--accent-text-raw));
-    --accent-text-transparent: rgb(var(--accent-text-raw), 50%);
 }

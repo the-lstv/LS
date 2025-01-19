@@ -1,117 +1,63 @@
-[ls-theme] {
-    --background: rgb(var(--background-raw));
+[ls-theme="light"] {
+    --background: var(--surface-90);
+    --color: var(--surface-10);
+
+    // Elevate
+    --elevate: var(--surface-85);
+    --elevate-0: var(--surface-85);
+    --elevate-1: var(--surface-80);
+    --elevate-2: var(--surface-75);
+    --elevate-3: var(--surface-70);
+    --elevate-4: var(--surface-65);
+    --elevate-5: var(--surface-60);
+    --elevate-6: var(--surface-55);
+    --elevate-7: var(--surface-50);
+    --elevate-8: var(--surface-45);
+    --elevate-9: var(--surface-30);
+    --elevate-10: var(--surface-25);
+
+    [ls-accent], &[ls-accent], :disabled {
+        --on-background: var(--accent-40);
+        --on-accent: var(--accent-90);
+        --on-transparent: var(--accent-30);
+    }
+
+    [ls-accent = "auto"], &[ls-accent = "auto"] {
+        --accent: var(--accent-10);
+        --accent-raw: 0, 0, 0;
+    }
 }
 
 [ls-theme="dark"], [ls-theme="amoled"], [ls-theme="default"], body:not([ls-theme]) {
-    --background-raw: 25, 25, 25;
-
-    --transparent-overlay: #fff1;
-    --transparent-overlay-strong: #fff4;
-    --transparent-overlay-dark: #00000018;
-    --transparent-overlay-dark-strong: #0005;
-
-    --color: var(--elevate-8);
-
-    // Borders
-    --border-color-0: #0c0c0c;
-    --border-color: var(--border-color-0);
-
-    // Backgrounds
-    --bg-0: #0e0e0e;
-    --bg-1: #121212;
-    --bg-2: #151515;
-    --bg-3: var(--background);
-    --bg-4: #1c1c1c;
-    --bg-5: #202020;
-    --bg-6: #232323;
-    --bg-7: #272727;
-    --bg-8: #333;
-    --bg: var(--background);
+    --background: var(--surface-8);
+    --color: var(--surface-85);
 
     // Elevate
-    --elevate-0: #222;
-    --elevate-1: #333;
-    --elevate-2: #444;
-    --elevate-3: #555;
-    --elevate-4: #666;
-    --elevate-5: #aaa;
-    --elevate-6: #ccc;
-    --elevate-7: #ddd;
-    --elevate-8: #eee;
-    --elevate: var(--elevate-0);
+    --elevate: var(--surface-15);
+    --elevate-0: var(--surface-5);
+    --elevate-1: var(--surface-6);
+    --elevate-2: var(--surface-15);
+    --elevate-3: var(--surface-20);
+    --elevate-4: var(--surface-25);
+    --elevate-5: var(--surface-30);
+    --elevate-6: var(--surface-35);
+    --elevate-7: var(--surface-40);
+    --elevate-8: var(--surface-45);
+    --elevate-9: var(--surface-60);
+    --elevate-10: var(--surface-70);
+
+    [ls-accent], &[ls-accent], :disabled {
+        --on-background: var(--accent-70);
+        --on-accent: var(--accent-10);
+        --on-transparent: var(--accent-80);
+    }
 
     [ls-accent = "auto"], &[ls-accent = "auto"] {
-        --accent-raw: 225, 225, 225;
-        --accent-dark-raw: 190, 190, 190;
-        --accent-light-raw: 245, 245, 245;
-        --accent-text-raw: 26, 26, 26;
-        --accent-background-raw: 60, 60, 60;
-        --color-bg: #222
+        --accent: var(--accent-90);
+        --accent-raw: 255, 255, 255;
     }
 }
 
 [ls-theme="amoled"] {
-    --background-raw: #{toRaw(#000)};
-
-    // Elevate
-    --elevate-0: #151515;
-    --elevate-1: #222;
-    --elevate-2: #333;
-    --elevate-3: #444;
-    --elevate-4: #585858;
-}
-
-[ls-theme="light"] {
-    --background-raw: #{toRaw(#f1f1f1)};
-
-    --transparent-overlay: #0001;
-    --transparent-overlay-strong: #0004;
-    --transparent-overlay-dark: #0001;
-    --transparent-overlay-dark-strong: #0003;
-
-    --color: var(--elevate-8);
-
-    // Deprecated
-    --ui: var(--bg-6);
-    --ui-bg-0: var(--bg-1);
-    --ui-bg-1: var(--bg-4);
-    --ui-border: var(--border-color-0);
-    --ui-overlay: #7272725e;
-
-    // Borders
-    --border-color-0: #727272;
-    --border-color: var(--border-color-0);
-    
-    // Backgrounds
-    --bg-0: #b4b4b4;
-    --bg-1: #e4e4e4;
-    --bg-2: #f3f3f3;
-    --bg-3: var(--background);
-    --bg-4: #f1f1f1;
-    --bg-5: #ececec;
-    --bg-6: #e4e4e4;
-    --bg-7: #dadada;
-    --bg-8: #c7c7c7;
-    --bg: var(--background);
-
-    // Elevate
-    --elevate-0: #eee;
-    --elevate-1: #ddd;
-    --elevate-2: #bbb;
-    --elevate-3: #aaa;
-    --elevate-4: #888;
-    --elevate-5: #666;
-    --elevate-6: #555;
-    --elevate-7: #444;
-    --elevate-8: #222;
-    --elevate: var(--elevate-0);
-
-    [ls-accent = "auto"], &[ls-accent = "auto"] {
-        --accent-raw: 21, 21, 21;
-        --accent-light-raw: 41, 41, 41;
-        --accent-dark-raw: 11, 11, 11;
-        --accent-text-raw: 215, 215, 215;
-        --accent-background-raw: 120, 120, 120;
-        --color-bg: #eee
-    }
+    --background: #000;
 }

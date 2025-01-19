@@ -74,10 +74,11 @@
     </ls-div>
 
     <ls-div>
-        <ls-group>
-            <input placeholder="Input">
-            <button>Button in a group</button>
-        </ls-group>
+        <input placeholder="Input">
+    </ls-div>
+
+    <ls-div>
+        <textarea placeholder="Textarea"></textarea>
     </ls-div>
 
     <ls-div>
@@ -141,6 +142,87 @@
         For things like highlights, <ls-box class="inline color">an inline box</ls-box> blends in perfectly with text content. <br>
         There is also a <ls-box class="inline color pill">pill</ls-box> (round) variant.
     </ls-div> -->
+
+    <style>
+        .chip {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            border-radius: var(--border-radius);
+            margin: 0 4px;
+        }
+    </style>
+
+    <ls-div>
+        <ls-group>
+            <button onclick='LS.Color.theme = "dark"'><i class="fa-solid fa-moon"></i> Dark theme</button>
+            <button class="elevated" onclick='LS.Color.theme = "light"'><i class="fa-solid fa-sun"></i> Light theme</button>
+        </ls-group>
+    </ls-div>
+
+    <h3>Accent colors</h3>
+    <ls-div>
+        <div class="chip" style="background: var(--accent-10);"></div>
+        <div class="chip" style="background: var(--accent-20);"></div>
+        <div class="chip" style="background: var(--accent-30);"></div>
+        <div class="chip" style="background: var(--accent-35);"></div>
+        <div class="chip" style="background: var(--accent-40);"></div>
+        <div class="chip" style="background: var(--accent-45);"></div>
+        <div class="chip" style="background: var(--accent-50);"></div>
+        <div class="chip" style="background: var(--accent-55);"></div>
+        <div class="chip" style="background: var(--accent-60);"></div>
+        <div class="chip" style="background: var(--accent-70);"></div>
+        <div class="chip" style="background: var(--accent-80);"></div>
+        <div class="chip" style="background: var(--accent-90);"></div>
+        <div class="chip" style="background: var(--accent-95);"></div>
+    </ls-div>
+
+    <h3>Surface colors</h3>
+    <ls-div>
+        <div class="chip" style="background: var(--surface-5);"></div>
+        <div class="chip" style="background: var(--surface-6);"></div>
+        <div class="chip" style="background: var(--surface-8);"></div>
+        <div class="chip" style="background: var(--surface-10);"></div>
+        <div class="chip" style="background: var(--surface-15);"></div>
+        <div class="chip" style="background: var(--surface-20);"></div>
+        <div class="chip" style="background: var(--surface-25);"></div>
+        <div class="chip" style="background: var(--surface-30);"></div>
+        <div class="chip" style="background: var(--surface-35);"></div>
+        <div class="chip" style="background: var(--surface-40);"></div>
+        <div class="chip" style="background: var(--surface-45);"></div>
+        <div class="chip" style="background: var(--surface-50);"></div>
+        <div class="chip" style="background: var(--surface-55);"></div>
+        <div class="chip" style="background: var(--surface-60);"></div>
+        <div class="chip" style="background: var(--surface-65);"></div>
+        <div class="chip" style="background: var(--surface-70);"></div>
+        <div class="chip" style="background: var(--surface-75);"></div>
+        <div class="chip" style="background: var(--surface-80);"></div>
+        <div class="chip" style="background: var(--surface-85);"></div>
+        <div class="chip" style="background: var(--surface-90);"></div>
+        <div class="chip" style="background: var(--surface-95);"></div>
+    </ls-div>
+
+    <h3>Elevate colors</h3>
+    <ls-div>
+        <div class="chip" style="background: var(--elevate-0);"></div>
+        <div class="chip" style="background: var(--elevate-1);"></div>
+        <div class="chip" style="background: var(--elevate-2);"></div>
+        <div class="chip" style="background: var(--elevate-3);"></div>
+        <div class="chip" style="background: var(--elevate-4);"></div>
+        <div class="chip" style="background: var(--elevate-5);"></div>
+        <div class="chip" style="background: var(--elevate-6);"></div>
+        <div class="chip" style="background: var(--elevate-7);"></div>
+        <div class="chip" style="background: var(--elevate-8);"></div>
+        <div class="chip" style="background: var(--elevate-9);"></div>
+        <div class="chip" style="background: var(--elevate-10);"></div>
+    </ls-div>
+
+    <h3>Contrast colors</h3>
+    <ls-div>
+        <div class="chip" style="background: var(--background); border: 5px solid var(--on-background);"></div>
+        <div class="chip" style="background: var(--accent); border: 5px solid var(--on-accent);"></div>
+        <div class="chip" style="background: var(--accent-transparent); border: 5px solid var(--on-transparent);"></div>
+    </ls-div>
 
 </body>
 </html>

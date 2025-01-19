@@ -11,9 +11,14 @@ var Path = path.resolve(__dirname, "../.."),
 
 let lsCache = new Map;
 
+let default_components = ["eventresolver", "default", "events"];
+
 function Handle({ req, res, segments, error, backend }){
-    // const version = segments[2]? segments[1] : null;
-        
+    let version = segments[2]? segments[1] : null;
+
+    // Legacy behavior :shrug:
+    if(!fs.existsSync(DistPath + version + "/")) version = "3.6.5";
+
     if (!segments[2]) {
         segments[2] = segments[1] || ""
     }
@@ -21,28 +26,32 @@ function Handle({ req, res, segments, error, backend }){
     const file_name = "ls." + segments[0].replace(".min", "").split(".").reverse().join(".");
     const doCompress = segments[0].indexOf(".min") !== -1;
 
-    let code = lsCache.get(file_name),
+    let code = lsCache.get(version + "." + file_name),
         list = segments[2] ? segments[2].split(",") : ["*"]
     ;
 
     const type = file_name.indexOf(".js") === -1? "css": "js";
 
     if(!code) {
-        const origin_path = DistPath + "4.0.1/" + file_name;
-        const compiled_path = CompiledPath + file_name + ".json";
+        // const origin_path = DistPath + version + "/" + file_name;
+        // const compiled_path = CompiledPath + file_name + ".json";
 
-        if (backend.isDev || !fs.existsSync(compiled_path)) {
-            if (fs.existsSync(origin_path)){
-                code = ls_parse(fs.readFileSync(origin_path, "utf8"))
-                
-                fs.writeFileSync(compiled_path, JSON.stringify(code))
-                lsCache.set(compiled_path, code)
-            } else return error(43)
-        }
+        const compiled_path = DistPath + version + "/" + file_name + ".json";
+
+        // if (backend.isDev || !fs.existsSync(compiled_path)) {
+        //     if (fs.existsSync(origin_path)){
+        //         code = ls_parse(fs.readFileSync(origin_path, "utf8"))
+
+        //         fs.writeFileSync(compiled_path, JSON.stringify(code))
+        //         lsCache.set(version + "." + compiled_path, code)
+        //     } else return error(43)
+        // }
+
+        if (!fs.existsSync(compiled_path)) return error(43);
 
         if(!code) {
             code = JSON.parse(fs.readFileSync(compiled_path, "utf8"));
-            lsCache.set(file_name, code)
+            lsCache.set(version + "." + file_name, code)
         }
     }
     

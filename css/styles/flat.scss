@@ -3,7 +3,7 @@
 [ls-style="flat"] {
 
     --border-radius-small: 4px;
-    --border-radius:       6px;
+    --border-radius:       7px;
     --border-radius-large: 16px;
     --border-radius-full:  100px;
 
@@ -12,17 +12,16 @@
     }
 
     #{$button} {
-        transition: background .1s;
         background-color: var(--accent);
-        color: var(--accent-contrast);
+        color: var(--on-accent);
 
         &:not(:disabled) {
             &:hover, &:focus {
-                background-color: var(--accent-light);
+                background-color: var(--accent-45);
             }
 
             &:active {
-                filter: brightness(0.9);
+                background-color: var(--accent-30);
             }
 
             &:focus {
@@ -30,7 +29,7 @@
             }
 
             &:focus-visible {
-                outline: 3px solid var(--accent-text);
+                outline: 3px solid currentColor;
             }
         }
 
@@ -46,27 +45,35 @@
 
     #{$button}:is(.clear, .outline) {
         background: none;
-        color: var(--accent-light);
+        color: var(--on-background);
+    }
 
+    #{$button}:is(.clear, .outline, .elevated):not(:disabled) {
         &:hover, &:focus {
-            background-color: var(--accent-transparent);
+            background-color: rgb(var(--accent-raw), 30%);
+        }
+
+        &:active {
+            background-color: rgb(var(--accent-raw), 25%);
+        }
+    }
+
+    #{$button}.clear {
+        &:hover, &:focus {
+            color: var(--on-transparent);
         }
     }
 
     #{$button}.outline {
-        border: 1px solid var(--accent);
+        border: 1px solid var(--on-background);
     }
 
     #{$button}.elevated {
         background-color: var(--accent-transparent);
-        color: var(--accent-light);
-
-        &:hover, &:focus {
-            background-color: rgb(var(--accent-raw), 40%);
-        }
+        color: var(--on-transparent);
 
         &:focus-visible {
-            outline: 3px solid var(--accent-light);
+            outline: 3px solid currentColor;
         }
     }
 
@@ -81,7 +88,7 @@
     }
 
     #{$input} {
-        background: var(--bg-0);
+        background: var(--elevate-0);
         // border: 2px solid var(--elevate-0);
         border: 2px solid transparent;
 

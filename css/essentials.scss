@@ -33,7 +33,7 @@
     content: "";
     width: .2em;
     height: .5em;
-    border: solid var(--accent-contrast);
+    border: solid var(--on-accent);
     border-width: 0 .15em .15em 0;
     -webkit-transform: rotate(45deg);
     transform: rotate(45deg);
@@ -44,13 +44,13 @@
     content: "";
     width: .5em;
     height: .5em;
-    background: var(--accent-contrast);
+    background: var(--on-accent);
     display: none;
 }
 
 .ls-radio-button > input:checked ~ #{$button} {
     background: var(--accent-dark-transparent);
-    color: var(--accent-contrast);
+    color: var(--on-accent);
 }
 
 ls-box {

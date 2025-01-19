@@ -9,7 +9,7 @@
 */
 
 
-// Do not migrate to @use
+// Do not migrate to @use yet
 @import "css/variables.scss";
 @import "css/themes.scss";
 @import "css/essentials.scss";
@@ -22,6 +22,11 @@
 
 body {
     margin: 0;
+}
+
+:root {
+    // Disable Chrome's auto dark mode
+    color-scheme: only light;
 }
 
 [ls] {
@@ -53,10 +58,13 @@ body {
         @extend %font;
 
         box-sizing: border-box;
-        line-height: 1;
         border: 0;
         outline: none;
         position: relative;
+
+        &:not(textarea) {
+            line-height: 1;
+        }
     }
 
     #{$button} {
@@ -74,7 +82,7 @@ body {
         }
     }
 
-    input {
+    input, textarea {
         height: calc(1em + (var(--padding-control-v) * 2));
         padding: 0 var(--padding-input-h);
         margin: var(--margin-control-v) var(--margin-control-h);
@@ -105,7 +113,7 @@ body {
     }
 
     hr {
-        border: 1px solid var(--elevate-1);
+        border: 1px solid var(--elevate-2);
         border-radius: 10px;
         margin: var(--hr-spacing, 18px) 0
     }
@@ -147,22 +155,22 @@ body {
             padding: 5px
         }
     }
+}
 
-    ::-webkit-scrollbar {
-        width: var(--scrollbar-size, 6px);
-        height: var(--scrollbar-size, 6px)
-    }
-    
-    ::-webkit-scrollbar-track {
-        background: rgba(0,0,0,0)
-    }
-    
-    ::-webkit-scrollbar-thumb {
-        border-radius: var(--scrollbar-radius,8px);
-        background: var(--scrollbar-color, #0004)
-    }
-    
-    ::-webkit-scrollbar-thumb:hover {
-        background: var(--scrollbar-color-hover, #fff4)
-    }
+::-webkit-scrollbar {
+    width: var(--scrollbar-size, 6px);
+    height: var(--scrollbar-size, 6px)
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(0,0,0,0)
+}
+
+::-webkit-scrollbar-thumb {
+    border-radius: var(--scrollbar-radius,8px);
+    background: var(--scrollbar-color, #0004)
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-color-hover, #fff4)
 }

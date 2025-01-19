@@ -24,7 +24,7 @@
             global[key] = instance.Tiny[key]
         }
 
-        LS.prototypeTiny();
+        if(!window.ls_do_not_prototype) LS.prototypeTiny();
 
         LS._topLayer = LS.Create({id: "ls-top-layer", style: {
             position: "fixed"
@@ -39,6 +39,8 @@
 
         if(document.body) bodyAvailable(); else window.addEventListener("load", bodyAvailable);
     }
+
+    return instance
 
 })(() => {
 
@@ -318,7 +320,7 @@
                             }
                         });
                 
-                        O("head").add(linkElement);
+                        O("head").appendChild(linkElement);
                     });
                 },
 
@@ -337,7 +339,7 @@
                             }
                         });
                 
-                        O("head").add(scriptElement);
+                        O("head").appendChild(scriptElement);
                     });
                 },
 
@@ -456,29 +458,24 @@
                 return this
             },
 
-            addBefore(a){
-                LS.Util.resolveElements(a).forEach(e=>this.parentNode.insertBefore(e,this))
+            addBefore(target){
+                LS.Util.resolveElements(target).forEach(element => this.parentNode.insertBefore(element, this))
                 return this
             },
 
-            addAfter(a){
-                LS.Util.resolveElements(a).forEach(e=>this.parentNode.insertBefore(e,this.nextSibling))
+            addAfter(target){
+                LS.Util.resolveElements(target).forEach(element => this.parentNode.insertBefore(element, this.nextSibling))
                 return this
             },
 
-            addTo(a){
-                O(a).add(this)
+            addTo(element){
+                LS.Tiny.O(element).add(this)
                 return this
             },
 
-            setTo(a){
-                O(a).set(this)
-                return this
-            },
-
-            wrapIn(e){
-                this.addAfter(O(e));
-                e.appendChild(this);
+            wrapIn(element){
+                this.addAfter(LS.Tiny.O(element));
+                element.appendChild(this);
                 return this
             },
 
@@ -564,7 +561,7 @@
             if(LS.Tiny._prototyped) return;
             LS.Tiny._prototyped = true;
 
-            console.warn("Warning: TinyFactory has been prototyped globally to all HTML elements. You can now use all its featuers seamlessly. Beware that this may conflict with other libraries or future changes or cause confusion, please use with caution!");
+            console.debug("Warning: TinyFactory has been prototyped globally to all HTML elements. You can now use all its featuers seamlessly. Beware that this may conflict with other libraries or future changes or cause confusion, please use with caution!");
             Object.assign(HTMLElement.prototype, LS.TinyFactory);
         },
 
@@ -757,11 +754,11 @@
                     } else {
                         let temp = LS.Tiny.N('textarea', {value: text})
 
-                        LS.Tiny.O().add(temp)
+                        document.body.appendChild(temp)
                         temp.select()
                         document.execCommand('copy')
                         
-                        LS.Tiny.O().removeChild(temp)
+                        document.body.removeChild(temp)
                         resolve()
                     }
                 })
@@ -842,6 +839,34 @@
             this.g = Math.round(Math.min(255, Math.max(0, g)));
             this.b = Math.round(Math.min(255, Math.max(0, b)));
             this.a = Math.min(1, Math.max(0, a));
+        }
+
+        static {
+            this._events = new LS.EventHandler(this);
+
+            this.colors = new Map;
+            this.themes = new Set(["light", "dark", "amoled"]);
+
+            // Style tag to manage
+            this.style = LS.Tiny.N("style", {id: "ls-colors"});
+
+            LS.once("body-available", ()=>{
+                document.head.appendChild(this.style)
+            })
+
+            Object.defineProperties(this, {
+                lightModePreffered: {
+                    get(){
+                        return window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches
+                    }
+                }
+            })
+
+            if(window.matchMedia) {
+                window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', thing => {
+                    this.emit("scheme-changed", [thing.matches])
+                })
+            }
         }
     
         get hex() {
@@ -928,31 +953,37 @@
         hue(hue) {
             let [h, s, l] = this.hsl;
             l = Math.max(Math.min(hue, 360), 0);
-            return new LS.Color().fromHSL(h, s, l);
+            return LS.Color.fromHSL(h, s, l);
         }
     
         saturation(percent) {
             let [h, s, l] = this.hsl;
             s = Math.max(Math.min(percent, 100), 0);
-            return new LS.Color().fromHSL(h, s, l);
+            return LS.Color.fromHSL(h, s, l);
         }
-    
+
+        lightness(percent) {
+            let [h, s, l] = this.hsl;
+            l = Math.max(Math.min(percent, 100), 0);
+            return LS.Color.fromHSL(h, s, l);
+        }
+
         lighten(percent) {
             let [h, s, l] = this.hsl;
             l = Math.max(Math.min(l + percent, 100), 0);
-            return new LS.Color().fromHSL(h, s, l);
+            return LS.Color.fromHSL(h, s, l);
         }
     
         darken(percent) {
             let [h, s, l] = this.hsl;
             l = Math.max(Math.min(l - percent, 100), 0);
-            return new LS.Color().fromHSL(h, s, l);
+            return LS.Color.fromHSL(h, s, l);
         }
     
         hueShift(deg) {
             let [h, s, l] = this.hsl;
             h = (h + deg) % 360;
-            return new LS.Color().fromHSL(h, s, l);
+            return LS.Color.fromHSL(h, s, l);
         }
     
         multiply(r2, g2, b2, a2) {
@@ -983,37 +1014,6 @@
             return new LS.Color(Math.floor(Math.random() * 256), Math.floor(Math.random() * 256), Math.floor(Math.random() * 256));
         }
 
-        static {
-            this._events = new LS.EventHandler(this);
-
-            this.colors = null; // Will be set below
-            this.themes = new Set(["light", "dark", "amoled"]);
-
-            // Style tag to manage
-            this.style = document.querySelector("#ls-colors");
-
-            if(!this.style){
-                LS.once("body-available", ()=>{
-                    this.style = LS.Tiny.N("style", {id: "ls-colors"});
-                    LS._topLayer.add(this.style)
-                })
-            }
-
-            Object.defineProperties(this, {
-                lightModePreffered: {
-                    get(){
-                        return window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches
-                    }
-                }
-            })
-
-            if(window.matchMedia) {
-                window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', thing => {
-                    this.emit("scheme-changed", [thing.matches])
-                })
-            }
-        }
-
         static get theme(){
             return document.body.getAttribute("ls-theme")
         }
@@ -1030,14 +1030,50 @@
             this.setAccent(color)
         }
 
+        static generate(r, g, b) {
+            let color = new LS.Color(r, g, b), style = "";
+
+            for(let i = 10; i < 110; i += 10){
+                style += `--accent-${i}:${color.lightness(i).hex};`; 
+            }
+
+            return style
+        }
+
         static add(name, r, g, b){
             if(this.colors.has(name)) return false;
+            return this.update(name, r, g, b);
+        }
 
-            let color = new LS.Color(r, g, b), values = color.color;
-            this.colors.set(name, color);
+        static update(name, r, g, b){
+            let color = this.colors.get(name);
 
-            this.style.add(`[ls-accent="${name}"]{--accent-raw:${values[0]},${values[1]},${values[2]};--accent-dark-raw:${color.darken(10).color.slice(0, 3).join(",")};--accent-background-raw:${color.darken(20).saturation(20).color.slice(0, 3).join(",")};--accent-light-raw:${color.lighten(10).color.slice(0, 3).join(",")};--color-bg:${color.hsl[2] > 50? "#222": "#eee"}}`)
+            if(!color) {
+                color = {}
+                this.colors.set(name, color);
+            }
+
+            let style = `[ls-accent="${name}"]{${this.generate(r, g, b)}}`;
+
+            color.color = new LS.Color(r, g, b);
+
+            if(!color.style){
+                color.style = document.createTextNode(style);
+                this.style.appendChild(color.style);
+            } else {
+                color.style.textContent = style;
+            }
+
             return color
+        }
+
+        static remove(name){
+            let color = this.colors.get(name);
+
+            if(!color) return false;
+
+            this.style.removeChild(color.style);
+            this.colors.delete(name);
         }
 
         static setAccent(accent){
@@ -1115,38 +1151,34 @@
         }
     }
 
-    LS.Color.colors = new Map([
-        ['rich_black', new LS.Color(6, 0, 35)],
-        ['navy', new LS.Color(40, 28, 108)],
-        ['blue', new LS.Color(0, 133, 255)],
-        ['pastel_indigo', new LS.Color(70, 118, 181)],
-        ['lapis', new LS.Color(34, 114, 154)],
-        ['teal', new LS.Color(0, 128, 128)],
-        ['pastel_teal', new LS.Color(69, 195, 205)],
-        ['aquamarine', new LS.Color(58, 160, 125)],
-        ['mint', new LS.Color(106, 238, 189)],
-        ['green', new LS.Color(25, 135, 84)],
-        ['lime', new LS.Color(133, 210, 50)],
-        ['neon', new LS.Color(173, 255, 110)],
-        ['yellow', new LS.Color(255, 236, 32)],
-        ['lstv_red', new LS.Color(237, 108, 48)],
-        ['lstv_yellow', new LS.Color(252, 194, 27)],
-        ['lstv_blue', new LS.Color(64, 192, 231)],
-        ['orange', new LS.Color(255, 140, 32)],
-        ['deep_orange', new LS.Color(255, 112, 52)],
-        ['red', new LS.Color(245, 47, 47)],
-        ['rusty_red', new LS.Color(220, 53, 69)],
-        ['pink', new LS.Color(230, 52, 164)],
-        ['hotpink', new LS.Color(245, 100, 169)],
-        ['purple', new LS.Color(155, 77, 175)],
-        ['soap', new LS.Color(210, 190, 235)],
-        ['burple', new LS.Color(81, 101, 246)],
-        ['gray', new LS.Color(73, 73, 73)],
-        ['gray_light', new LS.Color(107, 107, 107)],
-        ['white', new LS.Color(225, 225, 225)],
-        ['black', new LS.Color(16, 16, 16)],
-    ]);
-      
+    // LS.Color.add("navy", 40,28,108);
+    // LS.Color.add("blue", 0,133,255);
+    // LS.Color.add("pastel_indigo", 70,118,181);
+    // LS.Color.add("lapis", 34,114,154);
+    // LS.Color.add("teal", 0,128,128);
+    // LS.Color.add("pastel_teal", 69,195,205);
+    // LS.Color.add("aquamarine", 58,160,125);
+    // LS.Color.add("mint", 106,238,189);
+    // LS.Color.add("green", 25,135,84);
+    // LS.Color.add("lime", 133,210,50);
+    // LS.Color.add("neon", 173,255,110);
+    // LS.Color.add("yellow", 255,236,32);
+    // LS.Color.add("lstv_red", 237,108,48);
+    // LS.Color.add("lstv_yellow", 252,194,27);
+    // LS.Color.add("lstv_blue", 64,192,231);
+    // LS.Color.add("orange", 255,140,32);
+    // LS.Color.add("deep_orange", 255,112,52);
+    // LS.Color.add("red", 245,47,47);
+    // LS.Color.add("rusty_red", 220,53,69);
+    // LS.Color.add("pink", 230,52,164);
+    // LS.Color.add("hotpink", 245,100,169);
+    // LS.Color.add("purple", 155,77,175);
+    // LS.Color.add("soap", 210,190,235);
+    // LS.Color.add("burple", 81,101,246);
+    // LS.Color.add("gray", 73,73,73);
+    // LS.Color.add("gray_light", 107,107,107);
+    // LS.Color.add("white", 225,225,225);
+    // LS.Color.add("black", 16,16,16);
 
     if(LS.isWeb){
         LS.Tiny.M.on("keydown", event => {

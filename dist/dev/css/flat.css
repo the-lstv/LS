@@ -1,6 +1,6 @@
 [ls-style=flat] {
   --border-radius-small: 4px;
-  --border-radius: 6px;
+  --border-radius: 7px;
   --border-radius-large: 16px;
   --border-radius-full: 100px;
 }
@@ -8,21 +8,20 @@
   border-radius: var(--border-radius);
 }
 [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button) {
-  transition: background 0.1s;
   background-color: var(--accent);
-  color: var(--accent-contrast);
+  color: var(--on-accent);
 }
 [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):not(:disabled):hover, [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):not(:disabled):focus {
-  background-color: var(--accent-light);
+  background-color: var(--accent-45);
 }
 [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):not(:disabled):active {
-  filter: brightness(0.9);
+  background-color: var(--accent-30);
 }
 [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):not(:disabled):focus {
   outline: 3px solid rgb(var(--accent-raw), 10%);
 }
 [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):not(:disabled):focus-visible {
-  outline: 3px solid var(--accent-text);
+  outline: 3px solid currentColor;
 }
 [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):disabled {
   opacity: 0.8;
@@ -33,23 +32,26 @@
 }
 [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):is(.clear, .outline) {
   background: none;
-  color: var(--accent-light);
+  color: var(--on-background);
 }
-[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):is(.clear, .outline):hover, [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):is(.clear, .outline):focus {
-  background-color: var(--accent-transparent);
+[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):is(.clear, .outline, .elevated):not(:disabled):hover, [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):is(.clear, .outline, .elevated):not(:disabled):focus {
+  background-color: rgb(var(--accent-raw), 30%);
+}
+[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):is(.clear, .outline, .elevated):not(:disabled):active {
+  background-color: rgb(var(--accent-raw), 25%);
+}
+[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button).clear:hover, [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button).clear:focus {
+  color: var(--on-transparent);
 }
 [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button).outline {
-  border: 1px solid var(--accent);
+  border: 1px solid var(--on-background);
 }
 [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button).elevated {
   background-color: var(--accent-transparent);
-  color: var(--accent-light);
-}
-[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button).elevated:hover, [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button).elevated:focus {
-  background-color: rgb(var(--accent-raw), 40%);
+  color: var(--on-transparent);
 }
 [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button).elevated:focus-visible {
-  outline: 3px solid var(--accent-light);
+  outline: 3px solid currentColor;
 }
 [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button).pill {
   border-radius: var(--border-radius-full);
@@ -59,11 +61,11 @@
   --padding-control-h: 10px;
   font-size: x-small;
 }
-[ls-style=flat] :is(input[type=text], input:not([type=button]):not([type=submit]):not([type=color]):not([type=file]):not([type=reset]):not([type=image])) {
-  background: var(--bg-0);
+[ls-style=flat] textarea, [ls-style=flat] :is(input[type=text], input:not([type=button]):not([type=submit]):not([type=color]):not([type=file]):not([type=reset]):not([type=image])) {
+  background: var(--elevate-0);
   border: 2px solid transparent;
 }
-[ls-style=flat] :is(input[type=text], input:not([type=button]):not([type=submit]):not([type=color]):not([type=file]):not([type=reset]):not([type=image])):focus {
+[ls-style=flat] textarea:focus, [ls-style=flat] :is(input[type=text], input:not([type=button]):not([type=submit]):not([type=color]):not([type=file]):not([type=reset]):not([type=image])):focus {
   border: 2px solid var(--accent-focus, var(--accent));
   background: rgb(var(--accent-raw), 10%);
 }

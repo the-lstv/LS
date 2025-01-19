@@ -3,8 +3,6 @@ const path = require("path");
 
 const { xxh32 } = require("@node-rs/xxhash");
 
-const legacy = require("./legacy");
-
 let backend;
 
 var Path = path.resolve(__dirname, ".."),
@@ -142,6 +140,8 @@ function Handle({ req, res, segments, error, send }){
 
 // TODO: When Akeno receives a proper module system, replace this with that and replace the send function.
 
+let legacy = null;
+
 module.exports = {
     Initialize($){
         backend = $;
@@ -153,11 +153,24 @@ module.exports = {
         // Case-insensitive
         segments = segments.map(segment => segment.toLowerCase());
 
+        // The legacy.js file provides full backwards compatibility with the legacy URL syntax, both to provide access to old releases using the old system and to provide access to new releases using the old syntax.
         // Legacy mode had a terrible URL syntax and didnt respect versioning.
-        const legacy_mode = ["js", "css", "css.min", "js.min"].indexOf(segments[0]) !== -1;
+        // If you do not need to support the legacy system, simply remove the following code.
+        if(["js", "css", "css.min", "js.min"].indexOf(segments[0]) !== -1) {
+            const legacy_version = segments[2]? segments[1] : "4.0.1";
+            if (!segments[2]) {
+                segments[2] = segments[1] || ""
+            }
 
-        if(legacy_mode) {
-            return legacy.Handle({ req, res, segments, error, backend })
+            if(parseInt(legacy_version[0]) > 3) {
+                segments = [legacy_version, segments[2], "ls." + segments[0].split(".").reverse().join(".")];
+            } else {
+                if(!legacy) {
+                    legacy = require("./legacy");
+                }
+
+                return legacy.Handle({ req, res, segments, error, backend })
+            }
         }
 
         return Handle({ req, res, segments, error });

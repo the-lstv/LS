@@ -69,9 +69,9 @@ LS.LoadComponent(class Tooltips extends LS.Component {
 
             let e = O(mutation.target), attr = mutation.attributeName;
 
-            e.hasTooltip = e.hasAttr(attr);
+            e.hasTooltip = e.hasAttribute(attr);
             e.tooltip_value = e.attr(attr);
-            e.tooltip_hint = e.hasAttr("ls-hint");
+            e.tooltip_hint = e.hasAttribute("ls-hint");
 
             if(!e._hasTooltip)! this.setup(e);
         }
