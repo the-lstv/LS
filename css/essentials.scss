@@ -1,5 +1,5 @@
 .ls-checkbox, .ls-radio {
-    padding-left: calc(1em + 20px);
+    padding-left: calc(1em + 10px);
     position: relative;
     display: inline-block;
     -webkit-user-select: none;
@@ -13,7 +13,7 @@
         justify-content: center;
         align-items: center;
         top: 50%;
-        left: 10px;
+        left: 0;
         transform: translateY(-50%);
     }
 
@@ -38,6 +38,7 @@
     -webkit-transform: rotate(45deg);
     transform: rotate(45deg);
     display: none;
+    margin-top: -0.1em;
 }
 
 .ls-radio > span::after {
@@ -48,17 +49,10 @@
     display: none;
 }
 
-.ls-radio-button > input:checked ~ #{$button} {
-    background: var(--accent-dark-transparent);
-    color: var(--on-accent);
-}
-
 ls-box {
-    background: var(--elevate-1);
     display: block;
 
     &:not(.contained, .color, .inline) {
-        outline: 1px solid var(--transparent-overlay-strong);
         box-shadow: 0 10px 20px 0 #0002;
     }
 
@@ -81,7 +75,6 @@ ls-box {
 
     &.inline {
         display: inline-block;
-        outline: 2px solid var(--surface-mix-20);
         border-radius: var(--border-radius-small);
 
         &:not(.full-padding) {

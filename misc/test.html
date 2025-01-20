@@ -135,42 +135,9 @@
         </ls-div>
     
         <br>
-    
-        <!--
-        <hr>
-        
-        <ls-div style="max-width: 500px">
-            <ls-box>
-                <h2>Example box</h2>
-                <p>Boxes are elements that visually group a secion.</p>
-                <button onclick="LS.Toast.show('Hello, world!')">Show a toast</button>
-            </ls-box>
-        
-            <br>
-        
-            <ls-box class="contained">
-                <h2>Contained box</h2>
-                <p>Alternative variant of ls-box meant for contained boxes.</p>
-            </ls-box>
-        
-            <br>
-        
-            <ls-box class="color">
-                <h2>Colored box</h2>
-                <p>Colored box offers an alternative visual in any accent you want to use.</p>
-            </ls-box>
-    
-            <br>
-        </ls-div>
-    
-        <ls-div>
-            For things like highlights, <ls-box class="inline color">an inline box</ls-box> blends in perfectly with text content. <br>
-            There is also a <ls-box class="inline color pill">pill</ls-box> (round) variant.
-        </ls-div> -->
-    
         <hr>
     
-        <h2>Dynamic color system</h2>
+        <h1>Dynamic color system</h1>
         <p>
             LS v5 comes with a completely reworked dynamic color system. <br>
             It still comes with the same accents as before, but managing colors is now much easier and more flexible. <br>
@@ -179,28 +146,34 @@
         </p>
     
         <h3>Base (input) color</h3>
-        <ls-div>
-            <ls-div>
-                From a static color: <br>
-                <input type="color" value="rgb(58, 160, 125)" id="colorInput">
-            </ls-div>
-    
+        
+        <ls-box style="max-width: 500px">
+            <h2>Try it yourself!</h2>
+            <ul>
+                <li>
+                    From a static color: <br>
+                    <input type="color" value="rgb(58, 160, 125)" id="colorInput">
+                </li>
+
+                <br>
+                
+                <li>
+                    From an image (click to select): <br>
+                    <label for="imageInput">
+                        <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NCIgaGVpZ2h0PSI2NCIgZmlsbD0iI2ZmZiIgeG1sbnM6dj0iaHR0cHM6Ly92ZWN0YS5pby9uYW5vIj48cGF0aCBmaWxsLW9wYWNpdHk9Ii4wMyIgZD0iTTAgMGg2NHY2NEgweiIvPjxwYXRoIGQ9Ik0zMiAxOC41ODN2My45ODNoLTIuMzMzdi0zLjk4M0gzMnptLTguMTY3IDMuMDE2bDIuODE2IDIuODE2LTEuNjUgMS42NS0yLjgxNi0yLjgxNSAxLjY1LTEuNjUxem0xNS42NSAxLjY1bC0yLjgxNiAyLjgxNi0xLjY1LTEuNjQ5IDIuODE2LTIuODE3IDEuNjUgMS42NXptLTguNjUgMi42OTZhLjg4Ljg4IDAgMCAwLS44ODIuODgyVjM4LjUzbC01LjI0OC0xLjE2Ny0uMTE3LjE3NiAzLjk5NSA1LjE5OWMuMDgzLjEwNy4xODkuMTk0LjMxLjI1M3MuMjU1LjA5MS4zOS4wOTFoOC4yNjdjLjE4NSAwIC4zNjUtLjA1OS41MTYtLjE2N3MuMjYzLS4yNjEuMzIyLS40MzZsMi4wNzktNi4yNDJjLjA2NC0uMTkyLjA2LS40MDEtLjAxMi0uNTkxcy0uMjA2LS4zNDktLjM4LS40NTJsLTQuMjI5LTIuNDY4Yy0uMTM1LS4wNzgtLjI4OC0uMTItLjQ0NC0uMTJoLTMuNjg1di01Ljc4YS44OC44OCAwIDAgMC0uODgxLS44ODJ6bS0zLjIxNS44ODJjLjAxNi0uODQyLjM2Mi0xLjY0NC45NjMtMi4yMzRzMS40MS0uOTIgMi4yNTItLjkyIDEuNjUxLjMzIDIuMjUyLjkyLjk0NyAxLjM5Mi45NjMgMi4yMzR2My40NDZIMzUuNGEzLjIzIDMuMjMgMCAwIDEgMS42MjIuNDM4bDQuMjI4IDIuNDY5YTMuMjIgMy4yMiAwIDAgMSAxLjQzIDMuNzk0bC0yLjA4IDYuMjQyYTMuMjIgMy4yMiAwIDAgMS0zLjA1MSAyLjJoLTguMjY3YTMuMjIgMy4yMiAwIDAgMS0yLjU0OS0xLjI1NWwtNS4wMTQtNi41MjUgMS4wOTctMS42NDdjLjI0Ni0uMzY4LjU5Ny0uNjUzIDEuMDA3LS44MThzLjg2Mi0uMjAyIDEuMjkzLS4xMDZsMi41MDIuNTU2di04Ljc5M3oiIGZpbGwtb3BhY2l0eT0iLjM2Ii8+PC9zdmc+" alt="User chosen input" id="dynamicColorResult"> <br>
+                    </label>
+                    <input type="file" id="imageInput">
+                </li>
+            </ul>
+
+            <br>
+
             <script>
                 document.querySelector('#colorInput').on('input', function() {
                     LS.Color.update("dynamic", this.value);
                     LS.Color.setAccent("dynamic");
                 });
-            </script>
-    
-            <ls-div>
-                From an image (click to select): <br>
-                <label for="imageInput">
-                    <img alt="User chosen input" id="dynamicColorResult"> <br>
-                </label>
-                <input type="file" id="imageInput">
-            </ls-div>
-    
-            <script>
+
                 document.querySelector('#imageInput').on('change', function() {
                     const url = URL.createObjectURL(this.files[0]);
                     const image = document.querySelector('#dynamicColorResult');
@@ -249,10 +222,9 @@
                     margin: 0 4px;
                 }
             </style>
-        </ls-div>
+        </ls-box>
     
         <h3>Accent (source) colors</h3>
-        Source color in different lights. <br>
         <ls-div>
             <div class="chip" style="background: var(--accent-10);"></div>
             <div class="chip" style="background: var(--accent-20);"></div>
@@ -270,7 +242,6 @@
         </ls-div>
     
         <h3>Surface (source) colors</h3>
-        Source colors with a lower color saturation. <br>
         <ls-div>
             <div class="chip" style="background: var(--surface-5);"></div>
             <div class="chip" style="background: var(--surface-6);"></div>
@@ -296,7 +267,6 @@
         </ls-div>
     
         <h3>Surface mix (tint) colors</h3>
-        Tint colors have a higher color saturation, mixed against their background.
         <ls-div>
             <div class="chip" style="background: var(--surface-mix-5);"></div>
             <div class="chip" style="background: var(--surface-mix-10);"></div>
@@ -312,7 +282,6 @@
         </ls-div>
     
         <h3>Elevate colors</h3>
-        Elevate colors are used to easily differentiate between different layers in an interface. <br>
         <ls-div>
             <div class="chip" style="background: var(--elevate-0);"></div>
             <div class="chip" style="background: var(--elevate-1);"></div>
@@ -328,7 +297,6 @@
         </ls-div>
     
         <h3>Contrast colors</h3>
-        Contrast colors are used on foreground objects against a background for simple readability. <br>
         <ls-div>
             <div class="chip" style="background: var(--background); border: 5px solid var(--on-background);"></div>
             <div class="chip" style="background: var(--accent); border: 5px solid var(--on-accent);"></div>
@@ -336,8 +304,6 @@
         </ls-div>
     
         <h3>Surface levels</h3>
-        Surface levels are used to create a sense of depth in an interface that differs from the background. <br>
-
         <ls-div>
             <ls-group>
                 <div class="level-0">Level 0</div>
@@ -362,6 +328,43 @@
                 <div class="level-4 color">Level 4</div>
                 <div class="level-5 color">Level 5</div>
             </ls-group>
+        </ls-div>
+
+        <hr>
+    
+        <h1>Boxes</h1>
+        
+        <ls-div style="max-width: 500px">
+            <ls-box>
+                <h2>Example box</h2>
+                <p>Boxes are elements that contain an item, like a note or a smaller section.</p>
+
+                <ls-box class="contained level-2">
+                    <h2>Contained box</h2>
+                    <p>Box within a box within a box within a box...</p>
+                    <button onclick="LS.Toast.show('Hello, world!')">Show a toast</button> <br> <br>
+
+                    Class: <ls-box class="inline">.contained</ls-box> <ls-box class="inline">.level-[1-9]</ls-box>
+                </ls-box>
+            </ls-box>
+        
+            <br>
+        
+        
+            <br>
+        
+            <ls-box class="color">
+                <h2>Colored box</h2>
+                A colored box offers an alternative visual with more color saturation. <br> <br>
+                Class: <ls-box class="inline">.color</ls-box>
+            </ls-box>
+    
+            <br>
+        </ls-div>
+    
+        <ls-div>
+            For things like highlights, <ls-box class="inline color">an inline box</ls-box> blends in perfectly with text content. <br>
+            There is also a <ls-box class="inline color pill">pill</ls-box> (round) variant.
         </ls-div>
     </div>
 </body>

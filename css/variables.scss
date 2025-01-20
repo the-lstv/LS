@@ -1,6 +1,6 @@
 @use "sass:color";
 
-$button: ':is(button, input[type="button"], input[type="submit"], input[type="reset"], .ls-button)';
+$button: ':is(button, input[type="button"], input[type="submit"], input[type="color"], input[type="reset"], .ls-button)';
 $input: 'textarea, :is(input[type="text"], input:not([type="button"]):not([type="submit"]):not([type="color"]):not([type="file"]):not([type="reset"]):not([type="image"]))';
 
 @function priority($thing, $times) {

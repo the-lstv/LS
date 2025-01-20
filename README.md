@@ -32,6 +32,7 @@ v5 is faster and more memory efficient in various fields.
 | **Elements selector**   |                 |                       |                   |
 | Simple selector         | --              | --                    | ~4.5x faster      |
 | Complex selector        | --              | --                    | ~2x faster        |
+| Color string parser     | --              | --                    | A lot faster      |
 
 ## Getting started
 Add LS to your app or site with

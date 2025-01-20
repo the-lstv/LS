@@ -4,60 +4,60 @@
   --border-radius-large: 16px;
   --border-radius-full: 100px;
 }
-[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), [ls-style=flat] input, [ls-style=flat] select, [ls-style=flat] textarea {
+[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button), [ls-style=flat] input, [ls-style=flat] select, [ls-style=flat] textarea {
   border-radius: var(--border-radius);
 }
-[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button) {
+[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button) {
   background-color: var(--accent);
   color: var(--on-accent);
 }
-[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):not(:disabled):hover, [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):not(:disabled):focus {
+[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button):not(:disabled):hover, [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button):not(:disabled):focus {
   background-color: var(--accent-45);
 }
-[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):not(:disabled):active {
+[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button):not(:disabled):active {
   background-color: var(--accent-30);
 }
-[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):not(:disabled):focus {
+[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button):not(:disabled):focus {
   outline: 3px solid var(--surface-mix-10);
 }
-[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):not(:disabled):focus-visible {
+[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button):not(:disabled):focus-visible {
   outline: 3px solid currentColor;
 }
-[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):disabled {
+[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button):disabled {
   opacity: 0.8;
   cursor: not-allowed;
 }
-[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button).circle {
+[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button).circle {
   border-radius: 50%;
 }
-[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):is(.clear, .outline) {
+[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button):is(.clear, .outline) {
   background: none;
   color: var(--on-background);
 }
-[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):is(.clear, .outline, .elevated):not(:disabled):hover, [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):is(.clear, .outline, .elevated):not(:disabled):focus {
+[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button):is(.clear, .outline, .elevated):not(:disabled):hover, [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button):is(.clear, .outline, .elevated):not(:disabled):focus {
   background-color: var(--surface-mix-30);
 }
-[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):is(.clear, .outline, .elevated):not(:disabled):active {
+[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button):is(.clear, .outline, .elevated):not(:disabled):active {
   background-color: var(--surface-mix-20);
 }
-[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button).clear:hover, [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button).clear:focus {
+[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button).clear:hover, [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button).clear:focus {
   color: var(--on-transparent);
 }
-[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button).outline {
+[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button).outline {
   border: 1px solid var(--accent-70);
 }
-[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button).elevated {
+[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button).elevated {
   background-color: var(--surface-mix-20);
   color: var(--on-transparent);
 }
-[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button).elevated:focus-visible {
+[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button).elevated:focus-visible {
   outline: 3px solid currentColor;
 }
-[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button).pill {
+[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button).pill {
   border-radius: var(--border-radius-full);
   padding: var(--padding-control-v) var(--padding-control-h-pill);
 }
-[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button).small {
+[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button).small {
   --padding-control-h: 10px;
   font-size: x-small;
 }

@@ -64,7 +64,7 @@
 }
 
 .ls-checkbox, .ls-radio {
-  padding-left: calc(1em + 20px);
+  padding-left: calc(1em + 10px);
   position: relative;
   display: inline-block;
   -webkit-user-select: none;
@@ -78,7 +78,7 @@
   justify-content: center;
   align-items: center;
   top: 50%;
-  left: 10px;
+  left: 0;
   transform: translateY(-50%);
 }
 .ls-checkbox > input:checked ~ span::after, .ls-radio > input:checked ~ span::after {
@@ -101,6 +101,7 @@
   -webkit-transform: rotate(45deg);
   transform: rotate(45deg);
   display: none;
+  margin-top: -0.1em;
 }
 
 .ls-radio > span::after {
@@ -111,17 +112,10 @@
   display: none;
 }
 
-.ls-radio-button > input:checked ~ :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button) {
-  background: var(--accent-dark-transparent);
-  color: var(--on-accent);
-}
-
 ls-box {
-  background: var(--elevate-1);
   display: block;
 }
 ls-box:not(.contained, .color, .inline) {
-  outline: 1px solid var(--transparent-overlay-strong);
   box-shadow: 0 10px 20px 0 rgba(0, 0, 0, 0.1333333333);
 }
 ls-box :first-child {
@@ -139,7 +133,6 @@ ls-box:not(.inline) {
 }
 ls-box.inline {
   display: inline-block;
-  outline: 2px solid var(--surface-mix-20);
   border-radius: var(--border-radius-small);
 }
 ls-box.inline:not(.full-padding) {
@@ -1241,7 +1234,7 @@ button.ls-toast-close.ls-toast-close {
   --background: var(--surface-mix-10);
 }
 
-.level-1 {
+.level-1, ls-box {
   --background: var(--elevate);
 }
 
@@ -1301,7 +1294,7 @@ button.ls-toast-close.ls-toast-close {
   --color: var(--on-invert);
 }
 
-[class^=level-] {
+[class^=level-], ls-box {
   background: var(--background);
   color: var(--color);
 }
@@ -1671,7 +1664,7 @@ template {
   display: none;
 }
 
-[ls] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), input, select, textarea), [ls] {
+[ls] :is(:is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button), input, select, textarea), [ls] {
   font-family: var(--font);
 }
 
@@ -1703,24 +1696,24 @@ body {
 [ls] * {
   box-sizing: border-box;
 }
-[ls] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), input, select, textarea) {
+[ls] :is(:is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button), input, select, textarea) {
   box-sizing: border-box;
   border: 0;
   outline: none;
   position: relative;
 }
-[ls] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), input, select, textarea):not(textarea) {
+[ls] :is(:is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button), input, select, textarea):not(textarea) {
   line-height: 1;
 }
-[ls] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button) {
+[ls] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button) {
   padding: var(--padding-control-v) var(--padding-control-h);
   margin: var(--margin-control-v) var(--margin-control-h);
   cursor: pointer;
 }
-[ls] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button) i {
+[ls] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button) i {
   margin: 0 4px 0 2px;
 }
-[ls] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button) i:only-child {
+[ls] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button) i:only-child {
   margin: 0;
 }
 [ls] input, [ls] textarea {
@@ -1729,12 +1722,12 @@ body {
   margin: var(--margin-control-v) var(--margin-control-h);
   color: inherit;
 }
-[ls] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button).circle {
+[ls] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button).circle {
   height: calc(1em + var(--padding-control-v) * 2);
   width: calc(1em + var(--padding-control-v) * 2);
   padding: 0;
 }
-[ls] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button).circle > :first-child {
+[ls] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button).circle > :first-child {
   margin: 0;
   padding: 0;
 }
@@ -1769,7 +1762,7 @@ body {
   font-weight: 300;
 }
 [ls] h3, [ls] h4 {
-  color: var(--elevate-5);
+  color: var(--elevate-8);
 }
 [ls] table {
   background-color: rgba(255, 255, 255, 0.0666666667);

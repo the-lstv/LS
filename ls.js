@@ -839,24 +839,46 @@
     LS.Color = class {
         constructor(r, g, b, a) {
             if (typeof r === "string") {
-                let div = document.createElement('div');
-                div.style.display = 'none';
-                div.style.color = r;
-                document.body.appendChild(div);
-                let m = getComputedStyle(div).color.match(/^rgb\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)$/i);
-                document.body.removeChild(div);
-    
-                if (m) {
-                    return new LS.Color(+m[1], +m[2], +m[3]);
-                } else {
-                    throw new Error("Colour " + r + " could not be parsed.");
+
+                // Hex
+                if(r.charCodeAt(0) === 35) {
+                    [r, g, b] = LS.Color.parseHex(r);
                 }
+
+                // RGB
+                else if(r.startsWith("rgb(") || r.startsWith("rgba(")) {
+                    let match = r.match(/rgba?\((\d+)\s*,?\s*(\d+)\s*,?\s*(\d+)(?:\s*,?\s*([0-9.]+))?\)/);
+
+                    if(match) {
+                        [r, g, b, a] = match.slice(1).map(Number);
+                    } else {
+                        throw new Error("Colour " + r + " could not be parsed.");
+                    }
+                }
+
+                else {
+                    if(!LS.Color.colorDetectionContext) {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = canvas.height = 1;
+
+                        LS.Color.colorDetectionCanvas = canvas;
+                        LS.Color.colorDetectionContext = canvas.getContext('2d');
+                    }
+
+                    LS.Color.colorDetectionContext.fillStyle = r;
+
+                    [r, g, b] = LS.Color.parseHex(LS.Color.colorDetectionContext.fillStyle);
+                }
+            } else if (r instanceof LS.Color) {
+                [r, g, b, a] = r.color;
+            } else if (Array.isArray(r)) {
+                [r, g, b, a] = r;
             }
-    
-            if (r === null || typeof r === "undefined") r = 255;
-            if (g === null || typeof g === "undefined") g = 255;
-            if (b === null || typeof b === "undefined") b = 255;
-            if (a === null || typeof a === "undefined") a = 1;
+
+            if (r === null || typeof r === "undefined" || isNaN(r)) r = 255;
+            if (g === null || typeof g === "undefined" || isNaN(g)) g = 255;
+            if (b === null || typeof b === "undefined" || isNaN(b)) b = 255;
+            if (a === null || typeof a === "undefined" || isNaN(a)) a = 1;
     
             this.r = Math.round(Math.min(255, Math.max(0, r)));
             this.g = Math.round(Math.min(255, Math.max(0, g)));
@@ -942,17 +964,6 @@
             return [h, s, l];
         }
     
-        static fromHSL(h, s, l) {
-            s /= 100;
-            l /= 100;
-    
-            let k = n => (n + h / 30) % 12,
-                a = s * Math.min(l, 1 - l),
-                f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
-    
-            return new LS.Color(255 * f(0), 255 * f(8), 255 * f(4));
-        }
-    
         get color() {
             return [this.r, this.g, this.b, this.a];
         }
@@ -1036,6 +1047,29 @@
     
         alpha(v) {
             return new LS.Color(this.r, this.g, this.b, v);
+        }
+
+        static parseHex(hex) {
+            if(hex.length < 4 || hex.length > 9) {
+                throw new Error("Invalid hex string");
+            }
+
+            if (hex.length <= 5) {
+                return [ parseInt(hex[1] + hex[1], 16), parseInt(hex[2] + hex[2], 16), parseInt(hex[3] + hex[3], 16), hex.length === 5? parseInt(hex[4] + hex[4], 16) / 255: 1 ];
+            } else {
+                return [ parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16), hex.length === 9? parseInt(hex.slice(7, 9), 16) / 255: 1 ];
+            }
+        }
+    
+        static fromHSL(h, s, l) {
+            s /= 100;
+            l /= 100;
+    
+            let k = n => (n + h / 30) % 12,
+                a = s * Math.min(l, 1 - l),
+                f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+    
+            return new LS.Color(255 * f(0), 255 * f(8), 255 * f(4));
         }
     
         static random() {
