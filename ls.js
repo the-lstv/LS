@@ -4,7 +4,7 @@
 
     Last modified: 2025
     License: GPL-3.0
-    Version: 5.0.0
+    Version: 5.1.0
     See: https://github.com/thelstv/LS
 */
 
@@ -46,7 +46,7 @@
 
     const LS = {
         isWeb: typeof window !== 'undefined',
-        version: "5.0.0",
+        version: "5.1.0",
         v: 5,
 
         init(options = {}){
