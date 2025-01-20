@@ -81,7 +81,7 @@ ls-box {
 
     &.inline {
         display: inline-block;
-        outline: 2px solid rgb(var(--accent-raw), 10%);
+        outline: 2px solid var(--surface-mix-20);
         border-radius: var(--border-radius-small);
 
         &:not(.full-padding) {
@@ -98,12 +98,12 @@ ls-box {
     }
     
     &.color {
-        color: var(--accent-light);
-        background: rgb(var(--accent-raw), 10%);
+        color: var(--on-transparent);
+        background: var(--surface-mix-20);
     }
     
     &::selection {
-        background: var(--accent-transparent);
+        background: var(--surface-mix-30);
     }
 }
 
@@ -118,6 +118,14 @@ ls-group {
 
     > * {
         margin: 0 !important;
+    }
+
+    &.fill {
+        width: 100%;
+
+        > * {
+            width: 100%;
+        }
     }
 
     > *:not(:only-child) {
@@ -205,4 +213,26 @@ button#{priority(".ls-toast-close", 2)} {
 .ls-toast > i {
     margin-right: 0.8em;
     margin-left: -0.4em;
+}
+
+.ls-sidebar {
+    display: flex;
+    width: 100%;
+    overflow: hidden;
+}
+
+.ls-sidebar > .sidebar-items {
+    width: 260px;
+    --background: var(--elevate);
+    background: var(--background);
+    display: flex;
+    overflow: hidden;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.ls-sidebar > .sidebar-content {
+    padding: 10px 45px;
+    flex: 1;
+    overflow: auto;
 }

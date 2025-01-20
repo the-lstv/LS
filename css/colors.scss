@@ -62,33 +62,126 @@ $colors: (
         --accent-90: #{generate-tone($color, 90)};
         --accent-95: #{generate-tone($color, 95)};
 
-        --surface-5: #{generate-tone($color,  5,  12)};
-        --surface-6: #{generate-tone($color,  6,  12)};
-        --surface-8: #{generate-tone($color,  8,  12)};
-        --surface-10: #{generate-tone($color, 10,  12)};
-        --surface-15: #{generate-tone($color, 15,  12)};
-        --surface-20: #{generate-tone($color, 20, 12)};
-        --surface-25: #{generate-tone($color, 25, 12)};
-        --surface-30: #{generate-tone($color, 30, 12)};
-        --surface-35: #{generate-tone($color, 35, 12)};
-        --surface-40: #{generate-tone($color, 40, 12)};
-        --surface-45: #{generate-tone($color, 45, 12)};
-        --surface-50: #{generate-tone($color, 50, 12)};
-        --surface-55: #{generate-tone($color, 55, 12)};
-        --surface-60: #{generate-tone($color, 60, 12)};
-        --surface-65: #{generate-tone($color, 65, 12)};
-        --surface-70: #{generate-tone($color, 70, 12)};
-        --surface-75: #{generate-tone($color, 75, 12)};
-        --surface-80: #{generate-tone($color, 80, 12)};
-        --surface-85: #{generate-tone($color, 85, 12)};
-        --surface-90: #{generate-tone($color, 90, 12)};
-        --surface-95: #{generate-tone($color, 95, 12)};
-
-        --accent-raw: #{toRaw($color)};
+        --surface-5:  #{generate-tone($color, 5,  16)};
+        --surface-6:  #{generate-tone($color, 6,  16)};
+        --surface-8:  #{generate-tone($color, 8,  16)};
+        --surface-10: #{generate-tone($color, 10, 16)};
+        --surface-15: #{generate-tone($color, 15, 16)};
+        --surface-20: #{generate-tone($color, 20, 16)};
+        --surface-25: #{generate-tone($color, 25, 16)};
+        --surface-30: #{generate-tone($color, 30, 16)};
+        --surface-35: #{generate-tone($color, 35, 16)};
+        --surface-40: #{generate-tone($color, 40, 16)};
+        --surface-45: #{generate-tone($color, 45, 16)};
+        --surface-50: #{generate-tone($color, 50, 16)};
+        --surface-55: #{generate-tone($color, 55, 16)};
+        --surface-60: #{generate-tone($color, 60, 16)};
+        --surface-65: #{generate-tone($color, 65, 16)};
+        --surface-70: #{generate-tone($color, 70, 16)};
+        --surface-75: #{generate-tone($color, 75, 16)};
+        --surface-80: #{generate-tone($color, 80, 16)};
+        --surface-85: #{generate-tone($color, 85, 16)};
+        --surface-90: #{generate-tone($color, 90, 16)};
+        --surface-95: #{generate-tone($color, 95, 16)};
     }
 }
 
-[ls-accent], :disabled, html {
+.level-0 {
+    --background: var(--elevate-0);
+}
+
+.level-0.color {
+    --background: var(--surface-mix-10);
+}
+
+.level-1 {
+    --background: var(--elevate);
+}
+
+.level-1.color {
+    --background: var(--surface-mix-20);
+}
+
+.level-2 {
+    --background: var(--elevate-2);
+}
+
+.level-2.color {
+    --background: var(--surface-mix-40);
+}
+
+.level-3 {
+    --background: var(--elevate-3);
+}
+
+.level-3.color {
+    --background: var(--surface-mix-60);
+}
+
+.level-4 {
+    --background: var(--elevate-4);
+}
+
+.level-4.color {
+    --background: var(--surface-mix-80);
+}
+
+.level-5 {
+    --background: var(--elevate-5);
+}
+
+.level-5.color {
+    --background: var(--accent-40);
+    --color: var(--on-accent);
+}
+
+.level-6 {
+    --background: var(--elevate-6);
+}
+
+.level-7 {
+    --background: var(--elevate-7);
+    --color: var(--on-invert);
+}
+
+.level-8 {
+    --background: var(--elevate-8);
+    --color: var(--on-invert);
+}
+
+.level-9 {
+    --background: var(--elevate-9);
+    --color: var(--on-invert);
+}
+
+[class^="level-"] {
+    background: var(--background);
+    color: var(--color);
+}
+
+[class^="level-"].round {
+    border-radius: var(--border-radius);
+}
+
+[class^="level-"].round-lg {
+    border-radius: var(--border-radius-large);
+}
+
+[class^="level-"].pill {
+    border-radius: var(--border-radius-full);
+}
+
+[ls-accent], :disabled, html, [class^="level-"]:not(.color), ls-box, .sidebar-items {
     --accent: var(--accent-40);
-    --accent-transparent: rgb(var(--accent-raw), 20%);
+    --surface-mix-5:  color-mix(in oklab, var(--background) 100%, var(--accent) 5%);
+    --surface-mix-10: color-mix(in oklab, var(--background) 100%, var(--accent) 10%);
+    --surface-mix-20: color-mix(in oklab, var(--background) 100%, var(--accent) 20%);
+    --surface-mix-30: color-mix(in oklab, var(--background) 100%, var(--accent) 30%);
+    --surface-mix-40: color-mix(in oklab, var(--background) 100%, var(--accent) 40%);
+    --surface-mix-50: color-mix(in oklab, var(--background) 100%, var(--accent) 50%);
+    --surface-mix-60: color-mix(in oklab, var(--background) 100%, var(--accent) 60%);
+    --surface-mix-70: color-mix(in oklab, var(--background) 100%, var(--accent) 70%);
+    --surface-mix-80: color-mix(in oklab, var(--background) 100%, var(--accent) 80%);
+    --surface-mix-90: color-mix(in oklab, var(--background) 100%, var(--accent) 90%);
+    --surface-mix-95: color-mix(in oklab, var(--background) 100%, var(--accent) 95%);
 }

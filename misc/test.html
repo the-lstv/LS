@@ -23,206 +23,346 @@
         }
 
         body {
-            padding: 20px 35px;
+            height: 100vh;
+            height: 100dvh;
         }
     </style>
 </head>
-<body ls ls-accent="aquamarine" ls-theme="dark" ls-style="flat">
-    <h1>LS <span style="color: var(--accent)">v5</span></h1>
-    <p>This is a basic page for testing the library.</p>
 
-    <ls-box class="color" style="max-width: 500px">
-        <h2>Info</h2> 
+<body ls ls-accent="aquamarine" ls-theme="dark" ls-style="flat" class="ls-sidebar">
+    <div class="sidebar-items">
+        <div class="level-2">
+            Items
+        </div>
+
+        <div class="sidebar-bottom" style="padding: 10px">
+            <ls-group class="fill">
+                <button onclick='LS.Color.theme = "dark"'><i class="fa-solid fa-moon"></i></button>
+                <button class="elevated" onclick='LS.Color.theme = "light"'><i class="fa-solid fa-sun"></i></button>
+            </ls-group>
+        </div>
+
+    </div>
+
+    <div class="sidebar-content">
+        <script>
+            LS.init({
+                autoScheme: true,
+                globalPrototype: true
+            });
+        </script>
+    
+        <h1>LS <span style="color: var(--accent)">v5</span></h1>
+        <p>This is a basic page for testing the library.</p>
+    
+        <ls-box class="color" style="max-width: 500px">
+            <h2>Info</h2> 
+            <p>
+                You are using version 5 of LS!<br>
+                <a href="test_v4.html">See the legacy (v4) release</a>
+            </p>
+        </ls-box>
+    
+        <hr>
+    
+        Here is some example <ls-box class="color inline">text</ls-box>.
+    
+        <hr>
+    
+        <ls-div>
+            <button>Button</button>
+            <button class="elevated">Elevated button</button>
+            <button class="outline">Outlined button</button>
+            <button class="clear">Clear button</button>
+        </ls-div>
+    
+        <ls-div>
+            <button class="pill">Pill button</button>
+            <button class="pill elevated">Pill button</button>
+            <button class="pill outline">Outlined button</button>
+            <button class="pill clear">Clear button</button>
+        </ls-div>
+    
+        <ls-div>
+            <button class="circle"><i class="fa fa-plus"></i></button>
+            <button class="circle outline"><i class="fa fa-plus"></i></button>
+            <button class="circle elevated"><i class="fa fa-plus"></i></button>
+            <button class="circle clear"><i class="fa fa-plus"></i></button>
+        </ls-div>
+    
+        <ls-div>
+            <button disabled>Disabled button</button>
+            <button disabled class="elevated">Disabled button</button>
+            <button disabled class="outline">Disabled button</button>
+            <button disabled class="clear">Disabled button</button>
+        </ls-div>
+    
+        <ls-div>
+            <input placeholder="Input">
+        </ls-div>
+    
+        <ls-div>
+            <textarea placeholder="Textarea"></textarea>
+        </ls-div>
+    
+        <ls-div>
+            <ls-group>
+                <button>Button 1</button>
+                <button class="elevated small"> <i class="fa fa-angle-down"></i> </button>
+            </ls-group>
+        </ls-div>
+    
+        <ls-div>
+            <label class="ls-checkbox">
+                <input type="checkbox">
+                Checkbox
+                <span></span>
+            </label>
+        </ls-div>
+    
+        <ls-div>
+            <label class="ls-radio">
+                <input type="radio" name="radio">
+                Radio
+                <span></span>
+            </label>
+        
+            <label class="ls-radio">
+                <input type="radio" name="radio">
+                Radio
+                <span></span>
+            </label>
+        </ls-div>
+    
+        <br>
+    
+        <!--
+        <hr>
+        
+        <ls-div style="max-width: 500px">
+            <ls-box>
+                <h2>Example box</h2>
+                <p>Boxes are elements that visually group a secion.</p>
+                <button onclick="LS.Toast.show('Hello, world!')">Show a toast</button>
+            </ls-box>
+        
+            <br>
+        
+            <ls-box class="contained">
+                <h2>Contained box</h2>
+                <p>Alternative variant of ls-box meant for contained boxes.</p>
+            </ls-box>
+        
+            <br>
+        
+            <ls-box class="color">
+                <h2>Colored box</h2>
+                <p>Colored box offers an alternative visual in any accent you want to use.</p>
+            </ls-box>
+    
+            <br>
+        </ls-div>
+    
+        <ls-div>
+            For things like highlights, <ls-box class="inline color">an inline box</ls-box> blends in perfectly with text content. <br>
+            There is also a <ls-box class="inline color pill">pill</ls-box> (round) variant.
+        </ls-div> -->
+    
+        <hr>
+    
+        <h2>Dynamic color system</h2>
         <p>
-            You are using version 5 of LS!<br>
-            <a href="test_v4.html">See the legacy (v4) release</a>
+            LS v5 comes with a completely reworked dynamic color system. <br>
+            It still comes with the same accents as before, but managing colors is now much easier and more flexible. <br>
+            The new color system also standardizes color naming and allows to create beautiful interfaces that respond to the scene. <br> <br>
+            Color themes can be generated either from the built-in presets, a static color, mix of colors or an image.
         </p>
-    </ls-box>
-
-    <hr>
-
-    Here is some example <ls-box class="color inline">text</ls-box>.
-
-    <hr>
-
-    <ls-div>
-        <button>Button</button>
-        <button class="elevated">Elevated button</button>
-        <button class="outline">Outlined button</button>
-        <button class="clear">Clear button</button>
-    </ls-div>
-
-    <ls-div>
-        <button class="pill">Pill button</button>
-        <button class="pill elevated">Pill button</button>
-        <button class="pill outline">Outlined button</button>
-        <button class="pill clear">Clear button</button>
-    </ls-div>
-
-    <ls-div>
-        <button class="circle"><i class="fa fa-plus"></i></button>
-        <button class="circle outline"><i class="fa fa-plus"></i></button>
-        <button class="circle elevated"><i class="fa fa-plus"></i></button>
-        <button class="circle clear"><i class="fa fa-plus"></i></button>
-    </ls-div>
-
-    <ls-div>
-        <button disabled>Disabled button</button>
-        <button disabled class="elevated">Disabled button</button>
-        <button disabled class="outline">Disabled button</button>
-        <button disabled class="clear">Disabled button</button>
-    </ls-div>
-
-    <ls-div>
-        <input placeholder="Input">
-    </ls-div>
-
-    <ls-div>
-        <textarea placeholder="Textarea"></textarea>
-    </ls-div>
-
-    <ls-div>
-        <ls-group>
-            <button>Button 1</button>
-            <button class="elevated small"> <i class="fa fa-angle-down"></i> </button>
-        </ls-group>
-    </ls-div>
-
-    <ls-div>
-        <label class="ls-checkbox">
-            <input type="checkbox">
-            Checkbox
-            <span></span>
-        </label>
-    </ls-div>
-
-    <ls-div>
-        <label class="ls-radio">
-            <input type="radio" name="radio">
-            Radio
-            <span></span>
-        </label>
     
-        <label class="ls-radio">
-            <input type="radio" name="radio">
-            Radio
-            <span></span>
-        </label>
-    </ls-div>
-
-    <br>
-
-    <hr>
-
-    <!-- <ls-div style="max-width: 500px">
-        <ls-box>
-            <h2>Example box</h2>
-            <p>Boxes are elements that visually group a secion.</p>
-            <button onclick="LS.Toast.show('Hello, world!')">Show a toast</button>
-        </ls-box>
+        <h3>Base (input) color</h3>
+        <ls-div>
+            <ls-div>
+                From a static color: <br>
+                <input type="color" value="rgb(58, 160, 125)" id="colorInput">
+            </ls-div>
     
-        <br>
+            <script>
+                document.querySelector('#colorInput').on('input', function() {
+                    LS.Color.update("dynamic", this.value);
+                    LS.Color.setAccent("dynamic");
+                });
+            </script>
     
-        <ls-box class="contained">
-            <h2>Contained box</h2>
-            <p>Alternative variant of ls-box meant for contained boxes.</p>
-        </ls-box>
+            <ls-div>
+                From an image (click to select): <br>
+                <label for="imageInput">
+                    <img alt="User chosen input" id="dynamicColorResult"> <br>
+                </label>
+                <input type="file" id="imageInput">
+            </ls-div>
     
-        <br>
+            <script>
+                document.querySelector('#imageInput').on('change', function() {
+                    const url = URL.createObjectURL(this.files[0]);
+                    const image = document.querySelector('#dynamicColorResult');
     
-        <ls-box class="color">
-            <h2>Colored box</h2>
-            <p>Colored box offers an alternative visual in any accent you want to use.</p>
-        </ls-box>
+                    image.onload = function() {
+                        LS.Color.update("dynamic", LS.Color.fromImage(image));
+                        LS.Color.setAccent("dynamic");
+                    }
+    
+                    image.src = url;
+    
+                    // var reader = new FileReader();
+                    // reader.onload = function(e) {
+                        // LS.Color.update("dynamic", e.target.result);
+                        // LS.Color.accent = "dynamic";
+                    // }
+                });
+            </script>
+    
+            <style>
+                #dynamicColorResult {
+                    border-radius: var(--border-radius-large);
+                    width: 120px;
+                    height: 120px;
+                    object-fit: cover;
+                    border: 4px solid var(--surface-mix-80);
+                    border-spacing: 20px;
+                    padding: 4px;
+                    cursor: pointer;
+                }
+    
+                #imageInput {
+                    display: none;
+                }
 
-        <br>
-    </ls-div>
+                ls-group > [class^="level-"] {
+                    border-radius: var(--border-radius);
+                    padding: 5px 16px;
+                }
 
-    <ls-div>
-        For things like highlights, <ls-box class="inline color">an inline box</ls-box> blends in perfectly with text content. <br>
-        There is also a <ls-box class="inline color pill">pill</ls-box> (round) variant.
-    </ls-div> -->
+                .chip {
+                    display: inline-block;
+                    width: 30px;
+                    height: 30px;
+                    border-radius: var(--border-radius);
+                    margin: 0 4px;
+                }
+            </style>
+        </ls-div>
+    
+        <h3>Accent (source) colors</h3>
+        Source color in different lights. <br>
+        <ls-div>
+            <div class="chip" style="background: var(--accent-10);"></div>
+            <div class="chip" style="background: var(--accent-20);"></div>
+            <div class="chip" style="background: var(--accent-30);"></div>
+            <div class="chip" style="background: var(--accent-35);"></div>
+            <div class="chip" style="background: var(--accent-40);"></div>
+            <div class="chip" style="background: var(--accent-45);"></div>
+            <div class="chip" style="background: var(--accent-50);"></div>
+            <div class="chip" style="background: var(--accent-55);"></div>
+            <div class="chip" style="background: var(--accent-60);"></div>
+            <div class="chip" style="background: var(--accent-70);"></div>
+            <div class="chip" style="background: var(--accent-80);"></div>
+            <div class="chip" style="background: var(--accent-90);"></div>
+            <div class="chip" style="background: var(--accent-95);"></div>
+        </ls-div>
+    
+        <h3>Surface (source) colors</h3>
+        Source colors with a lower color saturation. <br>
+        <ls-div>
+            <div class="chip" style="background: var(--surface-5);"></div>
+            <div class="chip" style="background: var(--surface-6);"></div>
+            <div class="chip" style="background: var(--surface-8);"></div>
+            <div class="chip" style="background: var(--surface-10);"></div>
+            <div class="chip" style="background: var(--surface-15);"></div>
+            <div class="chip" style="background: var(--surface-20);"></div>
+            <div class="chip" style="background: var(--surface-25);"></div>
+            <div class="chip" style="background: var(--surface-30);"></div>
+            <div class="chip" style="background: var(--surface-35);"></div>
+            <div class="chip" style="background: var(--surface-40);"></div>
+            <div class="chip" style="background: var(--surface-45);"></div>
+            <div class="chip" style="background: var(--surface-50);"></div>
+            <div class="chip" style="background: var(--surface-55);"></div>
+            <div class="chip" style="background: var(--surface-60);"></div>
+            <div class="chip" style="background: var(--surface-65);"></div>
+            <div class="chip" style="background: var(--surface-70);"></div>
+            <div class="chip" style="background: var(--surface-75);"></div>
+            <div class="chip" style="background: var(--surface-80);"></div>
+            <div class="chip" style="background: var(--surface-85);"></div>
+            <div class="chip" style="background: var(--surface-90);"></div>
+            <div class="chip" style="background: var(--surface-95);"></div>
+        </ls-div>
+    
+        <h3>Surface mix (tint) colors</h3>
+        Tint colors have a higher color saturation, mixed against their background.
+        <ls-div>
+            <div class="chip" style="background: var(--surface-mix-5);"></div>
+            <div class="chip" style="background: var(--surface-mix-10);"></div>
+            <div class="chip" style="background: var(--surface-mix-20);"></div>
+            <div class="chip" style="background: var(--surface-mix-30);"></div>
+            <div class="chip" style="background: var(--surface-mix-40);"></div>
+            <div class="chip" style="background: var(--surface-mix-50);"></div>
+            <div class="chip" style="background: var(--surface-mix-60);"></div>
+            <div class="chip" style="background: var(--surface-mix-70);"></div>
+            <div class="chip" style="background: var(--surface-mix-80);"></div>
+            <div class="chip" style="background: var(--surface-mix-90);"></div>
+            <div class="chip" style="background: var(--surface-mix-95);"></div>
+        </ls-div>
+    
+        <h3>Elevate colors</h3>
+        Elevate colors are used to easily differentiate between different layers in an interface. <br>
+        <ls-div>
+            <div class="chip" style="background: var(--elevate-0);"></div>
+            <div class="chip" style="background: var(--elevate-1);"></div>
+            <div class="chip" style="background: var(--elevate-2);"></div>
+            <div class="chip" style="background: var(--elevate-3);"></div>
+            <div class="chip" style="background: var(--elevate-4);"></div>
+            <div class="chip" style="background: var(--elevate-5);"></div>
+            <div class="chip" style="background: var(--elevate-6);"></div>
+            <div class="chip" style="background: var(--elevate-7);"></div>
+            <div class="chip" style="background: var(--elevate-8);"></div>
+            <div class="chip" style="background: var(--elevate-9);"></div>
+            <div class="chip" style="background: var(--elevate-10);"></div>
+        </ls-div>
+    
+        <h3>Contrast colors</h3>
+        Contrast colors are used on foreground objects against a background for simple readability. <br>
+        <ls-div>
+            <div class="chip" style="background: var(--background); border: 5px solid var(--on-background);"></div>
+            <div class="chip" style="background: var(--accent); border: 5px solid var(--on-accent);"></div>
+            <div class="chip" style="background: var(--surface-mix-20); border: 5px solid var(--on-transparent);"></div>
+        </ls-div>
+    
+        <h3>Surface levels</h3>
+        Surface levels are used to create a sense of depth in an interface that differs from the background. <br>
 
-    <style>
-        .chip {
-            display: inline-block;
-            width: 30px;
-            height: 30px;
-            border-radius: var(--border-radius);
-            margin: 0 4px;
-        }
-    </style>
+        <ls-div>
+            <ls-group>
+                <div class="level-0">Level 0</div>
+                <div class="level-1">Level 1</div>
+                <div class="level-2">Level 2</div>
+                <div class="level-3">Level 3</div>
+                <div class="level-4">Level 4</div>
+                <div class="level-5">Level 5</div>
+                <div class="level-6">Level 6</div>
+                <div class="level-7">Level 7</div>
+                <div class="level-8">Level 8</div>
+                <div class="level-9">Level 9</div>
+            </ls-group>
+        </ls-div>
 
-    <ls-div>
-        <ls-group>
-            <button onclick='LS.Color.theme = "dark"'><i class="fa-solid fa-moon"></i> Dark theme</button>
-            <button class="elevated" onclick='LS.Color.theme = "light"'><i class="fa-solid fa-sun"></i> Light theme</button>
-        </ls-group>
-    </ls-div>
-
-    <h3>Accent colors</h3>
-    <ls-div>
-        <div class="chip" style="background: var(--accent-10);"></div>
-        <div class="chip" style="background: var(--accent-20);"></div>
-        <div class="chip" style="background: var(--accent-30);"></div>
-        <div class="chip" style="background: var(--accent-35);"></div>
-        <div class="chip" style="background: var(--accent-40);"></div>
-        <div class="chip" style="background: var(--accent-45);"></div>
-        <div class="chip" style="background: var(--accent-50);"></div>
-        <div class="chip" style="background: var(--accent-55);"></div>
-        <div class="chip" style="background: var(--accent-60);"></div>
-        <div class="chip" style="background: var(--accent-70);"></div>
-        <div class="chip" style="background: var(--accent-80);"></div>
-        <div class="chip" style="background: var(--accent-90);"></div>
-        <div class="chip" style="background: var(--accent-95);"></div>
-    </ls-div>
-
-    <h3>Surface colors</h3>
-    <ls-div>
-        <div class="chip" style="background: var(--surface-5);"></div>
-        <div class="chip" style="background: var(--surface-6);"></div>
-        <div class="chip" style="background: var(--surface-8);"></div>
-        <div class="chip" style="background: var(--surface-10);"></div>
-        <div class="chip" style="background: var(--surface-15);"></div>
-        <div class="chip" style="background: var(--surface-20);"></div>
-        <div class="chip" style="background: var(--surface-25);"></div>
-        <div class="chip" style="background: var(--surface-30);"></div>
-        <div class="chip" style="background: var(--surface-35);"></div>
-        <div class="chip" style="background: var(--surface-40);"></div>
-        <div class="chip" style="background: var(--surface-45);"></div>
-        <div class="chip" style="background: var(--surface-50);"></div>
-        <div class="chip" style="background: var(--surface-55);"></div>
-        <div class="chip" style="background: var(--surface-60);"></div>
-        <div class="chip" style="background: var(--surface-65);"></div>
-        <div class="chip" style="background: var(--surface-70);"></div>
-        <div class="chip" style="background: var(--surface-75);"></div>
-        <div class="chip" style="background: var(--surface-80);"></div>
-        <div class="chip" style="background: var(--surface-85);"></div>
-        <div class="chip" style="background: var(--surface-90);"></div>
-        <div class="chip" style="background: var(--surface-95);"></div>
-    </ls-div>
-
-    <h3>Elevate colors</h3>
-    <ls-div>
-        <div class="chip" style="background: var(--elevate-0);"></div>
-        <div class="chip" style="background: var(--elevate-1);"></div>
-        <div class="chip" style="background: var(--elevate-2);"></div>
-        <div class="chip" style="background: var(--elevate-3);"></div>
-        <div class="chip" style="background: var(--elevate-4);"></div>
-        <div class="chip" style="background: var(--elevate-5);"></div>
-        <div class="chip" style="background: var(--elevate-6);"></div>
-        <div class="chip" style="background: var(--elevate-7);"></div>
-        <div class="chip" style="background: var(--elevate-8);"></div>
-        <div class="chip" style="background: var(--elevate-9);"></div>
-        <div class="chip" style="background: var(--elevate-10);"></div>
-    </ls-div>
-
-    <h3>Contrast colors</h3>
-    <ls-div>
-        <div class="chip" style="background: var(--background); border: 5px solid var(--on-background);"></div>
-        <div class="chip" style="background: var(--accent); border: 5px solid var(--on-accent);"></div>
-        <div class="chip" style="background: var(--accent-transparent); border: 5px solid var(--on-transparent);"></div>
-    </ls-div>
-
+        <ls-div>
+            <ls-group>
+                <div class="level-0 color">Level 0</div>
+                <div class="level-1 color">Level 1</div>
+                <div class="level-2 color">Level 2</div>
+                <div class="level-3 color">Level 3</div>
+                <div class="level-4 color">Level 4</div>
+                <div class="level-5 color">Level 5</div>
+            </ls-group>
+        </ls-div>
+    </div>
 </body>
 </html>

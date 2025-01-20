@@ -49,6 +49,25 @@
         version: "5.0.0",
         v: 5,
 
+        init(options = {}){
+            if(!this.isWeb) return;
+
+            options = LS.Util.defaults({
+                globalPrototype: true,
+                theme: null,
+                accent: null,
+                autoScheme: true,
+                adaptiveTheme: false
+            }, options);
+
+            if(options.globalPrototype) LS.prototypeTiny();
+            if(options.theme) this.Color.setTheme(options.theme);
+            if(options.accent) this.Color.setAccent(options.accent);
+            if(options.autoScheme) this.Color.autoScheme(options.adaptiveTheme);
+
+            LS._events.completed("init")
+        },
+
         components: new Map,
 
         EventHandler: class EventHandler {
@@ -771,6 +790,10 @@
                     throw new Error("This class has to be extended and loaded as a component with LS.LoadComponent.");
                 }
 
+                if(this.init) {
+                    LS.once("init", () => this.init())
+                }
+
                 this._events = new LS.EventHandler(this);
             }
         },
@@ -792,7 +815,7 @@
 
             LS.components.set(name, component)
             componentClass.prototype._component = component;
-
+            
             if(component.global){
                 LS[name] = options.singular? new componentClass: componentClass;
             }
@@ -968,6 +991,11 @@
             return LS.Color.fromHSL(h, s, l);
         }
 
+        tone(hue, saturation, lightness) {
+            let [h, s, l] = this.hsl;
+            return LS.Color.fromHSL(hue || h, (s / 100) * saturation, lightness);
+        }
+
         lighten(percent) {
             let [h, s, l] = this.hsl;
             l = Math.max(Math.min(l + percent, 100), 0);
@@ -1031,10 +1059,14 @@
         }
 
         static generate(r, g, b) {
-            let color = new LS.Color(r, g, b), style = "";
+            let color = (r instanceof LS.Color)? r: new LS.Color(r, g, b), style = "";
 
-            for(let i = 10; i < 110; i += 10){
+            for(let i of [10, 20, 30, 35, 40, 45, 50, 55, 60, 70, 80, 90, 95]){
                 style += `--accent-${i}:${color.lightness(i).hex};`; 
+            }
+
+            for(let i of [5, 6, 8, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95]){
+                style += `--surface-${i}:${color.tone(null, 12, i).hex};`; 
             }
 
             return style
@@ -1046,25 +1078,26 @@
         }
 
         static update(name, r, g, b){
-            let color = this.colors.get(name);
+            let accent = this.colors.get(name);
+            const color = (r instanceof LS.Color)? r: new LS.Color(r, g, b);
 
-            if(!color) {
-                color = {}
-                this.colors.set(name, color);
+            if(!accent) {
+                accent = {}
+                this.colors.set(name, accent);
             }
 
-            let style = `[ls-accent="${name}"]{${this.generate(r, g, b)}}`;
+            let style = `[ls-accent="${name}"]{${this.generate(color)}}`;
 
-            color.color = new LS.Color(r, g, b);
+            accent.color = color;
 
-            if(!color.style){
-                color.style = document.createTextNode(style);
-                this.style.appendChild(color.style);
+            if(!accent.style){
+                accent.style = document.createTextNode(style);
+                this.style.appendChild(accent.style);
             } else {
-                color.style.textContent = style;
+                accent.style.textContent = style;
             }
 
-            return color
+            return accent
         }
 
         static remove(name){
@@ -1113,7 +1146,7 @@
             return colors[Math.floor(Math.random() * colors.length)];
         }
 
-        static getAverageRGB(image, sampleGap = 20){
+        static fromImage(image, sampleGap = 20){
             if(!(image instanceof HTMLImageElement)) {
                 throw new TypeError("The first argument must be an image element");
             }

@@ -43,7 +43,7 @@ body {
 
     --margin-control-v: 0;
     --margin-control-h: 0;
-    --margin-content-v: 8px;
+    --margin-content-v: 14px;
     --margin-content-v-large: 18px;
 
     background: var(--background);
@@ -119,15 +119,15 @@ body {
     }
 
     #{$input}::selection, textarea::selection {
-        background-color: rgb(var(--accent-raw), 50%);
+        background-color: var(--surface-mix-50);
     }
 
     h1 {
-        font-weight:800
+        font-weight: 800;
     }
 
     h2 {
-        font-weight: 600
+        font-weight: 600;
     }
 
     h3 {
@@ -139,7 +139,7 @@ body {
     }
 
     h3, h4 {
-        color: var(--elevate-3);
+        color: var(--elevate-5);
     }
 
     table {
@@ -159,18 +159,18 @@ body {
 
 ::-webkit-scrollbar {
     width: var(--scrollbar-size, 6px);
-    height: var(--scrollbar-size, 6px)
+    height: var(--scrollbar-size, 6px);
 }
 
 ::-webkit-scrollbar-track {
-    background: rgba(0,0,0,0)
+    background: var(--elevate-2, #0001);
 }
 
 ::-webkit-scrollbar-thumb {
-    border-radius: var(--scrollbar-radius,8px);
-    background: var(--scrollbar-color, #0004)
+    border-radius: var(--scrollbar-radius, 8px);
+    background: var(--elevate-8, #0004);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: var(--scrollbar-color-hover, #fff4)
+    background: var(--elevate-9, #fff4);
 }

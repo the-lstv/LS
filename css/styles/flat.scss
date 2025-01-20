@@ -25,7 +25,7 @@
             }
 
             &:focus {
-                outline: 3px solid rgb(var(--accent-raw), 10%);
+                outline: 3px solid var(--surface-mix-10);
             }
 
             &:focus-visible {
@@ -50,11 +50,11 @@
 
     #{$button}:is(.clear, .outline, .elevated):not(:disabled) {
         &:hover, &:focus {
-            background-color: rgb(var(--accent-raw), 30%);
+            background-color: var(--surface-mix-30);
         }
 
         &:active {
-            background-color: rgb(var(--accent-raw), 25%);
+            background-color: var(--surface-mix-20);
         }
     }
 
@@ -65,11 +65,11 @@
     }
 
     #{$button}.outline {
-        border: 1px solid var(--on-background);
+        border: 1px solid var(--accent-70);
     }
 
     #{$button}.elevated {
-        background-color: var(--accent-transparent);
+        background-color: var(--surface-mix-20);
         color: var(--on-transparent);
 
         &:focus-visible {
@@ -94,7 +94,7 @@
 
         &:focus {
             border: 2px solid var(--accent-focus, var(--accent));
-            background: rgb(var(--accent-raw), 10%);
+            background: var(--surface-mix-10);
         }
     }
 
@@ -115,6 +115,7 @@
         inset: -0.8em;
         transition: background 0.2s, transform 0.2s;
         transform: scale(0.8);
+        opacity: .5;
     }
 
     .ls-radio > span::after {
@@ -127,7 +128,7 @@
     }
 
     :is(.ls-checkbox, .ls-radio):active > span::before {
-        background: rgb(var(--accent-raw), 20%);
+        background: var(--surface-mix-20);
         transform: scale(1);
     }
 
