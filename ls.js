@@ -1135,6 +1135,11 @@
             return accent
         }
 
+        static apply(element, r, g, b){
+            let color = (r instanceof LS.Color)? r: new LS.Color(r, g, b);
+            element.style = (element.style? element.style: "")+ this.generate(color);
+        }
+
         static remove(name){
             let color = this.colors.get(name);
 

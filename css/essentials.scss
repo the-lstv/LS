@@ -316,7 +316,7 @@ ls-tabs {
             background-color: transparent;
             box-shadow: 0 -24px 0 0 var(--background);
             bottom: -18px;
-            height: 45px;
+            height: 46px;
             width: 10px;
             pointer-events: none;
             transition: box-shadow 0.1s;
@@ -326,13 +326,13 @@ ls-tabs {
         .ls-tab-handle::after {
             transform: rotate(-90deg);
             left: calc(100% + 18px);
-            border-top-left-radius: 15px;
+            border-top-left-radius: 8px;
         }
 
         .ls-tab-handle::before {
             transform: rotate(90deg);
             left: -28px;
-            border-top-right-radius: 15px;
+            border-top-right-radius: 8px;
         }
     }
 }
