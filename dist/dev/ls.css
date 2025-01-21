@@ -157,12 +157,10 @@ ls-div {
 
 ls-group {
   display: inline-flex;
-  flex-wrap: wrap;
   margin: var(--margin-control-v) var(--margin-control-h);
 }
 ls-group > * {
   margin: 0 !important;
-  flex: 1;
 }
 ls-group.fill {
   width: 100%;
@@ -241,14 +239,13 @@ button.ls-toast-close.ls-toast-close.ls-toast-close {
   margin-left: -0.4em;
 }
 
-.ls-sidebar {
+.ls-sidebar-container {
   display: flex;
   width: 100%;
   overflow: hidden;
   position: relative;
 }
-
-.ls-sidebar > .sidebar-items {
+.ls-sidebar-container > .ls-sidebar {
   width: 260px;
   display: flex;
   overflow: hidden;
@@ -256,18 +253,34 @@ button.ls-toast-close.ls-toast-close.ls-toast-close {
   justify-content: space-between;
 }
 
+.ls-sidebar-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  overflow: auto;
+  flex: 1;
+}
+
+.ls-sidebar-item {
+  cursor: pointer;
+  border-radius: var(--border-radius);
+  padding: var(--padding-content-v) var(--padding-content-h);
+  background: var(--elevate);
+}
+
 @media screen and (max-width: 860px) {
-  .ls-sidebar > .sidebar-items {
+  .ls-sidebar-container > .ls-sidebar {
     position: absolute;
     transition: transform 0.2s;
     height: 100%;
     z-index: 5;
   }
-  .ls-sidebar:not(.open) > .sidebar-items {
+  .ls-sidebar-container:not(.open) > .ls-sidebar {
     transform: translateX(-100%);
   }
 }
-.ls-sidebar > .sidebar-content {
+.ls-sidebar-container > .sidebar-content {
   padding: 10px 45px;
   padding-bottom: 145px;
   flex: 1;
@@ -1305,13 +1318,19 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
 
 .level-0 {
   --background: var(--elevate-0);
+  --elevate: var(--elevate-1);
 }
 
 .level-0.color {
   --background: var(--surface-mix-10);
 }
 
-.level-1, ls-box {
+.level-1, ls-box:not(ls-box ls-box) {
+  --background: var(--elevate-1);
+  --elevate: var(--elevate-2);
+}
+
+ls-box {
   --background: var(--elevate);
 }
 
@@ -1321,6 +1340,7 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
 
 .level-2 {
   --background: var(--elevate-2);
+  --elevate: var(--elevate-3);
 }
 
 .level-2.color {
@@ -1329,6 +1349,7 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
 
 .level-3 {
   --background: var(--elevate-3);
+  --elevate: var(--elevate-4);
 }
 
 .level-3.color {
@@ -1337,6 +1358,7 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
 
 .level-4 {
   --background: var(--elevate-4);
+  --elevate: var(--elevate-5);
 }
 
 .level-4.color {
@@ -1345,6 +1367,7 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
 
 .level-5 {
   --background: var(--elevate-5);
+  --elevate: var(--elevate-6);
 }
 
 .level-5.color {
@@ -1354,21 +1377,25 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
 
 .level-6 {
   --background: var(--elevate-6);
+  --elevate: var(--elevate-7);
 }
 
 .level-7 {
   --background: var(--elevate-7);
   --color: var(--on-invert);
+  --elevate: var(--elevate-8);
 }
 
 .level-8 {
   --background: var(--elevate-8);
   --color: var(--on-invert);
+  --elevate: var(--elevate-9);
 }
 
 .level-9 {
   --background: var(--elevate-9);
   --color: var(--on-invert);
+  --elevate: var(--elevate-10);
 }
 
 [class*=level-], ls-box {

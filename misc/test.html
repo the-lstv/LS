@@ -30,12 +30,10 @@
     </style>
 </head>
 
-<body ls ls-accent="aquamarine" ls-theme="dark" ls-style="flat" class="ls-sidebar">
+<body ls ls-accent="aquamarine" ls-theme="dark" ls-style="flat" class="ls-sidebar-container">
 
-    <div class="sidebar-items level-1">
-        <div class="level-2">
-            Items
-        </div>
+    <div class="ls-sidebar level-1">
+        <div class="ls-sidebar-items"></div>
 
         <div class="sidebar-bottom" style="padding: 10px">
             <ls-group class="fill">
@@ -380,16 +378,17 @@
             <h1>Boxes</h1>
             
             <ls-div style="max-width: 500px">
-                <ls-box>
+                <ls-box class="level-1">
                     <h2>Example box</h2>
                     <p>Boxes are elements that contain an item, like a note or a smaller section.</p>
     
-                    <ls-box class="contained level-2">
+                    <ls-box class="contained">
                         <h2>Contained box</h2>
                         <p>Box within a box within a box within a box...</p>
                         <button onclick="LS.Toast.show('Hello, world!')">Show a toast</button> <br> <br>
     
-                        Class: <ls-box class="inline">.contained</ls-box> <ls-box class="inline">.level-[1-9]</ls-box>
+                        Class: <ls-box class="inline">.contained</ls-box> <ls-box class="inline">.level-[1-9]</ls-box> <br>
+                        Tip: You can specify the level on the root box, and any contained box will automatically get a higher level.
                     </ls-box>
                 </ls-box>
             
@@ -446,5 +445,24 @@
             </script>
         </section>
     </div>
+
+    <script>
+        const sidebarItemsContainer = O(".ls-sidebar-items");
+
+        Q("section").forEach((section, i) => {
+            const title = section.querySelector("h1")?.textContent;
+
+            console.log(`Section ${i + 1}: ${title}`);
+            
+            sidebarItemsContainer.add(N({
+                class: "ls-sidebar-item",
+                innerText: title,
+
+                onclick() {
+                    section.scrollIntoView({ behavior: "smooth" });
+                }
+            }))
+        });
+    </script>
 </body>
 </html>

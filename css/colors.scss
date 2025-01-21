@@ -88,13 +88,19 @@ $colors: (
 
 .level-0 {
     --background: var(--elevate-0);
+    --elevate: var(--elevate-1);
 }
 
 .level-0.color {
     --background: var(--surface-mix-10);
 }
 
-.level-1, ls-box {
+.level-1, ls-box:not(ls-box ls-box) {
+    --background: var(--elevate-1);
+    --elevate: var(--elevate-2);
+}
+
+ls-box {
     --background: var(--elevate);
 }
 
@@ -104,6 +110,7 @@ $colors: (
 
 .level-2 {
     --background: var(--elevate-2);
+    --elevate: var(--elevate-3);
 }
 
 .level-2.color {
@@ -112,6 +119,7 @@ $colors: (
 
 .level-3 {
     --background: var(--elevate-3);
+    --elevate: var(--elevate-4);
 }
 
 .level-3.color {
@@ -120,6 +128,7 @@ $colors: (
 
 .level-4 {
     --background: var(--elevate-4);
+    --elevate: var(--elevate-5);
 }
 
 .level-4.color {
@@ -128,6 +137,7 @@ $colors: (
 
 .level-5 {
     --background: var(--elevate-5);
+    --elevate: var(--elevate-6);
 }
 
 .level-5.color {
@@ -137,21 +147,25 @@ $colors: (
 
 .level-6 {
     --background: var(--elevate-6);
+    --elevate: var(--elevate-7);
 }
 
 .level-7 {
     --background: var(--elevate-7);
     --color: var(--on-invert);
+    --elevate: var(--elevate-8);
 }
 
 .level-8 {
     --background: var(--elevate-8);
     --color: var(--on-invert);
+    --elevate: var(--elevate-9);
 }
 
 .level-9 {
     --background: var(--elevate-9);
     --color: var(--on-invert);
+    --elevate: var(--elevate-10);
 }
 
 [class*="level-"], ls-box {
@@ -184,4 +198,16 @@ $colors: (
     --surface-mix-80: color-mix(in oklab, var(--background) 100%, var(--accent) 80%);
     --surface-mix-90: color-mix(in oklab, var(--background) 100%, var(--accent) 90%);
     --surface-mix-95: color-mix(in oklab, var(--background) 100%, var(--accent) 95%);
+
+    // --ui-5:  color-mix(in oklab, var(--background) 100%, var(--elevate) 5%);
+    // --ui-10: color-mix(in oklab, var(--background) 100%, var(--elevate) 10%);
+    // --ui-20: color-mix(in oklab, var(--background) 100%, var(--elevate) 20%);
+    // --ui-30: color-mix(in oklab, var(--background) 100%, var(--elevate) 30%);
+    // --ui-40: color-mix(in oklab, var(--background) 100%, var(--elevate) 40%);
+    // --ui-50: color-mix(in oklab, var(--background) 100%, var(--elevate) 50%);
+    // --ui-60: color-mix(in oklab, var(--background) 100%, var(--elevate) 60%);
+    // --ui-70: color-mix(in oklab, var(--background) 100%, var(--elevate) 70%);
+    // --ui-80: color-mix(in oklab, var(--background) 100%, var(--elevate) 80%);
+    // --ui-90: color-mix(in oklab, var(--background) 100%, var(--elevate) 90%);
+    // --ui-95: color-mix(in oklab, var(--background) 100%, var(--elevate) 95%);
 }
