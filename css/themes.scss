@@ -1,23 +1,25 @@
 [ls-theme="light"] {
-    --background: var(--surface-90);
-    --color: var(--surface-10);
+    &, [ls-accent], :disabled {
+        --background: var(--surface-90);
+        --color: var(--surface-10);
 
-    // Elevate
-    --elevate: var(--surface-85);
+        // Elevate
+        --elevate: var(--surface-85);
+    
+        --elevate-0: var(--surface-95);
+        --elevate-1: var(--surface-85);
+        --elevate-2: var(--surface-80);
+        --elevate-3: var(--surface-75);
+        --elevate-4: var(--surface-70);
+        --elevate-5: var(--surface-65);
+        --elevate-6: var(--surface-60);
+        --elevate-7: var(--surface-55);
+        --elevate-8: var(--surface-50);
+        --elevate-9: var(--surface-45);
+        --elevate-10: var(--surface-40);
 
-    --elevate-0: var(--surface-95);
-    --elevate-1: var(--surface-85);
-    --elevate-2: var(--surface-80);
-    --elevate-3: var(--surface-75);
-    --elevate-4: var(--surface-70);
-    --elevate-5: var(--surface-65);
-    --elevate-6: var(--surface-60);
-    --elevate-7: var(--surface-55);
-    --elevate-8: var(--surface-50);
-    --elevate-9: var(--surface-45);
-    --elevate-10: var(--surface-40);
+        --ui-element: var(--surface-95);
 
-    [ls-accent], &[ls-accent], :disabled {
         --on-background: var(--accent-40);
         --on-accent: var(--accent-90);
         --on-transparent: var(--accent-30);
@@ -30,25 +32,27 @@
 }
 
 [ls-theme="dark"], [ls-theme="amoled"], [ls-theme="default"], body:not([ls-theme]) {
-    --background: var(--surface-10);
-    --color: var(--accent-90);
+    &, [ls-accent], :disabled {
+        --background: var(--surface-10);
+        --color: var(--accent-90);
 
-    // Elevate
-    --elevate: var(--surface-15);
+        // Elevate
+        --elevate: var(--surface-15);
+    
+        --elevate-0: var(--surface-5);
+        --elevate-1: var(--surface-15);
+        --elevate-2: var(--surface-20);
+        --elevate-3: var(--surface-25);
+        --elevate-4: var(--surface-30);
+        --elevate-5: var(--surface-35);
+        --elevate-6: var(--surface-40);
+        --elevate-7: var(--surface-45);
+        --elevate-8: var(--surface-50);
+        --elevate-9: var(--surface-55);
+        --elevate-10: var(--surface-60);
 
-    --elevate-0: var(--surface-5);
-    --elevate-1: var(--surface-15);
-    --elevate-2: var(--surface-20);
-    --elevate-3: var(--surface-25);
-    --elevate-4: var(--surface-30);
-    --elevate-5: var(--surface-35);
-    --elevate-6: var(--surface-40);
-    --elevate-7: var(--surface-45);
-    --elevate-8: var(--surface-50);
-    --elevate-9: var(--surface-55);
-    --elevate-10: var(--surface-60);
+        --ui-element: var(--surface-20);
 
-    [ls-accent], &[ls-accent], :disabled {
         --on-background: var(--accent-70);
         --on-accent: var(--accent-90);
         --on-transparent: var(--accent-80);

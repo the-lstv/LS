@@ -7,7 +7,7 @@
     Version: 5.0.0
     See: https://github.com/thelstv/LS
 */
-[ls-theme=light] {
+[ls-theme=light], [ls-theme=light] [ls-accent], [ls-theme=light] :disabled {
   --background: var(--surface-90);
   --color: var(--surface-10);
   --elevate: var(--surface-85);
@@ -22,8 +22,7 @@
   --elevate-8: var(--surface-50);
   --elevate-9: var(--surface-45);
   --elevate-10: var(--surface-40);
-}
-[ls-theme=light] [ls-accent], [ls-theme=light][ls-accent], [ls-theme=light] :disabled {
+  --ui-element: var(--surface-95);
   --on-background: var(--accent-40);
   --on-accent: var(--accent-90);
   --on-transparent: var(--accent-30);
@@ -33,7 +32,7 @@
   --accent: var(--accent-10);
 }
 
-[ls-theme=dark], [ls-theme=amoled], [ls-theme=default], body:not([ls-theme]) {
+[ls-theme=dark], [ls-theme=dark] [ls-accent], [ls-theme=dark] :disabled, [ls-theme=amoled], [ls-theme=amoled] [ls-accent], [ls-theme=amoled] :disabled, [ls-theme=default], [ls-theme=default] [ls-accent], [ls-theme=default] :disabled, body:not([ls-theme]), body:not([ls-theme]) [ls-accent], body:not([ls-theme]) :disabled {
   --background: var(--surface-10);
   --color: var(--accent-90);
   --elevate: var(--surface-15);
@@ -48,8 +47,7 @@
   --elevate-8: var(--surface-50);
   --elevate-9: var(--surface-55);
   --elevate-10: var(--surface-60);
-}
-[ls-theme=dark] [ls-accent], [ls-theme=dark][ls-accent], [ls-theme=dark] :disabled, [ls-theme=amoled] [ls-accent], [ls-theme=amoled][ls-accent], [ls-theme=amoled] :disabled, [ls-theme=default] [ls-accent], [ls-theme=default][ls-accent], [ls-theme=default] :disabled, body:not([ls-theme]) [ls-accent], body:not([ls-theme])[ls-accent], body:not([ls-theme]) :disabled {
+  --ui-element: var(--surface-20);
   --on-background: var(--accent-70);
   --on-accent: var(--accent-90);
   --on-transparent: var(--accent-80);
@@ -159,10 +157,12 @@ ls-div {
 
 ls-group {
   display: inline-flex;
+  flex-wrap: wrap;
   margin: var(--margin-control-v) var(--margin-control-h);
 }
 ls-group > * {
   margin: 0 !important;
+  flex: 1;
 }
 ls-group.fill {
   width: 100%;
@@ -203,14 +203,11 @@ ls-group > *:not(:only-child):last-child {
 
 .ls-toast {
   pointer-events: all;
-  transform: scaleY(0);
   opacity: 0;
-  margin-top: -70px;
-  padding: 0.5em 1.8em;
-  background: var(--accent-background);
+  padding: 4px var(--padding-control-h-pill);
   border-radius: 2em;
   overflow: hidden;
-  transition: 0.2s;
+  transition: opacity 0.2s;
   -webkit-user-select: none;
   user-select: none;
   color: var(--accent);
@@ -223,22 +220,15 @@ ls-group > *:not(:only-child):last-child {
 }
 
 .ls-toast.open {
-  transform: unset;
   opacity: 1;
-  margin-top: 0;
 }
 
-button.ls-toast-close.ls-toast-close {
+button.ls-toast-close.ls-toast-close.ls-toast-close {
   margin: 0;
-  width: 1.5em;
-  height: 1.5em;
-  min-width: 1.5em;
-  min-height: 1.5em;
-  padding: 0.2em;
   font-size: 1.2em;
   box-sizing: content-box;
-  margin-left: 1em;
-  margin-right: -1em;
+  margin-left: 12px;
+  margin-right: -10px;
 }
 
 .ls-toast-content {
@@ -255,22 +245,109 @@ button.ls-toast-close.ls-toast-close {
   display: flex;
   width: 100%;
   overflow: hidden;
+  position: relative;
 }
 
 .ls-sidebar > .sidebar-items {
   width: 260px;
-  --background: var(--elevate);
-  background: var(--background);
   display: flex;
   overflow: hidden;
   flex-direction: column;
   justify-content: space-between;
 }
 
+@media screen and (max-width: 860px) {
+  .ls-sidebar > .sidebar-items {
+    position: absolute;
+    transition: transform 0.2s;
+    height: 100%;
+    z-index: 5;
+  }
+  .ls-sidebar:not(.open) > .sidebar-items {
+    transform: translateX(-100%);
+  }
+}
 .ls-sidebar > .sidebar-content {
   padding: 10px 45px;
+  padding-bottom: 145px;
   flex: 1;
   overflow: auto;
+}
+
+ls-tab {
+  display: block;
+}
+
+ls-tabs {
+  display: block;
+}
+ls-tabs.ls-tabs-styled {
+  display: flex;
+  flex-direction: column;
+}
+ls-tabs.ls-tabs-styled .ls-tabs-list {
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-bottom: 2px solid var(--elevate);
+  box-shadow: 0 1px 0 0 var(--elevate-0);
+  padding: 4px 0 0 6px;
+}
+ls-tabs.ls-tabs-styled .ls-tabs-content > *:not(.tab-active) {
+  display: none;
+}
+ls-tabs.ls-tabs-styled .ls-tab-close.ls-tab-close.ls-tab-close {
+  border-radius: 5px;
+  padding: 0;
+  height: 20px;
+  width: 20px;
+  font-size: large;
+  margin-left: 10px;
+  margin-right: -8px;
+  z-index: 1;
+}
+ls-tabs.ls-tabs-styled .ls-tab-handle {
+  cursor: pointer;
+  padding: 4px var(--padding-control-h);
+  border-radius: var(--border-radius) var(--border-radius) 0 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  --background: none;
+  background: var(--background);
+  transition: background 0.1s;
+  white-space: nowrap;
+  user-select: none;
+}
+ls-tabs.ls-tabs-styled .ls-tab-handle:hover {
+  --background: var(--surface-mix-10);
+}
+ls-tabs.ls-tabs-styled .ls-tab-handle.active {
+  --background: var(--ui-element);
+  z-index: 1;
+  box-shadow: 0 4px 12px 2px rgba(0, 0, 0, 0.1333333333);
+}
+ls-tabs.ls-tabs-styled .ls-tab-handle::after, ls-tabs.ls-tabs-styled .ls-tab-handle::before {
+  content: "";
+  position: absolute;
+  background-color: transparent;
+  box-shadow: 0 -24px 0 0 var(--background);
+  bottom: -18px;
+  height: 45px;
+  width: 10px;
+  pointer-events: none;
+  transition: box-shadow 0.1s;
+  z-index: 0;
+}
+ls-tabs.ls-tabs-styled .ls-tab-handle::after {
+  transform: rotate(-90deg);
+  left: calc(100% + 18px);
+  border-top-left-radius: 15px;
+}
+ls-tabs.ls-tabs-styled .ls-tab-handle::before {
+  transform: rotate(90deg);
+  left: -28px;
+  border-top-right-radius: 15px;
 }
 
 :root {
@@ -1294,24 +1371,24 @@ button.ls-toast-close.ls-toast-close {
   --color: var(--on-invert);
 }
 
-[class^=level-], ls-box {
+[class*=level-], ls-box {
   background: var(--background);
   color: var(--color);
 }
 
-[class^=level-].round {
+[class*=level-].round {
   border-radius: var(--border-radius);
 }
 
-[class^=level-].round-lg {
+[class*=level-].round-lg {
   border-radius: var(--border-radius-large);
 }
 
-[class^=level-].pill {
+[class*=level-].pill {
   border-radius: var(--border-radius-full);
 }
 
-[ls-accent], :disabled, html, [class^=level-]:not(.color), ls-box, .sidebar-items {
+[ls-accent], :disabled, html, [class*=level-]:not(.color), ls-box, .sidebar-items {
   --accent: var(--accent-40);
   --surface-mix-5: color-mix(in oklab, var(--background) 100%, var(--accent) 5%);
   --surface-mix-10: color-mix(in oklab, var(--background) 100%, var(--accent) 10%);

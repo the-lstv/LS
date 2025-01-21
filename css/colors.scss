@@ -154,24 +154,24 @@ $colors: (
     --color: var(--on-invert);
 }
 
-[class^="level-"], ls-box {
+[class*="level-"], ls-box {
     background: var(--background);
     color: var(--color);
 }
 
-[class^="level-"].round {
+[class*="level-"].round {
     border-radius: var(--border-radius);
 }
 
-[class^="level-"].round-lg {
+[class*="level-"].round-lg {
     border-radius: var(--border-radius-large);
 }
 
-[class^="level-"].pill {
+[class*="level-"].pill {
     border-radius: var(--border-radius-full);
 }
 
-[ls-accent], :disabled, html, [class^="level-"]:not(.color), ls-box, .sidebar-items {
+[ls-accent], :disabled, html, [class*="level-"]:not(.color), ls-box, .sidebar-items {
     --accent: var(--accent-40);
     --surface-mix-5:  color-mix(in oklab, var(--background) 100%, var(--accent) 5%);
     --surface-mix-10: color-mix(in oklab, var(--background) 100%, var(--accent) 10%);

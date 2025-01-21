@@ -857,17 +857,14 @@
                 }
 
                 else {
-                    if(!LS.Color.colorDetectionContext) {
-                        const canvas = document.createElement('canvas');
-                        canvas.width = canvas.height = 1;
-
-                        LS.Color.colorDetectionCanvas = canvas;
-                        LS.Color.colorDetectionContext = canvas.getContext('2d');
+                    if(!LS.Color.context) {
+                        LS.Color._createProcessingCanvas();
                     }
+                    
+                    // canvas.width = canvas.height = 1;
+                    LS.Color.context.fillStyle = r;
 
-                    LS.Color.colorDetectionContext.fillStyle = r;
-
-                    [r, g, b] = LS.Color.parseHex(LS.Color.colorDetectionContext.fillStyle);
+                    [r, g, b] = LS.Color.parseHex(LS.Color.context.fillStyle);
                 }
             } else if (r instanceof LS.Color) {
                 [r, g, b, a] = r.color;
@@ -1076,6 +1073,10 @@
             return new LS.Color(Math.floor(Math.random() * 256), Math.floor(Math.random() * 256), Math.floor(Math.random() * 256));
         }
 
+        static trueRandom() {
+            return new LS.Color([...crypto.getRandomValues(new Uint8Array(3))]);
+        }
+
         static get theme(){
             return document.body.getAttribute("ls-theme")
         }
@@ -1180,41 +1181,55 @@
             return colors[Math.floor(Math.random() * colors.length)];
         }
 
-        static fromImage(image, sampleGap = 20){
+        static fromImage(image, sampleGap = 16, maxResolution = 200){
             if(!(image instanceof HTMLImageElement)) {
                 throw new TypeError("The first argument must be an image element");
             }
 
-            let canvas = document.createElement("canvas"),
-                context = canvas.getContext && canvas.getContext("2d"),
-                index = -4,
-                color = [0, 0, 0],
+            sampleGap += sampleGap % 4;
+
+            let pixelIndex = -4,
+                sum = [0, 0, 0],
                 sampleCount = 0
             ;
 
-            if (!context) return new LS.Color(...color);
+            if(!LS.Color.canvas) {
+                LS.Color._createProcessingCanvas();
+            }
 
-            canvas.height = image.naturalHeight || image.offsetHeight || image.height;
-            canvas.width = image.naturalWidth || image.offsetWidth || image.width;
-            
-            context.drawImage(image, 0, 0);
+            if (!LS.Color.context) return new LS.Color(0, 0, 0);
+
+            const scale = Math.min(1, maxResolution / Math.max(image.naturalWidth, image.naturalHeight));
+
+            LS.Color.canvas.width = Math.ceil(image.naturalWidth * scale);
+            LS.Color.canvas.height = Math.ceil(image.naturalHeight * scale);
+
+            LS.Color.context.drawImage(image, 0, 0, LS.Color.canvas.width, LS.Color.canvas.height);
 
             let imageData;
             try {
-                imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                imageData = LS.Color.context.getImageData(0, 0, LS.Color.canvas.width, LS.Color.canvas.height);
             } catch (error) {
                 console.error(error);
-                return new LS.Color(...color);
+                return new LS.Color(0, 0, 0);
             }
 
-            for (let i = imageData.data.length; (index += sampleGap) < i; ) {
+            for (let i = imageData.data.length; (pixelIndex += sampleGap) < i; ) {
                 ++sampleCount
-                color[0] += imageData.data[index]
-                color[1] += imageData.data[index + 1]
-                color[2] += imageData.data[index + 2]
+                sum[0] += imageData.data[pixelIndex]
+                sum[1] += imageData.data[pixelIndex + 1]
+                sum[2] += imageData.data[pixelIndex + 2]
             }
         
-            return (color[0] = ~~(color[0] / sampleCount)), (color[1] = ~~(color[1] / sampleCount)), (color[2] = ~~(color[2] / sampleCount)), new LS.Color(...color);
+            return new LS.Color((sum[0] = ~~(sum[0] / sampleCount)), (sum[1] = ~~(sum[1] / sampleCount)), (sum[2] = ~~(sum[2] / sampleCount)));
+        }
+
+        static _createProcessingCanvas() {
+            if(!LS.Color.canvas) {
+                const canvas = document.createElement('canvas');
+                LS.Color.canvas = canvas;
+                LS.Color.context = canvas.getContext('2d');
+            }
         }
     }
 
