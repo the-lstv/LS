@@ -1,5 +1,4 @@
-
-console.warn("You are using an outdated and deprecated version of LS (v4 [LTS]) - LS v5 is out! We recommend migrating for a brand new, polished experience, with much better performance and improved practices, new components and more.\nhttps://github.com/the-lstv/LS")
+console.warn("You are using an outdated and deprecated version of LS (v4 [LTS]) - LS v5 is now out! We strongly recommend migrating for a brand new, much more polished experience, with better performance, bugfixes, reworked UI, new components and more.\nhttps://github.com/the-lstv/LS")
 
 String.prototype.replaceAll||(String.prototype.replaceAll=function(a,b){return"[object regexp]"===Object.prototype.toString.call(a).toLowerCase()?this.replace(a,b):this.replace(new RegExp(a,"g"),b)});
 
@@ -182,10 +181,6 @@ if(!LS){
                 }
 
                 return events
-            },
-
-            flatten(obj){
-
             },
 
             defaults(defaults, target = {}) {
@@ -474,18 +469,23 @@ if(!LS){
         },
 
         Tiny:{
-            Q(e, q) {
-                let elements = (e?.tagName && !q ? [e] : [...(e?.tagName ? e : document).querySelectorAll(e?.tagName ? !q ? '*' : q : typeof e == 'string' ? e : '*')])?.map(r => {
-                    if(!r._affected){
+            Q(selector, subSelector, one = false) {
+                let elements = (() => {
+                    // New element selector taken from v5 and wrapped for v4
 
-                        let methods = LS.TinyFactory(r);
-                        
-                        Object.defineProperties(r, Object.getOwnPropertyDescriptors(methods))
+                    if(!selector) return LS.TinyWrap(one? [null]: []);
 
-                        if(r.tagName == "BR") r.removeAttribute("clear"); // Fixes a bug (i think?)
-                    }
-                    return r.self
-                })
+                    const isElement = selector instanceof HTMLElement;
+                    const target = (isElement? selector : document);
+
+                    if(isElement && !subSelector) return LS.TinyWrap(one? [selector]: [selector]);
+
+                    const actualSelector = isElement? subSelector || "*" : selector || '*';
+
+                    let elements = one? target.querySelector(actualSelector): target.querySelectorAll(actualSelector);
+
+                    return LS.TinyWrap(one? [elements]: [...elements]);
+                })();
 
                 return Object.assign(elements, {
                     all(callback){
@@ -516,8 +516,8 @@ if(!LS){
                 })
             },
 
-            O(...selector){
-                return LS.Tiny.Q(...selector.length < 1? ['body'] : selector)[0]
+            O(selector, subSelector){
+                return LS.Tiny.Q(selector || "body", subSelector, true)[0]
             },
 
             N(tagName = 'div', content){
@@ -1068,101 +1068,105 @@ if(!LS){
     }
 }
 
-LS.EventResolver = () => (console.warn("LS.EventResolver is deprecated; You should migrate to LS.EventHandler. Warning: it will be removed entirely in LS v5."), LS.EventHandler);
-
+// New event handler taken from v5 and modified for v4
 LS.EventHandler = function (target, options) {
     return ((_this) => new class EventClass {
         constructor(){
-            this.listeners = [];
-            this.events = {};
-
             _this = this;
+            this.events = new Map;
+            this.options = options;
 
             if(target){
-                for(let key of ["invoke", "on", "once", "off"]){
-                    if(!target.hasOwnProperty(key)) target[key] = this[key]
-                }
+                target._events = this;
 
-                this.target = target
+                ["emit", "on", "once", "off", "invoke"].forEach(method => {
+                    if (!target.hasOwnProperty(method)) target[method] = this[method].bind(this);
+                });
+
+                this.target = target;
             }
         }
 
-        prepare(event){
-            if(typeof event == "string"){
-                event = {name: event}
+        prepare(options){
+            let name = options?.name;
+            if(typeof options == "string"){
+                name = options;
+                options = {}
             }
 
-            let name = event.name;
-            delete event.name;
+            delete options.name;
 
-            _this.events[name] = {... (_this.events[name] || null), ...event};
+            if(!this.events.has(name)){
+                this.events.set(name, { listeners: [], empty: [], ...options, _isEvent: true })
+            } else if(options){
+                Object.assign(this.events.get(name), options)
+            }
 
-            return event
+            return this.events.get(name)
         }
 
         async invoke(name, ...data){
-            _this.prepare(name);
+            if(!name) return;
 
-            if(typeof name !== "string") name = name.name;
+            const event = name._isEvent? name: this.events.get(name);
 
-            let ReturnValues = [];
+            const returnData = [];
+            if(!event) return returnData;
 
-            for(const listener of _this.listeners){
-                if(!listener || listener.for !== name) continue;
+            const hasData = Array.isArray(data) && data.length > 0;
 
-                ReturnValues.push(await listener.f(...data));
+            for(let listener of event.listeners){
+                if(!listener || typeof listener.callback !== "function") continue;
 
-                if(listener.once) delete _this.listeners[listener.i];
+                try {
+                    const result = await (hasData? listener.callback(...data): listener.callback());
+                    returnData.push(result);
+                } catch (error) {
+                    console.error(`Error in listener for event '${name}':`, listener, error);
+                }
+
+                if(listener.once) {
+                    event.empty.push(listener.index);
+                    event.listeners[listener.index] = null;
+                    listener = null;
+                }
             }
 
-            return ReturnValues
+            return returnData
         }
 
-        on(type, callback, extra){
-            let index = _this.listeners.length;
+        on(name, callback, options){
+            const event = (name._isEvent? name: this.events.get(name)) || this.prepare(name);
+            if(event.completed) return callback();
 
-            _this.invoke("event-listener-added", index)
+            const index = event.empty.length > 0 ? event.empty.pop() : event.listeners.length;
 
-            if(_this.events[type]){
-                let evt = _this.events[type];
-                if(evt.completed) callback();
+            event.listeners[index] = { callback, index, ...options }
+            return this
+        }
+
+        once(name, callback, options){
+            return this.on(name, callback, Object.assign(options || {}, { once: true }))
+        }
+
+        off(name, callback){
+            const event = name._isEvent? name: this.events.get(name);
+            if(!event) return;
+
+            for(let i = 0; i < event.listeners.length; i++){
+                if(event.listeners[i].callback === callback) {
+                    event.empty.push(i)
+                    event.listeners[i] = null
+                }
             }
 
-            _this.listeners.push({
-                for: type,
-                f: callback,
-                i: index,
-                id: M.GlobalID,
-                ...extra
-            })
-
-            return _this.target || _this
+            return this
         }
 
-        once(type, callback, extra){
-            _this.on(type, callback, {
-                once: true,
-                ...extra
-            })
+        completed(name){
+            _this.invoke(name)
 
-            return _this.target || _this
-        }
-
-        off(type, event){
-            if(typeof type === "function") event = type;
-
-            for(const listener of _this.listeners){
-                if(listener.f === event) return delete _this.listeners[listener.i];
-            }
-
-            return false
-        }
-
-        completed(event){
-            _this.invoke(event)
-
-            _this.prepare({
-                name: event,
+            _this.prepare(name, {
                 completed: true
             })
         }
@@ -1178,14 +1182,13 @@ LS.EventHandler = function (target, options) {
         }
 
         destroy(){
-            this.listeners.clear();
             this.events.clear();
-            ["on", "off", "invoke", "once"].forEach(method => this[method] = () => {});
-            delete this.target;
         }
     })()
 }
 
+// Deprecated alias
+LS.EventResolver = LS.EventHandler;
 LS.GlobalEvents = new LS.EventHandler(LS)
 
 ;(()=>{
