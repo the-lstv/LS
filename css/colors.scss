@@ -43,7 +43,7 @@ $colors: (
     }
     
     @else if $name == "white" {
-        $selector: "#{$selector}, :disabled, [ls-accent=\"gray\"], [ls-accent=\"auto\"], [ls-accent=\"black\"]";
+        $selector: "#{$selector}, [ls-accent=\"gray\"], [ls-accent=\"auto\"], [ls-accent=\"black\"]";
     }
 
     // Generate CSS for the modified selector
@@ -185,7 +185,7 @@ ls-box {
     border-radius: var(--border-radius-full);
 }
 
-[ls-accent], :disabled, html, [class*="level-"]:not(.color), ls-box, .sidebar-items {
+[ls-accent], html, [class*="level-"]:not(.color), ls-box, .sidebar-items {
     --accent: var(--accent-40);
     --surface-mix-5:  color-mix(in oklab, var(--background) 100%, var(--accent) 5%);
     --surface-mix-10: color-mix(in oklab, var(--background) 100%, var(--accent) 10%);
