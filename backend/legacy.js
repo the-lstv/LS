@@ -17,7 +17,8 @@ function Handle({ req, res, segments, error, backend }){
     let version = segments[2]? segments[1] : null;
 
     // Legacy behavior :shrug:
-    if(!fs.existsSync(DistPath + version + "/")) version = "3.6.5";
+    if(version && version[0] === "2") version = "2.1.0";
+    else if(!fs.existsSync(DistPath + version + "/")) version = "3.6.5";
 
     if (!segments[2]) {
         segments[2] = segments[1] || ""
