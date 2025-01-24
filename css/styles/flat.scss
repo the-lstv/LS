@@ -35,7 +35,10 @@
 
         &:disabled {
             opacity: 0.8;
+            filter: saturate(0.6);
             cursor: not-allowed;
+            background: var(--elevate-2);
+            color: var(--on-transparent);
         }
     }
 
@@ -74,6 +77,10 @@
 
         &:focus-visible {
             outline: 3px solid currentColor;
+        }
+
+        &:disabled {
+            background: var(--surface-mix-10);
         }
     }
 
