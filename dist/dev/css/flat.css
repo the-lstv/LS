@@ -1,6 +1,7 @@
 [ls-style=flat] {
   --border-radius-small: 4px;
   --border-radius: 7px;
+  --border-radius-medium: 12px;
   --border-radius-large: 16px;
   --border-radius-full: 100px;
 }
@@ -25,7 +26,10 @@
 }
 [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button):disabled {
   opacity: 0.8;
+  filter: saturate(0.6);
   cursor: not-allowed;
+  background: var(--elevate-2);
+  color: var(--on-transparent);
 }
 [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button).circle {
   border-radius: 50%;
@@ -52,6 +56,9 @@
 }
 [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button).elevated:focus-visible {
   outline: 3px solid currentColor;
+}
+[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button).elevated:disabled {
+  background: var(--surface-mix-10);
 }
 [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button).pill {
   border-radius: var(--border-radius-full);
