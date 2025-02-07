@@ -15,11 +15,11 @@
 
     if(typeof module !== "undefined"){
         module.exports = instance
-    } else {
-        global.LS = instance
     }
 
     if(instance.isWeb){
+        global.LS = instance
+
         for (let key in instance.Tiny){
             global[key] = instance.Tiny[key]
         }

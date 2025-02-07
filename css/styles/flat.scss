@@ -2,10 +2,11 @@
 
 [ls-style="flat"] {
 
-    --border-radius-small: 4px;
-    --border-radius:       7px;
-    --border-radius-large: 16px;
-    --border-radius-full:  100px;
+    --border-radius-small:  4px;
+    --border-radius:        7px;
+    --border-radius-medium: 12px;
+    --border-radius-large:  16px;
+    --border-radius-full:   100px;
 
     #{$button}, input, select, textarea {
         border-radius: var(--border-radius);

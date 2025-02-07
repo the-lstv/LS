@@ -1279,7 +1279,7 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --surface-95: rgb(240.4106557377, 240.856557377, 244.0893442623);
 }
 
-[ls-accent=white], :disabled, [ls-accent=gray], [ls-accent=auto], [ls-accent=black] {
+[ls-accent=white], [ls-accent=gray], [ls-accent=auto], [ls-accent=black] {
   --accent-10: rgb(25.5, 25.5, 25.5);
   --accent-20: rgb(51, 51, 51);
   --accent-30: rgb(76.5, 76.5, 76.5);
@@ -1415,7 +1415,7 @@ ls-box {
   border-radius: var(--border-radius-full);
 }
 
-[ls-accent], :disabled, html, [class*=level-]:not(.color), ls-box, .sidebar-items {
+[ls-accent], html, [class*=level-]:not(.color), ls-box, .sidebar-items {
   --accent: var(--accent-40);
   --surface-mix-5: color-mix(in oklab, var(--background) 100%, var(--accent) 5%);
   --surface-mix-10: color-mix(in oklab, var(--background) 100%, var(--accent) 10%);
