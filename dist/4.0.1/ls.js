@@ -1,4 +1,4 @@
-console.warn("You are using an outdated and deprecated version of LS (v4 [LTS]) - LS v5 is now out! We strongly recommend migrating for a brand new, much more polished experience, with better performance, bugfixes, reworked UI, new components and more.\nhttps://github.com/the-lstv/LS")
+console.warn("You are using a very outdated and deprecated version of LS (v4) - LS v5 is now out! We strongly recommend migrating for a brand new, much more polished experience, with better performance, bugfixes, reworked UI, new components and more.\nhttps://github.com/the-lstv/LS")
 
 String.prototype.replaceAll||(String.prototype.replaceAll=function(a,b){return"[object regexp]"===Object.prototype.toString.call(a).toLowerCase()?this.replace(a,b):this.replace(new RegExp(a,"g"),b)});
 
@@ -7,7 +7,7 @@ if(!LS){
 
     var LS = {
         isWeb: typeof window !== 'undefined',
-        version: "4.0.1",
+        version: "4.0.2",
         v: 4,
 
         Util: {
@@ -473,19 +473,31 @@ if(!LS){
                 let elements = (() => {
                     // New element selector taken from v5 and wrapped for v4
 
-                    if(!selector) return LS.TinyWrap(one? [null]: []);
+                    if(!selector) return [];
 
                     const isElement = selector instanceof HTMLElement;
                     const target = (isElement? selector : document);
 
-                    if(isElement && !subSelector) return LS.TinyWrap(one? [selector]: [selector]);
+                    if(isElement && !subSelector) return [selector];
 
                     const actualSelector = isElement? subSelector || "*" : selector || '*';
 
                     let elements = one? target.querySelector(actualSelector): target.querySelectorAll(actualSelector);
 
-                    return LS.TinyWrap(one? [elements]: [...elements]);
+                    return one? [elements]: [...elements];
                 })();
+
+                elements = elements.filter(Boolean).map(r => {
+                    if(r && !r._affected){
+
+                        let methods = LS.TinyFactory(r);
+                        
+                        Object.defineProperties(r, Object.getOwnPropertyDescriptors(methods))
+
+                        if(r.tagName == "BR") r.removeAttribute("clear"); // Fixes a bug (i think?)
+                    }
+                    return r.self
+                });
 
                 return Object.assign(elements, {
                     all(callback){
@@ -1079,7 +1091,7 @@ LS.EventHandler = function (target, options) {
             if(target){
                 target._events = this;
 
-                ["emit", "on", "once", "off", "invoke"].forEach(method => {
+                ["on", "once", "off", "invoke"].forEach(method => {
                     if (!target.hasOwnProperty(method)) target[method] = this[method].bind(this);
                 });
 
