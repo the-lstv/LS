@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const { xxh32 } = require("@node-rs/xxhash");
+// const { xxh32 } = require("@node-rs/xxhash");
 
 let backend;
 
