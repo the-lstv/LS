@@ -35,48 +35,42 @@ v5 is faster and more memory efficient in various fields.
 | Color string parser     | --              | --                    | A lot faster      |
 
 ## Getting started
-Add LS to your app or site with
+### With [Akeno](https://github.com/the-lstv/Akeno/)!
+Getting started with LS combined with Akeno is the best possible experience, since Akeno comes with built-in LS support and works closely with it.
+
+All you need is:
+```
+<head>
+    @use (ls:5.0.0[]);
+</head>
+```
+And you are using LS! Components are added into the square brackets ([]) as a comma separated list - it will also automatically manage CSS/JS pairs, so you don't have to think about which part to place where! Akeno will also optimize the URL for best shared caching practices to reduce load times.<br>
+If you plan to use the design language, don't forget to specify the style (default to flat if you are unsure):
+```
+<head>
+    @use (ls:5.0.0[ flat ]);
+
+    @page { theme: dark; style: flat; accent: blue }
+</head>
+```
+### Without Akeno
+You can add LS to your app or site easily with just two tags (or one, if you don't need either scripting or styles - it will work):
 ```html
-<!-- Note this imports *all* default parts and components. -->
-<!-- LS V5 IS NOT RELEASED ON THE CDN YET! -->
-<script src="https://cdn.extragon.cloud/ls/5.0.0/*/ls.min.js"></script>
-<link href="https://cdn.extragon.cloud/ls/5.0.0/*/ls.min.css" rel="stylesheet">
+<!-- syntax: /ls/[version]/[?components]/ls.[?min].[js|css] -->
+<!-- or, to only import a component without the core: /ls/[version]/[component].[?min].[js|css] -->
+<!-- or, to import multiple components without the core: /ls/[version]/[components]/bundle.[?min].[js|css] -->
+
+<script src="https://cdn.extragon.cloud/ls/5.0.0/ls.min.js"></script>
+<link href="https://cdn.extragon.cloud/ls/5.0.0/flat/ls.min.css" rel="stylesheet">
 ```
 
 And you can start using LS right away!
-```js
-// Make LS-Tiny's HTMLElement custom methods available globally (use with caution!)
-LS.prototypeTiny()
 
-const myDiv = LS.Create({
-  inner: [N("img", { width: 120, src: "https://lstv.space/assets/image/prism_light.webp" }), "<br> Hello world!"],
-  class: "myDiv"
-})
+Time to head to the docs and explore all the awesome things that LS offers!
 
-document.body.add(myDiv)
-```
 
-## Creating components
-You can register components to use across your code!
-```js
-LS.LoadComponent(class myComponent extends LS.Component {
-  constructor() {
-    super()
-  }
-}, { global: true })
-```
-
-```js
-const instance = new LS.myComponent()
-
-// Events are available on all components by default
-instance.on("event", console.log)
-instance.emit("event", ["Hello world!"])
-```
-> [!NOTE]
-> Components are no longer stored uniquely with an ID in LS version 5 and up - previously, you were required to supply an ID when creating an instance and LS would manage instances for you. This is no longer the case and you need to manage your own component references now.
-
-## Hosting
-You can either simply use the static files in /dist/, but if you want version management, on-the-fly code compression, and tree-shaking modules from an URL, you can host the API in /backend/api.js, which is the same API hosted by the official ExtraGon CDN (https://cdn.extragon.cloud/ls/).<br>
-
-To host it, you will need [akeno](https://github.com/the-lstv/Akeno) on your server.
+## Hosting the API
+You can use the static files in /dist/ - but if you want the same full-featured API as the official CDN (includes version management, on-the-fly code minification, and tree-shaking modules from an URL), you can!<br>
+You can host your own server for the LS cdn API, for example for local development, or any other use you may have for it.<br>
+The backend API code is open-source, located at /backend/api.js in this repository.<br>
+To host the API, you will need [Akeno](https://github.com/the-lstv/Akeno/).
