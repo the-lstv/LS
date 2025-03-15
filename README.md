@@ -1,16 +1,35 @@
 ![Logo](https://github.com/user-attachments/assets/5dbb7603-9f18-4871-8c15-991833d6661f)
 
-# LS v5.1.0
+# What's LS?
+LS is a fresh frontend framework, both for building complete UI/UX or general utility. It is one of the most light-weight while powerful and full-featured frameworks out there!<br>
+It is one of the few frameworks that won't waste 20x more RAM than it should and flood your website with all that unnecesary bloat causing it to get slow *(ahem, MS Teams)* - It's as simple as just adding any other library. Two files, that's it. Components can be tree-shaken via the URL so you only load what you need.<br> 
+LS features a wide selection of useful components for all kinds of usecases.
+
+- 🦎 **Versatile**
+    - We have used it for things starting from simple landing pages to entire complex interfaces (eg. our [video editor](https://github.com/the-lstv/VideoEditor))
+- 🐜 **Light**
+    - This was the main goal of LS from even its earliest days. We were tired of the bulky mess, and wanted to create something that just does its job properly.
+- :godmode: **Powerful.**
+    - It really is - being over half a decade mature, undergoing multiple renovations, it is robust, fast, and does not lack in features.
+- 💪 **Open-Source**
+    - Licensed under the GPL v3.0!
+
+Don't believe me? [See it in action](https://lstv.space) - all of our platforms use it. Just take a look at the lack of bloat and feel some of those snappy interfaces yourself.
+<br>
+
+
+## LS v5.1.0
 v5 is by far the largest update ever released to LS.<br>
 ### What's new?
 - ✨ New, modern API remade from scratch
-- 📔 New component system
+- 📔 New, better component system
+- 🫧 Insanely efficient and light reactivity system
 - 🚀 Significantly improved performance all around
 - 💾 Optimized for memory efficiency
-- 💼 Smaller size
-- 💻 Reworked UI framework
+- 💼 Smaller size, even more light-weight
+- 💻 Reworked design language, UI framework, etc.
 
-<br>
+
 
 > [!WARNING]
 > If you are migrating from earlier LS versions, please review the migration notes. As this is a major release of LS, API compatibility is not guaranteed and a lot of things were changed or removed. Namely all previously deprecated methods were removed and many methods have changed.
@@ -32,7 +51,7 @@ v5 is faster and more memory efficient in various fields.
 | **Elements selector**   |                 |                       |                   |
 | Simple selector         | --              | --                    | ~4.5x faster      |
 | Complex selector        | --              | --                    | ~2x faster        |
-| Color string parser     | --              | --                    | A lot faster      |
+More on performance enhancements in the docs :)
 
 ## Getting started
 ### With [Akeno](https://github.com/the-lstv/Akeno/)!
