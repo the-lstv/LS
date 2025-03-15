@@ -67,18 +67,24 @@ v5 is faster and more memory efficient in various fields.
 | Complex selector        | --              | --                    | ~2x faster        |
 More on performance enhancements in the docs :)
 
+<br>
+
+---
+
+<br>
+
 ## Getting started
 ### With [Akeno](https://github.com/the-lstv/Akeno/)
 Using LS with Akeno is the best and easiest way to do it, since Akeno comes with built-in LS support and works closely with it, making certain things easier and more clean.
 
-All you need to import LS is:
+ All you need to import LS is:
 ```html
 <head>
     @use (ls:5.1.0[]);
 </head>
 ```
 And you are using LS! Components are added into the square brackets ([]) as a comma separated list - it will also automatically manage CSS/JS pairs, so you don't have to think about which part to place where! Akeno will also optimize the URL for best shared caching practices to reduce load times.<br>
-If you plan to use the design language, don't forget to specify the style (default to flat if you are unsure):
+ If you plan to use the design language, don't forget to specify the style (simply default to flat if you are unsure):
 ```html
 <head>
     @use (ls:5.1.0[ flat ]);
@@ -86,13 +92,16 @@ If you plan to use the design language, don't forget to specify the style (defau
     @page { theme: dark; style: flat; accent: blue }
 </head>
 ```
-### Without Akeno
-You can add LS to your app or site easily with just two tags (or one, if you don't need either scripting or styles - it will work):
-```html
-<!-- syntax: /ls/[version]/[?components]/ls.[?min].[js|css] -->
-<!-- or, to only import a component without the core: /ls/[version]/[component].[?min].[js|css] -->
-<!-- or, to import multiple components without the core: /ls/[version]/[components]/bundle.[?min].[js|css] -->
 
+<br>
+
+### Without Akeno
+You can add LS to your app or site easily with just two tags (or one, if you don't need either scripting or styles - it will work).<br>
+API syntax (includes core): `/ls/[version]/[?components]/ls.[?min].[js|css]`<br>
+Or, to only import a component without the core: `/ls/[version]/[component].[?min].[js|css]`<br>
+Or, to import multiple components without the core: `/ls/[version]/[components]/bundle.[?min].[js|css]`
+
+```html
 <script src="https://cdn.extragon.cloud/ls/5.1.0/ls.min.js"></script>
 <link href="https://cdn.extragon.cloud/ls/5.1.0/flat/ls.min.css" rel="stylesheet">
 ```
@@ -101,6 +110,11 @@ And you can start using LS right away!
 
 Time to head to the docs and explore all the awesome things that LS offers!
 
+<br>
+
+---
+
+<br>
 
 ## Hosting the API
 You can use the static files in /dist/ - but if you want the same full-featured API as the official CDN (includes version management, on-the-fly code minification, and tree-shaking modules from an URL), you can!<br>
