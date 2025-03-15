@@ -1,4 +1,4 @@
-![Logo](https://github.com/user-attachments/assets/d2800b99-d5e9-4474-b8e0-22f563237bfa)
+![Logo](https://github.com/user-attachments/assets/5dbb7603-9f18-4871-8c15-991833d6661f)
 
 # LS v5.1.0
 v5 is by far the largest update ever released to LS.<br>
