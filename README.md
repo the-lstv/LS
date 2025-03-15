@@ -8,18 +8,25 @@ It’s lightweight, efficient, and as easy to use as any standard library—just
 
 - 🦎 **Versatile**
     - We have used it for things starting from simple landing pages to entire complex interfaces (eg. our [video editor](https://github.com/the-lstv/VideoEditor)) - thanks to that, we have rich experience using LS for wildly different specific scenarios, which helped shape LS into a highly flexible framework that fits pretty much with anything.
+
 - 🐜 **Light and simple**
     - This has always been the main goal of LS from even its earliest days. We were tired of the bulky mess that is the majority of today's frameworks, and wanted to create something that just does its job properly.
-    - LS is designed to be as easy to use as it possibly can. No need to run 8 different commands, install 18 proprietary runtimes, rewrite the kernel and reinvent physics just to style a button.
+    - LS is designed to be as easy to use as it possibly can. No need to rewrite the kernel and reinvent physics just to style a button.
+    - LS tries its best not to conflict with anything else, respecting your usage patterns and other libraies.
+
 - :godmode: **Powerful.**
     - It really is - being mature for over half a decade, undergoing multiple renovations, it is robust, fast, and does not lack in features.
+
 - 📦 **No dependencies**
-    - That's right: LS is fully self-contained, meaning that you need to maintain exactly **0** extras to get the full set of features LS has.
+    - That's right: LS is fully self-contained and uses almost no 3rd party code, meaning that you don't need anything extra to get the full set of features that LS has.
+
 - ✨ **Honest and clean code**
-    - Every part of LS is written from scratch, purpose-built for speed and efficiency. Many frameworks rely on bloated third-party libraries out of convenience. We don’t. LS is built entirely in-house, with optimized, handcrafted implementations that achieve more in fewer lines of code, without sacrificing functionality.
+    - Every part of LS is written from scratch, purpose-built for efficiency. Many frameworks rely on random third-party libraries out of convenience. We don’t. LS is built entirely in-house, with optimized, handcrafted implementations that achieve more in fewer lines of code, without sacrificing functionality.
     - To be fully transparent: there is _one_ external piece of code, that being normalize.css bundled with the CSS core, to to maintain standardized defaults.
+
 - 💪 **Open-Source**
     - Licensed under GPL v3.0!
+
 
 Don't believe me? [See it in action]() (actually not, v5.1.0 is not in production yet, sorry - very soon!) - all of our platforms use it. Just take a look at the lack of bloat and feel some of those snappy interfaces yourself.
 <br>
@@ -61,18 +68,18 @@ v5 is faster and more memory efficient in various fields.
 More on performance enhancements in the docs :)
 
 ## Getting started
-### With [Akeno](https://github.com/the-lstv/Akeno/)!
-Getting started with LS combined with Akeno is the best possible experience, since Akeno comes with built-in LS support and works closely with it.
+### With [Akeno](https://github.com/the-lstv/Akeno/)
+Using LS with Akeno is the best and easiest way to do it, since Akeno comes with built-in LS support and works closely with it, making certain things easier and more clean.
 
-All you need is:
-```
+All you need to import LS is:
+```html
 <head>
     @use (ls:5.1.0[]);
 </head>
 ```
 And you are using LS! Components are added into the square brackets ([]) as a comma separated list - it will also automatically manage CSS/JS pairs, so you don't have to think about which part to place where! Akeno will also optimize the URL for best shared caching practices to reduce load times.<br>
 If you plan to use the design language, don't forget to specify the style (default to flat if you are unsure):
-```
+```html
 <head>
     @use (ls:5.1.0[ flat ]);
 
