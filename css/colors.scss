@@ -185,7 +185,7 @@ ls-box {
     border-radius: var(--border-radius-full);
 }
 
-[ls-accent], html, [class*="level-"]:not(.color), ls-box, .sidebar-items {
+[ls-accent], ls-box, html, [class*="level-"]:not(.color), .sidebar-items {
     --accent: var(--accent-40);
     --surface-mix-5:  color-mix(in oklab, var(--background) 100%, var(--accent) 5%);
     --surface-mix-10: color-mix(in oklab, var(--background) 100%, var(--accent) 10%);
@@ -198,16 +198,4 @@ ls-box {
     --surface-mix-80: color-mix(in oklab, var(--background) 100%, var(--accent) 80%);
     --surface-mix-90: color-mix(in oklab, var(--background) 100%, var(--accent) 90%);
     --surface-mix-95: color-mix(in oklab, var(--background) 100%, var(--accent) 95%);
-
-    // --ui-5:  color-mix(in oklab, var(--background) 100%, var(--elevate) 5%);
-    // --ui-10: color-mix(in oklab, var(--background) 100%, var(--elevate) 10%);
-    // --ui-20: color-mix(in oklab, var(--background) 100%, var(--elevate) 20%);
-    // --ui-30: color-mix(in oklab, var(--background) 100%, var(--elevate) 30%);
-    // --ui-40: color-mix(in oklab, var(--background) 100%, var(--elevate) 40%);
-    // --ui-50: color-mix(in oklab, var(--background) 100%, var(--elevate) 50%);
-    // --ui-60: color-mix(in oklab, var(--background) 100%, var(--elevate) 60%);
-    // --ui-70: color-mix(in oklab, var(--background) 100%, var(--elevate) 70%);
-    // --ui-80: color-mix(in oklab, var(--background) 100%, var(--elevate) 80%);
-    // --ui-90: color-mix(in oklab, var(--background) 100%, var(--elevate) 90%);
-    // --ui-95: color-mix(in oklab, var(--background) 100%, var(--elevate) 95%);
 }

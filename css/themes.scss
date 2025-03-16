@@ -6,6 +6,7 @@
         // Elevate
         --elevate: var(--surface-85);
     
+        --elevate-n1: var(--surface-100);
         --elevate-0: var(--surface-95);
         --elevate-1: var(--surface-85);
         --elevate-2: var(--surface-80);
@@ -28,6 +29,7 @@
 
     [ls-accent = "auto"], &[ls-accent = "auto"] {
         --accent: var(--accent-10);
+        --on-accent: var(--accent-90);
     }
 }
 
@@ -61,6 +63,7 @@
 
     [ls-accent = "auto"], &[ls-accent = "auto"] {
         --accent: var(--accent-90);
+        --on-accent: var(--accent-10);
     }
 }
 

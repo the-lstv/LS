@@ -37,6 +37,9 @@ LS.LoadComponent(class Reactive extends LS.Component {
     bindElement(target, defaultBind = null){
         const attribute = defaultBind || target.getAttribute("data-reactive");
         if(!attribute || target.__last_bind === attribute) return;
+
+        if(target.__last_bind) this.unbindElement(target, true);
+
         target.__last_bind = attribute;
 
         const [prefix, raw_key] = this.split_path(attribute);
@@ -64,8 +67,8 @@ LS.LoadComponent(class Reactive extends LS.Component {
      * @param {HTMLElement} target The target element to unbind
      */
 
-    unbindElement(target){
-        target.removeAttribute("data-reactive");
+    unbindElement(target, keepAttribute = false){
+        if(!keepAttribute) target.removeAttribute("data-reactive");
         if(!target.__last_bind) return;
 
         const [prefix, raw_key] = this.split_path(target.__last_bind);
@@ -308,8 +311,9 @@ LS.LoadComponent(class Reactive extends LS.Component {
     renderKey(key, source, cache){
         if(!cache || cache.size === 0) return;
 
+        const value = source[key];
         for(let target of cache) {
-            this.renderValue(target, source[key]);
+            this.renderValue(target, value);
         }
     }
 

@@ -1,4 +1,5 @@
 @use "sass:color";
+@use 'sass:math';
 
 $button: ':is(button, input[type="button"], input[type="submit"], input[type="color"], input[type="reset"], .ls-button)';
 $input: 'textarea, :is(input[type="text"], input:not([type="button"]):not([type="submit"]):not([type="color"]):not([type="file"]):not([type="reset"]):not([type="image"]))';
@@ -12,13 +13,21 @@ $input: 'textarea, :is(input[type="text"], input:not([type="button"]):not([type=
 }
 
 @function toRaw($color) {
-    $red: color.channel($color, "red", $space: rgb);
-    $green: color.channel($color, "green", $space: rgb);
-    $blue: color.channel($color, "blue", $space: rgb);
+    $red: math.floor(color.channel($color, "red", $space: rgb));
+    $green: math.floor(color.channel($color, "green", $space: rgb));
+    $blue: math.floor(color.channel($color, "blue", $space: rgb));
     @return $red, $green, $blue;
 }
 
 @function generate-tone($color, $tone, $saturation: 100) {
-    $hsl: hsl(color.channel($color, "hue", $space: hsl), calc(color.channel($color, "saturation", $space: hsl) / 100) * $saturation, $tone * 1%);
-    @return rgb(color.channel($hsl, "red", $space: rgb), color.channel($hsl, "green", $space: rgb), color.channel($hsl, "blue", $space: rgb));
+    $hsl: hsl(
+        math.floor(color.channel($color, "hue", $space: hsl)),
+        math.floor(calc(color.channel($color, "saturation", $space: hsl) / 100) * $saturation),
+        math.floor($tone * 1%)
+    );
+    @return rgb(
+        math.floor(color.channel($hsl, "red", $space: rgb)),
+        math.floor(color.channel($hsl, "green", $space: rgb)),
+        math.floor(color.channel($hsl, "blue", $space: rgb))
+    );
 }
