@@ -1,15 +1,171 @@
+/**
+ * A simple yet powerful, fast and lightweight reactive library for LS
+ * @version 1.0.0
+ */
+
 LS.LoadComponent(class Reactive extends LS.Component {
-    constructor(options = {}){
+    constructor(){
         super()
 
         this.bindCache = new Map();
-        this.global = this.wrap(null, options.global || {});
 
-        window.addEventListener("load", () => {
+        this.global = this.wrap(null, {}, true);
+
+        window.addEventListener("DOMContentLoaded", () => {
             this.scan();
-            this.renderAll();
         })
     }
+
+    /**
+     * Scans the document or specific element for elements with the data-reactive attribute and caches them
+     * @param {HTMLElement} scanTarget The target element to scan
+     */
+
+    scan(scanTarget = document.body){
+        const scan = scanTarget.querySelectorAll(`[data-reactive]`);
+
+        for(let target of scan) {
+            this.bindElement(target);
+        }
+    }
+
+    /**
+     * Parses the data-reactive attribute of an element and caches it for lookup
+     * @param {HTMLElement} target The target element to bind
+     */
+
+    bindElement(target){
+        const attribute = target.getAttribute("data-reactive");
+        if(!attribute || target.__last_bind === attribute) return;
+        target.__last_bind = attribute;
+
+        const [prefix, raw_key] = this.split_path(attribute);
+        if(!raw_key) return;
+
+        const key = this.constructor.parseKey(prefix, raw_key);
+
+        target.__reactive = key;
+
+        let binding = this.bindCache.get(prefix);
+
+        if(!binding) {
+            binding = { object: null, updated: false, keys: new Map };
+            this.bindCache.set(prefix, binding);
+        }
+
+        const cache = binding.keys.get(key.name);
+        if(cache) cache.add(target); else binding.keys.set(key.name, new Set([target]));
+
+        if(binding.object) this.renderValue(target, binding.object[key.name]);
+    }
+
+
+    /**
+     * A fast, light parser to expand a key to an object with dynamic properties, eg. "username || anonymous".
+     * @param {string} key The key string to parse
+    */
+
+    static parseKey(prefix, key){
+        let i = 0, v_start = 0, v_propety = null, state = 0, string_char = null;
+
+        const result = {
+            prefix, name: null
+        };
+
+        while(++i < key.length) {
+            const char = key.charCodeAt(i);
+            const isLast = i === key.length - 1;
+
+            if(!result.name) {
+                if(!this.matchKeyword(char) || isLast) {
+                    if(char === 58){
+                        result.type = this.types.get(key.slice(v_start, i).toLowerCase());
+                        v_start = i + 1;
+                        continue;
+                    }
+
+                    if(isLast && this.matchKeyword(char)) i++;
+                    result.name = key.slice(v_start, i);
+                }
+
+                if(!isLast && this.matchKeyword(char)) continue;
+            }
+
+            if(state === 2) {
+                if(char === string_char) {
+                    result[v_propety] = key.slice(v_start, i);
+                    state = 0;
+                }
+                continue;
+            }
+
+            if(this.matchWhitespace(char)) continue;
+
+            if(state === 1) {
+                if(this.matchStringChar(char)) {
+                    string_char = char;
+                    v_start = i + 1;
+                    state = 2;
+                }
+                continue;
+            }
+
+            switch(char) {
+                case 124: // | - Or
+                    if(key.charCodeAt(i + 1) === 124) {
+                        i++;
+                        v_propety = "or";
+                        state = 1;
+                        break;
+                    }
+                    console.warn("You have a syntax error in key: " + key);
+                    return result; // Invalid
+                
+                case 63: // ? - Default
+                    if(key.charCodeAt(i + 1) === 63) {
+                        i++;
+                        v_propety = "default";
+                        state = 1;
+                        break;
+                    }
+                    console.warn("You have a syntax error in key: " + key);
+                    return result; // Invalid
+                
+                case 33: // ! - Raw HTML
+                    result.raw = true;
+                    break;
+            }
+        }
+
+        return result;
+    }
+
+    static matchKeyword(char){
+        return (
+            (char >= 48 && char <= 57) || // 0-9
+            (char >= 65 && char <= 90) || // A-Z
+            (char >= 97 && char <= 122) || // a-z
+            char === 95 || // _
+            char === 45    // -
+        )
+    }
+
+    static matchWhitespace(char){
+        return char === 32 || char === 9 || char === 10 || char === 13;
+    }
+
+    static matchStringChar(char){
+        return char === 34 || char === 39 || char === 96;
+    }
+
+    static types = new Map([
+        ["string", String],
+        ["number", Number],
+        ["boolean", Boolean],
+        ["array", Array],
+        ["object", Object],
+        ["function", Function]
+    ]);
 
     split_path(path){
         const lastIndex = path.lastIndexOf(".");
@@ -19,26 +175,6 @@ LS.LoadComponent(class Reactive extends LS.Component {
         return [prefix, path];
     }
 
-    scan(scanTarget = document.body){
-        const scan = scanTarget.querySelectorAll(`[data-reactive]`);
-
-        for(let target of scan) {
-            const [prefix, key] = this.split_path(target.getAttribute("data-reactive"));
-            if(!key) continue;
-
-            let binding = this.bindCache.get(prefix);
-
-            if(!binding) {
-                binding = { object: null, updated: false, keys: new Map };
-                this.bindCache.set(prefix, binding);
-            }
-
-            const cache = binding.keys.get(key);
-            if(cache) cache.add(target); else binding.keys.set(key, new Set([target]));
-
-            this.render(binding);
-        }
-    }
 
     /**
      * Wraps an object with a reactive proxy
@@ -47,7 +183,7 @@ LS.LoadComponent(class Reactive extends LS.Component {
      * @param {boolean} recursive Whether to recursively bind all objects
      */
 
-    wrap(prefix, object, recursive = false){
+    wrap(prefix, object = {}, recursive = false){
         if(typeof prefix === "string") prefix += "."; else prefix = "";
 
         if(recursive) for(let key in object) {
@@ -80,14 +216,14 @@ LS.LoadComponent(class Reactive extends LS.Component {
 
                 target[key] = value;
                 binding.updated = true;
-                this.render(binding);
+                this.renderKey(key, target, binding.keys.get(key));
             },
 
             get: (target, key) => key === "__isProxy"? true: key === "__binding"? binding: target[key],
 
             deleteProperty: (target, key) => {
                 delete target[key];
-                this.render(binding);
+                this.renderKey(key, target, binding.keys.get(key));
             }
         })
     }
@@ -112,7 +248,7 @@ LS.LoadComponent(class Reactive extends LS.Component {
             set: (value) => {
                 binding.object[key] = value;
                 binding.updated = true;
-                this.render(binding);
+                this.renderKey(key, binding.object, binding.keys.get(key));
             },
 
             configurable: true
@@ -122,7 +258,7 @@ LS.LoadComponent(class Reactive extends LS.Component {
     }
 
     renderAll(bindings){
-        for(let binding of Array.isArray(bindings)? bindings: this.bindCache.values()) {
+        for(let binding of Array.isArray(bindings)? bindings: this.bindCache.values()) {            
             if(binding && binding.object && binding.updated) this.render(binding);
         }
     }
@@ -130,6 +266,7 @@ LS.LoadComponent(class Reactive extends LS.Component {
     /**
      * Renders a binding object
      * @param {object} binding The binding object to render
+     * @param {string} specificKey A specific key to render
      */
 
     render(binding){
@@ -139,10 +276,42 @@ LS.LoadComponent(class Reactive extends LS.Component {
         binding.updated = false;
 
         for(let [key, cache] of binding.keys) {
-            for(let target of cache) {
-                target.textContent = binding.object[key];
-                console.log("Rendering: ", target, binding.object[key]);
-            }
+            this.renderKey(key, binding.object, cache);
+        }
+    }
+
+    renderKey(key, source, cache){
+        if(!cache || cache.size === 0) return;
+
+        for(let target of cache) {
+            this.renderValue(target, source[key]);
+        }
+    }
+
+    renderValue(target, value){
+        if(typeof value === "function") value = value();
+
+        if(!value && target.__reactive.or) {
+            value = target.__reactive.or;
+        }
+
+        if(target.__reactive.default && (typeof value === "undefined" || value === null)) {
+            value = target.__reactive.default
+        }
+
+        if(typeof target.__reactive.type === "function") {
+            value = target.__reactive.type(value);
+        }
+
+        if(target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT") {
+
+            if(target.type === "checkbox") target.checked = Boolean(value);
+            else target.value = value;
+
+        } else {
+
+            if(target.__reactive.raw) target.innerHTML = value; else target.textContent = value;
+
         }
     }
 }, { name: "Reactive", singular: true, global: true })
