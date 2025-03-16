@@ -253,7 +253,7 @@
                             : content || {};
 
 
-                const { class: className, tooltip, ns, accent, attr, style, inner, content: innerContent, ...rest } = content;
+                const { class: className, tooltip, ns, accent, attr, style, inner, content: innerContent, reactive, ...rest } = content;
 
                 const element = Object.assign(
                     ns ? document.createElementNS(ns, tagName) : document.createElement(tagName),
@@ -272,6 +272,15 @@
                         element.attrAssign({ "ls-tooltip": tooltip });
                         LS.Tooltips.addElements([{ target: element, attributeName: "ls-tooltip" }]);
                     }
+                }
+
+                // Handle reactive bindings
+                if (reactive) {
+                    if (!LS.Reactive) {
+                        console.warn("Reactive bindings are not available, please include the Reactive module to use this feature.");
+                    }
+
+                    LS.Reactive.bindElement(element, reactive);
                 }
 
                 if (className && element.class) LS.TinyFactory.class.call(element, className);
