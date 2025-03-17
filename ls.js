@@ -4,7 +4,7 @@
 
     Last modified: 2025
     License: GPL-3.0
-    Version: 5.1.0
+    Version: 5.1.1
     See: https://github.com/thelstv/LS
 */
 
@@ -46,7 +46,7 @@
 
     const LS = {
         isWeb: typeof window !== 'undefined',
-        version: "5.1.0",
+        version: "5.1.1",
         v: 5,
 
         init(options = {}){
@@ -1106,11 +1106,11 @@
             let color = (r instanceof LS.Color)? r: new LS.Color(r, g, b), style = "";
 
             for(let i of [10, 20, 30, 35, 40, 45, 50, 55, 60, 70, 80, 90, 95]){
-                style += `--accent-${i}:${color.lightness(i).hex};`; 
+                style += `--accent-${i}:${color.lightness(i).hex};`;
             }
 
-            for(let i of [5, 6, 8, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95]){
-                style += `--surface-${i}:${color.tone(null, 12, i).hex};`; 
+            for(let i of [6, 8, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 98]){
+                style += `--base-${i}:${color.tone(null, 12, i).hex};`; 
             }
 
             return style

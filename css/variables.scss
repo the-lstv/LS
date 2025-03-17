@@ -13,6 +13,8 @@ $input: 'textarea, :is(input[type="text"], input:not([type="button"]):not([type=
 }
 
 @function toRaw($color) {
+    // This also used to be just [ red(color), green(color), blue(color) ]
+
     $red: math.floor(color.channel($color, "red", $space: rgb));
     $green: math.floor(color.channel($color, "green", $space: rgb));
     $blue: math.floor(color.channel($color, "blue", $space: rgb));
@@ -20,14 +22,35 @@ $input: 'textarea, :is(input[type="text"], input:not([type="button"]):not([type=
 }
 
 @function generate-tone($color, $tone, $saturation: 100) {
+    // Thank you SCSS for changing the syntax and making it extremely verbose and unreadable
+    // This actually does: hue(color), ((saturation(color)) / 100) * saturation, tone
+    // I think that I'll make my own CSS preprocessor without all the yap like damn
+
     $hsl: hsl(
-        math.floor(color.channel($color, "hue", $space: hsl)),
-        math.floor(calc(color.channel($color, "saturation", $space: hsl) / 100) * $saturation),
-        math.floor($tone * 1%)
+        color.channel($color, "hue", $space: hsl),
+        calc(color.channel($color, "saturation", $space: hsl) / 100) * $saturation,
+        $tone * 1%
     );
+
     @return rgb(
         math.floor(color.channel($hsl, "red", $space: rgb)),
         math.floor(color.channel($hsl, "green", $space: rgb)),
         math.floor(color.channel($hsl, "blue", $space: rgb))
+    );
+}
+
+@function generate-tone-oklch($color, $tone, $saturation: 40) {
+    $lightness: ($tone / 100) * 0.8 + 0.1;
+
+    $oklch: oklch(
+        $lightness ($saturation / 400) (color.channel($color, "hue", $space: oklch))
+    );
+
+    // @return $oklch;
+
+    @return rgb(
+        math.floor(color.channel($oklch, "red", $space: rgb)),
+        math.floor(color.channel($oklch, "green", $space: rgb)),
+        math.floor(color.channel($oklch, "blue", $space: rgb))
     );
 }

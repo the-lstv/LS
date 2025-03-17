@@ -65,7 +65,6 @@ $colors: (
         --accent-90: #{generate-tone($color, 90)};
         --accent-95: #{generate-tone($color, 95)};
 
-        --base-3 : #{generate-tone($color, 3 , 16)};
         --base-6 : #{generate-tone($color, 6 , 16)};
         --base-8 : #{generate-tone($color, 8 , 16)};
         --base-10: #{generate-tone($color, 10, 16)};
@@ -86,94 +85,66 @@ $colors: (
         --base-85: #{generate-tone($color, 85, 16)};
         --base-90: #{generate-tone($color, 90, 16)};
         --base-95: #{generate-tone($color, 95, 16)};
+        --base-98: #{generate-tone($color, 98, 16)};
     }
-}
-
-.level-0 {
-    --background: var(--elevate-0);
-    --elevate: var(--elevate-1);
-}
-
-.level-0.color {
-    --background: var(--accent-mix-10);
-}
-
-.level-1, ls-box:not(ls-box ls-box) {
-    --background: var(--elevate-1);
-    --elevate: var(--elevate-2);
-}
-
-ls-box {
-    --background: var(--elevate);
-}
-
-.level-1.color {
-    --background: var(--accent-mix-20);
-}
-
-.level-2 {
-    --background: var(--elevate-2);
-    --elevate: var(--elevate-3);
-}
-
-.level-2.color {
-    --background: var(--accent-mix-40);
-}
-
-.level-3 {
-    --background: var(--elevate-3);
-    --elevate: var(--elevate-4);
-}
-
-.level-3.color {
-    --background: var(--accent-mix-60);
-}
-
-.level-4 {
-    --background: var(--elevate-4);
-    --elevate: var(--elevate-5);
-}
-
-.level-4.color {
-    --background: var(--accent-mix-80);
-}
-
-.level-5 {
-    --background: var(--elevate-5);
-    --elevate: var(--elevate-6);
-}
-
-.level-5.color {
-    --background: var(--accent-40);
-    --color: var(--on-accent);
-}
-
-.level-6 {
-    --background: var(--elevate-6);
-    --elevate: var(--elevate-7);
-}
-
-.level-7 {
-    --background: var(--elevate-7);
-    --color: var(--on-invert);
-    --elevate: var(--elevate-8);
-}
-
-.level-8 {
-    --background: var(--elevate-8);
-    --color: var(--on-invert);
-    --elevate: var(--elevate-9);
-}
-
-.level-9 {
-    --background: var(--elevate-9);
-    --color: var(--on-invert);
-    --elevate: var(--elevate-10);
 }
 
 [class*="level-"], ls-box {
     background: var(--background);
     color: var(--color);
+}
+
+@for $i from -3 through 10 {
+    $level: if($i < 0, "n#{abs($i)}", "#{$i}");
+
+    $selector: "#{$level}";
+
+    @if $i == 0 {
+        $selector: "#{$selector}, html";
+    } @else if $i == 1 {
+        $selector: "#{$selector}, ls-box";
+    }
+
+    .level-#{$selector} {
+        --background: var(--surface-#{$level});
+
+        @if $i > -3 {
+            --elevate-0: var(--surface-#{if($i - 1 < 0, "n#{abs($i - 1)}", "#{$i - 1}")});
+        }
+
+        --elevate: var(--surface-#{if($i + 1 < 0, "n#{abs($i + 1)}", "#{$i + 1}")});
+
+        @if $i < 10 {
+            --elevate-1: var(--surface-#{if($i + 2 < 0, "n#{abs($i + 2)}", "#{$i + 2}")});
+
+            @if $i < 9 {
+                --elevate-2: var(--surface-#{if($i + 3 < 0, "n#{abs($i + 3)}", "#{$i + 3}")});
+    
+                @if $i < 8 {
+                    --elevate-3: var(--surface-#{if($i + 4 < 0, "n#{abs($i + 4)}", "#{$i + 4}")});
+                }
+            }
+        }
+
+        @if $i >= 7 {
+            --color: var(--surface-0);
+        }
+    }
+
+    @if $i <= 5 and $i >= 0 {
+        .level-#{$level}.color {
+            @if $i == 5 {
+                --background: var(--accent-40);
+                --color: var(--on-accent);
+            } @else {
+                @if $i == 0 {
+                    --background: var(--accent-mix-10);
+                } @else {
+                    --background: var(--accent-mix-#{2 * $i}0);
+                }
+            }
+        }
+    }
 }
 
 [class*="level-"].round {
@@ -188,17 +159,11 @@ ls-box {
     border-radius: var(--border-radius-full);
 }
 
-[ls-accent], ls-box, html, [class*="level-"]:not(.color), .sidebar-items {
+[ls-accent], ls-box:not(.color), html, [class*="level-"]:not(.color), .sidebar-items {
     --accent: var(--accent-40);
-    --accent-mix-5:  color-mix(in oklab, var(--background) 100%, var(--accent) 5%);
     --accent-mix-10: color-mix(in oklab, var(--background) 100%, var(--accent) 10%);
     --accent-mix-20: color-mix(in oklab, var(--background) 100%, var(--accent) 20%);
-    --accent-mix-30: color-mix(in oklab, var(--background) 100%, var(--accent) 30%);
     --accent-mix-40: color-mix(in oklab, var(--background) 100%, var(--accent) 40%);
-    --accent-mix-50: color-mix(in oklab, var(--background) 100%, var(--accent) 50%);
     --accent-mix-60: color-mix(in oklab, var(--background) 100%, var(--accent) 60%);
-    --accent-mix-70: color-mix(in oklab, var(--background) 100%, var(--accent) 70%);
-    --accent-mix-80: color-mix(in oklab, var(--background) 100%, var(--accent) 80%);
-    --accent-mix-90: color-mix(in oklab, var(--background) 100%, var(--accent) 90%);
-    --accent-mix-95: color-mix(in oklab, var(--background) 100%, var(--accent) 95%);
+    --accent-mix-80: color-mix(in oklab, var(--background) 70%, var(--accent) 100%);
 }

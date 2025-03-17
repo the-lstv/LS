@@ -13,12 +13,12 @@
     }
 
     #{$button} {
-        background-color: var(--accent);
+        background-color: var(--accent-35);
         color: var(--on-accent);
 
         &:not(:disabled) {
             &:hover, &:focus {
-                background-color: var(--accent-45);
+                background-color: var(--accent-40);
             }
 
             &:active {
@@ -54,7 +54,7 @@
 
     #{$button}:is(.clear, .outline, .elevated):not(:disabled) {
         &:hover, &:focus {
-            background-color: var(--accent-mix-30);
+            background-color: var(--accent-mix-40);
         }
 
         &:active {
@@ -107,7 +107,7 @@
     }
 
     .ls-checkbox > span, .ls-radio > span {
-        border: 2px solid var(--elevate-3);
+        border: 2px solid var(--elevate-2);
         border-radius: var(--border-radius-small);
         transition: background 0.2s;
     }
@@ -150,7 +150,7 @@
     }
 
     :is(.ls-checkbox, .ls-radio) > input:disabled ~ span {
-        --elevate-3: var(--elevate-1);
+        border: 2px solid var(--elevate-1);
         cursor: not-allowed;
     }
 

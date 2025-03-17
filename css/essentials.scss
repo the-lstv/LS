@@ -90,13 +90,8 @@ ls-box {
         }
     }
     
-    &.color {
-        color: var(--on-transparent);
-        background: var(--accent-mix-20);
-    }
-    
     &::selection {
-        background: var(--accent-mix-30);
+        background: var(--accent-mix-40);
     }
 }
 

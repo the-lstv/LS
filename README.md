@@ -28,11 +28,11 @@ It’s lightweight, efficient, and as easy to use as any standard library—just
     - Licensed under GPL v3.0!
 
 
-Don't believe me? [See it in action]() (actually not, v5.1.0 is not in production yet, sorry - very soon!) - all of our platforms use it. Just take a look at the lack of bloat and feel some of those snappy interfaces yourself.
+Don't believe me? [See it in action]() (actually not, v5.1.1 is not in production yet, sorry - very soon!) - all of our platforms use it. Just take a look at the lack of bloat and feel some of those snappy interfaces yourself.
 <br>
 
 
-## LS v5.1.0
+## LS v5.1.1
 v5 is by far the largest update ever released to LS.<br>
 ### What's new?
 - ✨ New, modern API remade from scratch
@@ -80,14 +80,14 @@ Using LS with Akeno is the best and easiest way to do it, since Akeno comes with
  All you need to import LS is:
 ```html
 <head>
-    @use (ls:5.1.0[]);
+    @use (ls:5.1.1[]);
 </head>
 ```
 And you are using LS! Components are added into the square brackets ([]) as a comma separated list - it will also automatically manage CSS/JS pairs, so you don't have to think about which part to place where! Akeno will also optimize the URL for best shared caching practices to reduce load times.<br>
  If you plan to use the design language, don't forget to specify the style (simply default to flat if you are unsure):
 ```html
 <head>
-    @use (ls:5.1.0[ flat ]);
+    @use (ls:5.1.1[ flat ]);
 
     @page { theme: dark; style: flat; accent: blue }
 </head>
@@ -102,8 +102,8 @@ Or, to only import a component without the core: `/ls/[version]/[component].[?mi
 Or, to import multiple components without the core: `/ls/[version]/[components]/bundle.[?min].[js|css]`
 
 ```html
-<script src="https://cdn.extragon.cloud/ls/5.1.0/ls.min.js"></script>
-<link href="https://cdn.extragon.cloud/ls/5.1.0/flat/ls.min.css" rel="stylesheet">
+<script src="https://cdn.extragon.cloud/ls/5.1.1/ls.min.js"></script>
+<link href="https://cdn.extragon.cloud/ls/5.1.1/flat/ls.min.css" rel="stylesheet">
 ```
 
 And you can start using LS right away!

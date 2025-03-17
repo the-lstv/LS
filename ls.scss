@@ -4,12 +4,12 @@
 
     Last modified: 2025
     License: GPL-3.0
-    Version: 5.1.0
+    Version: 5.1.1
     See: https://github.com/thelstv/LS
 */
 
 
-// Do not migrate to @use yet
+// Do not migrate to @use
 @import "css/variables.scss";
 @import "css/themes.scss";
 @import "css/essentials.scss";
@@ -113,13 +113,13 @@ body {
     }
 
     hr {
-        border: 1px solid var(--elevate-2);
+        border: 1px solid var(--elevate);
         border-radius: 10px;
         margin: var(--hr-spacing, 18px) 0
     }
 
     #{$input}::selection, textarea::selection {
-        background-color: var(--accent-mix-50);
+        background-color: var(--accent-mix-40);
     }
 
     h1 {
@@ -139,7 +139,7 @@ body {
     }
 
     h3, h4 {
-        color: var(--elevate-8);
+        color: var(--surface-8);
     }
 
     table {
