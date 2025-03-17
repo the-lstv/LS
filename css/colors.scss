@@ -33,6 +33,9 @@ $colors: (
     @each $name, $color in $colors {
         --ls-accent-#{$name}: #{$color};
     }
+
+    --base-0:  rgb(0, 0, 0);
+    --base-100:  rgb(255, 255, 255);
 }
 
 @each $name, $color in $colors {
@@ -62,27 +65,27 @@ $colors: (
         --accent-90: #{generate-tone($color, 90)};
         --accent-95: #{generate-tone($color, 95)};
 
-        --surface-5:  #{generate-tone($color, 5,  16)};
-        --surface-6:  #{generate-tone($color, 6,  16)};
-        --surface-8:  #{generate-tone($color, 8,  16)};
-        --surface-10: #{generate-tone($color, 10, 16)};
-        --surface-15: #{generate-tone($color, 15, 16)};
-        --surface-20: #{generate-tone($color, 20, 16)};
-        --surface-25: #{generate-tone($color, 25, 16)};
-        --surface-30: #{generate-tone($color, 30, 16)};
-        --surface-35: #{generate-tone($color, 35, 16)};
-        --surface-40: #{generate-tone($color, 40, 16)};
-        --surface-45: #{generate-tone($color, 45, 16)};
-        --surface-50: #{generate-tone($color, 50, 16)};
-        --surface-55: #{generate-tone($color, 55, 16)};
-        --surface-60: #{generate-tone($color, 60, 16)};
-        --surface-65: #{generate-tone($color, 65, 16)};
-        --surface-70: #{generate-tone($color, 70, 16)};
-        --surface-75: #{generate-tone($color, 75, 16)};
-        --surface-80: #{generate-tone($color, 80, 16)};
-        --surface-85: #{generate-tone($color, 85, 16)};
-        --surface-90: #{generate-tone($color, 90, 16)};
-        --surface-95: #{generate-tone($color, 95, 16)};
+        --base-3 : #{generate-tone($color, 3 , 16)};
+        --base-6 : #{generate-tone($color, 6 , 16)};
+        --base-8 : #{generate-tone($color, 8 , 16)};
+        --base-10: #{generate-tone($color, 10, 16)};
+        --base-15: #{generate-tone($color, 15, 16)};
+        --base-20: #{generate-tone($color, 20, 16)};
+        --base-25: #{generate-tone($color, 25, 16)};
+        --base-30: #{generate-tone($color, 30, 16)};
+        --base-35: #{generate-tone($color, 35, 16)};
+        --base-40: #{generate-tone($color, 40, 16)};
+        --base-45: #{generate-tone($color, 45, 16)};
+        --base-50: #{generate-tone($color, 50, 16)};
+        --base-55: #{generate-tone($color, 55, 16)};
+        --base-60: #{generate-tone($color, 60, 16)};
+        --base-65: #{generate-tone($color, 65, 16)};
+        --base-70: #{generate-tone($color, 70, 16)};
+        --base-75: #{generate-tone($color, 75, 16)};
+        --base-80: #{generate-tone($color, 80, 16)};
+        --base-85: #{generate-tone($color, 85, 16)};
+        --base-90: #{generate-tone($color, 90, 16)};
+        --base-95: #{generate-tone($color, 95, 16)};
     }
 }
 
@@ -92,7 +95,7 @@ $colors: (
 }
 
 .level-0.color {
-    --background: var(--surface-mix-10);
+    --background: var(--accent-mix-10);
 }
 
 .level-1, ls-box:not(ls-box ls-box) {
@@ -105,7 +108,7 @@ ls-box {
 }
 
 .level-1.color {
-    --background: var(--surface-mix-20);
+    --background: var(--accent-mix-20);
 }
 
 .level-2 {
@@ -114,7 +117,7 @@ ls-box {
 }
 
 .level-2.color {
-    --background: var(--surface-mix-40);
+    --background: var(--accent-mix-40);
 }
 
 .level-3 {
@@ -123,7 +126,7 @@ ls-box {
 }
 
 .level-3.color {
-    --background: var(--surface-mix-60);
+    --background: var(--accent-mix-60);
 }
 
 .level-4 {
@@ -132,7 +135,7 @@ ls-box {
 }
 
 .level-4.color {
-    --background: var(--surface-mix-80);
+    --background: var(--accent-mix-80);
 }
 
 .level-5 {
@@ -187,15 +190,15 @@ ls-box {
 
 [ls-accent], ls-box, html, [class*="level-"]:not(.color), .sidebar-items {
     --accent: var(--accent-40);
-    --surface-mix-5:  color-mix(in oklab, var(--background) 100%, var(--accent) 5%);
-    --surface-mix-10: color-mix(in oklab, var(--background) 100%, var(--accent) 10%);
-    --surface-mix-20: color-mix(in oklab, var(--background) 100%, var(--accent) 20%);
-    --surface-mix-30: color-mix(in oklab, var(--background) 100%, var(--accent) 30%);
-    --surface-mix-40: color-mix(in oklab, var(--background) 100%, var(--accent) 40%);
-    --surface-mix-50: color-mix(in oklab, var(--background) 100%, var(--accent) 50%);
-    --surface-mix-60: color-mix(in oklab, var(--background) 100%, var(--accent) 60%);
-    --surface-mix-70: color-mix(in oklab, var(--background) 100%, var(--accent) 70%);
-    --surface-mix-80: color-mix(in oklab, var(--background) 100%, var(--accent) 80%);
-    --surface-mix-90: color-mix(in oklab, var(--background) 100%, var(--accent) 90%);
-    --surface-mix-95: color-mix(in oklab, var(--background) 100%, var(--accent) 95%);
+    --accent-mix-5:  color-mix(in oklab, var(--background) 100%, var(--accent) 5%);
+    --accent-mix-10: color-mix(in oklab, var(--background) 100%, var(--accent) 10%);
+    --accent-mix-20: color-mix(in oklab, var(--background) 100%, var(--accent) 20%);
+    --accent-mix-30: color-mix(in oklab, var(--background) 100%, var(--accent) 30%);
+    --accent-mix-40: color-mix(in oklab, var(--background) 100%, var(--accent) 40%);
+    --accent-mix-50: color-mix(in oklab, var(--background) 100%, var(--accent) 50%);
+    --accent-mix-60: color-mix(in oklab, var(--background) 100%, var(--accent) 60%);
+    --accent-mix-70: color-mix(in oklab, var(--background) 100%, var(--accent) 70%);
+    --accent-mix-80: color-mix(in oklab, var(--background) 100%, var(--accent) 80%);
+    --accent-mix-90: color-mix(in oklab, var(--background) 100%, var(--accent) 90%);
+    --accent-mix-95: color-mix(in oklab, var(--background) 100%, var(--accent) 95%);
 }

@@ -92,11 +92,11 @@ ls-box {
     
     &.color {
         color: var(--on-transparent);
-        background: var(--surface-mix-20);
+        background: var(--accent-mix-20);
     }
     
     &::selection {
-        background: var(--surface-mix-30);
+        background: var(--accent-mix-30);
     }
 }
 
@@ -301,7 +301,7 @@ ls-tabs {
         }
 
         .ls-tab-handle:hover {
-            --background: var(--surface-mix-10);
+            --background: var(--accent-mix-10);
         }
 
         .ls-tab-handle.active {

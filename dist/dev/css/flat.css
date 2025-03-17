@@ -19,7 +19,7 @@
   background-color: var(--accent-30);
 }
 [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button):not(:disabled):focus {
-  outline: 3px solid var(--surface-mix-10);
+  outline: 3px solid var(--accent-mix-10);
 }
 [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button):not(:disabled):focus-visible {
   outline: 3px solid currentColor;
@@ -39,10 +39,10 @@
   color: var(--on-background);
 }
 [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button):is(.clear, .outline, .elevated):not(:disabled):hover, [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button):is(.clear, .outline, .elevated):not(:disabled):focus {
-  background-color: var(--surface-mix-30);
+  background-color: var(--accent-mix-30);
 }
 [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button):is(.clear, .outline, .elevated):not(:disabled):active {
-  background-color: var(--surface-mix-20);
+  background-color: var(--accent-mix-20);
 }
 [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button).clear:hover, [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button).clear:focus {
   color: var(--on-transparent);
@@ -51,14 +51,14 @@
   border: 1px solid var(--accent-70);
 }
 [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button).elevated {
-  background-color: var(--surface-mix-20);
+  background-color: var(--accent-mix-20);
   color: var(--on-transparent);
 }
 [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button).elevated:focus-visible {
   outline: 3px solid currentColor;
 }
 [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button).elevated:disabled {
-  background: var(--surface-mix-10);
+  background: var(--accent-mix-10);
 }
 [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button).pill {
   border-radius: var(--border-radius-full);
@@ -74,7 +74,7 @@
 }
 [ls-style=flat] textarea:focus, [ls-style=flat] :is(input[type=text], input:not([type=button]):not([type=submit]):not([type=color]):not([type=file]):not([type=reset]):not([type=image])):focus {
   border: 2px solid var(--accent-focus, var(--accent));
-  background: var(--surface-mix-10);
+  background: var(--accent-mix-10);
 }
 [ls-style=flat] .ls-checkbox > span, [ls-style=flat] .ls-radio > span {
   border: 2px solid var(--elevate-3);
@@ -101,7 +101,7 @@
   display: none;
 }
 [ls-style=flat] :is(.ls-checkbox, .ls-radio):active > span::before {
-  background: var(--surface-mix-20);
+  background: var(--accent-mix-20);
   transform: scale(1);
 }
 [ls-style=flat] .ls-checkbox > input:checked ~ span {

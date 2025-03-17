@@ -26,7 +26,7 @@
             }
 
             &:focus {
-                outline: 3px solid var(--surface-mix-10);
+                outline: 3px solid var(--accent-mix-10);
             }
 
             &:focus-visible {
@@ -54,11 +54,11 @@
 
     #{$button}:is(.clear, .outline, .elevated):not(:disabled) {
         &:hover, &:focus {
-            background-color: var(--surface-mix-30);
+            background-color: var(--accent-mix-30);
         }
 
         &:active {
-            background-color: var(--surface-mix-20);
+            background-color: var(--accent-mix-20);
         }
     }
 
@@ -73,7 +73,7 @@
     }
 
     #{$button}.elevated {
-        background-color: var(--surface-mix-20);
+        background-color: var(--accent-mix-20);
         color: var(--on-transparent);
 
         &:focus-visible {
@@ -81,7 +81,7 @@
         }
 
         &:disabled {
-            background: var(--surface-mix-10);
+            background: var(--accent-mix-10);
         }
     }
 
@@ -102,7 +102,7 @@
 
         &:focus {
             border: 2px solid var(--accent-focus, var(--accent));
-            background: var(--surface-mix-10);
+            background: var(--accent-mix-10);
         }
     }
 
@@ -136,7 +136,7 @@
     }
 
     :is(.ls-checkbox, .ls-radio):active > span::before {
-        background: var(--surface-mix-20);
+        background: var(--accent-mix-20);
         transform: scale(1);
     }
 

@@ -4,25 +4,27 @@
 
     Last modified: 2025
     License: GPL-3.0
-    Version: 5.0.0
+    Version: 5.1.0
     See: https://github.com/thelstv/LS
 */
 [ls-theme=light], [ls-theme=light] [ls-accent], [ls-theme=light] :disabled {
   --background: var(--surface-90);
   --color: var(--surface-10);
   --elevate: var(--surface-85);
-  --elevate-n1: var(--surface-100);
-  --elevate-0: var(--surface-95);
-  --elevate-1: var(--surface-85);
-  --elevate-2: var(--surface-80);
-  --elevate-3: var(--surface-75);
-  --elevate-4: var(--surface-70);
-  --elevate-5: var(--surface-65);
-  --elevate-6: var(--surface-60);
-  --elevate-7: var(--surface-55);
-  --elevate-8: var(--surface-50);
-  --elevate-9: var(--surface-45);
-  --elevate-10: var(--surface-40);
+  --surface-n3: var(--surface-95);
+  --surface-n2: var(--surface-100);
+  --surface-n1: var(--surface-95);
+  --surface-0: var(--surface-90);
+  --surface-1: var(--surface-85);
+  --surface-2: var(--surface-80);
+  --surface-3: var(--surface-75);
+  --surface-4: var(--surface-70);
+  --surface-5: var(--surface-65);
+  --surface-6: var(--surface-60);
+  --surface-7: var(--surface-55);
+  --surface-8: var(--surface-50);
+  --surface-9: var(--surface-45);
+  --surface-10: var(--surface-40);
   --ui-element: var(--surface-95);
   --on-background: var(--accent-40);
   --on-accent: var(--accent-90);
@@ -38,17 +40,20 @@
   --background: var(--surface-10);
   --color: var(--accent-90);
   --elevate: var(--surface-15);
-  --elevate-0: var(--surface-5);
-  --elevate-1: var(--surface-15);
-  --elevate-2: var(--surface-20);
-  --elevate-3: var(--surface-25);
-  --elevate-4: var(--surface-30);
-  --elevate-5: var(--surface-35);
-  --elevate-6: var(--surface-40);
-  --elevate-7: var(--surface-45);
-  --elevate-8: var(--surface-50);
-  --elevate-9: var(--surface-55);
-  --elevate-10: var(--surface-60);
+  --surface-n3: var(--surface-0);
+  --surface-n2: var(--surface-3);
+  --surface-n1: var(--surface-6);
+  --surface-0: var(--surface-10);
+  --surface-1: var(--surface-15);
+  --surface-2: var(--surface-20);
+  --surface-3: var(--surface-25);
+  --surface-4: var(--surface-30);
+  --surface-5: var(--surface-35);
+  --surface-6: var(--surface-40);
+  --surface-7: var(--surface-45);
+  --surface-8: var(--surface-50);
+  --surface-9: var(--surface-55);
+  --surface-10: var(--surface-60);
   --ui-element: var(--surface-20);
   --on-background: var(--accent-70);
   --on-accent: var(--accent-90);
@@ -147,10 +152,10 @@ ls-box.inline.pill:not(.full-padding) {
 }
 ls-box.color {
   color: var(--on-transparent);
-  background: var(--surface-mix-20);
+  background: var(--accent-mix-20);
 }
 ls-box::selection {
-  background: var(--surface-mix-30);
+  background: var(--accent-mix-30);
 }
 
 ls-div {
@@ -336,7 +341,7 @@ ls-tabs.ls-tabs-styled .ls-tab-handle {
   user-select: none;
 }
 ls-tabs.ls-tabs-styled .ls-tab-handle:hover {
-  --background: var(--surface-mix-10);
+  --background: var(--accent-mix-10);
 }
 ls-tabs.ls-tabs-styled .ls-tab-handle.active {
   --background: var(--ui-element);
@@ -392,6 +397,8 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --ls-accent-soap: rgb(210, 190, 235);
   --ls-accent-burple: rgb(81, 101, 246);
   --ls-accent-white: rgb(255, 255, 255);
+  --base-0: rgb(0, 0, 0);
+  --base-100: rgb(255, 255, 255);
 }
 
 [ls-accent=navy] {
@@ -408,27 +415,27 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --accent-80: rgb(183, 174, 233);
   --accent-90: rgb(219, 214, 244);
   --accent-95: rgb(237, 234, 249);
-  --surface-5: rgb(11, 11, 13);
-  --surface-6: rgb(14, 13, 16);
-  --surface-8: rgb(19, 18, 22);
-  --surface-10: rgb(23, 23, 27);
-  --surface-15: rgb(35, 34, 41);
-  --surface-20: rgb(47, 46, 55);
-  --surface-25: rgb(59, 58, 69);
-  --surface-30: rgb(71, 69, 83);
-  --surface-35: rgb(83, 81, 97);
-  --surface-40: rgb(95, 92, 111);
-  --surface-45: rgb(107, 104, 125);
-  --surface-50: rgb(119, 116, 138);
-  --surface-55: rgb(133, 129, 150);
-  --surface-60: rgb(146, 143, 162);
-  --surface-65: rgb(160, 157, 173);
-  --surface-70: rgb(173, 171, 185);
-  --surface-75: rgb(187, 185, 196);
-  --surface-80: rgb(200, 199, 208);
-  --surface-85: rgb(214, 213, 220);
-  --surface-90: rgb(227, 227, 231);
-  --surface-95: rgb(241, 241, 243);
+  --base-3: rgb(7, 6, 8);
+  --base-6: rgb(14, 13, 16);
+  --base-8: rgb(19, 18, 22);
+  --base-10: rgb(23, 23, 27);
+  --base-15: rgb(35, 34, 41);
+  --base-20: rgb(47, 46, 55);
+  --base-25: rgb(59, 58, 69);
+  --base-30: rgb(71, 69, 83);
+  --base-35: rgb(83, 81, 97);
+  --base-40: rgb(95, 92, 111);
+  --base-45: rgb(107, 104, 125);
+  --base-50: rgb(119, 116, 138);
+  --base-55: rgb(133, 129, 150);
+  --base-60: rgb(146, 143, 162);
+  --base-65: rgb(160, 157, 173);
+  --base-70: rgb(173, 171, 185);
+  --base-75: rgb(187, 185, 196);
+  --base-80: rgb(200, 199, 208);
+  --base-85: rgb(214, 213, 220);
+  --base-90: rgb(227, 227, 231);
+  --base-95: rgb(241, 241, 243);
 }
 
 [ls-accent=blue], html {
@@ -445,27 +452,27 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --accent-80: rgb(153, 207, 255);
   --accent-90: rgb(204, 231, 254);
   --accent-95: rgb(229, 243, 255);
-  --surface-5: rgb(10, 12, 14);
-  --surface-6: rgb(12, 15, 17);
-  --surface-8: rgb(17, 20, 23);
-  --surface-10: rgb(21, 25, 29);
-  --surface-15: rgb(32, 38, 44);
-  --surface-20: rgb(42, 51, 59);
-  --surface-25: rgb(53, 64, 73);
-  --surface-30: rgb(64, 77, 88);
-  --surface-35: rgb(74, 90, 103);
-  --surface-40: rgb(85, 103, 118);
-  --surface-45: rgb(96, 115, 133);
-  --surface-50: rgb(107, 128, 147);
-  --surface-55: rgb(121, 141, 158);
-  --surface-60: rgb(136, 154, 169);
-  --surface-65: rgb(151, 166, 180);
-  --surface-70: rgb(166, 179, 190);
-  --surface-75: rgb(181, 191, 201);
-  --surface-80: rgb(195, 204, 212);
-  --surface-85: rgb(210, 217, 222);
-  --surface-90: rgb(225, 229, 233);
-  --surface-95: rgb(240, 242, 244);
+  --base-3: rgb(6, 7, 8);
+  --base-6: rgb(12, 15, 17);
+  --base-8: rgb(17, 20, 23);
+  --base-10: rgb(21, 25, 29);
+  --base-15: rgb(32, 38, 44);
+  --base-20: rgb(42, 51, 59);
+  --base-25: rgb(53, 64, 73);
+  --base-30: rgb(64, 77, 88);
+  --base-35: rgb(74, 90, 103);
+  --base-40: rgb(85, 103, 118);
+  --base-45: rgb(96, 115, 133);
+  --base-50: rgb(107, 128, 147);
+  --base-55: rgb(121, 141, 158);
+  --base-60: rgb(136, 154, 169);
+  --base-65: rgb(151, 166, 180);
+  --base-70: rgb(166, 179, 190);
+  --base-75: rgb(181, 191, 201);
+  --base-80: rgb(195, 204, 212);
+  --base-85: rgb(210, 217, 222);
+  --base-90: rgb(225, 229, 233);
+  --base-95: rgb(240, 242, 244);
 }
 
 [ls-accent=pastel-indigo] {
@@ -482,27 +489,27 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --accent-80: rgb(181, 201, 226);
   --accent-90: rgb(218, 228, 240);
   --accent-95: rgb(236, 241, 247);
-  --surface-5: rgb(11, 12, 13);
-  --surface-6: rgb(14, 15, 16);
-  --surface-8: rgb(18, 20, 21);
-  --surface-10: rgb(23, 25, 27);
-  --surface-15: rgb(35, 37, 40);
-  --surface-20: rgb(47, 50, 54);
-  --surface-25: rgb(59, 63, 68);
-  --surface-30: rgb(71, 75, 81);
-  --surface-35: rgb(83, 88, 95);
-  --surface-40: rgb(94, 101, 109);
-  --surface-45: rgb(106, 113, 122);
-  --surface-50: rgb(118, 126, 136);
-  --surface-55: rgb(132, 139, 148);
-  --surface-60: rgb(145, 152, 160);
-  --surface-65: rgb(159, 164, 171);
-  --surface-70: rgb(173, 177, 183);
-  --surface-75: rgb(186, 190, 195);
-  --surface-80: rgb(200, 203, 207);
-  --surface-85: rgb(214, 216, 219);
-  --surface-90: rgb(227, 229, 231);
-  --surface-95: rgb(241, 242, 243);
+  --base-3: rgb(7, 7, 8);
+  --base-6: rgb(14, 15, 16);
+  --base-8: rgb(18, 20, 21);
+  --base-10: rgb(23, 25, 27);
+  --base-15: rgb(35, 37, 40);
+  --base-20: rgb(47, 50, 54);
+  --base-25: rgb(59, 63, 68);
+  --base-30: rgb(71, 75, 81);
+  --base-35: rgb(83, 88, 95);
+  --base-40: rgb(94, 101, 109);
+  --base-45: rgb(106, 113, 122);
+  --base-50: rgb(118, 126, 136);
+  --base-55: rgb(132, 139, 148);
+  --base-60: rgb(145, 152, 160);
+  --base-65: rgb(159, 164, 171);
+  --base-70: rgb(173, 177, 183);
+  --base-75: rgb(186, 190, 195);
+  --base-80: rgb(200, 203, 207);
+  --base-85: rgb(214, 216, 219);
+  --base-90: rgb(227, 229, 231);
+  --base-95: rgb(241, 242, 243);
 }
 
 [ls-accent=lapis] {
@@ -519,27 +526,27 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --accent-80: rgb(171, 214, 236);
   --accent-90: rgb(213, 234, 245);
   --accent-95: rgb(234, 244, 250);
-  --surface-5: rgb(11, 13, 14);
-  --surface-6: rgb(13, 15, 16);
-  --surface-8: rgb(18, 21, 22);
-  --surface-10: rgb(22, 26, 28);
-  --surface-15: rgb(34, 39, 42);
-  --surface-20: rgb(45, 52, 56);
-  --surface-25: rgb(57, 65, 70);
-  --surface-30: rgb(68, 79, 84);
-  --surface-35: rgb(80, 92, 98);
-  --surface-40: rgb(91, 105, 112);
-  --surface-45: rgb(103, 118, 126);
-  --surface-50: rgb(114, 131, 140);
-  --surface-55: rgb(128, 144, 151);
-  --surface-60: rgb(142, 156, 163);
-  --surface-65: rgb(156, 168, 174);
-  --surface-70: rgb(170, 181, 186);
-  --surface-75: rgb(184, 193, 197);
-  --surface-80: rgb(198, 205, 209);
-  --surface-85: rgb(212, 218, 220);
-  --surface-90: rgb(226, 230, 232);
-  --surface-95: rgb(240, 242, 243);
+  --base-3: rgb(6, 7, 8);
+  --base-6: rgb(13, 15, 16);
+  --base-8: rgb(18, 21, 22);
+  --base-10: rgb(22, 26, 28);
+  --base-15: rgb(34, 39, 42);
+  --base-20: rgb(45, 52, 56);
+  --base-25: rgb(57, 65, 70);
+  --base-30: rgb(68, 79, 84);
+  --base-35: rgb(80, 92, 98);
+  --base-40: rgb(91, 105, 112);
+  --base-45: rgb(103, 118, 126);
+  --base-50: rgb(114, 131, 140);
+  --base-55: rgb(128, 144, 151);
+  --base-60: rgb(142, 156, 163);
+  --base-65: rgb(156, 168, 174);
+  --base-70: rgb(170, 181, 186);
+  --base-75: rgb(184, 193, 197);
+  --base-80: rgb(198, 205, 209);
+  --base-85: rgb(212, 218, 220);
+  --base-90: rgb(226, 230, 232);
+  --base-95: rgb(240, 242, 243);
 }
 
 [ls-accent=teal] {
@@ -556,27 +563,27 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --accent-80: rgb(153, 254, 255);
   --accent-90: rgb(204, 254, 254);
   --accent-95: rgb(229, 255, 255);
-  --surface-5: rgb(10, 14, 14);
-  --surface-6: rgb(12, 17, 17);
-  --surface-8: rgb(17, 23, 23);
-  --surface-10: rgb(21, 29, 29);
-  --surface-15: rgb(32, 44, 44);
-  --surface-20: rgb(42, 59, 59);
-  --surface-25: rgb(53, 73, 73);
-  --surface-30: rgb(64, 88, 88);
-  --surface-35: rgb(74, 103, 103);
-  --surface-40: rgb(85, 118, 118);
-  --surface-45: rgb(96, 133, 133);
-  --surface-50: rgb(107, 147, 147);
-  --surface-55: rgb(121, 158, 158);
-  --surface-60: rgb(136, 169, 169);
-  --surface-65: rgb(151, 180, 180);
-  --surface-70: rgb(166, 190, 190);
-  --surface-75: rgb(181, 201, 201);
-  --surface-80: rgb(195, 212, 212);
-  --surface-85: rgb(210, 222, 222);
-  --surface-90: rgb(225, 233, 233);
-  --surface-95: rgb(240, 244, 244);
+  --base-3: rgb(6, 8, 8);
+  --base-6: rgb(12, 17, 17);
+  --base-8: rgb(17, 23, 23);
+  --base-10: rgb(21, 29, 29);
+  --base-15: rgb(32, 44, 44);
+  --base-20: rgb(42, 59, 59);
+  --base-25: rgb(53, 73, 73);
+  --base-30: rgb(64, 88, 88);
+  --base-35: rgb(74, 103, 103);
+  --base-40: rgb(85, 118, 118);
+  --base-45: rgb(96, 133, 133);
+  --base-50: rgb(107, 147, 147);
+  --base-55: rgb(121, 158, 158);
+  --base-60: rgb(136, 169, 169);
+  --base-65: rgb(151, 180, 180);
+  --base-70: rgb(166, 190, 190);
+  --base-75: rgb(181, 201, 201);
+  --base-80: rgb(195, 212, 212);
+  --base-85: rgb(210, 222, 222);
+  --base-90: rgb(225, 233, 233);
+  --base-95: rgb(240, 244, 244);
 }
 
 [ls-accent=pastel-teal] {
@@ -593,27 +600,27 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --accent-80: rgb(174, 229, 233);
   --accent-90: rgb(214, 242, 244);
   --accent-95: rgb(234, 248, 249);
-  --surface-5: rgb(11, 13, 13);
-  --surface-6: rgb(13, 16, 16);
-  --surface-8: rgb(18, 21, 22);
-  --surface-10: rgb(23, 27, 27);
-  --surface-15: rgb(34, 41, 41);
-  --surface-20: rgb(46, 54, 55);
-  --surface-25: rgb(58, 68, 69);
-  --surface-30: rgb(69, 82, 83);
-  --surface-35: rgb(81, 96, 97);
-  --surface-40: rgb(92, 109, 111);
-  --surface-45: rgb(104, 123, 125);
-  --surface-50: rgb(116, 137, 138);
-  --surface-55: rgb(129, 149, 150);
-  --surface-60: rgb(143, 160, 162);
-  --surface-65: rgb(157, 172, 173);
-  --surface-70: rgb(171, 184, 185);
-  --surface-75: rgb(185, 196, 196);
-  --surface-80: rgb(199, 207, 208);
-  --surface-85: rgb(213, 219, 220);
-  --surface-90: rgb(227, 231, 231);
-  --surface-95: rgb(241, 243, 243);
+  --base-3: rgb(6, 8, 8);
+  --base-6: rgb(13, 16, 16);
+  --base-8: rgb(18, 21, 22);
+  --base-10: rgb(23, 27, 27);
+  --base-15: rgb(34, 41, 41);
+  --base-20: rgb(46, 54, 55);
+  --base-25: rgb(58, 68, 69);
+  --base-30: rgb(69, 82, 83);
+  --base-35: rgb(81, 96, 97);
+  --base-40: rgb(92, 109, 111);
+  --base-45: rgb(104, 123, 125);
+  --base-50: rgb(116, 137, 138);
+  --base-55: rgb(129, 149, 150);
+  --base-60: rgb(143, 160, 162);
+  --base-65: rgb(157, 172, 173);
+  --base-70: rgb(171, 184, 185);
+  --base-75: rgb(185, 196, 196);
+  --base-80: rgb(199, 207, 208);
+  --base-85: rgb(213, 219, 220);
+  --base-90: rgb(227, 231, 231);
+  --base-95: rgb(241, 243, 243);
 }
 
 [ls-accent=aquamarine] {
@@ -630,27 +637,27 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --accent-80: rgb(180, 227, 211);
   --accent-90: rgb(217, 241, 233);
   --accent-95: rgb(236, 248, 244);
-  --surface-5: rgb(11, 13, 13);
-  --surface-6: rgb(14, 16, 15);
-  --surface-8: rgb(18, 21, 20);
-  --surface-10: rgb(23, 27, 26);
-  --surface-15: rgb(35, 40, 39);
-  --surface-20: rgb(47, 54, 52);
-  --surface-25: rgb(59, 68, 65);
-  --surface-30: rgb(71, 81, 78);
-  --surface-35: rgb(83, 95, 91);
-  --surface-40: rgb(94, 109, 104);
-  --surface-45: rgb(106, 122, 117);
-  --surface-50: rgb(118, 136, 130);
-  --surface-55: rgb(132, 148, 142);
-  --surface-60: rgb(145, 160, 155);
-  --surface-65: rgb(159, 171, 167);
-  --surface-70: rgb(173, 183, 180);
-  --surface-75: rgb(186, 195, 192);
-  --surface-80: rgb(200, 207, 205);
-  --surface-85: rgb(214, 219, 217);
-  --surface-90: rgb(227, 231, 230);
-  --surface-95: rgb(241, 243, 242);
+  --base-3: rgb(7, 8, 7);
+  --base-6: rgb(14, 16, 15);
+  --base-8: rgb(18, 21, 20);
+  --base-10: rgb(23, 27, 26);
+  --base-15: rgb(35, 40, 39);
+  --base-20: rgb(47, 54, 52);
+  --base-25: rgb(59, 68, 65);
+  --base-30: rgb(71, 81, 78);
+  --base-35: rgb(83, 95, 91);
+  --base-40: rgb(94, 109, 104);
+  --base-45: rgb(106, 122, 117);
+  --base-50: rgb(118, 136, 130);
+  --base-55: rgb(132, 148, 142);
+  --base-60: rgb(145, 160, 155);
+  --base-65: rgb(159, 171, 167);
+  --base-70: rgb(173, 183, 180);
+  --base-75: rgb(186, 195, 192);
+  --base-80: rgb(200, 207, 205);
+  --base-85: rgb(214, 219, 217);
+  --base-90: rgb(227, 231, 230);
+  --base-95: rgb(241, 243, 242);
 }
 
 [ls-accent=mint] {
@@ -667,27 +674,27 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --accent-80: rgb(163, 244, 213);
   --accent-90: rgb(209, 249, 234);
   --accent-95: rgb(232, 252, 244);
-  --surface-5: rgb(11, 14, 13);
-  --surface-6: rgb(13, 17, 15);
-  --surface-8: rgb(17, 22, 20);
-  --surface-10: rgb(22, 28, 26);
-  --surface-15: rgb(33, 42, 39);
-  --surface-20: rgb(44, 57, 52);
-  --surface-25: rgb(56, 71, 65);
-  --surface-30: rgb(67, 85, 78);
-  --surface-35: rgb(78, 99, 91);
-  --surface-40: rgb(89, 114, 104);
-  --surface-45: rgb(100, 128, 117);
-  --surface-50: rgb(112, 142, 131);
-  --surface-55: rgb(126, 154, 143);
-  --surface-60: rgb(140, 165, 155);
-  --surface-65: rgb(155, 176, 168);
-  --surface-70: rgb(169, 187, 180);
-  --surface-75: rgb(183, 198, 193);
-  --surface-80: rgb(197, 210, 205);
-  --surface-85: rgb(212, 221, 217);
-  --surface-90: rgb(226, 232, 230);
-  --surface-95: rgb(240, 243, 242);
+  --base-3: rgb(6, 8, 7);
+  --base-6: rgb(13, 17, 15);
+  --base-8: rgb(17, 22, 20);
+  --base-10: rgb(22, 28, 26);
+  --base-15: rgb(33, 42, 39);
+  --base-20: rgb(44, 57, 52);
+  --base-25: rgb(56, 71, 65);
+  --base-30: rgb(67, 85, 78);
+  --base-35: rgb(78, 99, 91);
+  --base-40: rgb(89, 114, 104);
+  --base-45: rgb(100, 128, 117);
+  --base-50: rgb(112, 142, 131);
+  --base-55: rgb(126, 154, 143);
+  --base-60: rgb(140, 165, 155);
+  --base-65: rgb(155, 176, 168);
+  --base-70: rgb(169, 187, 180);
+  --base-75: rgb(183, 198, 193);
+  --base-80: rgb(197, 210, 205);
+  --base-85: rgb(212, 221, 217);
+  --base-90: rgb(226, 232, 230);
+  --base-95: rgb(240, 243, 242);
 }
 
 [ls-accent=green] {
@@ -704,27 +711,27 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --accent-80: rgb(169, 238, 206);
   --accent-90: rgb(212, 246, 230);
   --accent-95: rgb(233, 250, 242);
-  --surface-5: rgb(11, 14, 12);
-  --surface-6: rgb(13, 16, 15);
-  --surface-8: rgb(18, 22, 20);
-  --surface-10: rgb(22, 28, 25);
-  --surface-15: rgb(34, 42, 38);
-  --surface-20: rgb(45, 56, 51);
-  --surface-25: rgb(56, 70, 64);
-  --surface-30: rgb(68, 84, 77);
-  --surface-35: rgb(79, 99, 89);
-  --surface-40: rgb(90, 113, 102);
-  --surface-45: rgb(102, 127, 115);
-  --surface-50: rgb(113, 141, 128);
-  --surface-55: rgb(127, 152, 141);
-  --surface-60: rgb(141, 164, 153);
-  --surface-65: rgb(155, 175, 166);
-  --surface-70: rgb(170, 186, 179);
-  --surface-75: rgb(184, 198, 191);
-  --surface-80: rgb(198, 209, 204);
-  --surface-85: rgb(212, 220, 217);
-  --surface-90: rgb(226, 232, 229);
-  --surface-95: rgb(240, 243, 242);
+  --base-3: rgb(6, 8, 7);
+  --base-6: rgb(13, 16, 15);
+  --base-8: rgb(18, 22, 20);
+  --base-10: rgb(22, 28, 25);
+  --base-15: rgb(34, 42, 38);
+  --base-20: rgb(45, 56, 51);
+  --base-25: rgb(56, 70, 64);
+  --base-30: rgb(68, 84, 77);
+  --base-35: rgb(79, 99, 89);
+  --base-40: rgb(90, 113, 102);
+  --base-45: rgb(102, 127, 115);
+  --base-50: rgb(113, 141, 128);
+  --base-55: rgb(127, 152, 141);
+  --base-60: rgb(141, 164, 153);
+  --base-65: rgb(155, 175, 166);
+  --base-70: rgb(170, 186, 179);
+  --base-75: rgb(184, 198, 191);
+  --base-80: rgb(198, 209, 204);
+  --base-85: rgb(212, 220, 217);
+  --base-90: rgb(226, 232, 229);
+  --base-95: rgb(240, 243, 242);
 }
 
 [ls-accent=lime] {
@@ -741,27 +748,27 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --accent-80: rgb(206, 236, 171);
   --accent-90: rgb(230, 245, 213);
   --accent-95: rgb(242, 250, 234);
-  --surface-5: rgb(12, 14, 11);
-  --surface-6: rgb(15, 16, 13);
-  --surface-8: rgb(20, 22, 18);
-  --surface-10: rgb(25, 28, 22);
-  --surface-15: rgb(38, 42, 34);
-  --surface-20: rgb(51, 56, 45);
-  --surface-25: rgb(64, 70, 57);
-  --surface-30: rgb(77, 84, 68);
-  --surface-35: rgb(89, 98, 80);
-  --surface-40: rgb(102, 112, 91);
-  --surface-45: rgb(115, 126, 103);
-  --surface-50: rgb(128, 140, 114);
-  --surface-55: rgb(141, 151, 128);
-  --surface-60: rgb(153, 163, 142);
-  --surface-65: rgb(166, 174, 156);
-  --surface-70: rgb(179, 186, 170);
-  --surface-75: rgb(191, 197, 184);
-  --surface-80: rgb(204, 209, 198);
-  --surface-85: rgb(217, 220, 212);
-  --surface-90: rgb(229, 232, 226);
-  --surface-95: rgb(242, 243, 240);
+  --base-3: rgb(7, 8, 6);
+  --base-6: rgb(15, 16, 13);
+  --base-8: rgb(20, 22, 18);
+  --base-10: rgb(25, 28, 22);
+  --base-15: rgb(38, 42, 34);
+  --base-20: rgb(51, 56, 45);
+  --base-25: rgb(64, 70, 57);
+  --base-30: rgb(77, 84, 68);
+  --base-35: rgb(89, 98, 80);
+  --base-40: rgb(102, 112, 91);
+  --base-45: rgb(115, 126, 103);
+  --base-50: rgb(128, 140, 114);
+  --base-55: rgb(141, 151, 128);
+  --base-60: rgb(153, 163, 142);
+  --base-65: rgb(166, 174, 156);
+  --base-70: rgb(179, 186, 170);
+  --base-75: rgb(191, 197, 184);
+  --base-80: rgb(204, 209, 198);
+  --base-85: rgb(217, 220, 212);
+  --base-90: rgb(229, 232, 226);
+  --base-95: rgb(242, 243, 240);
 }
 
 [ls-accent=neon] {
@@ -778,27 +785,27 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --accent-80: rgb(198, 255, 153);
   --accent-90: rgb(226, 254, 204);
   --accent-95: rgb(240, 255, 229);
-  --surface-5: rgb(12, 14, 10);
-  --surface-6: rgb(15, 17, 12);
-  --surface-8: rgb(20, 23, 17);
-  --surface-10: rgb(25, 29, 21);
-  --surface-15: rgb(37, 44, 32);
-  --surface-20: rgb(50, 59, 42);
-  --surface-25: rgb(62, 73, 53);
-  --surface-30: rgb(75, 88, 64);
-  --surface-35: rgb(87, 103, 74);
-  --surface-40: rgb(100, 118, 85);
-  --surface-45: rgb(112, 133, 96);
-  --surface-50: rgb(125, 147, 107);
-  --surface-55: rgb(138, 158, 121);
-  --surface-60: rgb(151, 169, 136);
-  --surface-65: rgb(164, 180, 151);
-  --surface-70: rgb(177, 190, 166);
-  --surface-75: rgb(190, 201, 181);
-  --surface-80: rgb(203, 212, 195);
-  --surface-85: rgb(216, 222, 210);
-  --surface-90: rgb(229, 233, 225);
-  --surface-95: rgb(242, 244, 240);
+  --base-3: rgb(7, 8, 6);
+  --base-6: rgb(15, 17, 12);
+  --base-8: rgb(20, 23, 17);
+  --base-10: rgb(25, 29, 21);
+  --base-15: rgb(37, 44, 32);
+  --base-20: rgb(50, 59, 42);
+  --base-25: rgb(62, 73, 53);
+  --base-30: rgb(75, 88, 64);
+  --base-35: rgb(87, 103, 74);
+  --base-40: rgb(100, 118, 85);
+  --base-45: rgb(112, 133, 96);
+  --base-50: rgb(125, 147, 107);
+  --base-55: rgb(138, 158, 121);
+  --base-60: rgb(151, 169, 136);
+  --base-65: rgb(164, 180, 151);
+  --base-70: rgb(177, 190, 166);
+  --base-75: rgb(190, 201, 181);
+  --base-80: rgb(203, 212, 195);
+  --base-85: rgb(216, 222, 210);
+  --base-90: rgb(229, 233, 225);
+  --base-95: rgb(242, 244, 240);
 }
 
 [ls-accent=yellow] {
@@ -815,27 +822,27 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --accent-80: rgb(255, 244, 153);
   --accent-90: rgb(254, 249, 204);
   --accent-95: rgb(255, 252, 229);
-  --surface-5: rgb(14, 14, 10);
-  --surface-6: rgb(17, 17, 12);
-  --surface-8: rgb(23, 23, 17);
-  --surface-10: rgb(29, 28, 21);
-  --surface-15: rgb(44, 43, 32);
-  --surface-20: rgb(59, 57, 42);
-  --surface-25: rgb(73, 71, 53);
-  --surface-30: rgb(88, 86, 64);
-  --surface-35: rgb(103, 100, 74);
-  --surface-40: rgb(118, 115, 85);
-  --surface-45: rgb(133, 129, 96);
-  --surface-50: rgb(147, 143, 107);
-  --surface-55: rgb(158, 154, 121);
-  --surface-60: rgb(169, 166, 136);
-  --surface-65: rgb(180, 177, 151);
-  --surface-70: rgb(190, 188, 166);
-  --surface-75: rgb(201, 199, 181);
-  --surface-80: rgb(212, 210, 195);
-  --surface-85: rgb(222, 221, 210);
-  --surface-90: rgb(233, 232, 225);
-  --surface-95: rgb(244, 243, 240);
+  --base-3: rgb(8, 8, 6);
+  --base-6: rgb(17, 17, 12);
+  --base-8: rgb(23, 23, 17);
+  --base-10: rgb(29, 28, 21);
+  --base-15: rgb(44, 43, 32);
+  --base-20: rgb(59, 57, 42);
+  --base-25: rgb(73, 71, 53);
+  --base-30: rgb(88, 86, 64);
+  --base-35: rgb(103, 100, 74);
+  --base-40: rgb(118, 115, 85);
+  --base-45: rgb(133, 129, 96);
+  --base-50: rgb(147, 143, 107);
+  --base-55: rgb(158, 154, 121);
+  --base-60: rgb(169, 166, 136);
+  --base-65: rgb(180, 177, 151);
+  --base-70: rgb(190, 188, 166);
+  --base-75: rgb(201, 199, 181);
+  --base-80: rgb(212, 210, 195);
+  --base-85: rgb(222, 221, 210);
+  --base-90: rgb(233, 232, 225);
+  --base-95: rgb(244, 243, 240);
 }
 
 [ls-accent=lstv-red] {
@@ -852,27 +859,27 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --accent-80: rgb(246, 188, 161);
   --accent-90: rgb(250, 221, 208);
   --accent-95: rgb(252, 238, 231);
-  --surface-5: rgb(14, 12, 11);
-  --surface-6: rgb(17, 14, 13);
-  --surface-8: rgb(23, 19, 17);
-  --surface-10: rgb(28, 24, 22);
-  --surface-15: rgb(43, 36, 33);
-  --surface-20: rgb(57, 48, 44);
-  --surface-25: rgb(72, 60, 55);
-  --surface-30: rgb(86, 72, 66);
-  --surface-35: rgb(100, 84, 77);
-  --surface-40: rgb(115, 97, 88);
-  --surface-45: rgb(129, 109, 99);
-  --surface-50: rgb(144, 121, 110);
-  --surface-55: rgb(155, 134, 125);
-  --surface-60: rgb(166, 148, 139);
-  --surface-65: rgb(177, 161, 154);
-  --surface-70: rgb(188, 174, 168);
-  --surface-75: rgb(199, 188, 182);
-  --surface-80: rgb(210, 201, 197);
-  --surface-85: rgb(221, 214, 211);
-  --surface-90: rgb(232, 228, 226);
-  --surface-95: rgb(243, 241, 240);
+  --base-3: rgb(8, 7, 6);
+  --base-6: rgb(17, 14, 13);
+  --base-8: rgb(23, 19, 17);
+  --base-10: rgb(28, 24, 22);
+  --base-15: rgb(43, 36, 33);
+  --base-20: rgb(57, 48, 44);
+  --base-25: rgb(72, 60, 55);
+  --base-30: rgb(86, 72, 66);
+  --base-35: rgb(100, 84, 77);
+  --base-40: rgb(115, 97, 88);
+  --base-45: rgb(129, 109, 99);
+  --base-50: rgb(144, 121, 110);
+  --base-55: rgb(155, 134, 125);
+  --base-60: rgb(166, 148, 139);
+  --base-65: rgb(177, 161, 154);
+  --base-70: rgb(188, 174, 168);
+  --base-75: rgb(199, 188, 182);
+  --base-80: rgb(210, 201, 197);
+  --base-85: rgb(221, 214, 211);
+  --base-90: rgb(232, 228, 226);
+  --base-95: rgb(243, 241, 240);
 }
 
 [ls-accent=lstv-yellow] {
@@ -889,27 +896,27 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --accent-80: rgb(253, 227, 154);
   --accent-90: rgb(254, 241, 204);
   --accent-95: rgb(254, 248, 229);
-  --surface-5: rgb(14, 13, 10);
-  --surface-6: rgb(17, 16, 13);
-  --surface-8: rgb(23, 21, 17);
-  --surface-10: rgb(29, 27, 21);
-  --surface-15: rgb(43, 40, 32);
-  --surface-20: rgb(58, 54, 43);
-  --surface-25: rgb(73, 68, 54);
-  --surface-30: rgb(87, 81, 65);
-  --surface-35: rgb(102, 95, 75);
-  --surface-40: rgb(117, 109, 86);
-  --surface-45: rgb(131, 122, 97);
-  --surface-50: rgb(146, 136, 108);
-  --surface-55: rgb(157, 148, 123);
-  --surface-60: rgb(168, 160, 137);
-  --surface-65: rgb(179, 171, 152);
-  --surface-70: rgb(189, 183, 167);
-  --surface-75: rgb(200, 195, 181);
-  --surface-80: rgb(211, 207, 196);
-  --surface-85: rgb(222, 219, 211);
-  --surface-90: rgb(233, 231, 225);
-  --surface-95: rgb(244, 243, 240);
+  --base-3: rgb(8, 8, 6);
+  --base-6: rgb(17, 16, 13);
+  --base-8: rgb(23, 21, 17);
+  --base-10: rgb(29, 27, 21);
+  --base-15: rgb(43, 40, 32);
+  --base-20: rgb(58, 54, 43);
+  --base-25: rgb(73, 68, 54);
+  --base-30: rgb(87, 81, 65);
+  --base-35: rgb(102, 95, 75);
+  --base-40: rgb(117, 109, 86);
+  --base-45: rgb(131, 122, 97);
+  --base-50: rgb(146, 136, 108);
+  --base-55: rgb(157, 148, 123);
+  --base-60: rgb(168, 160, 137);
+  --base-65: rgb(179, 171, 152);
+  --base-70: rgb(189, 183, 167);
+  --base-75: rgb(200, 195, 181);
+  --base-80: rgb(211, 207, 196);
+  --base-85: rgb(222, 219, 211);
+  --base-90: rgb(233, 231, 225);
+  --base-95: rgb(244, 243, 240);
 }
 
 [ls-accent=lstv-blue] {
@@ -926,27 +933,27 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --accent-80: rgb(164, 224, 243);
   --accent-90: rgb(209, 239, 249);
   --accent-95: rgb(232, 247, 252);
-  --surface-5: rgb(11, 13, 14);
-  --surface-6: rgb(13, 16, 17);
-  --surface-8: rgb(17, 21, 22);
-  --surface-10: rgb(22, 27, 28);
-  --surface-15: rgb(33, 40, 42);
-  --surface-20: rgb(44, 54, 57);
-  --surface-25: rgb(56, 67, 71);
-  --surface-30: rgb(67, 81, 85);
-  --surface-35: rgb(78, 94, 99);
-  --surface-40: rgb(89, 108, 114);
-  --surface-45: rgb(100, 122, 128);
-  --surface-50: rgb(112, 135, 142);
-  --surface-55: rgb(126, 147, 154);
-  --surface-60: rgb(140, 159, 165);
-  --surface-65: rgb(155, 171, 176);
-  --surface-70: rgb(169, 183, 187);
-  --surface-75: rgb(183, 195, 198);
-  --surface-80: rgb(197, 207, 210);
-  --surface-85: rgb(212, 219, 221);
-  --surface-90: rgb(226, 231, 232);
-  --surface-95: rgb(240, 243, 243);
+  --base-3: rgb(6, 8, 8);
+  --base-6: rgb(13, 16, 17);
+  --base-8: rgb(17, 21, 22);
+  --base-10: rgb(22, 27, 28);
+  --base-15: rgb(33, 40, 42);
+  --base-20: rgb(44, 54, 57);
+  --base-25: rgb(56, 67, 71);
+  --base-30: rgb(67, 81, 85);
+  --base-35: rgb(78, 94, 99);
+  --base-40: rgb(89, 108, 114);
+  --base-45: rgb(100, 122, 128);
+  --base-50: rgb(112, 135, 142);
+  --base-55: rgb(126, 147, 154);
+  --base-60: rgb(140, 159, 165);
+  --base-65: rgb(155, 171, 176);
+  --base-70: rgb(169, 183, 187);
+  --base-75: rgb(183, 195, 198);
+  --base-80: rgb(197, 207, 210);
+  --base-85: rgb(212, 219, 221);
+  --base-90: rgb(226, 231, 232);
+  --base-95: rgb(240, 243, 243);
 }
 
 [ls-accent=orange] {
@@ -963,27 +970,27 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --accent-80: rgb(255, 202, 153);
   --accent-90: rgb(254, 228, 204);
   --accent-95: rgb(255, 241, 229);
-  --surface-5: rgb(14, 12, 10);
-  --surface-6: rgb(17, 15, 12);
-  --surface-8: rgb(23, 20, 17);
-  --surface-10: rgb(29, 25, 21);
-  --surface-15: rgb(44, 38, 32);
-  --surface-20: rgb(59, 50, 42);
-  --surface-25: rgb(73, 63, 53);
-  --surface-30: rgb(88, 76, 64);
-  --surface-35: rgb(103, 88, 74);
-  --surface-40: rgb(118, 101, 85);
-  --surface-45: rgb(133, 114, 96);
-  --surface-50: rgb(147, 126, 107);
-  --surface-55: rgb(158, 139, 121);
-  --surface-60: rgb(169, 152, 136);
-  --surface-65: rgb(180, 165, 151);
-  --surface-70: rgb(190, 178, 166);
-  --surface-75: rgb(201, 190, 181);
-  --surface-80: rgb(212, 203, 195);
-  --surface-85: rgb(222, 216, 210);
-  --surface-90: rgb(233, 229, 225);
-  --surface-95: rgb(244, 242, 240);
+  --base-3: rgb(8, 7, 6);
+  --base-6: rgb(17, 15, 12);
+  --base-8: rgb(23, 20, 17);
+  --base-10: rgb(29, 25, 21);
+  --base-15: rgb(44, 38, 32);
+  --base-20: rgb(59, 50, 42);
+  --base-25: rgb(73, 63, 53);
+  --base-30: rgb(88, 76, 64);
+  --base-35: rgb(103, 88, 74);
+  --base-40: rgb(118, 101, 85);
+  --base-45: rgb(133, 114, 96);
+  --base-50: rgb(147, 126, 107);
+  --base-55: rgb(158, 139, 121);
+  --base-60: rgb(169, 152, 136);
+  --base-65: rgb(180, 165, 151);
+  --base-70: rgb(190, 178, 166);
+  --base-75: rgb(201, 190, 181);
+  --base-80: rgb(212, 203, 195);
+  --base-85: rgb(222, 216, 210);
+  --base-90: rgb(233, 229, 225);
+  --base-95: rgb(244, 242, 240);
 }
 
 [ls-accent=deep-orange] {
@@ -1000,27 +1007,27 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --accent-80: rgb(255, 181, 153);
   --accent-90: rgb(254, 218, 204);
   --accent-95: rgb(255, 236, 229);
-  --surface-5: rgb(14, 11, 10);
-  --surface-6: rgb(17, 14, 12);
-  --surface-8: rgb(23, 18, 17);
-  --surface-10: rgb(29, 23, 21);
-  --surface-15: rgb(44, 35, 32);
-  --surface-20: rgb(59, 47, 42);
-  --surface-25: rgb(73, 59, 53);
-  --surface-30: rgb(88, 71, 64);
-  --surface-35: rgb(103, 83, 74);
-  --surface-40: rgb(118, 94, 85);
-  --surface-45: rgb(133, 106, 96);
-  --surface-50: rgb(147, 118, 107);
-  --surface-55: rgb(158, 132, 121);
-  --surface-60: rgb(169, 145, 136);
-  --surface-65: rgb(180, 159, 151);
-  --surface-70: rgb(190, 173, 166);
-  --surface-75: rgb(201, 186, 181);
-  --surface-80: rgb(212, 200, 195);
-  --surface-85: rgb(222, 214, 210);
-  --surface-90: rgb(233, 227, 225);
-  --surface-95: rgb(244, 241, 240);
+  --base-3: rgb(8, 7, 6);
+  --base-6: rgb(17, 14, 12);
+  --base-8: rgb(23, 18, 17);
+  --base-10: rgb(29, 23, 21);
+  --base-15: rgb(44, 35, 32);
+  --base-20: rgb(59, 47, 42);
+  --base-25: rgb(73, 59, 53);
+  --base-30: rgb(88, 71, 64);
+  --base-35: rgb(103, 83, 74);
+  --base-40: rgb(118, 94, 85);
+  --base-45: rgb(133, 106, 96);
+  --base-50: rgb(147, 118, 107);
+  --base-55: rgb(158, 132, 121);
+  --base-60: rgb(169, 145, 136);
+  --base-65: rgb(180, 159, 151);
+  --base-70: rgb(190, 173, 166);
+  --base-75: rgb(201, 186, 181);
+  --base-80: rgb(212, 200, 195);
+  --base-85: rgb(222, 214, 210);
+  --base-90: rgb(233, 227, 225);
+  --base-95: rgb(244, 241, 240);
 }
 
 [ls-accent=red] {
@@ -1037,27 +1044,27 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --accent-80: rgb(249, 158, 158);
   --accent-90: rgb(252, 206, 206);
   --accent-95: rgb(253, 230, 230);
-  --surface-5: rgb(14, 10, 10);
-  --surface-6: rgb(17, 13, 13);
-  --surface-8: rgb(23, 17, 17);
-  --surface-10: rgb(29, 21, 21);
-  --surface-15: rgb(43, 32, 32);
-  --surface-20: rgb(58, 43, 43);
-  --surface-25: rgb(72, 54, 54);
-  --surface-30: rgb(87, 65, 65);
-  --surface-35: rgb(101, 76, 76);
-  --surface-40: rgb(116, 87, 87);
-  --surface-45: rgb(130, 98, 98);
-  --surface-50: rgb(145, 109, 109);
-  --surface-55: rgb(156, 124, 124);
-  --surface-60: rgb(167, 138, 138);
-  --surface-65: rgb(178, 153, 153);
-  --surface-70: rgb(189, 167, 167);
-  --surface-75: rgb(200, 182, 182);
-  --surface-80: rgb(211, 196, 196);
-  --surface-85: rgb(222, 211, 211);
-  --surface-90: rgb(233, 225, 225);
-  --surface-95: rgb(244, 240, 240);
+  --base-3: rgb(8, 6, 6);
+  --base-6: rgb(17, 13, 13);
+  --base-8: rgb(23, 17, 17);
+  --base-10: rgb(29, 21, 21);
+  --base-15: rgb(43, 32, 32);
+  --base-20: rgb(58, 43, 43);
+  --base-25: rgb(72, 54, 54);
+  --base-30: rgb(87, 65, 65);
+  --base-35: rgb(101, 76, 76);
+  --base-40: rgb(116, 87, 87);
+  --base-45: rgb(130, 98, 98);
+  --base-50: rgb(145, 109, 109);
+  --base-55: rgb(156, 124, 124);
+  --base-60: rgb(167, 138, 138);
+  --base-65: rgb(178, 153, 153);
+  --base-70: rgb(189, 167, 167);
+  --base-75: rgb(200, 182, 182);
+  --base-80: rgb(211, 196, 196);
+  --base-85: rgb(222, 211, 211);
+  --base-90: rgb(233, 225, 225);
+  --base-95: rgb(244, 240, 240);
 }
 
 [ls-accent=rusty-red] {
@@ -1074,27 +1081,27 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --accent-80: rgb(239, 168, 175);
   --accent-90: rgb(247, 211, 215);
   --accent-95: rgb(251, 233, 235);
-  --surface-5: rgb(14, 11, 11);
-  --surface-6: rgb(16, 13, 13);
-  --surface-8: rgb(22, 18, 18);
-  --surface-10: rgb(28, 22, 23);
-  --surface-15: rgb(42, 34, 34);
-  --surface-20: rgb(56, 45, 46);
-  --surface-25: rgb(70, 56, 58);
-  --surface-30: rgb(84, 68, 69);
-  --surface-35: rgb(99, 79, 81);
-  --surface-40: rgb(113, 90, 93);
-  --surface-45: rgb(127, 102, 104);
-  --surface-50: rgb(141, 113, 116);
-  --surface-55: rgb(152, 127, 130);
-  --surface-60: rgb(164, 141, 144);
-  --surface-65: rgb(175, 155, 157);
-  --surface-70: rgb(186, 170, 171);
-  --surface-75: rgb(198, 184, 185);
-  --surface-80: rgb(209, 198, 199);
-  --surface-85: rgb(220, 212, 213);
-  --surface-90: rgb(232, 226, 227);
-  --surface-95: rgb(243, 240, 241);
+  --base-3: rgb(8, 6, 6);
+  --base-6: rgb(16, 13, 13);
+  --base-8: rgb(22, 18, 18);
+  --base-10: rgb(28, 22, 23);
+  --base-15: rgb(42, 34, 34);
+  --base-20: rgb(56, 45, 46);
+  --base-25: rgb(70, 56, 58);
+  --base-30: rgb(84, 68, 69);
+  --base-35: rgb(99, 79, 81);
+  --base-40: rgb(113, 90, 93);
+  --base-45: rgb(127, 102, 104);
+  --base-50: rgb(141, 113, 116);
+  --base-55: rgb(152, 127, 130);
+  --base-60: rgb(164, 141, 144);
+  --base-65: rgb(175, 155, 157);
+  --base-70: rgb(186, 170, 171);
+  --base-75: rgb(198, 184, 185);
+  --base-80: rgb(209, 198, 199);
+  --base-85: rgb(220, 212, 213);
+  --base-90: rgb(232, 226, 227);
+  --base-95: rgb(243, 240, 241);
 }
 
 [ls-accent=pink] {
@@ -1111,27 +1118,27 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --accent-80: rgb(243, 164, 214);
   --accent-90: rgb(249, 209, 234);
   --accent-95: rgb(252, 232, 244);
-  --surface-5: rgb(14, 11, 13);
-  --surface-6: rgb(17, 13, 15);
-  --surface-8: rgb(22, 17, 21);
-  --surface-10: rgb(28, 22, 26);
-  --surface-15: rgb(42, 33, 39);
-  --surface-20: rgb(57, 44, 52);
-  --surface-25: rgb(71, 56, 65);
-  --surface-30: rgb(85, 67, 78);
-  --surface-35: rgb(99, 78, 92);
-  --surface-40: rgb(114, 89, 105);
-  --surface-45: rgb(128, 100, 118);
-  --surface-50: rgb(142, 112, 131);
-  --surface-55: rgb(154, 126, 143);
-  --surface-60: rgb(165, 140, 156);
-  --surface-65: rgb(176, 155, 168);
-  --surface-70: rgb(187, 169, 180);
-  --surface-75: rgb(198, 183, 193);
-  --surface-80: rgb(210, 197, 205);
-  --surface-85: rgb(221, 212, 217);
-  --surface-90: rgb(232, 226, 230);
-  --surface-95: rgb(243, 240, 242);
+  --base-3: rgb(8, 6, 7);
+  --base-6: rgb(17, 13, 15);
+  --base-8: rgb(22, 17, 21);
+  --base-10: rgb(28, 22, 26);
+  --base-15: rgb(42, 33, 39);
+  --base-20: rgb(57, 44, 52);
+  --base-25: rgb(71, 56, 65);
+  --base-30: rgb(85, 67, 78);
+  --base-35: rgb(99, 78, 92);
+  --base-40: rgb(114, 89, 105);
+  --base-45: rgb(128, 100, 118);
+  --base-50: rgb(142, 112, 131);
+  --base-55: rgb(154, 126, 143);
+  --base-60: rgb(165, 140, 156);
+  --base-65: rgb(176, 155, 168);
+  --base-70: rgb(187, 169, 180);
+  --base-75: rgb(198, 183, 193);
+  --base-80: rgb(210, 197, 205);
+  --base-85: rgb(221, 212, 217);
+  --base-90: rgb(232, 226, 230);
+  --base-95: rgb(243, 240, 242);
 }
 
 [ls-accent=hotpink] {
@@ -1148,27 +1155,27 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --accent-80: rgb(248, 159, 202);
   --accent-90: rgb(251, 207, 228);
   --accent-95: rgb(253, 231, 241);
-  --surface-5: rgb(14, 10, 12);
-  --surface-6: rgb(17, 13, 15);
-  --surface-8: rgb(23, 17, 20);
-  --surface-10: rgb(29, 21, 25);
-  --surface-15: rgb(43, 32, 38);
-  --surface-20: rgb(58, 43, 50);
-  --surface-25: rgb(72, 54, 63);
-  --surface-30: rgb(87, 65, 76);
-  --surface-35: rgb(101, 76, 88);
-  --surface-40: rgb(116, 87, 101);
-  --surface-45: rgb(130, 98, 114);
-  --surface-50: rgb(145, 109, 126);
-  --surface-55: rgb(156, 124, 139);
-  --surface-60: rgb(167, 138, 152);
-  --surface-65: rgb(178, 153, 165);
-  --surface-70: rgb(189, 167, 178);
-  --surface-75: rgb(200, 182, 190);
-  --surface-80: rgb(211, 196, 203);
-  --surface-85: rgb(222, 211, 216);
-  --surface-90: rgb(233, 225, 229);
-  --surface-95: rgb(244, 240, 242);
+  --base-3: rgb(8, 6, 7);
+  --base-6: rgb(17, 13, 15);
+  --base-8: rgb(23, 17, 20);
+  --base-10: rgb(29, 21, 25);
+  --base-15: rgb(43, 32, 38);
+  --base-20: rgb(58, 43, 50);
+  --base-25: rgb(72, 54, 63);
+  --base-30: rgb(87, 65, 76);
+  --base-35: rgb(101, 76, 88);
+  --base-40: rgb(116, 87, 101);
+  --base-45: rgb(130, 98, 114);
+  --base-50: rgb(145, 109, 126);
+  --base-55: rgb(156, 124, 139);
+  --base-60: rgb(167, 138, 152);
+  --base-65: rgb(178, 153, 165);
+  --base-70: rgb(189, 167, 178);
+  --base-75: rgb(200, 182, 190);
+  --base-80: rgb(211, 196, 203);
+  --base-85: rgb(222, 211, 216);
+  --base-90: rgb(233, 225, 229);
+  --base-95: rgb(244, 240, 242);
 }
 
 [ls-accent=purple] {
@@ -1185,27 +1192,27 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --accent-80: rgb(214, 184, 223);
   --accent-90: rgb(234, 219, 239);
   --accent-95: rgb(244, 237, 247);
-  --surface-5: rgb(13, 11, 13);
-  --surface-6: rgb(15, 14, 16);
-  --surface-8: rgb(21, 19, 21);
-  --surface-10: rgb(26, 23, 27);
-  --surface-15: rgb(39, 35, 40);
-  --surface-20: rgb(52, 47, 54);
-  --surface-25: rgb(65, 59, 67);
-  --surface-30: rgb(79, 71, 81);
-  --surface-35: rgb(92, 83, 94);
-  --surface-40: rgb(105, 95, 108);
-  --surface-45: rgb(118, 107, 121);
-  --surface-50: rgb(131, 119, 135);
-  --surface-55: rgb(144, 133, 147);
-  --surface-60: rgb(156, 146, 159);
-  --surface-65: rgb(168, 160, 171);
-  --surface-70: rgb(181, 173, 183);
-  --surface-75: rgb(193, 187, 195);
-  --surface-80: rgb(205, 200, 207);
-  --surface-85: rgb(218, 214, 219);
-  --surface-90: rgb(230, 227, 231);
-  --surface-95: rgb(242, 241, 243);
+  --base-3: rgb(7, 7, 8);
+  --base-6: rgb(15, 14, 16);
+  --base-8: rgb(21, 19, 21);
+  --base-10: rgb(26, 23, 27);
+  --base-15: rgb(39, 35, 40);
+  --base-20: rgb(52, 47, 54);
+  --base-25: rgb(65, 59, 67);
+  --base-30: rgb(79, 71, 81);
+  --base-35: rgb(92, 83, 94);
+  --base-40: rgb(105, 95, 108);
+  --base-45: rgb(118, 107, 121);
+  --base-50: rgb(131, 119, 135);
+  --base-55: rgb(144, 133, 147);
+  --base-60: rgb(156, 146, 159);
+  --base-65: rgb(168, 160, 171);
+  --base-70: rgb(181, 173, 183);
+  --base-75: rgb(193, 187, 195);
+  --base-80: rgb(205, 200, 207);
+  --base-85: rgb(218, 214, 219);
+  --base-90: rgb(230, 227, 231);
+  --base-95: rgb(242, 241, 243);
 }
 
 [ls-accent=soap] {
@@ -1222,27 +1229,27 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --accent-80: rgb(200, 177, 230);
   --accent-90: rgb(227, 216, 242);
   --accent-95: rgb(241, 235, 248);
-  --surface-5: rgb(12, 11, 13);
-  --surface-6: rgb(15, 14, 16);
-  --surface-8: rgb(20, 18, 22);
-  --surface-10: rgb(25, 23, 27);
-  --surface-15: rgb(37, 35, 41);
-  --surface-20: rgb(50, 46, 55);
-  --surface-25: rgb(63, 58, 68);
-  --surface-30: rgb(75, 70, 82);
-  --surface-35: rgb(88, 82, 96);
-  --surface-40: rgb(100, 93, 110);
-  --surface-45: rgb(113, 105, 123);
-  --surface-50: rgb(126, 117, 137);
-  --surface-55: rgb(139, 131, 149);
-  --surface-60: rgb(151, 144, 161);
-  --surface-65: rgb(164, 158, 172);
-  --surface-70: rgb(177, 172, 184);
-  --surface-75: rgb(190, 186, 196);
-  --surface-80: rgb(203, 199, 208);
-  --surface-85: rgb(216, 213, 219);
-  --surface-90: rgb(229, 227, 231);
-  --surface-95: rgb(242, 241, 243);
+  --base-3: rgb(7, 7, 8);
+  --base-6: rgb(15, 14, 16);
+  --base-8: rgb(20, 18, 22);
+  --base-10: rgb(25, 23, 27);
+  --base-15: rgb(37, 35, 41);
+  --base-20: rgb(50, 46, 55);
+  --base-25: rgb(63, 58, 68);
+  --base-30: rgb(75, 70, 82);
+  --base-35: rgb(88, 82, 96);
+  --base-40: rgb(100, 93, 110);
+  --base-45: rgb(113, 105, 123);
+  --base-50: rgb(126, 117, 137);
+  --base-55: rgb(139, 131, 149);
+  --base-60: rgb(151, 144, 161);
+  --base-65: rgb(164, 158, 172);
+  --base-70: rgb(177, 172, 184);
+  --base-75: rgb(190, 186, 196);
+  --base-80: rgb(203, 199, 208);
+  --base-85: rgb(216, 213, 219);
+  --base-90: rgb(229, 227, 231);
+  --base-95: rgb(242, 241, 243);
 }
 
 [ls-accent=burple] {
@@ -1259,27 +1266,27 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --accent-80: rgb(158, 170, 249);
   --accent-90: rgb(206, 212, 252);
   --accent-95: rgb(230, 233, 253);
-  --surface-5: rgb(10, 11, 14);
-  --surface-6: rgb(13, 13, 17);
-  --surface-8: rgb(17, 18, 23);
-  --surface-10: rgb(21, 22, 29);
-  --surface-15: rgb(32, 34, 43);
-  --surface-20: rgb(43, 45, 58);
-  --surface-25: rgb(54, 57, 72);
-  --surface-30: rgb(65, 68, 87);
-  --surface-35: rgb(76, 80, 101);
-  --surface-40: rgb(87, 91, 116);
-  --surface-45: rgb(98, 102, 130);
-  --surface-50: rgb(109, 114, 145);
-  --surface-55: rgb(124, 128, 156);
-  --surface-60: rgb(138, 142, 167);
-  --surface-65: rgb(153, 156, 178);
-  --surface-70: rgb(167, 170, 189);
-  --surface-75: rgb(182, 184, 200);
-  --surface-80: rgb(196, 198, 211);
-  --surface-85: rgb(211, 212, 222);
-  --surface-90: rgb(225, 226, 233);
-  --surface-95: rgb(240, 240, 244);
+  --base-3: rgb(6, 6, 8);
+  --base-6: rgb(13, 13, 17);
+  --base-8: rgb(17, 18, 23);
+  --base-10: rgb(21, 22, 29);
+  --base-15: rgb(32, 34, 43);
+  --base-20: rgb(43, 45, 58);
+  --base-25: rgb(54, 57, 72);
+  --base-30: rgb(65, 68, 87);
+  --base-35: rgb(76, 80, 101);
+  --base-40: rgb(87, 91, 116);
+  --base-45: rgb(98, 102, 130);
+  --base-50: rgb(109, 114, 145);
+  --base-55: rgb(124, 128, 156);
+  --base-60: rgb(138, 142, 167);
+  --base-65: rgb(153, 156, 178);
+  --base-70: rgb(167, 170, 189);
+  --base-75: rgb(182, 184, 200);
+  --base-80: rgb(196, 198, 211);
+  --base-85: rgb(211, 212, 222);
+  --base-90: rgb(225, 226, 233);
+  --base-95: rgb(240, 240, 244);
 }
 
 [ls-accent=white], [ls-accent=gray], [ls-accent=auto], [ls-accent=black] {
@@ -1296,27 +1303,27 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --accent-80: rgb(204, 204, 204);
   --accent-90: rgb(229, 229, 229);
   --accent-95: rgb(242, 242, 242);
-  --surface-5: rgb(12, 12, 12);
-  --surface-6: rgb(15, 15, 15);
-  --surface-8: rgb(20, 20, 20);
-  --surface-10: rgb(25, 25, 25);
-  --surface-15: rgb(38, 38, 38);
-  --surface-20: rgb(51, 51, 51);
-  --surface-25: rgb(63, 63, 63);
-  --surface-30: rgb(76, 76, 76);
-  --surface-35: rgb(89, 89, 89);
-  --surface-40: rgb(102, 102, 102);
-  --surface-45: rgb(114, 114, 114);
-  --surface-50: rgb(127, 127, 127);
-  --surface-55: rgb(140, 140, 140);
-  --surface-60: rgb(153, 153, 153);
-  --surface-65: rgb(165, 165, 165);
-  --surface-70: rgb(178, 178, 178);
-  --surface-75: rgb(191, 191, 191);
-  --surface-80: rgb(204, 204, 204);
-  --surface-85: rgb(216, 216, 216);
-  --surface-90: rgb(229, 229, 229);
-  --surface-95: rgb(242, 242, 242);
+  --base-3: rgb(7, 7, 7);
+  --base-6: rgb(15, 15, 15);
+  --base-8: rgb(20, 20, 20);
+  --base-10: rgb(25, 25, 25);
+  --base-15: rgb(38, 38, 38);
+  --base-20: rgb(51, 51, 51);
+  --base-25: rgb(63, 63, 63);
+  --base-30: rgb(76, 76, 76);
+  --base-35: rgb(89, 89, 89);
+  --base-40: rgb(102, 102, 102);
+  --base-45: rgb(114, 114, 114);
+  --base-50: rgb(127, 127, 127);
+  --base-55: rgb(140, 140, 140);
+  --base-60: rgb(153, 153, 153);
+  --base-65: rgb(165, 165, 165);
+  --base-70: rgb(178, 178, 178);
+  --base-75: rgb(191, 191, 191);
+  --base-80: rgb(204, 204, 204);
+  --base-85: rgb(216, 216, 216);
+  --base-90: rgb(229, 229, 229);
+  --base-95: rgb(242, 242, 242);
 }
 
 .level-0 {
@@ -1325,7 +1332,7 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
 }
 
 .level-0.color {
-  --background: var(--surface-mix-10);
+  --background: var(--accent-mix-10);
 }
 
 .level-1, ls-box:not(ls-box ls-box) {
@@ -1338,7 +1345,7 @@ ls-box {
 }
 
 .level-1.color {
-  --background: var(--surface-mix-20);
+  --background: var(--accent-mix-20);
 }
 
 .level-2 {
@@ -1347,7 +1354,7 @@ ls-box {
 }
 
 .level-2.color {
-  --background: var(--surface-mix-40);
+  --background: var(--accent-mix-40);
 }
 
 .level-3 {
@@ -1356,7 +1363,7 @@ ls-box {
 }
 
 .level-3.color {
-  --background: var(--surface-mix-60);
+  --background: var(--accent-mix-60);
 }
 
 .level-4 {
@@ -1365,7 +1372,7 @@ ls-box {
 }
 
 .level-4.color {
-  --background: var(--surface-mix-80);
+  --background: var(--accent-mix-80);
 }
 
 .level-5 {
@@ -1420,17 +1427,17 @@ ls-box {
 
 [ls-accent], ls-box, html, [class*=level-]:not(.color), .sidebar-items {
   --accent: var(--accent-40);
-  --surface-mix-5: color-mix(in oklab, var(--background) 100%, var(--accent) 5%);
-  --surface-mix-10: color-mix(in oklab, var(--background) 100%, var(--accent) 10%);
-  --surface-mix-20: color-mix(in oklab, var(--background) 100%, var(--accent) 20%);
-  --surface-mix-30: color-mix(in oklab, var(--background) 100%, var(--accent) 30%);
-  --surface-mix-40: color-mix(in oklab, var(--background) 100%, var(--accent) 40%);
-  --surface-mix-50: color-mix(in oklab, var(--background) 100%, var(--accent) 50%);
-  --surface-mix-60: color-mix(in oklab, var(--background) 100%, var(--accent) 60%);
-  --surface-mix-70: color-mix(in oklab, var(--background) 100%, var(--accent) 70%);
-  --surface-mix-80: color-mix(in oklab, var(--background) 100%, var(--accent) 80%);
-  --surface-mix-90: color-mix(in oklab, var(--background) 100%, var(--accent) 90%);
-  --surface-mix-95: color-mix(in oklab, var(--background) 100%, var(--accent) 95%);
+  --accent-mix-5: color-mix(in oklab, var(--background) 100%, var(--accent) 5%);
+  --accent-mix-10: color-mix(in oklab, var(--background) 100%, var(--accent) 10%);
+  --accent-mix-20: color-mix(in oklab, var(--background) 100%, var(--accent) 20%);
+  --accent-mix-30: color-mix(in oklab, var(--background) 100%, var(--accent) 30%);
+  --accent-mix-40: color-mix(in oklab, var(--background) 100%, var(--accent) 40%);
+  --accent-mix-50: color-mix(in oklab, var(--background) 100%, var(--accent) 50%);
+  --accent-mix-60: color-mix(in oklab, var(--background) 100%, var(--accent) 60%);
+  --accent-mix-70: color-mix(in oklab, var(--background) 100%, var(--accent) 70%);
+  --accent-mix-80: color-mix(in oklab, var(--background) 100%, var(--accent) 80%);
+  --accent-mix-90: color-mix(in oklab, var(--background) 100%, var(--accent) 90%);
+  --accent-mix-95: color-mix(in oklab, var(--background) 100%, var(--accent) 95%);
 }
 
 /*! normalize.css v8.0.1 | MIT License | github.com/necolas/normalize.css */
@@ -1854,7 +1861,7 @@ body {
   margin: var(--hr-spacing, 18px) 0;
 }
 [ls] textarea, [ls] :is(input[type=text], input:not([type=button]):not([type=submit]):not([type=color]):not([type=file]):not([type=reset]):not([type=image]))::selection, [ls] textarea::selection {
-  background-color: var(--surface-mix-50);
+  background-color: var(--accent-mix-50);
 }
 [ls] h1 {
   font-weight: 800;
