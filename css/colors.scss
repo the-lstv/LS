@@ -9,14 +9,10 @@ $colors: (
     "teal":           rgb(0, 128, 128),
     "pastel-teal":    rgb(69, 195, 205),
     "aquamarine":     rgb(58, 160, 125),
-    "mint":           rgb(106, 238, 189),
     "green":          rgb(25, 135, 84),
     "lime":           rgb(133, 210, 50),
     "neon":           rgb(173, 255, 110),
     "yellow":         rgb(255, 236, 32),
-    "lstv-red":       rgb(237, 108, 48),
-    "lstv-yellow":    rgb(252, 194, 27),
-    "lstv-blue":      rgb(64, 192, 231),
     "orange":         rgb(255, 140, 32),
     "deep-orange":    rgb(255, 112, 52),
     "red":            rgb(245, 47, 47),
@@ -31,12 +27,59 @@ $colors: (
 
 :root {
     @each $name, $color in $colors {
-        --ls-accent-#{$name}: #{$color};
+        --ls-color-#{$name}: #{$color};
     }
+    --ls-color-lstv-red: rgb(237, 108, 48);
+    --ls-color-lstv-yellow: rgb(252, 194, 27);
+    --ls-color-lstv-blue: rgb(64, 192, 231);
+    --ls-color-mint: rgb(106, 238, 189);
 
+    // 0 and 100 will always be exactly black or white
     --base-0:  rgb(0, 0, 0);
     --base-100:  rgb(255, 255, 255);
 }
+
+
+@mixin accent($color) {
+    --accent-10: #{generate-tone($color, 10)};
+    --accent-20: #{generate-tone($color, 20)};
+    --accent-30: #{generate-tone($color, 30)};
+    --accent-35: #{generate-tone($color, 35)};
+    --accent-40: #{generate-tone($color, 40)};
+    --accent-45: #{generate-tone($color, 45)};
+    --accent-50: #{generate-tone($color, 50)};
+    --accent-55: #{generate-tone($color, 55)};
+    --accent-60: #{generate-tone($color, 60)};
+    --accent-70: #{generate-tone($color, 70)};
+    --accent-80: #{generate-tone($color, 80)};
+    --accent-90: #{generate-tone($color, 90)};
+    --accent-95: #{generate-tone($color, 95)};
+}
+
+@mixin base-colors($color){
+    --base-6 : #{generate-tone($color, 6 , 16)};
+    --base-8 : #{generate-tone($color, 8 , 16)};
+    --base-10: #{generate-tone($color, 10, 16)};
+    --base-15: #{generate-tone($color, 15, 16)};
+    --base-20: #{generate-tone($color, 20, 16)};
+    --base-25: #{generate-tone($color, 25, 16)};
+    --base-30: #{generate-tone($color, 30, 16)};
+    --base-35: #{generate-tone($color, 35, 16)};
+    --base-40: #{generate-tone($color, 40, 16)};
+    --base-45: #{generate-tone($color, 45, 16)};
+    --base-50: #{generate-tone($color, 50, 16)};
+    --base-55: #{generate-tone($color, 55, 16)};
+    --base-60: #{generate-tone($color, 60, 16)};
+    --base-65: #{generate-tone($color, 65, 16)};
+    --base-70: #{generate-tone($color, 70, 16)};
+    --base-75: #{generate-tone($color, 75, 16)};
+    --base-80: #{generate-tone($color, 80, 16)};
+    --base-85: #{generate-tone($color, 85, 16)};
+    --base-90: #{generate-tone($color, 90, 16)};
+    --base-95: #{generate-tone($color, 95, 16)};
+    --base-98: #{generate-tone($color, 98, 16)};
+}
+
 
 @each $name, $color in $colors {
     $selector: "[ls-accent=\"#{$name}\"]";
@@ -46,46 +89,21 @@ $colors: (
     }
     
     @else if $name == "white" {
-        $selector: "#{$selector}, [ls-accent=\"gray\"], [ls-accent=\"auto\"], [ls-accent=\"black\"]";
+        $selector: "#{$selector}, [ls-accent=\"auto\"]";
     }
 
-    // Generate CSS for the modified selector
-    #{$selector} {
-        --accent-10: #{generate-tone($color, 10)};
-        --accent-20: #{generate-tone($color, 20)};
-        --accent-30: #{generate-tone($color, 30)};
-        --accent-35: #{generate-tone($color, 35)};
-        --accent-40: #{generate-tone($color, 40)};
-        --accent-45: #{generate-tone($color, 45)};
-        --accent-50: #{generate-tone($color, 50)};
-        --accent-55: #{generate-tone($color, 55)};
-        --accent-60: #{generate-tone($color, 60)};
-        --accent-70: #{generate-tone($color, 70)};
-        --accent-80: #{generate-tone($color, 80)};
-        --accent-90: #{generate-tone($color, 90)};
-        --accent-95: #{generate-tone($color, 95)};
+    @if $name == "white" {
+        #{$selector + ", [ls-accent].ls-static"} {
+            @include base-colors($color);
+        }
+    }
 
-        --base-6 : #{generate-tone($color, 6 , 16)};
-        --base-8 : #{generate-tone($color, 8 , 16)};
-        --base-10: #{generate-tone($color, 10, 16)};
-        --base-15: #{generate-tone($color, 15, 16)};
-        --base-20: #{generate-tone($color, 20, 16)};
-        --base-25: #{generate-tone($color, 25, 16)};
-        --base-30: #{generate-tone($color, 30, 16)};
-        --base-35: #{generate-tone($color, 35, 16)};
-        --base-40: #{generate-tone($color, 40, 16)};
-        --base-45: #{generate-tone($color, 45, 16)};
-        --base-50: #{generate-tone($color, 50, 16)};
-        --base-55: #{generate-tone($color, 55, 16)};
-        --base-60: #{generate-tone($color, 60, 16)};
-        --base-65: #{generate-tone($color, 65, 16)};
-        --base-70: #{generate-tone($color, 70, 16)};
-        --base-75: #{generate-tone($color, 75, 16)};
-        --base-80: #{generate-tone($color, 80, 16)};
-        --base-85: #{generate-tone($color, 85, 16)};
-        --base-90: #{generate-tone($color, 90, 16)};
-        --base-95: #{generate-tone($color, 95, 16)};
-        --base-98: #{generate-tone($color, 98, 16)};
+    #{$selector} {
+        @if($name != "white") {
+            @include base-colors($color);
+        }
+        
+        @include accent($color);
     }
 }
 
@@ -110,6 +128,10 @@ $colors: (
 
         @if $i > -3 {
             --elevate-0: var(--surface-#{if($i - 1 < 0, "n#{abs($i - 1)}", "#{$i - 1}")});
+
+            @if $i > -2 {
+                --elevate-n1: var(--surface-#{if($i - 2 < 0, "n#{abs($i - 2)}", "#{$i - 2}")});
+            }
         }
 
         --elevate: var(--surface-#{if($i + 1 < 0, "n#{abs($i + 1)}", "#{$i + 1}")});

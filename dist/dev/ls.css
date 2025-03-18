@@ -25,6 +25,7 @@
   --surface-9: var(--base-45);
   --surface-10: var(--base-40);
   --ui-element: var(--base-95);
+  --ui-border: var(--base-40);
 }
 [ls-theme=light], [ls-theme=light] [ls-accent], [ls-theme=light] :disabled {
   --on-background: var(--accent-40);
@@ -54,6 +55,7 @@
   --surface-9: var(--base-55);
   --surface-10: var(--base-60);
   --ui-element: var(--base-20);
+  --ui-border: var(--base-0);
 }
 [ls-theme=dark], [ls-theme=dark] [ls-accent], [ls-theme=dark] :disabled, body:not([ls-theme]), body:not([ls-theme]) [ls-accent], body:not([ls-theme]) :disabled {
   --on-background: var(--accent-70);
@@ -328,7 +330,7 @@ ls-tabs.ls-tabs-styled .ls-tab-handle {
   align-items: center;
   --background: none;
   background: var(--background);
-  transition: background 0.1s;
+  transition: background-color 0.1s;
   white-space: nowrap;
   user-select: none;
 }
@@ -363,50 +365,57 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   border-top-right-radius: 8px;
 }
 
+.ls-tootlip-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  display: none;
+}
+
+.ls-tootlip-layer.shown {
+  display: block;
+}
+
+.ls-tooltip-content {
+  position: absolute;
+  background: var(--surface-1);
+  padding: 2px 14px;
+  border: 1px solid var(--ui-border);
+  box-shadow: inset 0 1px 0 0 var(--ui-element);
+  border-radius: var(--border-radius);
+}
+
 :root {
-  --ls-accent-navy: rgb(40, 28, 108);
-  --ls-accent-blue: rgb(0, 133, 255);
-  --ls-accent-pastel-indigo: rgb(70, 118, 181);
-  --ls-accent-lapis: rgb(34, 114, 154);
-  --ls-accent-teal: rgb(0, 128, 128);
-  --ls-accent-pastel-teal: rgb(69, 195, 205);
-  --ls-accent-aquamarine: rgb(58, 160, 125);
-  --ls-accent-mint: rgb(106, 238, 189);
-  --ls-accent-green: rgb(25, 135, 84);
-  --ls-accent-lime: rgb(133, 210, 50);
-  --ls-accent-neon: rgb(173, 255, 110);
-  --ls-accent-yellow: rgb(255, 236, 32);
-  --ls-accent-lstv-red: rgb(237, 108, 48);
-  --ls-accent-lstv-yellow: rgb(252, 194, 27);
-  --ls-accent-lstv-blue: rgb(64, 192, 231);
-  --ls-accent-orange: rgb(255, 140, 32);
-  --ls-accent-deep-orange: rgb(255, 112, 52);
-  --ls-accent-red: rgb(245, 47, 47);
-  --ls-accent-rusty-red: rgb(220, 53, 69);
-  --ls-accent-pink: rgb(230, 52, 164);
-  --ls-accent-hotpink: rgb(245, 100, 169);
-  --ls-accent-purple: rgb(155, 77, 175);
-  --ls-accent-soap: rgb(210, 190, 235);
-  --ls-accent-burple: rgb(81, 101, 246);
-  --ls-accent-white: rgb(255, 255, 255);
+  --ls-color-navy: rgb(40, 28, 108);
+  --ls-color-blue: rgb(0, 133, 255);
+  --ls-color-pastel-indigo: rgb(70, 118, 181);
+  --ls-color-lapis: rgb(34, 114, 154);
+  --ls-color-teal: rgb(0, 128, 128);
+  --ls-color-pastel-teal: rgb(69, 195, 205);
+  --ls-color-aquamarine: rgb(58, 160, 125);
+  --ls-color-green: rgb(25, 135, 84);
+  --ls-color-lime: rgb(133, 210, 50);
+  --ls-color-neon: rgb(173, 255, 110);
+  --ls-color-yellow: rgb(255, 236, 32);
+  --ls-color-orange: rgb(255, 140, 32);
+  --ls-color-deep-orange: rgb(255, 112, 52);
+  --ls-color-red: rgb(245, 47, 47);
+  --ls-color-rusty-red: rgb(220, 53, 69);
+  --ls-color-pink: rgb(230, 52, 164);
+  --ls-color-hotpink: rgb(245, 100, 169);
+  --ls-color-purple: rgb(155, 77, 175);
+  --ls-color-soap: rgb(210, 190, 235);
+  --ls-color-burple: rgb(81, 101, 246);
+  --ls-color-white: rgb(255, 255, 255);
+  --ls-color-lstv-red: rgb(237, 108, 48);
+  --ls-color-lstv-yellow: rgb(252, 194, 27);
+  --ls-color-lstv-blue: rgb(64, 192, 231);
+  --ls-color-mint: rgb(106, 238, 189);
   --base-0: rgb(0, 0, 0);
   --base-100: rgb(255, 255, 255);
 }
 
 [ls-accent=navy] {
-  --accent-10: rgb(14, 10, 40);
-  --accent-20: rgb(29, 20, 81);
-  --accent-30: rgb(44, 31, 121);
-  --accent-35: rgb(52, 36, 141);
-  --accent-40: rgb(59, 41, 162);
-  --accent-45: rgb(67, 47, 182);
-  --accent-50: rgb(74, 52, 202);
-  --accent-55: rgb(92, 72, 207);
-  --accent-60: rgb(110, 93, 212);
-  --accent-70: rgb(146, 133, 223);
-  --accent-80: rgb(183, 174, 233);
-  --accent-90: rgb(219, 214, 244);
-  --accent-95: rgb(237, 234, 249);
   --base-6: rgb(14, 13, 16);
   --base-8: rgb(19, 18, 22);
   --base-10: rgb(23, 23, 27);
@@ -428,22 +437,22 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --base-90: rgb(227, 227, 231);
   --base-95: rgb(241, 241, 243);
   --base-98: rgb(249, 249, 250);
+  --accent-10: rgb(14, 10, 40);
+  --accent-20: rgb(29, 20, 81);
+  --accent-30: rgb(44, 31, 121);
+  --accent-35: rgb(52, 36, 141);
+  --accent-40: rgb(59, 41, 162);
+  --accent-45: rgb(67, 47, 182);
+  --accent-50: rgb(74, 52, 202);
+  --accent-55: rgb(92, 72, 207);
+  --accent-60: rgb(110, 93, 212);
+  --accent-70: rgb(146, 133, 223);
+  --accent-80: rgb(183, 174, 233);
+  --accent-90: rgb(219, 214, 244);
+  --accent-95: rgb(237, 234, 249);
 }
 
 [ls-accent=blue], html {
-  --accent-10: rgb(0, 26, 51);
-  --accent-20: rgb(0, 53, 102);
-  --accent-30: rgb(0, 79, 153);
-  --accent-35: rgb(0, 93, 178);
-  --accent-40: rgb(0, 106, 204);
-  --accent-45: rgb(0, 119, 229);
-  --accent-50: rgb(0, 132, 255);
-  --accent-55: rgb(25, 145, 255);
-  --accent-60: rgb(50, 157, 255);
-  --accent-70: rgb(101, 181, 255);
-  --accent-80: rgb(153, 206, 255);
-  --accent-90: rgb(204, 230, 254);
-  --accent-95: rgb(229, 242, 255);
   --base-6: rgb(12, 15, 17);
   --base-8: rgb(17, 20, 23);
   --base-10: rgb(21, 25, 29);
@@ -465,22 +474,22 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --base-90: rgb(225, 229, 233);
   --base-95: rgb(240, 242, 244);
   --base-98: rgb(249, 249, 250);
+  --accent-10: rgb(0, 26, 51);
+  --accent-20: rgb(0, 53, 102);
+  --accent-30: rgb(0, 79, 153);
+  --accent-35: rgb(0, 93, 178);
+  --accent-40: rgb(0, 106, 204);
+  --accent-45: rgb(0, 119, 229);
+  --accent-50: rgb(0, 132, 255);
+  --accent-55: rgb(25, 145, 255);
+  --accent-60: rgb(50, 157, 255);
+  --accent-70: rgb(101, 181, 255);
+  --accent-80: rgb(153, 206, 255);
+  --accent-90: rgb(204, 230, 254);
+  --accent-95: rgb(229, 242, 255);
 }
 
 [ls-accent=pastel-indigo] {
-  --accent-10: rgb(14, 23, 36);
-  --accent-20: rgb(28, 47, 73);
-  --accent-30: rgb(42, 71, 110);
-  --accent-35: rgb(49, 83, 128);
-  --accent-40: rgb(56, 95, 147);
-  --accent-45: rgb(64, 107, 165);
-  --accent-50: rgb(71, 119, 183);
-  --accent-55: rgb(89, 133, 190);
-  --accent-60: rgb(107, 146, 198);
-  --accent-70: rgb(144, 173, 212);
-  --accent-80: rgb(181, 200, 226);
-  --accent-90: rgb(218, 227, 240);
-  --accent-95: rgb(236, 241, 247);
   --base-6: rgb(14, 15, 16);
   --base-8: rgb(18, 20, 21);
   --base-10: rgb(23, 25, 27);
@@ -502,22 +511,22 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --base-90: rgb(227, 229, 231);
   --base-95: rgb(241, 242, 243);
   --base-98: rgb(249, 249, 250);
+  --accent-10: rgb(14, 23, 36);
+  --accent-20: rgb(28, 47, 73);
+  --accent-30: rgb(42, 71, 110);
+  --accent-35: rgb(49, 83, 128);
+  --accent-40: rgb(56, 95, 147);
+  --accent-45: rgb(64, 107, 165);
+  --accent-50: rgb(71, 119, 183);
+  --accent-55: rgb(89, 133, 190);
+  --accent-60: rgb(107, 146, 198);
+  --accent-70: rgb(144, 173, 212);
+  --accent-80: rgb(181, 200, 226);
+  --accent-90: rgb(218, 227, 240);
+  --accent-95: rgb(236, 241, 247);
 }
 
 [ls-accent=lapis] {
-  --accent-10: rgb(9, 30, 41);
-  --accent-20: rgb(18, 61, 83);
-  --accent-30: rgb(27, 92, 125);
-  --accent-35: rgb(32, 108, 146);
-  --accent-40: rgb(36, 123, 167);
-  --accent-45: rgb(41, 139, 187);
-  --accent-50: rgb(46, 154, 208);
-  --accent-55: rgb(67, 164, 213);
-  --accent-60: rgb(87, 174, 218);
-  --accent-70: rgb(129, 194, 227);
-  --accent-80: rgb(171, 214, 236);
-  --accent-90: rgb(213, 234, 245);
-  --accent-95: rgb(234, 244, 250);
   --base-6: rgb(13, 15, 16);
   --base-8: rgb(18, 21, 22);
   --base-10: rgb(22, 26, 28);
@@ -539,22 +548,22 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --base-90: rgb(226, 230, 232);
   --base-95: rgb(240, 242, 243);
   --base-98: rgb(249, 250, 250);
+  --accent-10: rgb(9, 30, 41);
+  --accent-20: rgb(18, 61, 83);
+  --accent-30: rgb(27, 92, 125);
+  --accent-35: rgb(32, 108, 146);
+  --accent-40: rgb(36, 123, 167);
+  --accent-45: rgb(41, 139, 187);
+  --accent-50: rgb(46, 154, 208);
+  --accent-55: rgb(67, 164, 213);
+  --accent-60: rgb(87, 174, 218);
+  --accent-70: rgb(129, 194, 227);
+  --accent-80: rgb(171, 214, 236);
+  --accent-90: rgb(213, 234, 245);
+  --accent-95: rgb(234, 244, 250);
 }
 
 [ls-accent=teal] {
-  --accent-10: rgb(0, 50, 51);
-  --accent-20: rgb(0, 101, 102);
-  --accent-30: rgb(0, 152, 153);
-  --accent-35: rgb(0, 178, 178);
-  --accent-40: rgb(0, 203, 204);
-  --accent-45: rgb(0, 229, 229);
-  --accent-50: rgb(0, 254, 255);
-  --accent-55: rgb(25, 254, 255);
-  --accent-60: rgb(50, 254, 255);
-  --accent-70: rgb(101, 254, 255);
-  --accent-80: rgb(153, 254, 255);
-  --accent-90: rgb(204, 254, 254);
-  --accent-95: rgb(229, 255, 255);
   --base-6: rgb(12, 17, 17);
   --base-8: rgb(17, 23, 23);
   --base-10: rgb(21, 29, 29);
@@ -576,22 +585,22 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --base-90: rgb(225, 233, 233);
   --base-95: rgb(240, 244, 244);
   --base-98: rgb(249, 250, 250);
+  --accent-10: rgb(0, 50, 51);
+  --accent-20: rgb(0, 101, 102);
+  --accent-30: rgb(0, 152, 153);
+  --accent-35: rgb(0, 178, 178);
+  --accent-40: rgb(0, 203, 204);
+  --accent-45: rgb(0, 229, 229);
+  --accent-50: rgb(0, 254, 255);
+  --accent-55: rgb(25, 254, 255);
+  --accent-60: rgb(50, 254, 255);
+  --accent-70: rgb(101, 254, 255);
+  --accent-80: rgb(153, 254, 255);
+  --accent-90: rgb(204, 254, 254);
+  --accent-95: rgb(229, 255, 255);
 }
 
 [ls-accent=pastel-teal] {
-  --accent-10: rgb(10, 38, 40);
-  --accent-20: rgb(21, 76, 80);
-  --accent-30: rgb(32, 114, 120);
-  --accent-35: rgb(37, 133, 140);
-  --accent-40: rgb(43, 152, 160);
-  --accent-45: rgb(48, 171, 180);
-  --accent-50: rgb(54, 190, 200);
-  --accent-55: rgb(74, 196, 206);
-  --accent-60: rgb(94, 203, 211);
-  --accent-70: rgb(134, 216, 222);
-  --accent-80: rgb(174, 229, 233);
-  --accent-90: rgb(214, 242, 244);
-  --accent-95: rgb(234, 248, 249);
   --base-6: rgb(13, 16, 16);
   --base-8: rgb(18, 22, 22);
   --base-10: rgb(23, 27, 27);
@@ -613,22 +622,22 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --base-90: rgb(227, 231, 231);
   --base-95: rgb(241, 243, 243);
   --base-98: rgb(249, 250, 250);
+  --accent-10: rgb(10, 38, 40);
+  --accent-20: rgb(21, 76, 80);
+  --accent-30: rgb(32, 114, 120);
+  --accent-35: rgb(37, 133, 140);
+  --accent-40: rgb(43, 152, 160);
+  --accent-45: rgb(48, 171, 180);
+  --accent-50: rgb(54, 190, 200);
+  --accent-55: rgb(74, 196, 206);
+  --accent-60: rgb(94, 203, 211);
+  --accent-70: rgb(134, 216, 222);
+  --accent-80: rgb(174, 229, 233);
+  --accent-90: rgb(214, 242, 244);
+  --accent-95: rgb(234, 248, 249);
 }
 
 [ls-accent=aquamarine] {
-  --accent-10: rgb(13, 37, 29);
-  --accent-20: rgb(27, 74, 58);
-  --accent-30: rgb(40, 112, 87);
-  --accent-35: rgb(47, 131, 102);
-  --accent-40: rgb(54, 149, 116);
-  --accent-45: rgb(61, 168, 131);
-  --accent-50: rgb(67, 187, 146);
-  --accent-55: rgb(86, 193, 157);
-  --accent-60: rgb(105, 200, 167);
-  --accent-70: rgb(142, 214, 189);
-  --accent-80: rgb(180, 227, 211);
-  --accent-90: rgb(217, 241, 233);
-  --accent-95: rgb(236, 248, 244);
   --base-6: rgb(14, 16, 15);
   --base-8: rgb(18, 21, 20);
   --base-10: rgb(23, 27, 26);
@@ -650,59 +659,22 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --base-90: rgb(227, 231, 230);
   --base-95: rgb(241, 243, 242);
   --base-98: rgb(249, 250, 250);
-}
-
-[ls-accent=mint] {
-  --accent-10: rgb(5, 45, 30);
-  --accent-20: rgb(10, 91, 61);
-  --accent-30: rgb(15, 137, 92);
-  --accent-35: rgb(18, 160, 107);
-  --accent-40: rgb(20, 183, 122);
-  --accent-45: rgb(23, 205, 138);
-  --accent-50: rgb(26, 228, 153);
-  --accent-55: rgb(49, 231, 163);
-  --accent-60: rgb(71, 234, 173);
-  --accent-70: rgb(117, 239, 194);
-  --accent-80: rgb(163, 244, 214);
-  --accent-90: rgb(209, 249, 234);
-  --accent-95: rgb(232, 252, 244);
-  --base-6: rgb(13, 17, 15);
-  --base-8: rgb(17, 22, 21);
-  --base-10: rgb(22, 28, 26);
-  --base-15: rgb(33, 43, 39);
-  --base-20: rgb(44, 57, 52);
-  --base-25: rgb(55, 71, 65);
-  --base-30: rgb(66, 86, 79);
-  --base-35: rgb(77, 100, 92);
-  --base-40: rgb(89, 114, 105);
-  --base-45: rgb(100, 129, 118);
-  --base-50: rgb(111, 143, 131);
-  --base-55: rgb(125, 154, 144);
-  --base-60: rgb(140, 165, 156);
-  --base-65: rgb(154, 177, 168);
-  --base-70: rgb(168, 188, 181);
-  --base-75: rgb(183, 199, 193);
-  --base-80: rgb(197, 210, 205);
-  --base-85: rgb(211, 221, 218);
-  --base-90: rgb(226, 232, 230);
-  --base-95: rgb(240, 243, 242);
-  --base-98: rgb(249, 250, 250);
+  --accent-10: rgb(13, 37, 29);
+  --accent-20: rgb(27, 74, 58);
+  --accent-30: rgb(40, 112, 87);
+  --accent-35: rgb(47, 131, 102);
+  --accent-40: rgb(54, 149, 116);
+  --accent-45: rgb(61, 168, 131);
+  --accent-50: rgb(67, 187, 146);
+  --accent-55: rgb(86, 193, 157);
+  --accent-60: rgb(105, 200, 167);
+  --accent-70: rgb(142, 214, 189);
+  --accent-80: rgb(180, 227, 211);
+  --accent-90: rgb(217, 241, 233);
+  --accent-95: rgb(236, 248, 244);
 }
 
 [ls-accent=green] {
-  --accent-10: rgb(7, 43, 26);
-  --accent-20: rgb(15, 86, 53);
-  --accent-30: rgb(23, 129, 80);
-  --accent-35: rgb(27, 150, 93);
-  --accent-40: rgb(31, 172, 107);
-  --accent-45: rgb(35, 193, 120);
-  --accent-50: rgb(39, 215, 133);
-  --accent-55: rgb(61, 219, 145);
-  --accent-60: rgb(82, 223, 158);
-  --accent-70: rgb(125, 231, 182);
-  --accent-80: rgb(168, 239, 206);
-  --accent-90: rgb(211, 247, 230);
-  --accent-95: rgb(233, 251, 242);
   --base-6: rgb(13, 16, 15);
   --base-8: rgb(18, 22, 20);
   --base-10: rgb(22, 28, 25);
@@ -724,22 +696,22 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --base-90: rgb(226, 232, 229);
   --base-95: rgb(240, 243, 242);
   --base-98: rgb(249, 250, 249);
+  --accent-10: rgb(7, 43, 26);
+  --accent-20: rgb(15, 86, 53);
+  --accent-30: rgb(23, 129, 80);
+  --accent-35: rgb(27, 150, 93);
+  --accent-40: rgb(31, 172, 107);
+  --accent-45: rgb(35, 193, 120);
+  --accent-50: rgb(39, 215, 133);
+  --accent-55: rgb(61, 219, 145);
+  --accent-60: rgb(82, 223, 158);
+  --accent-70: rgb(125, 231, 182);
+  --accent-80: rgb(168, 239, 206);
+  --accent-90: rgb(211, 247, 230);
+  --accent-95: rgb(233, 251, 242);
 }
 
 [ls-accent=lime] {
-  --accent-10: rgb(26, 41, 9);
-  --accent-20: rgb(52, 83, 18);
-  --accent-30: rgb(78, 125, 27);
-  --accent-35: rgb(91, 146, 32);
-  --accent-40: rgb(104, 167, 36);
-  --accent-45: rgb(117, 188, 41);
-  --accent-50: rgb(130, 209, 45);
-  --accent-55: rgb(143, 213, 66);
-  --accent-60: rgb(155, 218, 87);
-  --accent-70: rgb(180, 227, 129);
-  --accent-80: rgb(205, 236, 171);
-  --accent-90: rgb(230, 245, 213);
-  --accent-95: rgb(242, 250, 234);
   --base-6: rgb(15, 16, 13);
   --base-8: rgb(20, 22, 18);
   --base-10: rgb(25, 28, 22);
@@ -761,22 +733,22 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --base-90: rgb(229, 232, 226);
   --base-95: rgb(242, 243, 240);
   --base-98: rgb(249, 250, 249);
+  --accent-10: rgb(26, 41, 9);
+  --accent-20: rgb(52, 83, 18);
+  --accent-30: rgb(78, 125, 27);
+  --accent-35: rgb(91, 146, 32);
+  --accent-40: rgb(104, 167, 36);
+  --accent-45: rgb(117, 188, 41);
+  --accent-50: rgb(130, 209, 45);
+  --accent-55: rgb(143, 213, 66);
+  --accent-60: rgb(155, 218, 87);
+  --accent-70: rgb(180, 227, 129);
+  --accent-80: rgb(205, 236, 171);
+  --accent-90: rgb(230, 245, 213);
+  --accent-95: rgb(242, 250, 234);
 }
 
 [ls-accent=neon] {
-  --accent-10: rgb(22, 51, 0);
-  --accent-20: rgb(44, 102, 0);
-  --accent-30: rgb(66, 153, 0);
-  --accent-35: rgb(77, 178, 0);
-  --accent-40: rgb(88, 204, 0);
-  --accent-45: rgb(99, 229, 0);
-  --accent-50: rgb(110, 255, 0);
-  --accent-55: rgb(125, 255, 25);
-  --accent-60: rgb(139, 255, 50);
-  --accent-70: rgb(168, 255, 101);
-  --accent-80: rgb(197, 255, 153);
-  --accent-90: rgb(226, 254, 204);
-  --accent-95: rgb(240, 255, 229);
   --base-6: rgb(14, 17, 12);
   --base-8: rgb(19, 23, 17);
   --base-10: rgb(24, 29, 21);
@@ -798,22 +770,22 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --base-90: rgb(228, 233, 225);
   --base-95: rgb(241, 244, 240);
   --base-98: rgb(249, 250, 249);
+  --accent-10: rgb(22, 51, 0);
+  --accent-20: rgb(44, 102, 0);
+  --accent-30: rgb(66, 153, 0);
+  --accent-35: rgb(77, 178, 0);
+  --accent-40: rgb(88, 204, 0);
+  --accent-45: rgb(99, 229, 0);
+  --accent-50: rgb(110, 255, 0);
+  --accent-55: rgb(125, 255, 25);
+  --accent-60: rgb(139, 255, 50);
+  --accent-70: rgb(168, 255, 101);
+  --accent-80: rgb(197, 255, 153);
+  --accent-90: rgb(226, 254, 204);
+  --accent-95: rgb(240, 255, 229);
 }
 
 [ls-accent=yellow] {
-  --accent-10: rgb(51, 46, 0);
-  --accent-20: rgb(102, 93, 0);
-  --accent-30: rgb(153, 139, 0);
-  --accent-35: rgb(178, 163, 0);
-  --accent-40: rgb(204, 186, 0);
-  --accent-45: rgb(229, 209, 0);
-  --accent-50: rgb(255, 233, 0);
-  --accent-55: rgb(255, 235, 25);
-  --accent-60: rgb(255, 237, 50);
-  --accent-70: rgb(255, 241, 101);
-  --accent-80: rgb(255, 246, 153);
-  --accent-90: rgb(254, 250, 204);
-  --accent-95: rgb(255, 252, 229);
   --base-6: rgb(17, 17, 12);
   --base-8: rgb(23, 23, 17);
   --base-10: rgb(29, 28, 21);
@@ -835,133 +807,22 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --base-90: rgb(233, 232, 225);
   --base-95: rgb(244, 243, 240);
   --base-98: rgb(250, 250, 249);
-}
-
-[ls-accent=lstv-red] {
-  --accent-10: rgb(46, 17, 4);
-  --accent-20: rgb(93, 35, 8);
-  --accent-30: rgb(140, 53, 12);
-  --accent-35: rgb(164, 61, 14);
-  --accent-40: rgb(187, 70, 16);
-  --accent-45: rgb(211, 79, 18);
-  --accent-50: rgb(234, 88, 20);
-  --accent-55: rgb(236, 105, 43);
-  --accent-60: rgb(238, 121, 67);
-  --accent-70: rgb(242, 155, 114);
-  --accent-80: rgb(246, 188, 161);
-  --accent-90: rgb(250, 221, 208);
-  --accent-95: rgb(252, 238, 231);
-  --base-6: rgb(17, 14, 13);
-  --base-8: rgb(23, 19, 17);
-  --base-10: rgb(28, 24, 22);
-  --base-15: rgb(43, 36, 33);
-  --base-20: rgb(57, 48, 44);
-  --base-25: rgb(72, 60, 55);
-  --base-30: rgb(86, 72, 66);
-  --base-35: rgb(101, 84, 77);
-  --base-40: rgb(115, 96, 88);
-  --base-45: rgb(130, 109, 99);
-  --base-50: rgb(144, 121, 110);
-  --base-55: rgb(155, 134, 124);
-  --base-60: rgb(166, 147, 139);
-  --base-65: rgb(177, 161, 153);
-  --base-70: rgb(188, 174, 168);
-  --base-75: rgb(199, 188, 182);
-  --base-80: rgb(210, 201, 197);
-  --base-85: rgb(221, 214, 211);
-  --base-90: rgb(232, 228, 226);
-  --base-95: rgb(243, 241, 240);
-  --base-98: rgb(250, 249, 249);
-}
-
-[ls-accent=lstv-yellow] {
-  --accent-10: rgb(50, 37, 0);
-  --accent-20: rgb(100, 75, 1);
-  --accent-30: rgb(151, 112, 1);
-  --accent-35: rgb(176, 131, 2);
-  --accent-40: rgb(201, 150, 2);
-  --accent-45: rgb(226, 168, 2);
-  --accent-50: rgb(251, 187, 3);
-  --accent-55: rgb(252, 194, 28);
-  --accent-60: rgb(252, 201, 53);
-  --accent-70: rgb(253, 214, 103);
-  --accent-80: rgb(253, 228, 154);
-  --accent-90: rgb(254, 241, 204);
-  --accent-95: rgb(254, 248, 229);
-  --base-6: rgb(17, 16, 12);
-  --base-8: rgb(23, 21, 17);
-  --base-10: rgb(29, 27, 21);
-  --base-15: rgb(44, 41, 32);
-  --base-20: rgb(58, 54, 43);
-  --base-25: rgb(73, 68, 53);
-  --base-30: rgb(88, 82, 64);
-  --base-35: rgb(103, 95, 75);
-  --base-40: rgb(117, 109, 86);
-  --base-45: rgb(132, 123, 96);
-  --base-50: rgb(147, 137, 107);
-  --base-55: rgb(158, 148, 122);
-  --base-60: rgb(168, 160, 137);
-  --base-65: rgb(179, 172, 151);
-  --base-70: rgb(190, 184, 166);
-  --base-75: rgb(201, 196, 181);
-  --base-80: rgb(211, 207, 196);
-  --base-85: rgb(222, 219, 210);
-  --base-90: rgb(233, 231, 225);
-  --base-95: rgb(244, 243, 240);
-  --base-98: rgb(250, 250, 249);
-}
-
-[ls-accent=lstv-blue] {
-  --accent-10: rgb(5, 36, 45);
-  --accent-20: rgb(11, 72, 90);
-  --accent-30: rgb(17, 108, 135);
-  --accent-35: rgb(19, 126, 158);
-  --accent-40: rgb(22, 144, 181);
-  --accent-45: rgb(25, 162, 203);
-  --accent-50: rgb(28, 180, 226);
-  --accent-55: rgb(51, 187, 229);
-  --accent-60: rgb(73, 195, 232);
-  --accent-70: rgb(119, 210, 237);
-  --accent-80: rgb(164, 225, 243);
-  --accent-90: rgb(209, 240, 249);
-  --accent-95: rgb(232, 247, 252);
-  --base-6: rgb(13, 16, 17);
-  --base-8: rgb(17, 21, 22);
-  --base-10: rgb(22, 27, 28);
-  --base-15: rgb(33, 40, 43);
-  --base-20: rgb(44, 54, 57);
-  --base-25: rgb(55, 67, 71);
-  --base-30: rgb(66, 81, 86);
-  --base-35: rgb(78, 95, 100);
-  --base-40: rgb(89, 108, 114);
-  --base-45: rgb(100, 122, 129);
-  --base-50: rgb(111, 135, 143);
-  --base-55: rgb(125, 147, 154);
-  --base-60: rgb(140, 159, 165);
-  --base-65: rgb(154, 171, 176);
-  --base-70: rgb(168, 183, 188);
-  --base-75: rgb(183, 195, 199);
-  --base-80: rgb(197, 207, 210);
-  --base-85: rgb(211, 219, 221);
-  --base-90: rgb(226, 231, 232);
-  --base-95: rgb(240, 243, 243);
-  --base-98: rgb(249, 250, 250);
+  --accent-10: rgb(51, 46, 0);
+  --accent-20: rgb(102, 93, 0);
+  --accent-30: rgb(153, 139, 0);
+  --accent-35: rgb(178, 163, 0);
+  --accent-40: rgb(204, 186, 0);
+  --accent-45: rgb(229, 209, 0);
+  --accent-50: rgb(255, 233, 0);
+  --accent-55: rgb(255, 235, 25);
+  --accent-60: rgb(255, 237, 50);
+  --accent-70: rgb(255, 241, 101);
+  --accent-80: rgb(255, 246, 153);
+  --accent-90: rgb(254, 250, 204);
+  --accent-95: rgb(255, 252, 229);
 }
 
 [ls-accent=orange] {
-  --accent-10: rgb(51, 24, 0);
-  --accent-20: rgb(102, 49, 0);
-  --accent-30: rgb(153, 74, 0);
-  --accent-35: rgb(178, 86, 0);
-  --accent-40: rgb(204, 98, 0);
-  --accent-45: rgb(229, 111, 0);
-  --accent-50: rgb(255, 123, 0);
-  --accent-55: rgb(255, 136, 25);
-  --accent-60: rgb(255, 149, 50);
-  --accent-70: rgb(255, 176, 101);
-  --accent-80: rgb(255, 202, 153);
-  --accent-90: rgb(254, 228, 204);
-  --accent-95: rgb(255, 241, 229);
   --base-6: rgb(17, 15, 12);
   --base-8: rgb(23, 20, 17);
   --base-10: rgb(29, 25, 21);
@@ -983,22 +844,22 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --base-90: rgb(233, 229, 225);
   --base-95: rgb(244, 242, 240);
   --base-98: rgb(250, 249, 249);
+  --accent-10: rgb(51, 24, 0);
+  --accent-20: rgb(102, 49, 0);
+  --accent-30: rgb(153, 74, 0);
+  --accent-35: rgb(178, 86, 0);
+  --accent-40: rgb(204, 98, 0);
+  --accent-45: rgb(229, 111, 0);
+  --accent-50: rgb(255, 123, 0);
+  --accent-55: rgb(255, 136, 25);
+  --accent-60: rgb(255, 149, 50);
+  --accent-70: rgb(255, 176, 101);
+  --accent-80: rgb(255, 202, 153);
+  --accent-90: rgb(254, 228, 204);
+  --accent-95: rgb(255, 241, 229);
 }
 
 [ls-accent=deep-orange] {
-  --accent-10: rgb(51, 15, 0);
-  --accent-20: rgb(102, 30, 0);
-  --accent-30: rgb(153, 45, 0);
-  --accent-35: rgb(178, 52, 0);
-  --accent-40: rgb(204, 60, 0);
-  --accent-45: rgb(229, 67, 0);
-  --accent-50: rgb(255, 75, 0);
-  --accent-55: rgb(255, 93, 25);
-  --accent-60: rgb(255, 111, 50);
-  --accent-70: rgb(255, 147, 101);
-  --accent-80: rgb(255, 183, 153);
-  --accent-90: rgb(254, 219, 204);
-  --accent-95: rgb(255, 237, 229);
   --base-6: rgb(17, 14, 12);
   --base-8: rgb(23, 19, 17);
   --base-10: rgb(29, 23, 21);
@@ -1020,22 +881,22 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --base-90: rgb(233, 227, 225);
   --base-95: rgb(244, 241, 240);
   --base-98: rgb(250, 249, 249);
+  --accent-10: rgb(51, 15, 0);
+  --accent-20: rgb(102, 30, 0);
+  --accent-30: rgb(153, 45, 0);
+  --accent-35: rgb(178, 52, 0);
+  --accent-40: rgb(204, 60, 0);
+  --accent-45: rgb(229, 67, 0);
+  --accent-50: rgb(255, 75, 0);
+  --accent-55: rgb(255, 93, 25);
+  --accent-60: rgb(255, 111, 50);
+  --accent-70: rgb(255, 147, 101);
+  --accent-80: rgb(255, 183, 153);
+  --accent-90: rgb(254, 219, 204);
+  --accent-95: rgb(255, 237, 229);
 }
 
 [ls-accent=red] {
-  --accent-10: rgb(48, 2, 2);
-  --accent-20: rgb(97, 4, 4);
-  --accent-30: rgb(145, 7, 7);
-  --accent-35: rgb(170, 8, 8);
-  --accent-40: rgb(194, 9, 9);
-  --accent-45: rgb(218, 10, 10);
-  --accent-50: rgb(243, 11, 11);
-  --accent-55: rgb(244, 36, 36);
-  --accent-60: rgb(245, 60, 60);
-  --accent-70: rgb(247, 109, 109);
-  --accent-80: rgb(250, 157, 157);
-  --accent-90: rgb(252, 206, 206);
-  --accent-95: rgb(253, 230, 230);
   --base-6: rgb(17, 13, 13);
   --base-8: rgb(23, 17, 17);
   --base-10: rgb(29, 21, 21);
@@ -1057,22 +918,22 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --base-90: rgb(233, 225, 225);
   --base-95: rgb(244, 240, 240);
   --base-98: rgb(250, 249, 249);
+  --accent-10: rgb(48, 2, 2);
+  --accent-20: rgb(97, 4, 4);
+  --accent-30: rgb(145, 7, 7);
+  --accent-35: rgb(170, 8, 8);
+  --accent-40: rgb(194, 9, 9);
+  --accent-45: rgb(218, 10, 10);
+  --accent-50: rgb(243, 11, 11);
+  --accent-55: rgb(244, 36, 36);
+  --accent-60: rgb(245, 60, 60);
+  --accent-70: rgb(247, 109, 109);
+  --accent-80: rgb(250, 157, 157);
+  --accent-90: rgb(252, 206, 206);
+  --accent-95: rgb(253, 230, 230);
 }
 
 [ls-accent=rusty-red] {
-  --accent-10: rgb(43, 7, 10);
-  --accent-20: rgb(86, 15, 21);
-  --accent-30: rgb(130, 22, 32);
-  --accent-35: rgb(152, 26, 38);
-  --accent-40: rgb(173, 30, 43);
-  --accent-45: rgb(195, 33, 49);
-  --accent-50: rgb(217, 37, 54);
-  --accent-55: rgb(221, 59, 74);
-  --accent-60: rgb(224, 81, 94);
-  --accent-70: rgb(232, 124, 134);
-  --accent-80: rgb(239, 168, 174);
-  --accent-90: rgb(247, 211, 214);
-  --accent-95: rgb(251, 233, 234);
   --base-6: rgb(17, 13, 13);
   --base-8: rgb(22, 18, 18);
   --base-10: rgb(28, 22, 23);
@@ -1094,22 +955,22 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --base-90: rgb(232, 226, 227);
   --base-95: rgb(243, 240, 241);
   --base-98: rgb(250, 249, 249);
+  --accent-10: rgb(43, 7, 10);
+  --accent-20: rgb(86, 15, 21);
+  --accent-30: rgb(130, 22, 32);
+  --accent-35: rgb(152, 26, 38);
+  --accent-40: rgb(173, 30, 43);
+  --accent-45: rgb(195, 33, 49);
+  --accent-50: rgb(217, 37, 54);
+  --accent-55: rgb(221, 59, 74);
+  --accent-60: rgb(224, 81, 94);
+  --accent-70: rgb(232, 124, 134);
+  --accent-80: rgb(239, 168, 174);
+  --accent-90: rgb(247, 211, 214);
+  --accent-95: rgb(251, 233, 234);
 }
 
 [ls-accent=pink] {
-  --accent-10: rgb(45, 5, 30);
-  --accent-20: rgb(90, 11, 61);
-  --accent-30: rgb(136, 16, 91);
-  --accent-35: rgb(158, 19, 107);
-  --accent-40: rgb(181, 22, 122);
-  --accent-45: rgb(204, 25, 137);
-  --accent-50: rgb(227, 27, 153);
-  --accent-55: rgb(229, 50, 163);
-  --accent-60: rgb(232, 73, 173);
-  --accent-70: rgb(238, 118, 193);
-  --accent-80: rgb(243, 164, 214);
-  --accent-90: rgb(249, 209, 234);
-  --accent-95: rgb(252, 232, 244);
   --base-6: rgb(17, 13, 15);
   --base-8: rgb(22, 17, 21);
   --base-10: rgb(28, 22, 26);
@@ -1131,22 +992,22 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --base-90: rgb(232, 226, 230);
   --base-95: rgb(243, 240, 242);
   --base-98: rgb(250, 249, 250);
+  --accent-10: rgb(45, 5, 30);
+  --accent-20: rgb(90, 11, 61);
+  --accent-30: rgb(136, 16, 91);
+  --accent-35: rgb(158, 19, 107);
+  --accent-40: rgb(181, 22, 122);
+  --accent-45: rgb(204, 25, 137);
+  --accent-50: rgb(227, 27, 153);
+  --accent-55: rgb(229, 50, 163);
+  --accent-60: rgb(232, 73, 173);
+  --accent-70: rgb(238, 118, 193);
+  --accent-80: rgb(243, 164, 214);
+  --accent-90: rgb(249, 209, 234);
+  --accent-95: rgb(252, 232, 244);
 }
 
 [ls-accent=hotpink] {
-  --accent-10: rgb(47, 3, 24);
-  --accent-20: rgb(95, 6, 48);
-  --accent-30: rgb(143, 9, 73);
-  --accent-35: rgb(167, 10, 85);
-  --accent-40: rgb(191, 12, 97);
-  --accent-45: rgb(215, 13, 109);
-  --accent-50: rgb(239, 15, 122);
-  --accent-55: rgb(241, 39, 135);
-  --accent-60: rgb(242, 63, 148);
-  --accent-70: rgb(245, 111, 175);
-  --accent-80: rgb(248, 159, 201);
-  --accent-90: rgb(251, 207, 228);
-  --accent-95: rgb(253, 231, 241);
   --base-6: rgb(17, 13, 15);
   --base-8: rgb(23, 17, 20);
   --base-10: rgb(29, 21, 25);
@@ -1168,22 +1029,22 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --base-90: rgb(233, 225, 229);
   --base-95: rgb(244, 240, 242);
   --base-98: rgb(250, 249, 249);
+  --accent-10: rgb(47, 3, 24);
+  --accent-20: rgb(95, 6, 48);
+  --accent-30: rgb(143, 9, 73);
+  --accent-35: rgb(167, 10, 85);
+  --accent-40: rgb(191, 12, 97);
+  --accent-45: rgb(215, 13, 109);
+  --accent-50: rgb(239, 15, 122);
+  --accent-55: rgb(241, 39, 135);
+  --accent-60: rgb(242, 63, 148);
+  --accent-70: rgb(245, 111, 175);
+  --accent-80: rgb(248, 159, 201);
+  --accent-90: rgb(251, 207, 228);
+  --accent-95: rgb(253, 231, 241);
 }
 
 [ls-accent=purple] {
-  --accent-10: rgb(31, 15, 35);
-  --accent-20: rgb(62, 31, 70);
-  --accent-30: rgb(94, 46, 106);
-  --accent-35: rgb(109, 54, 123);
-  --accent-40: rgb(125, 62, 141);
-  --accent-45: rgb(141, 70, 159);
-  --accent-50: rgb(156, 77, 177);
-  --accent-55: rgb(166, 95, 184);
-  --accent-60: rgb(176, 113, 192);
-  --accent-70: rgb(196, 148, 208);
-  --accent-80: rgb(215, 184, 223);
-  --accent-90: rgb(235, 219, 239);
-  --accent-95: rgb(245, 237, 247);
   --base-6: rgb(15, 14, 16);
   --base-8: rgb(21, 19, 21);
   --base-10: rgb(26, 23, 27);
@@ -1205,22 +1066,22 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --base-90: rgb(230, 227, 231);
   --base-95: rgb(242, 241, 243);
   --base-98: rgb(250, 249, 250);
+  --accent-10: rgb(31, 15, 35);
+  --accent-20: rgb(62, 31, 70);
+  --accent-30: rgb(94, 46, 106);
+  --accent-35: rgb(109, 54, 123);
+  --accent-40: rgb(125, 62, 141);
+  --accent-45: rgb(141, 70, 159);
+  --accent-50: rgb(156, 77, 177);
+  --accent-55: rgb(166, 95, 184);
+  --accent-60: rgb(176, 113, 192);
+  --accent-70: rgb(196, 148, 208);
+  --accent-80: rgb(215, 184, 223);
+  --accent-90: rgb(235, 219, 239);
+  --accent-95: rgb(245, 237, 247);
 }
 
 [ls-accent=soap] {
-  --accent-10: rgb(23, 12, 39);
-  --accent-20: rgb(47, 24, 78);
-  --accent-30: rgb(71, 36, 116);
-  --accent-35: rgb(83, 42, 136);
-  --accent-40: rgb(95, 48, 156);
-  --accent-45: rgb(107, 54, 175);
-  --accent-50: rgb(119, 60, 195);
-  --accent-55: rgb(133, 79, 201);
-  --accent-60: rgb(146, 98, 207);
-  --accent-70: rgb(173, 138, 219);
-  --accent-80: rgb(200, 177, 231);
-  --accent-90: rgb(227, 216, 243);
-  --accent-95: rgb(241, 235, 249);
   --base-6: rgb(15, 14, 16);
   --base-8: rgb(20, 18, 22);
   --base-10: rgb(25, 23, 27);
@@ -1242,22 +1103,22 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --base-90: rgb(229, 227, 231);
   --base-95: rgb(242, 241, 243);
   --base-98: rgb(249, 249, 250);
+  --accent-10: rgb(23, 12, 39);
+  --accent-20: rgb(47, 24, 78);
+  --accent-30: rgb(71, 36, 116);
+  --accent-35: rgb(83, 42, 136);
+  --accent-40: rgb(95, 48, 156);
+  --accent-45: rgb(107, 54, 175);
+  --accent-50: rgb(119, 60, 195);
+  --accent-55: rgb(133, 79, 201);
+  --accent-60: rgb(146, 98, 207);
+  --accent-70: rgb(173, 138, 219);
+  --accent-80: rgb(200, 177, 231);
+  --accent-90: rgb(227, 216, 243);
+  --accent-95: rgb(241, 235, 249);
 }
 
 [ls-accent=burple] {
-  --accent-10: rgb(2, 8, 48);
-  --accent-20: rgb(5, 16, 96);
-  --accent-30: rgb(7, 24, 145);
-  --accent-35: rgb(8, 28, 169);
-  --accent-40: rgb(10, 32, 193);
-  --accent-45: rgb(11, 36, 218);
-  --accent-50: rgb(12, 40, 242);
-  --accent-55: rgb(36, 61, 243);
-  --accent-60: rgb(61, 83, 244);
-  --accent-70: rgb(109, 126, 247);
-  --accent-80: rgb(158, 169, 249);
-  --accent-90: rgb(206, 212, 252);
-  --accent-95: rgb(230, 233, 253);
   --base-6: rgb(13, 13, 17);
   --base-8: rgb(17, 18, 23);
   --base-10: rgb(21, 22, 29);
@@ -1279,22 +1140,22 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --base-90: rgb(225, 226, 233);
   --base-95: rgb(240, 240, 244);
   --base-98: rgb(249, 249, 250);
+  --accent-10: rgb(2, 8, 48);
+  --accent-20: rgb(5, 16, 96);
+  --accent-30: rgb(7, 24, 145);
+  --accent-35: rgb(8, 28, 169);
+  --accent-40: rgb(10, 32, 193);
+  --accent-45: rgb(11, 36, 218);
+  --accent-50: rgb(12, 40, 242);
+  --accent-55: rgb(36, 61, 243);
+  --accent-60: rgb(61, 83, 244);
+  --accent-70: rgb(109, 126, 247);
+  --accent-80: rgb(158, 169, 249);
+  --accent-90: rgb(206, 212, 252);
+  --accent-95: rgb(230, 233, 253);
 }
 
-[ls-accent=white], [ls-accent=gray], [ls-accent=auto], [ls-accent=black] {
-  --accent-10: rgb(25, 25, 25);
-  --accent-20: rgb(51, 51, 51);
-  --accent-30: rgb(76, 76, 76);
-  --accent-35: rgb(89, 89, 89);
-  --accent-40: rgb(102, 102, 102);
-  --accent-45: rgb(114, 114, 114);
-  --accent-50: rgb(127, 127, 127);
-  --accent-55: rgb(140, 140, 140);
-  --accent-60: rgb(153, 153, 153);
-  --accent-70: rgb(178, 178, 178);
-  --accent-80: rgb(204, 204, 204);
-  --accent-90: rgb(229, 229, 229);
-  --accent-95: rgb(242, 242, 242);
+[ls-accent=white], [ls-accent=auto], [ls-accent].ls-static {
   --base-6: rgb(15, 15, 15);
   --base-8: rgb(20, 20, 20);
   --base-10: rgb(25, 25, 25);
@@ -1316,6 +1177,22 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --base-90: rgb(229, 229, 229);
   --base-95: rgb(242, 242, 242);
   --base-98: rgb(249, 249, 249);
+}
+
+[ls-accent=white], [ls-accent=auto] {
+  --accent-10: rgb(25, 25, 25);
+  --accent-20: rgb(51, 51, 51);
+  --accent-30: rgb(76, 76, 76);
+  --accent-35: rgb(89, 89, 89);
+  --accent-40: rgb(102, 102, 102);
+  --accent-45: rgb(114, 114, 114);
+  --accent-50: rgb(127, 127, 127);
+  --accent-55: rgb(140, 140, 140);
+  --accent-60: rgb(153, 153, 153);
+  --accent-70: rgb(178, 178, 178);
+  --accent-80: rgb(204, 204, 204);
+  --accent-90: rgb(229, 229, 229);
+  --accent-95: rgb(242, 242, 242);
 }
 
 [class*=level-], ls-box {
@@ -1343,6 +1220,7 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
 .level-n1 {
   --background: var(--surface-n1);
   --elevate-0: var(--surface-n2);
+  --elevate-n1: var(--surface-n3);
   --elevate: var(--surface-0);
   --elevate-1: var(--surface-1);
   --elevate-2: var(--surface-2);
@@ -1352,6 +1230,7 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
 .level-0, html {
   --background: var(--surface-0);
   --elevate-0: var(--surface-n1);
+  --elevate-n1: var(--surface-n2);
   --elevate: var(--surface-1);
   --elevate-1: var(--surface-2);
   --elevate-2: var(--surface-3);
@@ -1365,6 +1244,7 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
 .level-1, ls-box {
   --background: var(--surface-1);
   --elevate-0: var(--surface-0);
+  --elevate-n1: var(--surface-n1);
   --elevate: var(--surface-2);
   --elevate-1: var(--surface-3);
   --elevate-2: var(--surface-4);
@@ -1378,6 +1258,7 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
 .level-2 {
   --background: var(--surface-2);
   --elevate-0: var(--surface-1);
+  --elevate-n1: var(--surface-0);
   --elevate: var(--surface-3);
   --elevate-1: var(--surface-4);
   --elevate-2: var(--surface-5);
@@ -1391,6 +1272,7 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
 .level-3 {
   --background: var(--surface-3);
   --elevate-0: var(--surface-2);
+  --elevate-n1: var(--surface-1);
   --elevate: var(--surface-4);
   --elevate-1: var(--surface-5);
   --elevate-2: var(--surface-6);
@@ -1404,6 +1286,7 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
 .level-4 {
   --background: var(--surface-4);
   --elevate-0: var(--surface-3);
+  --elevate-n1: var(--surface-2);
   --elevate: var(--surface-5);
   --elevate-1: var(--surface-6);
   --elevate-2: var(--surface-7);
@@ -1417,6 +1300,7 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
 .level-5 {
   --background: var(--surface-5);
   --elevate-0: var(--surface-4);
+  --elevate-n1: var(--surface-3);
   --elevate: var(--surface-6);
   --elevate-1: var(--surface-7);
   --elevate-2: var(--surface-8);
@@ -1431,6 +1315,7 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
 .level-6 {
   --background: var(--surface-6);
   --elevate-0: var(--surface-5);
+  --elevate-n1: var(--surface-4);
   --elevate: var(--surface-7);
   --elevate-1: var(--surface-8);
   --elevate-2: var(--surface-9);
@@ -1440,6 +1325,7 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
 .level-7 {
   --background: var(--surface-7);
   --elevate-0: var(--surface-6);
+  --elevate-n1: var(--surface-5);
   --elevate: var(--surface-8);
   --elevate-1: var(--surface-9);
   --elevate-2: var(--surface-10);
@@ -1450,6 +1336,7 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
 .level-8 {
   --background: var(--surface-8);
   --elevate-0: var(--surface-7);
+  --elevate-n1: var(--surface-6);
   --elevate: var(--surface-9);
   --elevate-1: var(--surface-10);
   --elevate-2: var(--surface-11);
@@ -1459,6 +1346,7 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
 .level-9 {
   --background: var(--surface-9);
   --elevate-0: var(--surface-8);
+  --elevate-n1: var(--surface-7);
   --elevate: var(--surface-10);
   --elevate-1: var(--surface-11);
   --color: var(--surface-0);
@@ -1467,6 +1355,7 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
 .level-10 {
   --background: var(--surface-10);
   --elevate-0: var(--surface-9);
+  --elevate-n1: var(--surface-8);
   --elevate: var(--surface-11);
   --color: var(--surface-0);
 }
@@ -1830,7 +1719,7 @@ template {
   display: none;
 }
 
-[ls] :is(:is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button), input, select, textarea), [ls] {
+[ls] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), input, select, textarea), [ls] {
   font-family: var(--font);
 }
 
@@ -1862,24 +1751,24 @@ body {
 [ls] * {
   box-sizing: border-box;
 }
-[ls] :is(:is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button), input, select, textarea) {
+[ls] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), input, select, textarea) {
   box-sizing: border-box;
   border: 0;
   outline: none;
   position: relative;
 }
-[ls] :is(:is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button), input, select, textarea):not(textarea) {
+[ls] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), input, select, textarea):not(textarea) {
   line-height: 1;
 }
-[ls] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button) {
+[ls] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button) {
   padding: var(--padding-control-v) var(--padding-control-h);
   margin: var(--margin-control-v) var(--margin-control-h);
   cursor: pointer;
 }
-[ls] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button) i {
+[ls] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button) i {
   margin: 0 4px 0 2px;
 }
-[ls] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button) i:only-child {
+[ls] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button) i:only-child {
   margin: 0;
 }
 [ls] input, [ls] textarea {
@@ -1888,12 +1777,15 @@ body {
   margin: var(--margin-control-v) var(--margin-control-h);
   color: inherit;
 }
-[ls] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button).circle {
+[ls] textarea {
+  line-height: normal;
+}
+[ls] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button).circle {
   height: calc(1em + var(--padding-control-v) * 2);
   width: calc(1em + var(--padding-control-v) * 2);
   padding: 0;
 }
-[ls] :is(button, input[type=button], input[type=submit], input[type=color], input[type=reset], .ls-button).circle > :first-child {
+[ls] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button).circle > :first-child {
   margin: 0;
   padding: 0;
 }
@@ -1912,7 +1804,7 @@ body {
   border-radius: 10px;
   margin: var(--hr-spacing, 18px) 0;
 }
-[ls] textarea, [ls] :is(input[type=text], input:not([type=button]):not([type=submit]):not([type=color]):not([type=file]):not([type=reset]):not([type=image]))::selection, [ls] textarea::selection {
+[ls] :is(textarea, input[type=text], input:not([type]))::selection {
   background-color: var(--accent-mix-40);
 }
 [ls] h1 {
@@ -1949,16 +1841,16 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--elevate-2, rgba(0, 0, 0, 0.0666666667));
+  background: var(--elevate);
 }
 
 ::-webkit-scrollbar-thumb {
   border-radius: var(--scrollbar-radius, 8px);
-  background: var(--elevate-8, rgba(0, 0, 0, 0.2666666667));
+  background: var(--elevate-1);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--elevate-9, rgba(255, 255, 255, 0.2666666667));
+  background: var(--elevate-2);
 }
 
 /*# sourceMappingURL=ls.css.map */

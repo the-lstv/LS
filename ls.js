@@ -30,8 +30,6 @@
             position: "fixed"
         }});
 
-        LS._topLayerInherit = function () { console.error("LS._topLayerInherit is deprecated and no longer serves any purpose, you can safely remove it from your code.") }
-
         function bodyAvailable(){
             document.body.append(LS._topLayer)
             LS._events.completed("body-available")

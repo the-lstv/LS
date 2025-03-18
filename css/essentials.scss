@@ -156,7 +156,6 @@ ls-group {
 .ls-toast {
     pointer-events: all;
     opacity: 0;
-    // margin-top: -70px;
     padding: 4px var(--padding-control-h-pill);
     border-radius: 2em;
     overflow: hidden;
@@ -290,7 +289,7 @@ ls-tabs {
             align-items: center;
             --background: none;
             background: var(--background);
-            transition: background 0.1s;
+            transition: background-color 0.1s;
             white-space: nowrap;
             user-select: none;
         }
@@ -330,4 +329,24 @@ ls-tabs {
             border-top-right-radius: 8px;
         }
     }
+}
+
+.ls-tootlip-layer {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    display: none;
+}
+
+.ls-tootlip-layer.shown {
+    display: block;
+}
+
+.ls-tooltip-content {
+    position: absolute;
+    background: var(--surface-1);
+    padding: 2px 14px;
+    border: 1px solid var(--ui-border);
+    box-shadow: inset 0 1px 0 0 var(--ui-element);
+    border-radius: var(--border-radius);
 }

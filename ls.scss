@@ -89,6 +89,10 @@ body {
         color: inherit;
     }
 
+    textarea {
+        line-height: normal;
+    }
+
     #{$button}.circle {
         height: calc(1em + (var(--padding-control-v)* 2));
         width: calc(1em + (var(--padding-control-v)* 2));
@@ -118,7 +122,7 @@ body {
         margin: var(--hr-spacing, 18px) 0
     }
 
-    #{$input}::selection, textarea::selection {
+    #{$textInput}::selection {
         background-color: var(--accent-mix-40);
     }
 
@@ -163,14 +167,14 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-    background: var(--elevate-2, #0001);
+    background: var(--elevate);
 }
 
 ::-webkit-scrollbar-thumb {
     border-radius: var(--scrollbar-radius, 8px);
-    background: var(--elevate-8, #0004);
+    background: var(--elevate-1);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: var(--elevate-9, #fff4);
+    background: var(--elevate-2);
 }

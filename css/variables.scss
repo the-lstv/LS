@@ -1,8 +1,8 @@
 @use "sass:color";
 @use 'sass:math';
 
-$button: ':is(button, input[type="button"], input[type="submit"], input[type="color"], input[type="reset"], .ls-button)';
-$input: 'textarea, :is(input[type="text"], input:not([type="button"]):not([type="submit"]):not([type="color"]):not([type="file"]):not([type="reset"]):not([type="image"]))';
+$button: ':is(button, input[type="button"], input[type="submit"], input[type="reset"], .ls-button)';
+$textInput: ':is(textarea, input[type="text"], input:not([type]))';
 
 @function priority($thing, $times) {
     $result: '';

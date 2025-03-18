@@ -39,11 +39,11 @@ LS.LoadComponent(class Tooltips extends LS.Component {
         ;
 
         this.contentElement.applyStyle({
-            left:(
-                box.width ? Math.min(Math.max(box.left+(box.width/2)-(cbox.width/2),4),innerWidth-(cbox.width)) : box.x
+            left: (
+                box.width ? Math.min(Math.max(box.left + (box.width / 2) - (cbox.width / 2), 4), innerWidth - (cbox.width)) : box.x
             ) + "px",
 
-            maxWidth:(innerWidth - 8)+"px",
+            maxWidth: (innerWidth - 8) + "px",
 
             top: typeof y === "number"? y + "px": `calc(${pos_top < 20? pos_bottom : pos_top}px ${pos_top < 0? "+" : "-"} var(--ui-tooltip-rise, 5px))`
         })
@@ -67,35 +67,36 @@ LS.LoadComponent(class Tooltips extends LS.Component {
         for(let mutation of mutations.reverse()) {
             if(typeof mutation !== "object" || !mutation || !mutation.target) continue;
 
-            let e = O(mutation.target), attr = mutation.attributeName;
+            let element = O(mutation.target), attribute = mutation.attributeName;
 
-            e.hasTooltip = e.hasAttribute(attr);
-            e.tooltip_value = e.attr(attr);
-            e.tooltip_hint = e.hasAttribute("ls-hint");
+            element.ls_hasTooltip = element.hasAttribute(attribute);
+            element.ls_tooltip_isHint = element.hasAttribute("ls-hint");
 
-            if(!e._hasTooltip)! this.setup(e);
+            if(!element.ls_tooltipSetup) !this.setup(element);
         }
     }
 
     rescan(){
-        this.addElements(Q(this.attributes.map(a=>`[${a}]`).join(",")).map(e=>{
+        this.addElements([...document.querySelectorAll(this.attributes.map(a=>`[${a}]`).join(","))].map(element => {
             return {
-                target: e,
-                attributeName: Object.keys(e.attr()).find(a=>this.attributes.includes(a))
+                target: element,
+                attributeName: Object.keys(element.attr()).find(a=>this.attributes.includes(a))
             }
         }))
     }
 
     setup(element){
-        element._hasTooltip = true;
+        element.ls_tooltipSetup = true;
      
         element.on("mouseenter", ()=>{
-            if(!element.hasTooltip) return;
-            this.invoke("set", element.tooltip_value);
+            if(!element.ls_hasTooltip) return;
+            const value = element.ls_tooltip || element.getAttribute("ls-tooltip") || element.getAttribute("ls-hint");
 
-            if(element.tooltip_hint) return;
+            this.emit("set", [value, element]);
 
-            this.set(element.tooltip_value)
+            if(element.ls_tooltip_isHint) return;
+
+            this.set(value)
             this.show()
 
             this.position(element)
@@ -104,8 +105,9 @@ LS.LoadComponent(class Tooltips extends LS.Component {
         element.on("mousemove", () => this.position(element))
 
         element.on("mouseleave", () => {
-            if(!element.hasTooltip) return;
-            this.invoke("leave", element.tooltip_value);
+            if(!element.ls_hasTooltip) return;
+
+            this.emit("leave", [element.tooltip_value]);
             this.hide()
         })
     }

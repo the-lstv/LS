@@ -18,6 +18,7 @@
     --surface-10: var(--base-40);
 
     --ui-element: var(--base-95);
+    --ui-border: var(--base-40);
 
 
     &, [ls-accent], :disabled {
@@ -52,8 +53,9 @@
     --surface-10: var(--base-60);
 
     --ui-element: var(--base-20);
+    --ui-border: var(--base-0);
 
-    
+
     &, [ls-accent], :disabled {
         --on-background: var(--accent-70);
         --on-transparent: var(--accent-80);
