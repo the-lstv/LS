@@ -209,7 +209,7 @@
 
         Tiny: {
             /**
-             * @description Element selector utility
+             * Element selector utility
              */
             Q(selector, subSelector, one = false) {
                 if(!selector) return LS.TinyWrap(one? null: []);
@@ -223,11 +223,11 @@
 
                 let elements = one? target.querySelector(actualSelector): target.querySelectorAll(actualSelector);
                 
-                return LS.TinyWrap(one? elements: [...elements]);
+                return LS.Tiny._prototyped? elements: LS.TinyWrap(one? elements: [...elements]);
             },
 
             /**
-             * @description Single element selector
+             * Single element selector
              */
             O(selector, subSelector){
                 if(!selector) return LS.TinyWrap(document.body);
@@ -235,7 +235,7 @@
             },
 
             /**
-             * @description Element builder utility
+             * Element builder utility
              */
             N(tagName = "div", content){
                 if(typeof tagName !== "string"){
@@ -244,10 +244,10 @@
                 }
 
                 content =
-                    typeof content === "string" 
-                        ? { innerHTML: content } 
-                        : Array.isArray(content) 
-                            ? { inner: content } 
+                    typeof content === "string"
+                        ? { innerHTML: content }
+                        : Array.isArray(content)
+                            ? { inner: content }
                             : content || {};
 
 
@@ -292,7 +292,7 @@
             },
 
             /**
-             * @description Color utilities
+             * Color utilities
              */
             C(r, g, b, a = 1){
                 return new LS.Color(r, g, b, a)
@@ -391,7 +391,7 @@
 
 
         /**
-         * @description TinyFactory (utilities for HTML elements)
+         * TinyFactory (utilities for HTML elements)
          */
         TinyFactory: {
             isElement: true,
@@ -841,7 +841,7 @@
     LS.Create = LS.Tiny.N;
 
     /**
-     * @description Color and theme utilities
+     * Color and theme utilities
      */
     LS.Color = class {
         constructor(r, g, b, a) {
