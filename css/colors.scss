@@ -85,7 +85,7 @@ $colors: (
     $selector: "[ls-accent=\"#{$name}\"]";
 
     @if $name == "blue" {
-        $selector: "#{$selector}, html";
+        $selector: "#{$selector}, :root";
     }
     
     @else if $name == "white" {
@@ -118,7 +118,7 @@ $colors: (
     $selector: "#{$level}";
 
     @if $i == 0 {
-        $selector: "#{$selector}, html";
+        $selector: "#{$selector}, :root";
     } @else if $i == 1 {
         $selector: "#{$selector}, ls-box";
     }
@@ -167,6 +167,11 @@ $colors: (
             }
         }
     }
+}
+
+.level-top {
+    --background: var(--surface-top);
+    --color: var(--surface-0);
 }
 
 [class*="level-"].round {

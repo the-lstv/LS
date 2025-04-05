@@ -24,6 +24,7 @@
   --surface-8: var(--base-50);
   --surface-9: var(--base-45);
   --surface-10: var(--base-40);
+  --surface-top: var(--base-10);
   --ui-element: var(--base-95);
   --ui-border: var(--base-40);
 }
@@ -54,6 +55,7 @@
   --surface-8: var(--base-50);
   --surface-9: var(--base-55);
   --surface-10: var(--base-60);
+  --surface-top: var(--base-100);
   --ui-element: var(--base-20);
   --ui-border: var(--base-0);
 }
@@ -452,7 +454,7 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --accent-95: rgb(237, 234, 249);
 }
 
-[ls-accent=blue], html {
+[ls-accent=blue], :root {
   --base-6: rgb(12, 15, 17);
   --base-8: rgb(17, 20, 23);
   --base-10: rgb(21, 25, 29);
@@ -1227,7 +1229,7 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --elevate-3: var(--surface-3);
 }
 
-.level-0, html {
+.level-0, :root {
   --background: var(--surface-0);
   --elevate-0: var(--surface-n1);
   --elevate-n1: var(--surface-n2);
@@ -1357,6 +1359,11 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --elevate-0: var(--surface-9);
   --elevate-n1: var(--surface-8);
   --elevate: var(--surface-11);
+  --color: var(--surface-0);
+}
+
+.level-top {
+  --background: var(--surface-top);
   --color: var(--surface-0);
 }
 
@@ -1780,12 +1787,12 @@ body {
 [ls] textarea {
   line-height: normal;
 }
-[ls] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button).circle {
+[ls] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):is(.square, .circle) {
   height: calc(1em + var(--padding-control-v) * 2);
   width: calc(1em + var(--padding-control-v) * 2);
   padding: 0;
 }
-[ls] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button).circle > :first-child {
+[ls] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):is(.square, .circle) > :first-child {
   margin: 0;
   padding: 0;
 }

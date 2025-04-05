@@ -34,6 +34,9 @@
 [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button).circle {
   border-radius: 50%;
 }
+[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button).square {
+  border-radius: var(--border-radius);
+}
 [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):is(.clear, .outline) {
   background: none;
   color: var(--on-background);

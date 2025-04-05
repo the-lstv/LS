@@ -93,13 +93,13 @@ body {
         line-height: normal;
     }
 
-    #{$button}.circle {
+    #{$button}:is(.square, .circle) {
         height: calc(1em + (var(--padding-control-v)* 2));
         width: calc(1em + (var(--padding-control-v)* 2));
         padding: 0;
     }
 
-    #{$button}.circle > :first-child {
+    #{$button}:is(.square, .circle) > :first-child {
         margin: 0;
         padding: 0;
     }

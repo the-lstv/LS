@@ -47,6 +47,10 @@
         border-radius: 50%;
     }
 
+    #{$button}.square {
+        border-radius: var(--border-radius)
+    }
+
     #{$button}:is(.clear, .outline) {
         background: none;
         color: var(--on-background);
