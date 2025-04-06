@@ -114,14 +114,19 @@ LS.LoadComponent(class Tabs extends LS.Component {
         }
 
         if(currentTab) {
-            currentTab.element.class("tab-active", false);
+            if(currentTab.element) {
+                currentTab.element.class("tab-active", false);
+            }
 
             if(currentTab.handle) {
                 currentTab.handle.class("active", false);
             }
         }
-        
-        tab.element.class("tab-active");
+
+        if(tab.element) {
+            tab.element.class("tab-active");
+        }
+
         this.emit("changed", [id]);
 
         if(tab.handle) {
@@ -129,20 +134,6 @@ LS.LoadComponent(class Tabs extends LS.Component {
         }
 
         this.activeTab = id;
-
-        // if(this.options.list) {
-        //     for(const tab in this.tabs) {
-        //         const _element = O(this.tabs[tab].element);
-        //         if(!_element || tab === id) {
-        //             continue;
-        //         }
-
-        //         _element.class("tab-active", 0);
-        //         if(this.options.hide && this.options.mode !== "presentation") {
-        //             _element.hide();
-        //         }
-        //     }
-        // }
     }
 
     first() {
