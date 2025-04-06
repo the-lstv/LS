@@ -350,3 +350,17 @@ ls-tabs {
     box-shadow: inset 0 1px 0 0 var(--ui-element);
     border-radius: var(--border-radius);
 }
+
+@for $i from 1 through 7 {
+    $sizes: (xxs, xs, sm, md, lg, xl, xxl);
+    $size: nth($sizes, $i);
+    $margin: 0.25rem * pow(2, $i - 1);
+
+    .space-h-#{$size} {
+        margin: $margin 0;
+    }
+
+    .space-v-#{$size} {
+        margin: 0 $margin;
+    }
+}
