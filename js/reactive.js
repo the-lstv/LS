@@ -42,10 +42,10 @@ LS.LoadComponent(class Reactive extends LS.Component {
 
         target.__last_bind = attribute;
 
-        const [prefix, raw_key] = this.split_path(attribute);
-        if(!raw_key) return;
+        const [prefix, name, extra] = this.split_path(attribute);
+        if(!name) return;
 
-        const key = this.constructor.parseKey(prefix, raw_key);
+        const key = this.constructor.parseKey(prefix, name, extra);
 
         target.__reactive = key;
 
@@ -71,57 +71,59 @@ LS.LoadComponent(class Reactive extends LS.Component {
         if(!keepAttribute) target.removeAttribute("data-reactive");
         if(!target.__last_bind) return;
 
-        const [prefix, raw_key] = this.split_path(target.__last_bind);
+        const [prefix, name] = this.split_path(target.__last_bind);
 
         delete target.__last_bind;
         delete target.__reactive;
 
-        if(!raw_key) return;
+        if(!name) return;
 
         let binding = this.bindCache.get(prefix);
         if(!binding) return;
 
-        const key = this.constructor.parseKey(prefix, raw_key);
-
-        const cache = binding.keys.get(key.name);
+        const cache = binding.keys.get(name);
         if(cache) cache.delete(target);
     }
 
 
     /**
      * A fast, light parser to expand a key to an object with dynamic properties, eg. "username || anonymous".
-     * @param {string} key The key string to parse
+     * @param {string} extra The key string to parse
     */
 
-    static parseKey(prefix, key){
-        let i = 0, v_start = 0, v_propety = null, state = 0, string_char = null;
+    static parseKey(prefix, name, extra){
+        let i = -1, v_start = 0, v_propety = null, state = 0, string_char = null;
 
         const result = {
-            prefix, name: null
+            prefix, name
         };
 
-        while(++i < key.length) {
-            const char = key.charCodeAt(i);
-            const isLast = i === key.length - 1;
+        extra = extra? extra.trim(): null;
+        if(!extra) return result;
 
-            if(!result.name) {
-                if(!this.matchKeyword(char) || isLast) {
-                    if(char === 58){
-                        result.type = this.types.get(key.slice(v_start, i).toLowerCase());
-                        v_start = i + 1;
-                        continue;
-                    }
-
-                    if(isLast && this.matchKeyword(char)) i++;
-                    result.name = key.slice(v_start, i);
+        while(++i < extra.length) {
+            const char = extra.charCodeAt(i);
+            
+            if(state === 0) {
+                if(char === 58){
+                    v_start = i + 1;
+                    state = 4;
+                    continue;
                 }
 
-                if(!isLast && this.matchKeyword(char)) continue;
+                state = 1;
             }
 
-            if(state === 2) {
+            if(state === 4) {
+                if(this.matchKeyword(char)) continue;
+
+                result.type = this.types.get(extra.slice(v_start, i));
+                state = 1;
+            }
+
+            if(state === 3) {
                 if(char === string_char) {
-                    result[v_propety] = key.slice(v_start, i);
+                    result[v_propety] = extra.slice(v_start, i);
                     state = 0;
                 }
                 continue;
@@ -129,34 +131,36 @@ LS.LoadComponent(class Reactive extends LS.Component {
 
             if(this.matchWhitespace(char)) continue;
 
-            if(state === 1) {
+            if(state === 2) {
                 if(this.matchStringChar(char)) {
                     string_char = char;
                     v_start = i + 1;
-                    state = 2;
+                    state = 3;
                 }
                 continue;
             }
 
             switch(char) {
                 case 124: // | - Or
-                    if(key.charCodeAt(i + 1) === 124) {
+                    if(extra.charCodeAt(i + 1) === 124) {
                         i++;
                         v_propety = "or";
-                        state = 1;
+                        state = 2;
                         break;
                     }
-                    console.warn("You have a syntax error in key: " + key);
+
+                    console.warn("You have a syntax error in key: " + extra);
                     return result; // Invalid
                 
                 case 63: // ? - Default
-                    if(key.charCodeAt(i + 1) === 63) {
+                    if(extra.charCodeAt(i + 1) === 63) {
                         i++;
                         v_propety = "default";
-                        state = 1;
+                        state = 2;
                         break;
                     }
-                    console.warn("You have a syntax error in key: " + key);
+
+                    console.warn("You have a syntax error in key: " + extra);
                     return result; // Invalid
                 
                 case 33: // ! - Raw HTML
@@ -196,11 +200,19 @@ LS.LoadComponent(class Reactive extends LS.Component {
     ]);
 
     split_path(path){
+        if(!path) return [null, null, null];
+
+        const match = path.match(/^([a-zA-Z0-9._-]+)(.*)/);
+
+        if(!match) return [null, path, null];
+
+        path = match[1];
+
         const lastIndex = path.lastIndexOf(".");
         const prefix = lastIndex === -1? "": path.slice(0, path.lastIndexOf(".") +1);
         if(prefix) path = path.slice(lastIndex + 1);
 
-        return [prefix, path];
+        return [prefix, path, match[2].trim()];
     }
 
 
@@ -245,6 +257,7 @@ LS.LoadComponent(class Reactive extends LS.Component {
                 target[key] = value;
                 binding.updated = true;
                 this.renderKey(key, target, binding.keys.get(key));
+                return true;
             },
 
             get: (target, key) => key === "__isProxy"? true: key === "__binding"? binding: target[key],
@@ -332,10 +345,19 @@ LS.LoadComponent(class Reactive extends LS.Component {
             value = target.__reactive.type(value);
         }
 
+        if(target.__reactive.attribute) {
+            target.setAttribute(target.__reactive.attribute, value);
+            return;
+        }
+
         if(target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT") {
 
             if(target.type === "checkbox") target.checked = Boolean(value);
             else target.value = value;
+
+        } else if(target.tagName === "IMG") {
+
+            target.src = value;
 
         } else {
 
