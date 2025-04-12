@@ -147,16 +147,18 @@ body {
     }
 
     table {
-        background-color: #fff1;
-        border-collapse: collapse;
-        border: 1px solid #fff5;
-        overflow: hidden;
-        border-radius: 15px;
+        background-color: var(--elevate);
 
-        :is(th,td) {
-            border: 1px solid #fff2;
-            text-align: center;
-            padding: 5px
+        border: 1px solid #fff5;
+        border-radius: var(--border-radius);
+        border-collapse: collapse;
+
+        overflow: hidden;
+        
+        :is(th, td) {
+            border: 1px solid;
+            border-color: var(--elevate-1);
+            padding: var(--padding-control-v) var(--padding-control-h);
         }
     }
 }
