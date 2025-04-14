@@ -298,6 +298,9 @@ ls-tab {
 ls-tabs {
   display: block;
 }
+ls-tabs.ls-tabs-mode-default .ls-tabs-content > *:not(.tab-active) {
+  display: none;
+}
 ls-tabs.ls-tabs-styled {
   display: flex;
   flex-direction: column;
@@ -309,9 +312,6 @@ ls-tabs.ls-tabs-styled .ls-tabs-list {
   border-bottom: 4px solid var(--ui-element);
   box-shadow: 0 1px 0 0 var(--elevate-0);
   padding: 4px 0 0 6px;
-}
-ls-tabs.ls-tabs-styled .ls-tabs-content > *:not(.tab-active) {
-  display: none;
 }
 ls-tabs.ls-tabs-styled .ls-tab-close.ls-tab-close.ls-tab-close {
   border-radius: 5px;

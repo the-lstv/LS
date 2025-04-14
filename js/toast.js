@@ -17,7 +17,7 @@ LS.LoadComponent(class Toast extends LS.Component {
 
     show(content, options = {}){
         let toast = N({
-            class: "ls-toast level-0",
+            class: "ls-toast level-n2",
             accent: options.accent || null,
 
             inner: [

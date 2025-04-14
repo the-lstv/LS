@@ -9,13 +9,19 @@ LS.LoadComponent(class Tabs extends LS.Component {
         this.container = O(element);
 
         options = LS.Util.defaults({
-            unstyled: false,
+            styled: options.unstyled? false: true,
             list: true,
+            closeable: false,
             selector: "ls-tab, .ls-tab",
+            mode: "default",
         }, options);
         
-        if(!options.unstyled) {
+        if(options.styled) {
             this.container.class("ls-tabs-styled");
+        }
+
+        if(options.mode) {
+            this.container.class("ls-tabs-mode-" + options.mode);
         }
 
         if(options.selector) {
