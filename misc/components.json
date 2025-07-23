@@ -1,0 +1,15 @@
+{
+    "js": [
+        "gl",
+        "network",
+        "node",
+        "reactive",
+        "tabs",
+        "toast",
+        "tooltips",
+        "v4compat"
+    ],
+    "css": [
+        "flat"
+    ]
+}

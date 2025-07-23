@@ -34,12 +34,12 @@ public class LSBridge {
         webView.addJavascriptInterface(this, "LSNative_Android_Proxy");
     }
 
-    public void dispatch(String event) {
-        this.dispatchData(event, "null");
+    public void dispatch(String event, String data) {
+        webView.evaluateJavascript("LS.Native.emit(`android." + event.replaceAll("`", "\\\\`") + "`, `[" + data + "]`);", null);
     }
 
-    public void dispatchData(String event, String data) {
-        webView.evaluateJavascript("LS.Native.invoke(`" + event.replaceAll("`", "\\\\`") + "`, `" + data + "`);", null);
+    public void dispatch(String event) {
+        webView.evaluateJavascript("LS.Native.emit(`android." + event.replaceAll("`", "\\\\`") + "`);", null);
     }
 
     // Syntax: handle_[input type]_[output type]

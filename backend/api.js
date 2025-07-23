@@ -3,7 +3,7 @@ const path = require("path");
 
 // const { xxh32 } = require("@node-rs/xxhash");
 
-let backend;
+const backend = require("akeno:backend");
 
 var Path = path.resolve(__dirname, ".."),
     DistPath = Path + "/dist"
@@ -43,12 +43,8 @@ const cache = new Map;
 let legacy = null;
 
 module.exports = {
-    Initialize($){
-        backend = $;
-    },
-
-    HandleRequest({ req, res, segments, error }){
-        if(segments.length < 2) return error(2);
+    HandleRequest({ req, res, segments }){
+        if(segments.length < 2) return backend.helper.error(req, res, 2);
 
         // Case-insensitive
         segments = segments.map(segment => segment.toLowerCase());
@@ -69,13 +65,13 @@ module.exports = {
                     try {
                         require.resolve("./legacy");
                     } catch {
-                        return error(`Legacy mode is not supported. Please upgrade to the new system`, 404);
+                        return backend.helper.error(req, res, `Legacy mode is not supported. Please upgrade to the new system`, 404);
                     }
 
                     legacy = require("./legacy");
                 }
 
-                return legacy.Handle({ req, res, segments, error, backend })
+                return legacy.Handle({ req, res, segments, backend })
             }
         }
 
@@ -91,7 +87,7 @@ module.exports = {
 
         const VersionPath = DistPath + "/" + version + "/";
         if(!version || !fs.existsSync(VersionPath)) {
-            return error(`Version "${version}" was not found or is invalid`, 404);
+            return backend.helper.error(req, res, `Version "${version}" was not found or is invalid`, 404);
         }
 
         let file_cache = cache.get(version);
@@ -107,13 +103,13 @@ module.exports = {
         const first_index = file.indexOf(".");
         const last_index = file.lastIndexOf(".");
 
-        if(first_index === -1) return error(43, null, "404");
+        if(first_index === -1) return backend.helper.error(req, res, 43, null, "404");
 
         const file_name = file.slice(0, first_index);
         const do_compress = file.indexOf(".min") !== -1;
         const type = file.slice(last_index + 1);
 
-        if(type !== "js" && type !== "css") return error(43, null, "404");
+        if(type !== "js" && type !== "css") return backend.helper.error(req, res, 43, null, "404");
 
         const result = [];
 
@@ -121,7 +117,7 @@ module.exports = {
             const file_path = VersionPath + "ls." + type;
 
             if(!fs.existsSync(file_path)) {
-                return error(`Core file was not found`, 404);
+                return backend.helper.error(req, res, `Core file was not found`, 404);
             }
 
             const file_key = file;
@@ -153,7 +149,7 @@ module.exports = {
                     continue;
                 }
 
-                return error(`Component "${component}" was not found`, 404);
+                return backend.helper.error(req, res, `Component "${component}" was not found`, 404);
             }
 
             const file_key = component + (do_compress? ".min": "") + "." + type;

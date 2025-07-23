@@ -1,16 +1,15 @@
-LS.WebSocket = class WebSocketWrapper {
+LS.WebSocket = class WebSocketWrapper extends LS.EventHandler {
     constructor(url, options = {}){
+        super();
+
         if(!url) throw "No URL specified";
-
-        if(!url.startsWith("ws://") || !url.startsWith("wss://")) url = (location.protocol === "https:"? "wss://": "ws://") + url;
-
-        this.events = new LS.EventHandler(this);
+        if(!url.startsWith("ws://") && !url.startsWith("wss://")) url = (location.protocol === "https:"? "wss://": "ws://") + url;
 
         this.addEventListener = this.on;
         this.removeEventListener = this.off;
 
         if(Array.isArray(options) || typeof options === "string"){
-            options = {protocols: options}
+            options = {protocols: options};
         }
 
         if(typeof options !== "object" || options === null || typeof options === "undefined") options = {};
@@ -20,7 +19,7 @@ LS.WebSocket = class WebSocketWrapper {
             autoConnect: true,
             delayMessages: true,
             protocols: null
-        }, options)
+        }, options);
 
         this.waiting = [];
 

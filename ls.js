@@ -42,6 +42,143 @@
 
 })(() => {
 
+    class EventHandler {
+        constructor(target){
+            LS.EventHandler.prepareHandler(this);
+
+            if(target){
+                target._events = this;
+
+                ["emit", "on", "once", "off", "invoke"].forEach(method => {
+                    if (!target.hasOwnProperty(method)) target[method] = this[method].bind(this);
+                });
+
+                this.target = target;
+            }
+        }
+
+        static prepareHandler(target){
+            target.events = new Map;
+        }
+
+        prepareEvent(name, options){
+            if(!this.events.has(name)){
+                this.events.set(name, { listeners: [], empty: [], ...options, _isEvent: true })
+            } else if(options){
+                Object.assign(this.events.get(name), options)
+            }
+
+            return this.events.get(name)
+        }
+
+        on(name, callback, options){
+            const event = (name._isEvent? name: this.events.get(name)) || this.prepareEvent(name);
+            if(event.completed) return callback();
+
+            const index = event.empty.length > 0 ? event.empty.pop() : event.listeners.length;
+
+            event.listeners[index] = { callback, index, ...options }
+            return this
+        }
+
+        off(name, callback){
+            const event = name._isEvent? name: this.events.get(name);
+            if(!event) return;
+
+            for(let i = 0; i < event.listeners.length; i++){
+                if(event.listeners[i].callback === callback) {
+                    event.empty.push(i)
+                    event.listeners[i] = null
+                }
+            }
+
+            return this
+        }
+
+        once(name, callback, options){
+            return this.on(name, callback, Object.assign(options || {}, { once: true }))
+        }
+
+        /**
+         * @deprecated
+        */
+        invoke(name, ...data){
+            return this.emit(name, data, { results: true })
+        }
+
+        /**
+         * Emit an event with the given name and data.
+         * @param {string|object} name Name of the event or an event object.
+         * @param {Array} data Data to pass to the event listeners.
+         * @param {object} options Options for the event emission.
+         * @returns {Array|null} Returns an array of results or null.
+         */
+
+        emit(name, data, options = {}){
+            if(!name) return;
+
+            const event = name._isEvent? name: this.events.get(name);
+
+            const returnData = options.results? []: null;
+            if(!event) return returnData;
+
+            const hasData = Array.isArray(data) && data.length > 0;
+
+            for(let listener of event.listeners){
+                if(!listener || typeof listener.callback !== "function") continue;
+
+                try {
+                    const result = hasData? listener.callback(...data): listener.callback();
+
+                    if(options.break && result === false) break;
+                    if(options.results) returnData.push(result);
+                } catch (error) {
+                    console.error(`Error in listener for event '${name}':`, listener, error);
+                }
+
+                if(listener.once) {
+                    event.empty.push(listener.index);
+                    event.listeners[listener.index] = null;
+                    listener = null;
+                }
+            }
+
+            return returnData
+        }
+
+        quickEmit(event, data){
+            if(!event._isEvent) throw new Error("Event must be a valid event object when using quickEmit");
+
+            for(let i = 0, len = event.listeners.length; i < len; i++){
+                const listener = event.listeners[i];
+                if(!listener || typeof listener.callback !== "function") continue;
+
+                if(listener.once) {
+                    event.empty.push(listener.index);
+                    event.listeners[listener.index] = null;
+                }
+
+                listener.callback(...data);
+            }
+        }
+
+        flush() {
+            this.events.clear();
+        }
+
+        alias(name, alias){
+            this.events.set(alias, this.prepareEvent(name))
+        }
+
+        completed(name){
+            this.emit(name)
+
+            this.prepareEvent(name, {
+                completed: true
+            })
+        }
+    }
+
     const LS = {
         isWeb: typeof window !== 'undefined',
         version: "5.1.1",
@@ -68,123 +205,7 @@
 
         components: new Map,
 
-        EventHandler: class EventHandler {
-            constructor(target, options = {}){
-                this.events = new Map;
-                this.options = options;
-
-                if(target){
-                    target._events = this;
-
-                    ["emit", "on", "once", "off", "invoke"].forEach(method => {
-                        if (!target.hasOwnProperty(method)) target[method] = this[method].bind(this);
-                    });
-
-                    this.target = target;
-                }
-            }
-
-            prepare(name, options){
-                if(!this.events.has(name)){
-                    this.events.set(name, { listeners: [], empty: [], ...options, _isEvent: true })
-                } else if(options){
-                    Object.assign(this.events.get(name), options)
-                }
-
-                return this.events.get(name)
-            }
-
-            on(name, callback, options){
-                const event = (name._isEvent? name: this.events.get(name)) || this.prepare(name);
-                if(event.completed) return callback();
-
-                const index = event.empty.length > 0 ? event.empty.pop() : event.listeners.length;
-
-                event.listeners[index] = { callback, index, ...options }
-                return this
-            }
-
-            off(name, callback){
-                const event = name._isEvent? name: this.events.get(name);
-                if(!event) return;
-
-                for(let i = 0; i < event.listeners.length; i++){
-                    if(event.listeners[i].callback === callback) {
-                        event.empty.push(i)
-                        event.listeners[i] = null
-                    }
-                }
-
-                return this
-            }
-
-            once(name, callback, options){
-                return this.on(name, callback, Object.assign(options || {}, { once: true }))
-            }
-
-            /**
-             * @deprecated
-            */
-            invoke(name, ...data){
-                return this.emit(name, data, { results: true })
-            }
-
-            emit(name, data, options = {}){
-                if(!name) return;
-
-                const event = name._isEvent? name: this.events.get(name);
-
-                const returnData = options.results? []: null;
-                if(!event) return returnData;
-
-                const hasData = Array.isArray(data) && data.length > 0;
-
-                for(let listener of event.listeners){
-                    if(!listener || typeof listener.callback !== "function") continue;
-
-                    try {
-                        const result = hasData? listener.callback(...data): listener.callback();
-
-                        if(options.break && result === false) break;
-                        if(options.results) returnData.push(result);
-                    } catch (error) {
-                        console.error(`Error in listener for event '${name}':`, listener, error);
-                    }
-
-                    if(listener.once) {
-                        event.empty.push(listener.index);
-                        event.listeners[listener.index] = null;
-                        listener = null;
-                    }
-                }
-
-                return returnData
-            }
-
-            rapidFire(event, data){
-                if(!event._isEvent) throw new Error("Event must be a valid event object when using rapidFire");
-
-                for(let i = 0; i < event.listeners.length; i++){
-                    event.listeners[i].callback(data);
-                }
-            }
-
-            flush() {
-                this.events.clear();
-            }
-
-            alias(name, alias){
-                this.events.set(alias, this.prepare(name))
-            }
-
-            completed(name){
-                this.emit(name)
-
-                this.prepare(name, {
-                    completed: true
-                })
-            }
-        },
+        EventHandler,
 
         TinyWrap(elements){
             if(!elements) return null;
@@ -214,7 +235,7 @@
             Q(selector, subSelector, one = false) {
                 if(!selector) return LS.TinyWrap(one? null: []);
 
-                const isElement = selector instanceof HTMLElement;
+                const isElement = selector instanceof Element;
                 const target = (isElement? selector : document);
 
                 if(isElement && !subSelector) return LS.TinyWrap(one? selector: [selector]);
@@ -230,7 +251,7 @@
              * Single element selector
              */
             O(selector, subSelector){
-                if(!selector) return LS.TinyWrap(document.body);
+                if(!selector) selector = document.body;
                 return LS.Tiny.Q(selector, subSelector, true)
             },
 
@@ -243,6 +264,8 @@
                     tagName = "div";
                 }
 
+                if(!content) return document.createElement(tagName);
+
                 content =
                     typeof content === "string"
                         ? { innerHTML: content }
@@ -250,8 +273,12 @@
                             ? { inner: content }
                             : content || {};
 
+                if(tagName === "svg" && !content.hasOwnProperty("ns")) {
+                    content.ns = "http://www.w3.org/2000/svg";
+                }
 
-                const { class: className, tooltip, ns, accent, attr, style, inner, content: innerContent, reactive, ...rest } = content;
+                const { class: className, tooltip, ns, accent, style, inner, content: innerContent, reactive, ...rest } = content;
+
 
                 const element = Object.assign(
                     ns ? document.createElementNS(ns, tagName) : document.createElement(tagName),
@@ -260,14 +287,14 @@
 
                 // Handle attributes
                 if (accent) LS.TinyFactory.attrAssign.call(element, { "ls-accent": accent });
-                if (attr) LS.TinyFactory.attrAssign.call(element, attr);
+                if (content.attr || content.attributes) LS.TinyFactory.attrAssign.call(element, content.attr || content.attributes);
 
                 // Handle tooltips
                 if (tooltip) {
                     if (!LS.Tooltips) {
-                        element.attrAssign({ title: tooltip });
+                        element.setAttribute("title", tooltip);
                     } else {
-                        element.attrAssign({ "ls-tooltip": tooltip });
+                        element.setAttribute("ls-tooltip", tooltip);
                         LS.Tooltips.addElements([{ target: element, attributeName: "ls-tooltip" }]);
                     }
                 }
@@ -281,7 +308,7 @@
                     LS.Reactive.bindElement(element, reactive);
                 }
 
-                if (className && element.class) LS.TinyFactory.class.call(element, className);
+                if (className) LS.TinyFactory.class.call(element, className);
                 if (typeof style === "object") LS.TinyFactory.applyStyle.call(element, style);
 
                 // Append children or content
@@ -330,58 +357,73 @@
                     return LS.Tiny.M.GlobalID + "-" + crypto.getRandomValues(new Uint32Array(1))[0].toString(36)
                 },
 
-                Style(url, callback) {
+                LoadStyle(href, callback) {
                     return new Promise((resolve, reject) => {
                         const linkElement = N("link", {
                             rel: "stylesheet",
-                            href: url,
+                            href,
+
                             onload() {
-                                if (callback) callback(null);
+                                if (typeof callback === "function") callback(null);
                                 resolve();
                             },
+
                             onerror(error) {
                                 const errorMsg = error.toString();
-                                if (callback) callback(errorMsg);
+                                if (typeof callback === "function") callback(errorMsg);
                                 reject(errorMsg);
                             }
                         });
                 
-                        O("head").appendChild(linkElement);
+                        document.head.appendChild(linkElement);
                     });
                 },
 
-                Script(url, callback) {
+                LoadScript(src, callback) {
                     return new Promise((resolve, reject) => {
                         const scriptElement = N("script", {
-                            src: url,
+                            src,
+
                             onload() {
-                                if (callback) callback(null);
+                                if (typeof callback === "function") callback(null);
                                 resolve();
                             },
+
                             onerror(error) {
                                 const errorMsg = error.toString();
-                                if (callback) callback(errorMsg);
+                                if (typeof callback === "function") callback(errorMsg);
                                 reject(errorMsg);
                             }
                         });
                 
-                        O("head").appendChild(scriptElement);
+                        document.head.appendChild(scriptElement);
                     });
                 },
 
-                async Document(url, callback) {
+                async LoadDocument(url, callback, targetElement = null) {
+                    let data;
+
                     try {
                         const response = await fetch(url);
                         if (!response.ok) throw new Error(`Failed to fetch: ${response.statusText}`);
                         const text = await response.text();
-                        const data = N("div", { innerHTML: text });
 
-                        if (callback) callback(null, data);
-                        return await data;
+                        if (targetElement instanceof Element) {
+                            targetElement.innerHTML = text;
+                            data = targetElement;
+                        } else if (typeof targetElement === "string") {
+                            data = LS.Tiny.N(targetElement, { innerHTML: text });
+                        } else {
+                            const template = document.createElement("template");
+                            template.innerHTML = text;
+                            data = template.content.childNodes;
+                        }
+
+                        if (typeof callback === "function") callback(null, data);
+                        return data;
                     } catch (error) {
-                        const errorMsg = error.toString();
-                        if (callback) callback(errorMsg);
-                        throw errorMsg;
+                        if (typeof callback === "function") callback(error.toString());
+                        throw error;
                     }
                 }
             },
@@ -791,8 +833,10 @@
             },
         },
 
-        Component: class {
+        Component: class Component extends EventHandler {
             constructor(){
+                super();
+
                 if(!this._component || !LS.components.has(this._component.name)){
                     throw new Error("This class has to be extended and loaded as a component with LS.LoadComponent.");
                 }
@@ -801,7 +845,9 @@
                     LS.once("init", () => this.init())
                 }
 
-                this._events = new LS.EventHandler(this);
+                // if(this._component.hasEvents) {
+                //     this._events = new LS.EventHandler(this);
+                // }
             }
         },
 
@@ -814,17 +860,29 @@
             }
 
             const component = {
+                isConstructor: typeof componentClass === "function",
                 class: componentClass,
                 metadata: options.metadata,
                 global: !!options.global,
+                hasEvents: options.events !== false,
                 name
             }
 
-            LS.components.set(name, component)
-            componentClass.prototype._component = component;
-            
+            if (!component.isConstructor) {
+                Object.setPrototypeOf(componentClass, LS.Component.prototype);
+                componentClass._component = component;
+
+                if(component.hasEvents) {
+                    LS.EventHandler.prepareHandler(componentClass);
+                }
+            } else {
+                componentClass.prototype._component = component;
+            }
+
+            LS.components.set(name, component);
+
             if(component.global){
-                LS[name] = options.singular? new componentClass: componentClass;
+                LS[name] = options.singular && component.isConstructor? new componentClass: componentClass;
             }
 
             return component
@@ -839,6 +897,7 @@
     LS.SelectAll = LS.Tiny.Q;
     LS.Select = LS.Tiny.O;
     LS.Create = LS.Tiny.N;
+    LS.Misc = LS.Tiny.M;
 
     /**
      * Color and theme utilities
@@ -917,9 +976,17 @@
                 })
             }
         }
-    
+
+        get int(){
+            return (this.r << 16) | (this.g << 8) | this.b;
+        }
+
+        get hexInt() {
+            return 1 << 24 | this.r << 16 | this.g << 8 | this.b
+        }
+
         get hex() {
-            return "#" + (1 << 24 | this.r << 16 | this.g << 8 | this.b).toString(16).slice(1);
+            return "#" + this.hexInt.toString(16).slice(1);
         }
     
         get rgb() {
@@ -1016,39 +1083,45 @@
             l = Math.max(Math.min(l + percent, 100), 0);
             return LS.Color.fromHSL(h, s, l);
         }
-    
+
+        saturate(percent) {
+            let [h, s, l] = this.hsl;
+            s = Math.max(Math.min(s + percent, 100), 0);
+            return LS.Color.fromHSL(h, s, l);
+        }
+
         darken(percent) {
             let [h, s, l] = this.hsl;
             l = Math.max(Math.min(l - percent, 100), 0);
             return LS.Color.fromHSL(h, s, l);
         }
-    
+
         hueShift(deg) {
             let [h, s, l] = this.hsl;
             h = (h + deg) % 360;
             return LS.Color.fromHSL(h, s, l);
         }
-    
+
         multiply(r2, g2, b2, a2) {
             let color = new LS.Color(r2, g2, b2, a2).color;
             return new LS.Color(this.r * color[0], this.g * color[1], this.b * color[2], this.a * color[3]);
         }
-    
+
         divide(r2, g2, b2, a2) {
             let color = new LS.Color(r2, g2, b2, a2).color;
             return new LS.Color(this.r / color[0], this.g / color[1], this.b / color[2], this.a / color[3]);
         }
-    
+
         add(r2, g2, b2, a2) {
             let color = new LS.Color(r2, g2, b2, a2).color;
             return new LS.Color(this.r + color[0], this.g + color[1], this.b + color[2], this.a + color[3]);
         }
-    
+
         subtract(r2, g2, b2, a2) {
             let color = new LS.Color(r2, g2, b2, a2).color;
             return new LS.Color(this.r - color[0], this.g - color[1], this.b - color[2], this.a - color[3]);
         }
-    
+
         alpha(v) {
             return new LS.Color(this.r, this.g, this.b, v);
         }
@@ -1064,7 +1137,7 @@
                 return [ parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16), hex.length === 9? parseInt(hex.slice(7, 9), 16) / 255: 1 ];
             }
         }
-    
+
         static fromHSL(h, s, l) {
             s /= 100;
             l /= 100;
@@ -1075,7 +1148,7 @@
     
             return new LS.Color(255 * f(0), 255 * f(8), 255 * f(4));
         }
-    
+
         static random() {
             return new LS.Color(Math.floor(Math.random() * 256), Math.floor(Math.random() * 256), Math.floor(Math.random() * 256));
         }
@@ -1091,7 +1164,7 @@
         static set theme(theme){
             this.setTheme(theme)
         }
-        
+
         static get accent(){
             return document.body.getAttribute("ls-accent")
         }
@@ -1244,35 +1317,6 @@
             }
         }
     }
-
-    // LS.Color.add("navy", 40,28,108);
-    // LS.Color.add("blue", 0,133,255);
-    // LS.Color.add("pastel_indigo", 70,118,181);
-    // LS.Color.add("lapis", 34,114,154);
-    // LS.Color.add("teal", 0,128,128);
-    // LS.Color.add("pastel_teal", 69,195,205);
-    // LS.Color.add("aquamarine", 58,160,125);
-    // LS.Color.add("mint", 106,238,189);
-    // LS.Color.add("green", 25,135,84);
-    // LS.Color.add("lime", 133,210,50);
-    // LS.Color.add("neon", 173,255,110);
-    // LS.Color.add("yellow", 255,236,32);
-    // LS.Color.add("lstv_red", 237,108,48);
-    // LS.Color.add("lstv_yellow", 252,194,27);
-    // LS.Color.add("lstv_blue", 64,192,231);
-    // LS.Color.add("orange", 255,140,32);
-    // LS.Color.add("deep_orange", 255,112,52);
-    // LS.Color.add("red", 245,47,47);
-    // LS.Color.add("rusty_red", 220,53,69);
-    // LS.Color.add("pink", 230,52,164);
-    // LS.Color.add("hotpink", 245,100,169);
-    // LS.Color.add("purple", 155,77,175);
-    // LS.Color.add("soap", 210,190,235);
-    // LS.Color.add("burple", 81,101,246);
-    // LS.Color.add("gray", 73,73,73);
-    // LS.Color.add("gray_light", 107,107,107);
-    // LS.Color.add("white", 225,225,225);
-    // LS.Color.add("black", 16,16,16);
 
     if(LS.isWeb){
         LS.Tiny.M.on("keydown", event => {

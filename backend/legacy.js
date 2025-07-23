@@ -13,7 +13,7 @@ let lsCache = new Map;
 
 let default_components = ["eventresolver", "default", "events"];
 
-function Handle({ req, res, segments, error, backend }){
+function Handle({ req, res, segments, backend }){
     let version = segments[2]? segments[1] : null;
 
     // Legacy behavior :shrug:

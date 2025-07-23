@@ -1,15 +1,9 @@
 <head>
-    @resources {
-        ls-version: 5.0.0;
-        ls-js;
-        ls-css: flat;
+    @use (ls:5.1.1[flat], bootstrap-icons, google-fonts[Poppins:400,500,600,700])
 
-        fonts: Poppins;
+    @page {
+        font: Poppins;
 
-        bootstrap-icons;
-    }
-
-    @manifest {
         accent: blue;
         theme: dark;
         style: flat;
@@ -27,7 +21,7 @@
         </ls-div>
 
         <ls-div #controls>
-            <button .elevated.circle> <i .bi-pause></i> </button>
+            <button .elevated.circle> <i .bi-pause /> </button>
         </ls-div>
     </ls-div>
 
@@ -72,12 +66,7 @@
         const title = document.querySelector('#title');
         const artist = document.querySelector('#artist');
 
-        const source = {
-            title: 'Speedrun',
-            artist: 'Camellia',
-            cover: 'samples/Speedrun.webp',
-            audio: 'samples/Speedrun.opus'
-        }
+        const source = {}
 
         function load(source) {
             cover.onload = () => {
