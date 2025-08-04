@@ -243,7 +243,7 @@
                 const actualSelector = isElement? subSelector || "*" : selector || '*';
 
                 let elements = one? target.querySelector(actualSelector): target.querySelectorAll(actualSelector);
-                
+
                 return LS.Tiny._prototyped? elements: LS.TinyWrap(one? elements: [...elements]);
             },
 
@@ -1230,18 +1230,18 @@
         }
 
         static setAccent(accent){
-            document.body.setAttribute("ls-accent", accent)
+            document.body.setAttribute("ls-accent", accent);
             return this
         }
 
         static setTheme(theme){
-            document.body.setAttribute("ls-theme", theme)
-            this.emit("theme-changed", [theme])
+            document.body.setAttribute("ls-theme", theme);
+            this.emit("theme-changed", [theme]);
             return this
         }
 
         static setAdaptiveTheme(amoled){
-            LS.Color.setTheme(this.lightModePreffered? "light": amoled? "amoled" : "dark")
+            LS.Color.setTheme(localStorage.getItem("ls-theme") || (this.lightModePreffered? "light": amoled? "amoled" : "dark"));
             return this
         }
 

@@ -2,7 +2,9 @@
 @use 'sass:math';
 
 $button: ':is(button, input[type="button"], input[type="submit"], input[type="reset"], .ls-button)';
-$textInput: ':is(textarea, input[type="text"], input:not([type]))';
+
+// Yes, this is actually the shortest way to write this. F#cking CSS
+$textInput: ':is(input:not([type]), input[type="text"], input[type="search"], input[type="email"], input[type="url"], input[type="tel"], input[type="password"], input[type="number"], textarea, .ls-text-input)';
 
 @function priority($thing, $times) {
     $result: '';

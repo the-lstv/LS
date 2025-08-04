@@ -141,7 +141,7 @@ ls-box.inline {
   display: inline-block;
   border-radius: var(--border-radius-small);
 }
-ls-box.inline:not(.full-padding) {
+ls-box.inline:not(.full-padding, .elevated, .pill) {
   padding: 0 var(--padding-label-h);
 }
 ls-box.inline.pill {
@@ -150,13 +150,18 @@ ls-box.inline.pill {
 ls-box.inline.pill:not(.full-padding) {
   padding: 0 var(--padding-label-h-pill);
 }
+ls-box.elevated {
+  padding: var(--padding-content-v);
+  background: var(--elevate-0);
+  border-radius: var(--border-radius-medium);
+  outline: 1px solid var(--elevate-1);
+}
 ls-box::selection {
   background: var(--accent-mix-40);
 }
 
 ls-div {
   display: block;
-  margin: var(--margin-content-v) 0;
 }
 
 ls-group {
@@ -1782,7 +1787,7 @@ template {
   display: none;
 }
 
-[ls] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), input, select, textarea), [ls] {
+input:-webkit-autofill, [ls] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), input, select, textarea), [ls] {
   font-family: var(--font);
 }
 
@@ -1795,18 +1800,26 @@ body {
 }
 
 [ls] {
-  --padding-control-h: 16px;
-  --padding-control-v: 8px;
-  --padding-content-h: 16px;
-  --padding-content-v: 8px;
-  --padding-control-h-pill: 18px;
-  --padding-label-h: 4px;
-  --padding-label-h-pill: 8px;
-  --padding-input-h: 8px;
+  --space-tiny: 4px;
+  --space-small: 8px;
+  --space-medium: 16px;
+  --space-large: 24px;
+  --space-xlarge: 34px;
+  --space-xxlarge: 44px;
+  --space-xxxlarge: 64px;
+  --space-huge: 84px;
+  --padding-control-h: var(--space-medium);
+  --padding-control-v: var(--space-small);
+  --padding-content-h: var(--space-medium);
+  --padding-content-v: var(--space-small);
+  --padding-control-h-pill: var(--space-medium);
+  --padding-label-h: var(--space-tiny);
+  --padding-label-h-pill: var(--space-small);
+  --padding-input-h: var(--space-small);
   --margin-control-v: 0;
   --margin-control-h: 0;
-  --margin-content-v: 14px;
-  --margin-content-v-large: 18px;
+  --margin-content-v: var(--space-medium);
+  --margin-content-v-large: var(--space-large);
   background: var(--background);
   color: var(--color);
   overflow-y: overlay;
@@ -1867,7 +1880,7 @@ body {
   border-radius: 10px;
   margin: var(--hr-spacing, 18px) 0;
 }
-[ls] :is(textarea, input[type=text], input:not([type]))::selection {
+[ls] :is(input:not([type]), input[type=text], input[type=search], input[type=email], input[type=url], input[type=tel], input[type=password], input[type=number], textarea, .ls-text-input)::selection {
   background-color: var(--accent-mix-40);
 }
 [ls] h1 {
@@ -1898,6 +1911,214 @@ body {
   padding: var(--padding-control-v) var(--padding-control-h);
 }
 
+.margin-top-tiny {
+  margin-top: var(--space-tiny);
+}
+
+.margin-bottom-tiny {
+  margin-bottom: var(--space-tiny);
+}
+
+.margin-left-tiny {
+  margin-left: var(--space-tiny);
+}
+
+.margin-right-tiny {
+  margin-right: var(--space-tiny);
+}
+
+.margin-v-tiny {
+  margin-top: var(--space-tiny);
+  margin-bottom: var(--space-tiny);
+}
+
+.margin-h-tiny {
+  margin-left: var(--space-tiny);
+  margin-right: var(--space-tiny);
+}
+
+.margin-top-small {
+  margin-top: var(--space-small);
+}
+
+.margin-bottom-small {
+  margin-bottom: var(--space-small);
+}
+
+.margin-left-small {
+  margin-left: var(--space-small);
+}
+
+.margin-right-small {
+  margin-right: var(--space-small);
+}
+
+.margin-v-small {
+  margin-top: var(--space-small);
+  margin-bottom: var(--space-small);
+}
+
+.margin-h-small {
+  margin-left: var(--space-small);
+  margin-right: var(--space-small);
+}
+
+.margin-top-medium {
+  margin-top: var(--space-medium);
+}
+
+.margin-bottom-medium {
+  margin-bottom: var(--space-medium);
+}
+
+.margin-left-medium {
+  margin-left: var(--space-medium);
+}
+
+.margin-right-medium {
+  margin-right: var(--space-medium);
+}
+
+.margin-v-medium, ls-div {
+  margin-top: var(--space-medium);
+  margin-bottom: var(--space-medium);
+}
+
+.margin-h-medium {
+  margin-left: var(--space-medium);
+  margin-right: var(--space-medium);
+}
+
+.margin-top-large {
+  margin-top: var(--space-large);
+}
+
+.margin-bottom-large {
+  margin-bottom: var(--space-large);
+}
+
+.margin-left-large {
+  margin-left: var(--space-large);
+}
+
+.margin-right-large {
+  margin-right: var(--space-large);
+}
+
+.margin-v-large {
+  margin-top: var(--space-large);
+  margin-bottom: var(--space-large);
+}
+
+.margin-h-large {
+  margin-left: var(--space-large);
+  margin-right: var(--space-large);
+}
+
+.margin-top-xlarge {
+  margin-top: var(--space-xlarge);
+}
+
+.margin-bottom-xlarge {
+  margin-bottom: var(--space-xlarge);
+}
+
+.margin-left-xlarge {
+  margin-left: var(--space-xlarge);
+}
+
+.margin-right-xlarge {
+  margin-right: var(--space-xlarge);
+}
+
+.margin-v-xlarge {
+  margin-top: var(--space-xlarge);
+  margin-bottom: var(--space-xlarge);
+}
+
+.margin-h-xlarge {
+  margin-left: var(--space-xlarge);
+  margin-right: var(--space-xlarge);
+}
+
+.margin-top-xxlarge {
+  margin-top: var(--space-xxlarge);
+}
+
+.margin-bottom-xxlarge {
+  margin-bottom: var(--space-xxlarge);
+}
+
+.margin-left-xxlarge {
+  margin-left: var(--space-xxlarge);
+}
+
+.margin-right-xxlarge {
+  margin-right: var(--space-xxlarge);
+}
+
+.margin-v-xxlarge {
+  margin-top: var(--space-xxlarge);
+  margin-bottom: var(--space-xxlarge);
+}
+
+.margin-h-xxlarge {
+  margin-left: var(--space-xxlarge);
+  margin-right: var(--space-xxlarge);
+}
+
+.margin-top-xxxlarge {
+  margin-top: var(--space-xxxlarge);
+}
+
+.margin-bottom-xxxlarge {
+  margin-bottom: var(--space-xxxlarge);
+}
+
+.margin-left-xxxlarge {
+  margin-left: var(--space-xxxlarge);
+}
+
+.margin-right-xxxlarge {
+  margin-right: var(--space-xxxlarge);
+}
+
+.margin-v-xxxlarge {
+  margin-top: var(--space-xxxlarge);
+  margin-bottom: var(--space-xxxlarge);
+}
+
+.margin-h-xxxlarge {
+  margin-left: var(--space-xxxlarge);
+  margin-right: var(--space-xxxlarge);
+}
+
+.margin-top-huge {
+  margin-top: var(--space-huge);
+}
+
+.margin-bottom-huge {
+  margin-bottom: var(--space-huge);
+}
+
+.margin-left-huge {
+  margin-left: var(--space-huge);
+}
+
+.margin-right-huge {
+  margin-right: var(--space-huge);
+}
+
+.margin-v-huge {
+  margin-top: var(--space-huge);
+  margin-bottom: var(--space-huge);
+}
+
+.margin-h-huge {
+  margin-left: var(--space-huge);
+  margin-right: var(--space-huge);
+}
+
 ::-webkit-scrollbar {
   width: var(--scrollbar-size, 6px);
   height: var(--scrollbar-size, 6px);
@@ -1914,6 +2135,21 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--elevate-2);
+}
+
+/* A hack (or more of a quality-of-life fix) around Chrome's aggressive autofill style forcing (a plain hardcoded white background, completely ignoring the theme or any accessibility standards).
+   In my opinion, it is just awful design, kills accessibility, makes pages ugly and distracting, and serves no real purpose, and there isn't even a way to disable it.
+
+   This attempts to reverse as much of this terrible override as possible, but it is not perfect, and may still slightly break the input until the user changes the value.
+   A JS action may still be needed to truly fix this.
+
+   Someone should urge Google to fix this, I don't even know how something like this happens in the first place.
+*/
+input:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px var(--background) inset !important;
+  box-shadow: 0 0 0 1000px var(--background) inset !important;
+  -webkit-text-fill-color: var(--color) !important;
+  caret-color: var(--color) !important;
 }
 
 /*# sourceMappingURL=ls.css.map */

@@ -77,7 +77,7 @@ ls-box {
         display: inline-block;
         border-radius: var(--border-radius-small);
 
-        &:not(.full-padding) {
+        &:not(.full-padding, .elevated, .pill) {
             padding: 0 var(--padding-label-h);
         }
     }
@@ -89,6 +89,13 @@ ls-box {
             padding: 0 var(--padding-label-h-pill);
         }
     }
+
+    &.elevated {
+        padding: var(--padding-content-v);
+        background: var(--elevate-0);
+        border-radius: var(--border-radius-medium);
+        outline: 1px solid var(--elevate-1);
+    }
     
     &::selection {
         background: var(--accent-mix-40);
@@ -97,7 +104,6 @@ ls-box {
 
 ls-div {
     display: block;
-    margin: var(--margin-content-v) 0;
 }
 
 ls-group {

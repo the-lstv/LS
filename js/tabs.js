@@ -26,7 +26,7 @@ LS.LoadComponent(class Tabs extends LS.Component {
 
         if(options.selector) {
             this.container.getAll(options.selector).forEach((tab, i) => {
-                this.add(tab.getAttribute("id") || "tab-" + i, tab);
+                this.add(tab.getAttribute("tab-id") || tab.getAttribute("id") || tab.getAttribute("tab-title") || "tab-" + i, tab);
             });
         }
 
@@ -101,31 +101,31 @@ LS.LoadComponent(class Tabs extends LS.Component {
         }
     }
 
-    set(id) {
+    set(id, force = false) {
         if(typeof id === "number") {
             id = this.order[id];
         }
 
         const tab = this.tabs.get(id);
-        const currentTab = this.tabs.get(this.activeTab)
+        const oldTab = this.tabs.get(this.activeTab);
 
         if(!tab) {
             return false;
         }
 
-        const index = this.order.indexOf(id);
+        // const index = this.order.indexOf(id);
 
-        if(this.activeTab === id) {
-            return true;
+        if(this.activeTab === id && !force) {
+            return false;
         }
 
-        if(currentTab) {
-            if(currentTab.element) {
-                currentTab.element.class("tab-active", false);
+        if(oldTab) {
+            if(oldTab.element) {
+                oldTab.element.class("tab-active", false);
             }
 
-            if(currentTab.handle) {
-                currentTab.handle.class("active", false);
+            if(oldTab.handle) {
+                oldTab.handle.class("active", false);
             }
         }
 
@@ -133,13 +133,14 @@ LS.LoadComponent(class Tabs extends LS.Component {
             tab.element.class("tab-active");
         }
 
-        this.emit("changed", [id]);
+        this.activeTab = id;
+
+        this.emit("changed", [id, oldTab?.id || null]);
 
         if(tab.handle) {
             tab.handle.class("active");
         }
-
-        this.activeTab = id;
+        return true;
     }
 
     first() {
@@ -148,6 +149,10 @@ LS.LoadComponent(class Tabs extends LS.Component {
 
     last() {
         this.set(this.order[this.order.length - 1]);
+    }
+
+    currentElement() {
+        return this.tabs.get(this.activeTab)?.element || null;
     }
 
     next(loop = false) {

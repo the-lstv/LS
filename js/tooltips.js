@@ -10,19 +10,18 @@ LS.LoadComponent(class Tooltips extends LS.Component {
         this.attributes = ['ls-tooltip', 'ls-hint'];
 
         // Observe attribute changes
-        this.observer = new MutationObserver(this.addElements);
+        // this.observer = new MutationObserver(this.addElements.bind(this));
 
         LS.once("body-available", () => {
             LS._topLayer.add(this.container)
 
             this.rescan()
 
-            this.observer.observe(document.documentElement, {
-                attributes: true,
-                // childList: true,
-                subtree: true,
-                attributeFilter: this.attributes
-            })
+            // this.observer.observe(document.documentElement, {
+            //     attributes: true,
+            //     subtree: true,
+            //     attributeFilter: this.attributes
+            // })
         })
     }
 
@@ -31,84 +30,106 @@ LS.LoadComponent(class Tooltips extends LS.Component {
 
         if(x instanceof Element) {
             box = x.getBoundingClientRect()
-        } else if(typeof x == "number") box = {x}
+        } else if(typeof x == "number") box = { x }
 
         let cbox = this.contentElement.getBoundingClientRect(),
             pos_top = box.top - cbox.height,
             pos_bottom = box.top + box.height
         ;
 
-        this.contentElement.applyStyle({
-            left: (
-                box.width ? Math.min(Math.max(box.left + (box.width / 2) - (cbox.width / 2), 4), innerWidth - (cbox.width)) : box.x
-            ) + "px",
+        this.contentElement.style.left = (
+            box.width ? Math.min(Math.max(box.left + (box.width / 2) - (cbox.width / 2), 4), innerWidth - (cbox.width)) : box.x
+        ) + "px";
 
-            maxWidth: (innerWidth - 8) + "px",
+        this.contentElement.style.maxWidth = (innerWidth - 8) + "px";
 
-            top: typeof y === "number"? y + "px": `calc(${pos_top < 20? pos_bottom : pos_top}px ${pos_top < 0? "+" : "-"} var(--ui-tooltip-rise, 5px))`
-        })
+        if(typeof y === "number") {
+            this.contentElement.style.top = y + "px";
+        } else {
+            this.contentElement.style.top = `calc(${pos_top < 20 ? pos_bottom : pos_top}px ${pos_top < 0 ? "+" : "-"} var(--ui-tooltip-rise, 5px))`;
+        }
+        return this;
     }
 
     set(text){
         this.contentElement.set(text);
+        return this;
     }
 
-    show(){
+    show(text = null){
+        if(text) this.set(text);
         this.container.class("shown");
+        return this;
     }
 
     hide(){
         this.container.class("shown", false);
+        return this;
     }
 
     addElements(mutations){
         if(!Array.isArray(mutations)) mutations = [mutations];
 
-        for(let mutation of mutations.reverse()) {
+        for(let mutation of mutations) {
             if(typeof mutation !== "object" || !mutation || !mutation.target) continue;
+            if(mutation.attributeName && !this.attributes.includes(mutation.attributeName)) continue;
 
-            let element = O(mutation.target), attribute = mutation.attributeName;
+            let element = mutation.target;
 
-            element.ls_hasTooltip = element.hasAttribute(attribute);
+            element.ls_hasTooltip = element.hasAttribute("ls-tooltip") || element.hasAttribute("ls-hint");
             element.ls_tooltip_isHint = element.hasAttribute("ls-hint");
 
-            if(!element.ls_tooltipSetup) !this.setup(element);
+            if(!element.ls_tooltipSetup) this.setup(element); else if(!element.ls_hasTooltip) this.unbind(element);
         }
     }
 
     rescan(){
-        this.addElements([...document.querySelectorAll(this.attributes.map(a=>`[${a}]`).join(","))].map(element => {
+        this.addElements([...document.querySelectorAll(this.attributes.map(a => `[${a}]`).join(","))].map(element => {
             return {
-                target: element,
-                attributeName: Object.keys(element.attr()).find(a=>this.attributes.includes(a))
+                target: element
             }
-        }))
+        }));
     }
 
     setup(element){
         element.ls_tooltipSetup = true;
-     
-        element.on("mouseenter", ()=>{
-            if(!element.ls_hasTooltip) return;
-            const value = element.ls_tooltip || element.getAttribute("ls-tooltip") || element.getAttribute("ls-hint");
+        element.addEventListener("mouseenter", this._onMouseEnter);
+        element.addEventListener("mousemove", this._onMouseMove);
+        element.addEventListener("mouseleave", this._onMouseLeave);
+    }
 
-            this.emit("set", [value, element]);
+    unbind(element){
+        if(!element.ls_tooltipSetup) return;
 
-            if(element.ls_tooltip_isHint) return;
+        element.ls_tooltipSetup = false;
+        element.removeEventListener("mouseenter", this._onMouseEnter);
+        element.removeEventListener("mousemove", this._onMouseMove);
+        element.removeEventListener("mouseleave", this._onMouseLeave);
+    }
 
-            this.set(value)
-            this.show()
+    _onMouseEnter(event){
+        const element = O(event.target);
+        if(!element.ls_hasTooltip) return;
 
-            this.position(element)
-        })
+        element.ls_tooltip = element.getAttribute("ls-tooltip") || element.getAttribute("ls-hint") || element.getAttribute("title") || element.getAttribute("aria-label") || element.getAttribute("alt") || "";
+        LS.Tooltips.emit("set", [element.ls_tooltip, element]);
 
-        element.on("mousemove", () => this.position(element))
+        if(element.ls_tooltip_isHint) return;
+        LS.Tooltips.show(element.ls_tooltip).position(element);
+    }
 
-        element.on("mouseleave", () => {
-            if(!element.ls_hasTooltip) return;
+    _onMouseMove(event) {
+        const element = O(event.target);
+        if(!element.ls_hasTooltip) return;
 
-            this.emit("leave", [element.tooltip_value]);
-            this.hide()
-        })
+        LS.Tooltips.position(element);
+    }
+
+    _onMouseLeave(event) {
+        const element = O(event.target);
+        if(!element.ls_hasTooltip) return;
+
+        LS.Tooltips.emit("leave", [element.tooltip_value]);
+        LS.Tooltips.hide();
     }
 }, { global: true, singular: true, name: "Tooltips" });

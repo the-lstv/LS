@@ -1,6 +1,9 @@
 /**
  * A simple yet powerful, fast and lightweight reactive library for LS
  * @version 1.0.0
+ * 
+ * TODO: Support attribute binding
+ * TODO: Bind multiple values (eg. {{ user.displayname || user.username }})
  */
 
 LS.LoadComponent(class Reactive extends LS.Component {
@@ -35,12 +38,26 @@ LS.LoadComponent(class Reactive extends LS.Component {
      */
 
     bindElement(target, defaultBind = null){
-        const attribute = defaultBind || target.getAttribute("data-reactive");
+        let attribute = (defaultBind || target.getAttribute("data-reactive")).trim();
         if(!attribute || target.__last_bind === attribute) return;
 
         if(target.__last_bind) this.unbindElement(target, true);
 
         target.__last_bind = attribute;
+
+        // Match data prefix
+        let value_prefix = null;
+        if(this.constructor.matchStringChar(attribute.charCodeAt(0))) {
+            const string_char = attribute.charAt(0);
+            const end = attribute.indexOf(string_char, 1);
+            if(end === -1) {
+                console.warn("Invalid reactive attribute: " + attribute);
+                return;
+            }
+
+            value_prefix = attribute.slice(1, end);
+            attribute = attribute.slice(end + 1).trim();
+        }
 
         const [prefix, name, extra] = this.split_path(attribute);
         if(!name) return;
@@ -48,6 +65,10 @@ LS.LoadComponent(class Reactive extends LS.Component {
         const key = this.constructor.parseKey(prefix, name, extra);
 
         target.__reactive = key;
+
+        if(value_prefix) {
+            target.__reactive.value_prefix = value_prefix;
+        }
 
         let binding = this.bindCache.get(prefix);
 
@@ -105,7 +126,7 @@ LS.LoadComponent(class Reactive extends LS.Component {
             const char = extra.charCodeAt(i);
             
             if(state === 0) {
-                if(char === 58){
+                if(char === 58){ // :
                     v_start = i + 1;
                     state = 4;
                     continue;
@@ -115,9 +136,35 @@ LS.LoadComponent(class Reactive extends LS.Component {
             }
 
             if(state === 4) {
-                if(this.matchKeyword(char)) continue;
+                if(this.matchKeyword(extra.charCodeAt(i + 1)) && i !== extra.length - 1) continue;
+                const type = extra.slice(v_start, i + 1).toLowerCase();
+                result.type = this.types.get(type) || type;
 
-                result.type = this.types.get(extra.slice(v_start, i));
+                if(extra.charCodeAt(i + 1) === 40) { // (
+                    i++;
+                    v_start = i + 1;
+                    state = 5;
+                    continue;
+                }
+
+                state = 1;
+            }
+
+            if (state === 5) {
+                let args = [];
+                while (i < extra.length && extra.charCodeAt(i) !== 41) { // )
+                    if (!this.matchWhitespace(extra.charCodeAt(i))) {
+                        let arg_start = i;
+                        while (i < extra.length && extra.charCodeAt(i) !== 44 && extra.charCodeAt(i) !== 41) { // , or )
+                            i++;
+                        }
+                        args.push(extra.slice(arg_start, i).trim());
+                        if (extra.charCodeAt(i) === 44) i++; // Skip comma
+                    } else {
+                        i++;
+                    }
+                }
+                result.args = args;
                 state = 1;
             }
 
@@ -198,6 +245,18 @@ LS.LoadComponent(class Reactive extends LS.Component {
         ["object", Object],
         ["function", Function]
     ]);
+
+    registerType(name, type){
+        if(typeof name !== "string" || !name.trim()) {
+            throw new Error("Invalid type name: " + name);
+        }
+
+        if(typeof type !== "function") {
+            throw new Error("Invalid type: " + type);
+        }
+
+        this.constructor.types.set(name.toLowerCase(), type);
+    }
 
     split_path(path){
         if(!path) return [null, null, null];
@@ -338,11 +397,25 @@ LS.LoadComponent(class Reactive extends LS.Component {
         }
 
         if(target.__reactive.default && (typeof value === "undefined" || value === null)) {
-            value = target.__reactive.default
+            value = target.__reactive.default;
+        }
+
+        // Try getting the type again
+        if(typeof target.__reactive.type === "string") {
+            target.__reactive.type = this.constructor.types.get(target.__reactive.type.toLowerCase()) || target.__reactive.type;
         }
 
         if(typeof target.__reactive.type === "function") {
-            value = target.__reactive.type(value);
+            value = target.__reactive.type(value, target.__reactive.args || []);
+        }
+
+        if(target.__reactive.value_prefix) {
+            value = target.__reactive.value_prefix + value;
+        }
+
+        if(value instanceof Element) {
+            target.replaceChildren(value);
+            return;
         }
 
         if(target.__reactive.attribute) {
@@ -355,7 +428,7 @@ LS.LoadComponent(class Reactive extends LS.Component {
             if(target.type === "checkbox") target.checked = Boolean(value);
             else target.value = value;
 
-        } else if(target.tagName === "IMG") {
+        } else if(target.tagName === "IMG" || target.tagName === "VIDEO" || target.tagName === "AUDIO") {
 
             target.src = value;
 

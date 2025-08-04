@@ -10,6 +10,7 @@
 
 
 // Do not migrate to @use
+// Once Sass removes @import, I will be switching to a different preprocessor (possibly a custom one 🤔)
 @import "css/variables.scss";
 @import "css/themes.scss";
 @import "css/essentials.scss";
@@ -25,26 +26,35 @@ body {
 }
 
 :root {
-    // Disable Chrome's auto dark mode
+    // Disable Chrome's auto dark mode (LS already handles schemes, and the auto dark mode breaks everything)
     color-scheme: only light;
 }
 
 [ls] {
     @extend %font;
 
-    --padding-control-h: 16px;
-    --padding-control-v: 8px;
-    --padding-content-h: 16px;
-    --padding-content-v: 8px;
-    --padding-control-h-pill: 18px;
-    --padding-label-h: 4px;
-    --padding-label-h-pill: 8px;
-    --padding-input-h: 8px;
+    --space-tiny: 4px;
+    --space-small: 8px;
+    --space-medium: 16px;
+    --space-large: 24px;
+    --space-xlarge: 34px;
+    --space-xxlarge: 44px;
+    --space-xxxlarge: 64px;
+    --space-huge: 84px;
+
+    --padding-control-h: var(--space-medium);
+    --padding-control-v: var(--space-small);
+    --padding-content-h: var(--space-medium);
+    --padding-content-v: var(--space-small);
+    --padding-control-h-pill: var(--space-medium);
+    --padding-label-h: var(--space-tiny);
+    --padding-label-h-pill: var(--space-small);
+    --padding-input-h: var(--space-small);
 
     --margin-control-v: 0;
     --margin-control-h: 0;
-    --margin-content-v: 14px;
-    --margin-content-v-large: 18px;
+    --margin-content-v: var(--space-medium);
+    --margin-content-v-large: var(--space-large);
 
     background: var(--background);
     color: var(--color);
@@ -142,6 +152,7 @@ body {
         font-weight: 300;
     }
 
+    // Questionalbe
     h3, h4 {
         color: var(--surface-8);
     }
@@ -163,6 +174,26 @@ body {
     }
 }
 
+
+@each $size in tiny, small, medium, large, xlarge, xxlarge, xxxlarge, huge {
+    @each $direction in top, bottom, left, right {
+        .margin-#{$direction}-#{$size} {
+            margin-#{$direction}: var(--space-#{$size});
+        }
+    }
+
+    .margin-v-#{$size}#{if($size == medium, ', ls-div', '')} {
+        margin-top: var(--space-#{$size});
+        margin-bottom: var(--space-#{$size});
+    }
+
+    .margin-h-#{$size} {
+        margin-left: var(--space-#{$size});
+        margin-right: var(--space-#{$size});
+    }
+}
+
+
 ::-webkit-scrollbar {
     width: var(--scrollbar-size, 6px);
     height: var(--scrollbar-size, 6px);
@@ -179,4 +210,21 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
     background: var(--elevate-2);
+}
+
+
+/* A hack (or more of a quality-of-life fix) around Chrome's aggressive autofill style forcing (a plain hardcoded white background, completely ignoring the theme or any accessibility standards).
+   In my opinion, it is just awful design, kills accessibility, makes pages ugly and distracting, and serves no real purpose, and there isn't even a way to disable it.
+
+   This attempts to reverse as much of this terrible override as possible, but it is not perfect, and may still slightly break the input until the user changes the value.
+   A JS action may still be needed to truly fix this.
+
+   Someone should urge Google to fix this, I don't even know how something like this happens in the first place.
+*/
+input:-webkit-autofill {
+    @extend %font;
+    -webkit-box-shadow: 0 0 0 1000px var(--background) inset !important;
+    box-shadow: 0 0 0 1000px var(--background) inset !important;
+    -webkit-text-fill-color: var(--color) !important;
+    caret-color: var(--color) !important;
 }

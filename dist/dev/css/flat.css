@@ -1,9 +1,13 @@
 [ls-style=flat] {
+  --border-radius-tiny: 2px;
   --border-radius-small: 4px;
   --border-radius: 7px;
   --border-radius-medium: 12px;
   --border-radius-large: 16px;
+  --border-radius-xlarge: 20px;
+  --border-radius-xxlarge: 24px;
   --border-radius-full: 100px;
+  --border-radius-circle: 50%;
 }
 [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), [ls-style=flat] input, [ls-style=flat] select, [ls-style=flat] textarea {
   border-radius: var(--border-radius);
@@ -12,16 +16,16 @@
   background-color: var(--accent-35);
   color: var(--on-accent);
 }
-[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):not(:disabled):hover, [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):not(:disabled):focus {
+[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):not(:disabled, .no-effect):hover, [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):not(:disabled, .no-effect):focus {
   background-color: var(--accent-40);
 }
-[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):not(:disabled):active {
+[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):not(:disabled, .no-effect):active {
   background-color: var(--accent-30);
 }
-[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):not(:disabled):focus {
+[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):not(:disabled, .no-effect):focus {
   outline: 3px solid var(--accent-mix-10);
 }
-[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):not(:disabled):focus-visible {
+[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):not(:disabled, .no-effect):focus-visible {
   outline: 3px solid currentColor;
 }
 [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):disabled {
@@ -31,15 +35,15 @@
   background: var(--elevate-2);
   color: var(--on-transparent);
 }
+[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):is(.clear, .outline) {
+  background: none;
+  color: var(--on-background);
+}
 [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button).circle {
   border-radius: 50%;
 }
 [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button).square {
   border-radius: var(--border-radius);
-}
-[ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):is(.clear, .outline) {
-  background: none;
-  color: var(--on-background);
 }
 [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):is(.clear, .outline, .elevated):not(:disabled):hover, [ls-style=flat] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):is(.clear, .outline, .elevated):not(:disabled):focus {
   background-color: var(--accent-mix-40);
@@ -71,18 +75,19 @@
   --padding-control-h: 10px;
   font-size: x-small;
 }
-[ls-style=flat] :is(textarea, input[type=text], input:not([type])):not(.clear) {
-  background: var(--elevate-0);
-  border: 2px solid transparent;
+[ls-style=flat] :is(input:not([type]), input[type=text], input[type=search], input[type=email], input[type=url], input[type=tel], input[type=password], input[type=number], textarea, .ls-text-input):not(.clear) {
+  --background: var(--elevate-0, var(--surface-n2));
+  background: var(--background);
+  border: 2px solid var(--background);
 }
-[ls-style=flat] :is(textarea, input[type=text], input:not([type])):not(.clear):focus {
+[ls-style=flat] :is(input:not([type]), input[type=text], input[type=search], input[type=email], input[type=url], input[type=tel], input[type=password], input[type=number], textarea, .ls-text-input):not(.clear):focus {
   border: 2px solid var(--accent-focus, var(--accent));
-  background: var(--accent-mix-10);
+  --background: var(--accent-mix-10);
 }
 [ls-style=flat] .ls-checkbox > span, [ls-style=flat] .ls-radio > span {
   border: 2px solid var(--elevate-2);
   border-radius: var(--border-radius-small);
-  transition: background 0.2s;
+  transition: background-color 0.2s, transform 0.2s;
 }
 [ls-style=flat] .ls-radio > span {
   border-radius: 50%;
@@ -92,7 +97,7 @@
   border-radius: 50%;
   position: absolute;
   inset: -0.8em;
-  transition: background 0.2s, transform 0.2s;
+  transition: background-color 0.2s, transform 0.2s;
   transform: scale(0.8);
   opacity: 0.5;
 }
