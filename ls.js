@@ -513,6 +513,11 @@
                 return has
             },
 
+            toggleClass(name){
+                this.classList.toggle(name);
+                return this;
+            },
+
             get(selector = '*'){
                 return LS.Tiny.O(this, selector)
             },
@@ -848,6 +853,10 @@
                 // if(this._component.hasEvents) {
                 //     this._events = new LS.EventHandler(this);
                 // }
+            }
+
+            destroy(){
+                console.warn(`[LS] Component ${this._component.name} does not implement destroy method!`);
             }
         },
 

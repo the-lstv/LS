@@ -124,4 +124,29 @@
   cursor: not-allowed;
 }
 
+.ls-modal-styled {
+  outline: 1px solid var(--accent-mix-20);
+  box-shadow: 0 10px 20px 0 rgba(0, 0, 0, 0.1333333333);
+  border-radius: var(--border-radius-medium);
+  background: var(--background);
+}
+.ls-modal-styled .ls-modal-footer {
+  background: var(--elevate-n1);
+  padding: 18px;
+  display: flex;
+  gap: 4px;
+}
+.ls-modal-styled .ls-modal-footer > button {
+  flex: 1;
+}
+.ls-modal-styled .ls-modal-body {
+  overflow: auto;
+  padding: 20px 25px;
+}
+.ls-modal-styled .ls-modal-title {
+  margin: 0;
+  padding: 20px 25px;
+  padding-bottom: 0;
+}
+
 /*# sourceMappingURL=flat.css.map */

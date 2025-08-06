@@ -2,6 +2,8 @@
     "js": [
         "animation",
         "gl",
+        "imagecropper",
+        "modal",
         "network",
         "node",
         "reactive",

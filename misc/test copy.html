@@ -1,0 +1,54 @@
+<head>
+
+    @use (ls:5.0.0[flat, reactive], bootstrap-icons, google-fonts[Poppins, "JetBrains Mono"]);
+
+    @page {
+        title: "Test page";
+        favicon: /assets/favicon.svg;
+
+        theme: dark;
+        accent: blue;
+        style: flat;
+
+        font: Poppins;
+
+        meta {
+            description: "This is a simple hello world website.";
+            keywords: "hello", "world", "website";
+        }
+    }
+
+</head>
+
+<body>
+
+    <h2>Reactivity test: {{ Number:value }}</h2>
+
+    <label .ls-checkbox>
+        <input type="checkbox" {{ Boolean:value }}>
+        <span />
+        Check me
+    </label>
+
+    <br>
+
+    <select {{ value }}>
+        <option value="1">One</option>
+        <option value="2">Two</option>
+        <option value="3">Three</option>
+    </select>
+
+    <br>
+
+    <button onclick="LS.Reactive.global.value++">Increment</button>
+    <button onclick="LS.Reactive.global.value--" .elevated>Decrement</button>
+
+    <script>
+        LS.Reactive.global.value = 0
+
+        // LS.Reactive.mask("value", "boolean:value", (value) => {
+        //     return value > 0
+        // })
+    </script>
+
+</body>
