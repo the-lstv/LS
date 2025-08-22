@@ -7,6 +7,7 @@
         "network",
         "node",
         "reactive",
+        "resize",
         "tabs",
         "toast",
         "tooltips",

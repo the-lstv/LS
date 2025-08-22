@@ -540,6 +540,131 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   z-index: 1;
 }
 
+.ls-image-cropper-processing {
+  position: absolute;
+  inset: 0px;
+  background: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  padding: 10px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ls-resize-handle {
+  position: absolute;
+  z-index: 50;
+}
+
+.ls-resize-handle-styled:hover, .ls-resize-handle-styled.is-dragging {
+  background-color: var(--surface-5, rgba(0, 0, 0, 0.3333333333));
+  opacity: 0.7;
+}
+
+.ls-resize-handle-styled {
+  transition: 0.2s background-color;
+  transition-delay: 0.2s;
+}
+
+.ls-top {
+  top: 0;
+  right: 0;
+  left: 0;
+}
+
+.ls-resize-handle.ls-top {
+  transform: translateY(calc(var(--ls-resize-anchor, 0.5) * -100%));
+  height: var(--ls-resize-handle-size, 6px);
+  cursor: ns-resize;
+}
+
+.ls-right {
+  top: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.ls-resize-handle.ls-right {
+  transform: translateX(calc(var(--ls-resize-anchor, 0.5) * 100%));
+  width: var(--ls-resize-handle-size, 6px);
+  cursor: ew-resize;
+}
+
+.ls-bottom {
+  right: 0;
+  bottom: 0;
+  left: 0;
+}
+
+.ls-resize-handle.ls-bottom {
+  transform: translateY(calc(var(--ls-resize-anchor, 0.5) * 100%));
+  height: var(--ls-resize-handle-size, 6px);
+  cursor: ns-resize;
+}
+
+.ls-left {
+  top: 0;
+  left: 0;
+  bottom: 0;
+}
+
+.ls-resize-handle.ls-left {
+  transform: translateX(calc(var(--ls-resize-anchor, 0.5) * -100%));
+  width: var(--ls-resize-handle-size, 6px);
+  cursor: ew-resize;
+}
+
+.ls-topLeft {
+  top: 0;
+  left: 0;
+}
+
+.ls-resize-handle.ls-topLeft {
+  width: var(--ls-resize-corner-size, 12px);
+  height: var(--ls-resize-corner-size, 12px);
+  transform: translate(calc(var(--ls-resize-anchor, 0.5) * -100%), calc(var(--ls-resize-anchor, 0.5) * -100%));
+  cursor: nwse-resize;
+}
+
+.ls-topRight {
+  top: 0;
+  right: 0;
+}
+
+.ls-resize-handle.ls-topRight {
+  width: var(--ls-resize-corner-size, 12px);
+  height: var(--ls-resize-corner-size, 12px);
+  transform: translate(calc(var(--ls-resize-anchor, 0.5) * 100%), calc(var(--ls-resize-anchor, 0.5) * -100%));
+  cursor: nesw-resize;
+}
+
+.ls-bottomLeft {
+  bottom: 0;
+  left: 0;
+}
+
+.ls-resize-handle.ls-bottomLeft {
+  width: var(--ls-resize-corner-size, 12px);
+  height: var(--ls-resize-corner-size, 12px);
+  transform: translate(calc(var(--ls-resize-anchor, 0.5) * -100%), calc(var(--ls-resize-anchor, 0.5) * 100%));
+  cursor: nesw-resize;
+}
+
+.ls-bottomRight {
+  bottom: 0;
+  right: 0;
+}
+
+.ls-resize-handle.ls-bottomRight {
+  width: var(--ls-resize-corner-size, 12px);
+  height: var(--ls-resize-corner-size, 12px);
+  transform: translate(calc(var(--ls-resize-anchor, 0.5) * 100%), calc(var(--ls-resize-anchor, 0.5) * 100%));
+  cursor: nwse-resize;
+}
+
 :root {
   --ls-color-navy: rgb(40, 28, 108);
   --ls-color-blue: rgb(0, 133, 255);
@@ -1991,16 +2116,55 @@ body {
   color: var(--surface-8);
 }
 [ls] table {
-  background-color: var(--elevate);
-  border: 1px solid rgba(255, 255, 255, 0.3333333333);
+  background-color: var(--elevate-0);
   border-radius: var(--border-radius);
   border-collapse: collapse;
   overflow: hidden;
+  outline: 1px solid var(--elevate-1);
+  box-shadow: 0 10px 20px 0 rgba(0, 0, 0, 0.1333333333);
+}
+[ls] table thead, [ls] table tfoot {
+  background: var(--elevate);
+}
+[ls] table th {
+  font-weight: 600;
 }
 [ls] table :is(th, td) {
-  border: 1px solid;
-  border-color: var(--elevate-1);
-  padding: var(--padding-control-v) var(--padding-control-h);
+  padding: var(--space-tiny) var(--space-medium);
+}
+[ls] table :is(th, td):not(:last-child) {
+  border-right: 1px solid var(--elevate-1);
+}
+[ls] table :is(tr, thead, tbody):not(:last-child) {
+  border-bottom: 1px solid var(--elevate-1);
+}
+
+.ls-tfoot {
+  background: var(--elevate);
+  padding: var(--space-tiny);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.ls-table-wrap {
+  overflow: auto;
+  outline: 1px solid var(--elevate-1);
+  border-radius: var(--border-radius);
+  background-color: var(--elevate-0);
+  box-shadow: 0 10px 20px 0 rgba(0, 0, 0, 0.1333333333);
+}
+.ls-table-wrap > table {
+  outline: none;
+  border-radius: 0;
+  background: none;
+  width: 100%;
+  box-shadow: none;
+}
+
+.no-transitions *, .no-transitions *:before, .no-transitions *:after {
+  transition: none !important;
 }
 
 .margin-top-tiny {
@@ -2229,13 +2393,14 @@ body {
   background: var(--elevate-2);
 }
 
-/* A hack (or more of a quality-of-life fix) around Chrome's aggressive autofill style forcing (a plain hardcoded white background, completely ignoring the theme or any accessibility standards).
-   In my opinion, it is just awful design, kills accessibility, makes pages ugly and distracting, and serves no real purpose, and there isn't even a way to disable it.
+/* A a fix around Chrome's (even Firefox for some reason) aggressive autofill styling forcing (a hardcoded white background, completely ignoring the theme or any accessibility standards).
+   In my opinion, this is just awful design, kills accessibility, makes pages ugly and distracting, serves no real purpose, and there isn't a way to disable it.
 
    This attempts to reverse as much of this terrible override as possible, but it is not perfect, and may still slightly break the input until the user changes the value.
    A JS action may still be needed to truly fix this.
 
    Someone should urge Google to fix this, I don't even know how something like this happens in the first place.
+   It's not like it's for legacy purposes either, removing it wouldn't break anything.
 */
 input:-webkit-autofill {
   -webkit-box-shadow: 0 0 0 1000px var(--background) inset !important;

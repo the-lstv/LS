@@ -26,27 +26,36 @@ LS.LoadComponent(class Tooltips extends LS.Component {
     }
 
     position(x, y){
-        let box;
+        let box, element = null;
 
         if(x instanceof Element) {
-            box = x.getBoundingClientRect()
-        } else if(typeof x == "number") box = { x }
+            element = x;
+            box = x.getBoundingClientRect();
+        } else if(typeof x == "number") {
+            box = { x };
+        }
 
         let cbox = this.contentElement.getBoundingClientRect(),
             pos_top = box.top - cbox.height,
-            pos_bottom = box.top + box.height
-        ;
+            pos_bottom = box.top + box.height;
 
-        this.contentElement.style.left = (
-            box.width ? Math.min(Math.max(box.left + (box.width / 2) - (cbox.width / 2), 4), innerWidth - (cbox.width)) : box.x
-        ) + "px";
-
-        this.contentElement.style.maxWidth = (innerWidth - 8) + "px";
-
-        if(typeof y === "number") {
-            this.contentElement.style.top = y + "px";
+        // If element has 'ls-tooltip-detached', follow the cursor instead
+        if (element && element.hasAttribute && element.hasAttribute("ls-tooltip-detached") && typeof y === "object" && y.clientX !== undefined && y.clientY !== undefined) {
+            // y is the mouse event
+            this.contentElement.style.left = Math.min(Math.max(y.clientX + 12, 4), innerWidth - cbox.width) + "px";
+            this.contentElement.style.top = Math.min(Math.max(y.clientY + 12, 4), innerHeight - cbox.height) + "px";
         } else {
-            this.contentElement.style.top = `calc(${pos_top < 20 ? pos_bottom : pos_top}px ${pos_top < 0 ? "+" : "-"} var(--ui-tooltip-rise, 5px))`;
+            this.contentElement.style.left = (
+                box.width ? Math.min(Math.max(box.left + (box.width / 2) - (cbox.width / 2), 4), innerWidth - (cbox.width)) : box.x
+            ) + "px";
+
+            this.contentElement.style.maxWidth = (innerWidth - 8) + "px";
+
+            if(typeof y === "number") {
+                this.contentElement.style.top = y + "px";
+            } else {
+                this.contentElement.style.top = `calc(${pos_top < 20 ? pos_bottom : pos_top}px ${pos_top < 0 ? "+" : "-"} var(--ui-tooltip-rise, 5px))`;
+            }
         }
         return this;
     }
@@ -115,14 +124,14 @@ LS.LoadComponent(class Tooltips extends LS.Component {
         LS.Tooltips.emit("set", [element.ls_tooltip, element]);
 
         if(element.ls_tooltip_isHint) return;
-        LS.Tooltips.show(element.ls_tooltip).position(element);
+        LS.Tooltips.position(0, 0).show(element.ls_tooltip).position(element, event);
     }
 
     _onMouseMove(event) {
         const element = O(event.target);
         if(!element.ls_hasTooltip) return;
 
-        LS.Tooltips.position(element);
+        LS.Tooltips.position(element, event);
     }
 
     _onMouseLeave(event) {

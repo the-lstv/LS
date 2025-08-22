@@ -464,3 +464,128 @@ ls-tabs {
     position: absolute;
     z-index: 1;
 }
+
+.ls-image-cropper-processing {
+    position: absolute;
+    inset: 0px;
+    background: rgba(0, 0, 0, .8);
+    color: #fff;
+    padding: 10px;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ls-resize-handle {
+    position: absolute;
+    z-index: 50;
+}
+
+.ls-resize-handle-styled:hover, .ls-resize-handle-styled.is-dragging {
+    background-color: var(--surface-5, #0005);
+    opacity: 0.7;
+}
+
+.ls-resize-handle-styled {
+    transition: .2s background-color;
+    transition-delay: .2s;
+}
+
+.ls-top {
+    top: 0;
+    right: 0;
+    left: 0;
+}
+
+.ls-resize-handle.ls-top {
+    transform: translateY(calc(var(--ls-resize-anchor, 0.5) * -100%));
+    height: var(--ls-resize-handle-size, 6px);
+    cursor: ns-resize;
+}
+
+.ls-right {
+    top: 0;
+    right: 0;
+    bottom: 0;
+}
+
+.ls-resize-handle.ls-right {
+    transform: translateX(calc(var(--ls-resize-anchor, 0.5) * 100%));
+    width: var(--ls-resize-handle-size, 6px);
+    cursor: ew-resize;
+}
+
+.ls-bottom {
+    right: 0;
+    bottom: 0;
+    left: 0;
+}
+
+.ls-resize-handle.ls-bottom {
+    transform: translateY(calc(var(--ls-resize-anchor, 0.5) * 100%));
+    height: var(--ls-resize-handle-size, 6px);
+    cursor: ns-resize;
+}
+
+.ls-left {
+    top: 0;
+    left: 0;
+    bottom: 0;
+}
+
+.ls-resize-handle.ls-left {
+    transform: translateX(calc(var(--ls-resize-anchor, 0.5) * -100%));
+    width: var(--ls-resize-handle-size, 6px);
+    cursor: ew-resize;
+}
+
+.ls-topLeft {
+    top: 0;
+    left: 0;
+}
+
+.ls-resize-handle.ls-topLeft {
+    width: var(--ls-resize-corner-size, 12px);
+    height: var(--ls-resize-corner-size, 12px);
+    transform: translate(calc(var(--ls-resize-anchor, 0.5) * -100%), calc(var(--ls-resize-anchor, 0.5) * -100%));
+    cursor: nwse-resize;
+}
+
+.ls-topRight {
+    top: 0;
+    right: 0;
+}
+
+.ls-resize-handle.ls-topRight {
+    width: var(--ls-resize-corner-size, 12px);
+    height: var(--ls-resize-corner-size, 12px);
+    transform: translate(calc(var(--ls-resize-anchor, 0.5) * 100%), calc(var(--ls-resize-anchor, 0.5) * -100%));
+    cursor: nesw-resize;
+}
+
+.ls-bottomLeft {
+    bottom: 0;
+    left: 0;
+}
+
+.ls-resize-handle.ls-bottomLeft {
+    width: var(--ls-resize-corner-size, 12px);
+    height: var(--ls-resize-corner-size, 12px);
+    transform: translate(calc(var(--ls-resize-anchor, 0.5) * -100%), calc(var(--ls-resize-anchor, 0.5) * 100%));
+    cursor: nesw-resize;
+}
+
+.ls-bottomRight {
+    bottom: 0;
+    right: 0;
+}
+
+.ls-resize-handle.ls-bottomRight {
+    width: var(--ls-resize-corner-size, 12px);
+    height: var(--ls-resize-corner-size, 12px);
+    transform: translate(calc(var(--ls-resize-anchor, 0.5) * 100%), calc(var(--ls-resize-anchor, 0.5) * 100%));
+    cursor: nwse-resize;
+}

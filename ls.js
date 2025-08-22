@@ -679,7 +679,7 @@
                 }
 
                 if(options.cursor) events.cursor = options.cursor;
-                
+
                 events.target = element // The target will change based on the event target!
 
                 let [pointerLockPreviousX, pointerLockPreviousY] = [0, 0];
@@ -711,9 +711,9 @@
                         }
                     }
 
-                    if(options.onMove) options.onMove(x, y, event, cancel)
+                    if(options.onMove) options.onMove(x, y, event, cancel);
 
-                    events.emit("move", [x, y, event, cancel])
+                    events.emit("move", [x, y, event, cancel]);
                 }
 
                 function cancel() {
@@ -1245,7 +1245,11 @@
 
         static setTheme(theme){
             document.body.setAttribute("ls-theme", theme);
+            document.body.classList.add("no-transitions");
             this.emit("theme-changed", [theme]);
+            setTimeout(() => {
+                document.body.classList.remove("no-transitions");
+            }, 0);
             return this
         }
 

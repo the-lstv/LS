@@ -158,22 +158,63 @@ body {
     }
 
     table {
-        background-color: var(--elevate);
-
-        border: 1px solid #fff5;
+        background-color: var(--elevate-0);
         border-radius: var(--border-radius);
         border-collapse: collapse;
-
         overflow: hidden;
-        
-        :is(th, td) {
-            border: 1px solid;
-            border-color: var(--elevate-1);
-            padding: var(--padding-control-v) var(--padding-control-h);
+        outline: 1px solid var(--elevate-1);
+        box-shadow: 0 10px 20px 0 #0002;
+
+        thead, tfoot {
+            background: var(--elevate);
+        }
+
+        th {
+            font-weight: 600;
+        }
+
+        :is(th,td) {
+            padding: var(--space-tiny) var(--space-medium);
+        }
+
+        :is(th,td):not(:last-child) {
+            border-right: 1px solid var(--elevate-1);
+        }
+
+        :is(tr, thead, tbody):not(:last-child) {
+            border-bottom: 1px solid var(--elevate-1);
         }
     }
 }
 
+.ls-tfoot {
+    background: var(--elevate);
+    padding: var(--space-tiny);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+.ls-table-wrap {
+    overflow: auto;
+    outline: 1px solid var(--elevate-1);
+    border-radius: var(--border-radius);
+    background-color: var(--elevate-0);
+    box-shadow: 0 10px 20px 0 #0002;
+
+    > table {
+        outline: none;
+        border-radius: 0;
+        background: none;
+        width: 100%;
+        box-shadow: none;
+    }
+}
+
+.no-transitions *, .no-transitions *:before, .no-transitions *:after {
+    transition: none !important;
+}
 
 @each $size in tiny, small, medium, large, xlarge, xxlarge, xxxlarge, huge {
     @each $direction in top, bottom, left, right {
@@ -213,13 +254,14 @@ body {
 }
 
 
-/* A hack (or more of a quality-of-life fix) around Chrome's aggressive autofill style forcing (a plain hardcoded white background, completely ignoring the theme or any accessibility standards).
-   In my opinion, it is just awful design, kills accessibility, makes pages ugly and distracting, and serves no real purpose, and there isn't even a way to disable it.
+/* A a fix around Chrome's (even Firefox for some reason) aggressive autofill styling forcing (a hardcoded white background, completely ignoring the theme or any accessibility standards).
+   In my opinion, this is just awful design, kills accessibility, makes pages ugly and distracting, serves no real purpose, and there isn't a way to disable it.
 
    This attempts to reverse as much of this terrible override as possible, but it is not perfect, and may still slightly break the input until the user changes the value.
    A JS action may still be needed to truly fix this.
 
    Someone should urge Google to fix this, I don't even know how something like this happens in the first place.
+   It's not like it's for legacy purposes either, removing it wouldn't break anything.
 */
 input:-webkit-autofill {
     @extend %font;

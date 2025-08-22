@@ -31,8 +31,10 @@
             this.container = N({
                 class: "ls-modal",
                 inner: options.content || null,
-                tabIndex: -1,
+                tabIndex: -1
             });
+
+            this.container.style.display = "none";
 
             if (options.styled !== false) {
                 this.container.classList.add("ls-modal-styled");
