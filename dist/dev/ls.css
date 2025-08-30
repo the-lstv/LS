@@ -540,6 +540,12 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   z-index: 1;
 }
 
+.ls-resize-collapsed {
+  --ls-resize-anchor: 1 !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+}
+
 .ls-image-cropper-processing {
   position: absolute;
   inset: 0px;

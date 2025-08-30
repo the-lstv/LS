@@ -676,9 +676,23 @@
                 options = {
                     buttons: [0, 1, 2],
                     ...options
-                }
+                };
 
-                if(options.cursor) events.cursor = options.cursor;
+                if(options.cursor) events._cursor = options.cursor;
+
+                Object.defineProperty(events, "cursor", {
+                    get() {
+                        return events._cursor;
+                    },
+                    set(value) {
+                        events._cursor = value;
+                        if(value && events.seeking) {
+                            document.documentElement.style.cursor = value;
+                        } else {
+                            document.documentElement.style.cursor = "";
+                        }
+                    }
+                });
 
                 events.target = element // The target will change based on the event target!
 
@@ -745,10 +759,11 @@
                         document.exitPointerLock();
                     }
 
-                    if(evt.type == "destroy")
+                    if(evt.type === "destroy") {
                         if(options.onDestroy) options.onDestroy(evt);
-                    else 
-                        if(options.onEnd) options.onEnd(evt);
+                    } else if(options.onEnd) {
+                        options.onEnd(evt);
+                    }
                 }
 
                 function start(event){
@@ -785,18 +800,19 @@
                     document.addEventListener("mouseup", release);
                     document.addEventListener("touchmove", move);
                     document.addEventListener("touchend", release);
-                    document.documentElement.style.cursor = events.cursor || "grab";
+                    if(!document.documentElement.style.cursor) document.documentElement.style.cursor = events._cursor || "grab";
                 }
 
                 element.on("mousedown", "touchstart", ...(options.startEvents || []), start)
 
                 events.destroy = function (){
-                    release({type: "destroy"})
-                    element.off("mousedown", "touchstart", start)
+                    release({type: "destroy"});
+                    element.off("mousedown", "touchstart", start);
                     document.removeEventListener('pointerlockchange',  pointerLockChangeWatch);
                     cancelled = true;
+                    events.flush();
                     events.destroy = () => false;
-                    events.destroyed = true
+                    events.destroyed = true;
                     return true
                 }
 
@@ -857,6 +873,7 @@
 
             destroy(){
                 console.warn(`[LS] Component ${this._component.name} does not implement destroy method!`);
+                return false;
             }
         },
 
