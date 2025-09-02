@@ -1243,7 +1243,8 @@
 
         static apply(element, r, g, b){
             let color = (r instanceof LS.Color)? r: new LS.Color(r, g, b);
-            element.style = (element.style? element.style: "")+ this.generate(color);
+            element.style = (element.style? element.style: "") + this.generate(color);
+            element.setAttribute("ls-accent", "");
         }
 
         static remove(name){

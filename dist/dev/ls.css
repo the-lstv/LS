@@ -7,7 +7,7 @@
     Version: 5.1.1
     See: https://github.com/thelstv/LS
 */
-[ls-theme=light] {
+[ls-theme=light], [ls-theme=light][ls-accent], [ls-theme=light] [ls-accent] {
   --background: var(--base-90);
   --color: var(--base-20);
   --surface-n3: var(--base-100);
@@ -28,17 +28,17 @@
   --ui-element: var(--base-95);
   --ui-border: var(--base-40);
 }
-[ls-theme=light], [ls-theme=light] [ls-accent], [ls-theme=light] :disabled {
+[ls-theme=light], [ls-theme=light] [ls-accent], [ls-theme=light] :disabled, [ls-theme=light][ls-accent], [ls-theme=light][ls-accent] [ls-accent], [ls-theme=light][ls-accent] :disabled, [ls-theme=light] [ls-accent], [ls-theme=light] [ls-accent] [ls-accent], [ls-theme=light] [ls-accent] :disabled {
   --on-background: var(--accent-40);
   --on-accent: var(--accent-90);
   --on-transparent: var(--accent-30);
 }
-[ls-theme=light] [ls-accent=auto], [ls-theme=light][ls-accent=auto] {
+[ls-theme=light] [ls-accent=auto], [ls-theme=light][ls-accent=auto], [ls-theme=light][ls-accent] [ls-accent=auto], [ls-theme=light][ls-accent][ls-accent=auto], [ls-theme=light] [ls-accent] [ls-accent=auto], [ls-theme=light] [ls-accent][ls-accent=auto] {
   --accent: var(--accent-10);
   --on-accent: var(--accent-95);
 }
 
-[ls-theme=dark], body:not([ls-theme]) {
+[ls-theme=dark], body:not([ls-theme]), [ls-theme=dark][ls-accent], [ls-theme=dark] [ls-accent] {
   --background: var(--base-10);
   --color: var(--accent-90);
   --surface-n3: var(--base-0);
@@ -59,12 +59,12 @@
   --ui-element: var(--base-20);
   --ui-border: var(--base-0);
 }
-[ls-theme=dark], [ls-theme=dark] [ls-accent], [ls-theme=dark] :disabled, body:not([ls-theme]), body:not([ls-theme]) [ls-accent], body:not([ls-theme]) :disabled {
+[ls-theme=dark], [ls-theme=dark] [ls-accent], [ls-theme=dark] :disabled, body:not([ls-theme]), body:not([ls-theme]) [ls-accent], body:not([ls-theme]) :disabled, [ls-theme=dark][ls-accent], [ls-theme=dark][ls-accent] [ls-accent], [ls-theme=dark][ls-accent] :disabled, [ls-theme=dark] [ls-accent], [ls-theme=dark] [ls-accent] [ls-accent], [ls-theme=dark] [ls-accent] :disabled {
   --on-background: var(--accent-70);
   --on-transparent: var(--accent-80);
   --on-accent: var(--accent-95);
 }
-[ls-theme=dark] [ls-accent=auto], [ls-theme=dark][ls-accent=auto], body:not([ls-theme]) [ls-accent=auto], body:not([ls-theme])[ls-accent=auto] {
+[ls-theme=dark] [ls-accent=auto], [ls-theme=dark][ls-accent=auto], body:not([ls-theme]) [ls-accent=auto], body:not([ls-theme])[ls-accent=auto], [ls-theme=dark][ls-accent] [ls-accent=auto], [ls-theme=dark][ls-accent][ls-accent=auto], [ls-theme=dark] [ls-accent] [ls-accent=auto], [ls-theme=dark] [ls-accent][ls-accent=auto] {
   --accent: var(--accent-90);
   --on-accent: var(--accent-10);
 }
@@ -1481,9 +1481,12 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   --accent-95: rgb(242, 242, 242);
 }
 
+[class*=level-], ls-box, [ls-accent] {
+  color: var(--color);
+}
+
 [class*=level-], ls-box {
   background: var(--background);
-  color: var(--color);
 }
 
 .level-n3 {

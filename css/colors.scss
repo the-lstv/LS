@@ -107,9 +107,12 @@ $colors: (
     }
 }
 
+[class*="level-"], ls-box, [ls-accent] {
+    color: var(--color);
+}
+
 [class*="level-"], ls-box {
     background: var(--background);
-    color: var(--color);
 }
 
 @for $i from -3 through 10 {
