@@ -7,7 +7,7 @@ if(!globalThis.PIXI) {
     console.error("LS.GL requires PIXI.js to work")
 }
 
-(() => {
+try {
     const animation = {
         // constructor(root) {
         //     if(!(root instanceof Renderer)) {
@@ -971,4 +971,6 @@ if(!globalThis.PIXI) {
             });
         }
     }, { name: "GL", global: true });
-})();
+} catch(e) {
+    console.error("Error loading GL component:", e);
+}

@@ -11,6 +11,7 @@
         "tabs",
         "toast",
         "tooltips",
+        "tree",
         "v4compat"
     ],
     "css": [

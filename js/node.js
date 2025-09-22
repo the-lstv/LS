@@ -109,4 +109,4 @@ LS.LoadComponent(class Node extends LS.EventHandler {
 
         this.emit("childRemoved", child);
     }
-}, { name: "Node", global: true })
+}, { name: "Node", global: true });

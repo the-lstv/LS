@@ -4,7 +4,7 @@
 
     Last modified: 2025
     License: GPL-3.0
-    Version: 5.1.1
+    Version: 5.2.1
     See: https://github.com/thelstv/LS
 */
 
