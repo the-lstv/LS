@@ -71,6 +71,12 @@ function getEffectiveVersion(version) {
     return version;
 }
 
+const isWindows = process.platform === "win32";
+if(isWindows) {
+    if (Math.random() > .9) console.debug("(´∀｀*)☛ get a load of this guy");
+    console.warn("[LS API] Warning: The LS backend is not supported on Windows and may break. We will ignore issues from the Windows platform.");
+}
+
 module.exports = {
     reload() {
         // Reload hook
@@ -88,10 +94,25 @@ module.exports = {
 
         const version = segments[0] === "latest" ? LATEST : VERSION_ALIAS[segments[0]] || getEffectiveVersion(segments[0]);
 
-        const VERSION_PATH = DIST_PATH + path.resolve(path.sep, version);
-        if(!VERSIONS.includes(version)) {
-            return backend.helper.error(req, res, `Version "${version}" was not found or is invalid`, 404);
+        let VERSION_PATH = DIST_PATH + path.posix.resolve("/", version);
+
+        // Windows is stupid, so we need to resolve symlinks manually
+        if (isWindows) {
+            // try {
+            //     if (fs.lstatSync(VERSION_PATH).isFile()) {
+            //         const link = fs.readFileSync(VERSION_PATH, "utf8");                    
+            //         VERSION_PATH = path.resolve(DIST_PATH, link);
+            //     }
+            // } catch (e) {
+            //     // Ignore if not a symlink or path doesn't exist
+            // }
+            VERSION_PATH = BASE_PATH + "/dist/dev";
+        } else {
+            if(!VERSIONS.includes(version)) {
+                return backend.helper.error(req, res, `Version "${version}" was not found or is invalid`, 404);
+            }
         }
+        
 
         let file = segments.length === 2? segments[1]: segments[2];
 
@@ -134,16 +155,18 @@ module.exports = {
             let result = "";
 
             for(let component of components) {
-                const component_path = component === "\u0000"? VERSION_PATH + "/ls." + type: VERSION_PATH  + "/" + type + "/" + component + "." + type;
+                let component_path = component === CORE_MARKER? VERSION_PATH + "/ls." + type: VERSION_PATH  + "/" + type + "/" + component + "." + type;
+
+                if(isWindows && component_path.includes("dist/dev") && !component_path.includes("css")) {
+                    // Windows can't handle symlinks properly
+                    component_path = component_path.replace("dist/dev/", "");
+                }
 
                 if(!fs.existsSync(component_path)) {
                     if(version === "4.0.1"){
                         // Legacy or LTS releases had a less strict API.
                         continue;
                     }
-
-                    console.log(component_path);
-                    
 
                     return backend.helper.error(req, res, `Component "${component}" was not found`, 404);
                 }
