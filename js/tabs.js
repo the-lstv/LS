@@ -14,7 +14,12 @@ LS.LoadComponent(class Tabs extends LS.Component {
             closeable: false,
             selector: "ls-tab, .ls-tab",
             mode: "default",
+            slideAnimation: false
         }, options);
+
+        if(options.slideAnimation) {
+            this.container.class("ls-slide-animation");
+        }
         
         if(options.styled) {
             this.container.class("ls-tabs-styled");
@@ -131,6 +136,10 @@ LS.LoadComponent(class Tabs extends LS.Component {
 
         if(tab.element) {
             tab.element.class("tab-active");
+
+            if(this.options.slideAnimation && LS.Animation) {
+                LS.Animation.slide(tab.element, oldTab?.element || null);
+            }
         }
 
         this.activeTab = id;

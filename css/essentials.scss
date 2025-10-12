@@ -401,7 +401,7 @@ ls-tabs {
 }
 
 .ls-slide-animation > *:not(.visible):not(.leaving):not(.entering) {
-    display: none;
+    display: none !important;
 }
 
 .ls-modal-layer.ls-modal-layer {
