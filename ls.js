@@ -1313,6 +1313,11 @@
                 LS.Color._createProcessingCanvas();
             }
 
+            // Set willReadFrequently for better performance on some browsers
+            if (LS.Color.context && LS.Color.context.getImageData) {
+                LS.Color.context.willReadFrequently = true;
+            }
+
             if (!LS.Color.context) return new LS.Color(0, 0, 0);
 
             const scale = Math.min(1, maxResolution / Math.max(image.naturalWidth, image.naturalHeight));
