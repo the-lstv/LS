@@ -279,7 +279,6 @@
 
                 const { class: className, tooltip, ns, accent, style, inner, content: innerContent, reactive, ...rest } = content;
 
-
                 const element = Object.assign(
                     ns ? document.createElementNS(ns, tagName) : document.createElement(tagName),
                     rest
@@ -309,7 +308,7 @@
                 }
 
                 if (className) LS.TinyFactory.class.call(element, className);
-                if (typeof style === "object") LS.TinyFactory.applyStyle.call(element, style);
+                if (typeof style === "object") LS.TinyFactory.applyStyle.call(element, style); else if (typeof style === "string") element.style.cssText = style;
 
                 // Append children or content
                 const contentToAdd = inner || innerContent;
@@ -640,11 +639,9 @@
 
         Util: {
             resolveElements(...array){
-                return array.flat(Infinity).map(element => {
-                    if(element && element.tagName) return element;
-
-                    return [...N("div", element).childNodes];
-                }).flat();
+                return array.flat().map(element => {
+                    return typeof element === "string" ? document.createTextNode(element) : typeof element === "object" && !(element instanceof Node) ? N(element) : element;
+                });
             },
 
             params(get = null){
