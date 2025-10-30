@@ -2,7 +2,7 @@ LS.LoadComponent(class Tooltips extends LS.Component {
     constructor(){
         super()
 
-        this.container = N({ class: "ls-tootlip-layer" });
+        this.container = N({ class: "ls-tooltip-layer" });
         this.contentElement = N({ class:"ls-tooltip-content" });
 
         this.container.add(this.contentElement);

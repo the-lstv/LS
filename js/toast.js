@@ -23,11 +23,11 @@ LS.LoadComponent(class Toast extends LS.Component {
             inner: [
                 options.icon? N("i", {class: options.icon}) : null,
 
-                N({inner: content, class: "ls-toast-content"}),
+                { inner: content, class: "ls-toast-content" },
 
                 !options.uncancellable? N("button", {
                     class: "elevated circle ls-toast-close",
-                    inner: "&times;",
+                    innerHTML: "&times;",
 
                     onclick(){
                         methods.close()

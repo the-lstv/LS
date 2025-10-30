@@ -20,6 +20,7 @@
     if(instance.isWeb){
         global.LS = instance
 
+        if(window.LS_DONT_GLOBALIZE_TINY !== true)
         for (let key in instance.Tiny){
             global[key] = instance.Tiny[key]
         }
@@ -285,7 +286,7 @@
                 );
 
                 // Handle attributes
-                if (accent) LS.TinyFactory.attrAssign.call(element, { "ls-accent": accent });
+                if (accent) element.setAttribute("ls-accent", accent);
                 if (content.attr || content.attributes) LS.TinyFactory.attrAssign.call(element, content.attr || content.attributes);
 
                 // Handle tooltips
@@ -307,7 +308,12 @@
                     LS.Reactive.bindElement(element, reactive);
                 }
 
-                if (className) LS.TinyFactory.class.call(element, className);
+                if (typeof className === "string") {
+                    element.className = className;
+                } else if(className) {
+                    LS.TinyFactory.class.call(element, className);
+                }
+
                 if (typeof style === "object") LS.TinyFactory.applyStyle.call(element, style); else if (typeof style === "string") element.style.cssText = style;
 
                 // Append children or content

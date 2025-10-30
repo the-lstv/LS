@@ -4,7 +4,7 @@
 
     Last modified: 2025
     License: GPL-3.0
-    Version: 5.1.1
+    Version: 5.2.1
     See: https://github.com/thelstv/LS
 */
 [ls-theme=light], [ls-theme=light][ls-accent], [ls-theme=light] [ls-accent] {
@@ -372,14 +372,14 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   border-top-right-radius: 8px;
 }
 
-.ls-tootlip-layer {
+.ls-tooltip-layer {
   position: fixed;
   inset: 0;
   pointer-events: none;
   display: none;
 }
 
-.ls-tootlip-layer.shown {
+.ls-tooltip-layer.shown {
   display: block;
 }
 
@@ -390,6 +390,7 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   border: 1px solid var(--ui-border);
   box-shadow: inset 0 1px 0 0 var(--ui-element);
   border-radius: var(--border-radius);
+  white-space: pre-wrap;
 }
 
 .space-h-xxs {
@@ -476,7 +477,7 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
 }
 
 .ls-slide-animation > *:not(.visible):not(.leaving):not(.entering) {
-  display: none;
+  display: none !important;
 }
 
 .ls-modal-layer.ls-modal-layer {
