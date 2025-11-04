@@ -4,7 +4,7 @@
 
     Last modified: 2025
     License: GPL-3.0
-    Version: 5.2.1
+    Version: 5.2.2
     See: https://github.com/thelstv/LS
 */
 
@@ -648,6 +648,14 @@
                 return array.flat().map(element => {
                     return typeof element === "string" ? document.createTextNode(element) : typeof element === "object" && !(element instanceof Node) ? N(element) : element;
                 });
+            },
+
+            map(it, fn){
+                const r = [];
+                for(let i = 0; i < it.length; i++) {
+                    r.push(fn(it[i], i));
+                }
+                return r;
             },
 
             params(get = null){

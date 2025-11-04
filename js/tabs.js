@@ -138,7 +138,7 @@ LS.LoadComponent(class Tabs extends LS.Component {
             tab.element.class("tab-active");
 
             if(this.options.slideAnimation && LS.Animation) {
-                LS.Animation.slide(tab.element, oldTab?.element || null);
+                LS.Animation.slideInToggle(tab.element, oldTab?.element || null);
             }
         }
 
