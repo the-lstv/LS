@@ -492,6 +492,12 @@
                 return this
             },
 
+            /**
+             * Adds, removes or toggles class name/s on the element.
+             * @param {string|string[]} names Class name/s to add, remove or toggle
+             * @param {number|string} [action=1] Action to perform: 1 or "add" to add, 0 or "remove" to remove, 2 or "toggle" to toggle
+             * @return {HTMLElement} The element itself for chaining
+             */
             class(names, action = 1){
                 if(typeof names == "undefined") return this;
 
@@ -505,17 +511,20 @@
                 return this
             },
 
+            /**
+             * Checks if the element has the specified class name/s.
+             * @param  {...any} names Class names to check
+             * @returns 
+             */
             hasClass(...names){
                 if(names.length === 0) return false;
                 if(names.length === 1) return this.classList.contains(names[0]);
 
-                let has = true;
+                for(const name of names.flat()) {
+                    if(!this.classList.contains(name)) return false;
+                }
 
-                names = names.flatMap(className => {
-                    if(!this.classList.contains(className)) has = false
-                })
-
-                return has
+                return true;
             },
 
             toggleClass(name){
@@ -523,14 +532,29 @@
                 return this;
             },
 
+            /**
+             * Selects a single matching element within this element.
+             * @param {*} selector
+             * @returns
+             */
             get(selector = '*'){
                 return LS.Tiny.O(this, selector)
             },
 
+            /**
+             * Selects all matching elements within this element.
+             * @param {*} selector 
+             * @returns 
+             */
             getAll(selector = '*'){
                 return LS.Tiny.Q(this, selector)
             },
 
+            /**
+             * Adds elements to this element.
+             * @param  {...any} elements Elements to add
+             * @returns 
+             */
             add(...elements){
                 this.append(...LS.Util.resolveElements(...elements));
                 return this
@@ -546,6 +570,12 @@
                 return this
             },
 
+            /**
+             * Adds element to another element and returns itself.
+             * Useful shorthand eg. when you are defaulting to a new element (eg. existingElement || LS.Create().addTo(parent))
+             * @param {*} element
+             * @returns this
+             */
             addTo(element){
                 LS.Tiny.O(element).add(this)
                 return this
