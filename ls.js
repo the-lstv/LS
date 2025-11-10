@@ -1184,6 +1184,14 @@
             return new LS.Color(this.r + color[0], this.g + color[1], this.b + color[2], this.a + color[3]);
         }
 
+        mix(anotherColor, weight = 0.5) {
+            let r = Math.round(this.r * (1 - weight) + anotherColor.r * weight);
+            let g = Math.round(this.g * (1 - weight) + anotherColor.g * weight);
+            let b = Math.round(this.b * (1 - weight) + anotherColor.b * weight);
+            let a = this.a * (1 - weight) + anotherColor.a * weight;
+            return new LS.Color(r, g, b, a);
+        }
+
         subtract(r2, g2, b2, a2) {
             let color = new LS.Color(r2, g2, b2, a2).color;
             return new LS.Color(this.r - color[0], this.g - color[1], this.b - color[2], this.a - color[3]);
