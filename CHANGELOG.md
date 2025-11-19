@@ -1,19 +1,15 @@
 ## Note
 
-For nearly 3+ years, the changelog has not been documented.
-
-Some historical versions are captured (excluding the earliest and the early component-based ones),
-but old versions in general are difficult to put together, or lost to time.
-
+For nearly 3+ years, the changelog has not been documented and some old versions have been lost :(
 
 # Version 5.0.0
 Major update!
-- Licence of the project changed to GPLv3
 - 🚀 Performance and resource efficiency boosts
 - Various bugfixes
 - More clear and consistent code quality standards
 - Completely redefined CSS structure, with more consistent styling, consistent layouts etc.
 - Bundled Normalize.css for more consistent cross-browser styling.
+- Licence of the project changed to GPLv3
 
 ### Events
 The event API has had major updates, namely in performance and usage.
@@ -22,7 +18,8 @@ To get the most out of the new event system:
 const events = new LS.EventHandler;
 
 // Note: the constructor takes two arguments; first is an object of any type, second is an options object.
-// The first one is the "target" of the handler - if set, this will expose some methods on it (on, once, emit, _events).
+// The first argument is the "target" of the handler - if set, this will expose some methods on it (on, once, emit, _events). This is mainly for historical purposes
+// The class can also easily be extended to have any object with events.
 
 // Subscribing to events is simple and convinient.
 events.on("event-name", data => {
@@ -40,8 +37,8 @@ events.off("event-name", listener);
 // Flush all events and listeners (clear memory)
 events.flush();
 
-// This method will mark the event as "completed" - which calls all current AND future listeners immidiately as they are added.
-// Useful for events like "onload" to ensure listeners are called when your operation is finished. 
+// This method will mark the event as "completed" - which calls all current AND future added listeners immidiately.
+// Useful for events like "onload" to ensure any listeners are called when your operation has finished. 
 events.completed("event-name");
 
 // Alias an event
@@ -50,36 +47,37 @@ events.alias("event-name", "another-name");
 // Get or create event object directly
 events.prepare("event-name");
 
-// Old method (currently still works):
-// It is deprecated and also the slowest. Still 43x faster than v4.
-events.invoke("event-name", ...data) // deprecated!
-
-// A new way to fire events is the emit method:
-// This one offers a more robust API, more flexibility and is up to 120x faster than v4.
+// Firing events
 events.emit("event-name", [ data ], options)
 
-// Options that the emit function takes are:
+// Options:
 // break: if true, when a listener returns false, the emit is aborted.
 // results: if true, will collect return values and return them as an array (else returns null).
 
-
-// You can also reference events directly:
-// This is the fastest method and is even up to 200x faster than v4.
+// You can also use an event reference directly instead of passing a string.
+// This is even up to 200x faster than v4. This is an useful optimization for high-frequency events, since it bypasses the lookup entirely.
+// For frequently called events it is recommended to cache the event once and pass it to emit.
 const myEvent = events.prepare("event-name");
 events.emit(myEvent, data);
 
-// There is also a "rapidFire" method that is technically even faster (300x) as it removes all extra overhead, but is not a proper emit implementation - it does not respect any options including "once" events, error handling, etc.
-// It is not intended for actual use in projects - it is only there for some very specific needs where you know exactly where and who registers event listeners (eg. if you use events privately and just need to quickly transfer data).
-// It only accepts an event object and data.
+// Old method (do not use in new projects):
+// It is deprecated and also the slowest. Still 43x faster than v4.
+events.invoke("event-name", ...data) // deprecated!
+
+// There is also a rather niche "rapidFire" method that is technically even faster (300x), pretty much as fast as it gets.
+// It is extremely simple, all it does is call all listeners. It doesn't respect "once" or support any extra features.
+// It is not intended for use in projects - it's there for some very specific cases where you know both the listener and emitter and just want a minimal event API and don't need any other features.
+// It *only* accepts the event reference, it does not accept the event name as a string.
 events.rapidFire(myEvent, data);
 ```
 
 # Version 4.0.0
-V4 has become a ✨ *special* ✨ one.
+V4 is a special one.
 > [!NOTE]
-> Where or what is version 4.0.0? The v5 release should have actually been v4, but due to a personal oversight, Ive accidentaly released v3.6 as v4.0.. <br>
-> So instead, I have decided to make v4 kind of the LTS version of v3. <br>
-> v4.x.x versions are essentially the most recent v3 versions, with minor enhancements and future support to maintain old projects that depend on older LS versions.
+> The story is that the v5 release should have actually been v4, but because I am a genius, I've released a small update to v3.6 as v4.0 on accident... <br>
+> This caused 4.0.0 to be cached on the CDN as 3.6.0, a still legacy version.
+> So instead, I have decided to make v4 the LTS version of v3, mainly intended as a compatibility layer to support older projects, while implementing slight fixes and enhancements. <br>
+> That is why new 4.x.x versions may still come out, but they are not really "new" and not recommended to be used.
 
 ## Version 4.0.1
 - Added a console note to suggest upgrading to v5

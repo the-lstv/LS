@@ -182,7 +182,7 @@
 
     const LS = {
         isWeb: typeof window !== 'undefined',
-        version: "5.1.1",
+        version: "5.2.3",
         v: 5,
 
         init(options = {}){
@@ -481,7 +481,7 @@
                         this.setAttribute(key, value || "");
                     }
                 }
-            
+
                 return this;
             },
 
@@ -506,7 +506,7 @@
                 for(let className of typeof names === "string"? names.split(" "): names){
                     if(typeof className !== "string" || className.length < 1) continue;
                     this.classList[action](className)
-                }
+            }
 
                 return this
             },
