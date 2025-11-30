@@ -83,7 +83,7 @@ module.exports = {
         cacheManager.clear();
     },
 
-    onRequest(req, res) {
+    async onRequest(req, res) {
         const segments = backend.helper.getPathSegments({ path: req.path.slice(3).toLowerCase() });
         if (segments.length < 2) return backend.helper.error(req, res, 2);
 
@@ -150,6 +150,8 @@ module.exports = {
         }
 
         const CACHE_KEY = `${version}:${type}:${components.join(",")}`;
+        const mimeType = type === "js"? "text/javascript": "text/css";
+        const suggestedCompressionAlgorithm = backend.helper.getUsedCompression(req, mimeType); // uws aah
 
         if(!cacheManager.cache.has(CACHE_KEY)) {
             let result = "";
@@ -174,12 +176,12 @@ module.exports = {
                 result += "\n" + fs.readFileSync(component_path, "utf8");
             }
 
-            cacheManager.refresh(CACHE_KEY, null, null, result, type === "js"? "text/javascript": "text/css");
+            await cacheManager.refresh(CACHE_KEY, null, null, result, mimeType);
         }
 
         cacheManager.serve(req, res, CACHE_KEY, null, {
             codeCompression: do_compress
-        });
+        }, suggestedCompressionAlgorithm);
     }
 }
 
