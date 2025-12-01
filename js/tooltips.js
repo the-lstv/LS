@@ -67,12 +67,12 @@ LS.LoadComponent(class Tooltips extends LS.Component {
 
     show(text = null){
         if(text) this.set(text);
-        this.container.class("shown");
+        this.container.classList.add("shown");
         return this;
     }
 
     hide(){
-        this.container.class("shown", false);
+        this.container.classList.remove("shown");
         return this;
     }
 

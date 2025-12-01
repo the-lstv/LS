@@ -4,7 +4,7 @@
 
     Last modified: 2025
     License: GPL-3.0
-    Version: 5.2.2
+    Version: 5.2.4
     See: https://github.com/thelstv/LS
 */
 
@@ -12,6 +12,20 @@
 
     const global = typeof window !== 'undefined'? window : globalThis;
     const instance = exports();
+
+    // --- Polyfills ---
+    if(!Array.prototype.flat){
+        Array.prototype.flat = function(depth = 1) {
+            return this.reduce((acc, val) => {
+                if(Array.isArray(val) && depth > 0){
+                    acc.push(...val.flat(depth - 1));
+                } else {
+                    acc.push(val);
+                }
+                return acc;
+            }, []);
+        }
+    }
 
     if(typeof module !== "undefined"){
         module.exports = instance
@@ -182,7 +196,7 @@
 
     const LS = {
         isWeb: typeof window !== 'undefined',
-        version: "5.2.3",
+        version: "5.2.4",
         v: 5,
 
         init(options = {}){

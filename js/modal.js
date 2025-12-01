@@ -31,7 +31,7 @@
             this.container = N({
                 class: "ls-modal",
                 inner: options.content || null,
-                tabIndex: -1
+                tabIndex: "0"
             });
 
             this.container.style.display = "none";
@@ -55,6 +55,7 @@
 
         open() {
             if (this.isOpen || this._destroyed) return;
+            this.previousFocus = document.activeElement;
             this.isOpen = true;
 
             if (LS._modalStack.length > 0) {
@@ -67,7 +68,16 @@
             LS._modalStack.push(this);
             this.container.classList.add("open");
             this.container.classList.add("ls-top-modal");
-            this.container.focus();
+
+            setTimeout(() => {
+                const focusable = this.container.querySelector("input, button, select, textarea, [tabindex]:not([tabindex='-1'])");
+                if (focusable) {
+                    focusable.focus();
+                } else {
+                    this.container.focus();
+                }
+            }, 0);
+
             this.container.style.zIndex = LS._modalStack.length;
             container.classList.add("is-open");
 
@@ -90,16 +100,23 @@
                 LS._modalStack.splice(index, 1);
             }
 
-            if (LS._modalStack.length === 0) {
-                container.classList.remove("is-open");
-                if (focus) document.body.focus();
-            } else {
-                const top = LS.Modal.top;
-                if (top && top.container) {
-                    top.container.focus();
-                    if (focus) top.container.classList.add("ls-top-modal");
+            setTimeout(() => {
+                if (LS._modalStack.length === 0) {
+                    container.classList.remove("is-open");
+                    if (focus) (this.previousFocus || document.body).focus();
+                } else {
+                    const top = LS.Modal.top;
+                    if (top && top.container) {
+                        if (focus) top.container.classList.add("ls-top-modal");
+                        
+                        if (focus && this.previousFocus) {
+                            this.previousFocus.focus();
+                        } else {
+                            top.container.focus();
+                        }
+                    }
                 }
-            }
+            }, 0);
 
             if (LS.Animation && this.options.animate !== false) {
                 LS.Animation.fadeOut(this.container, null, this.options.fadeOutDirection || 'backward');

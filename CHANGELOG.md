@@ -2,6 +2,12 @@
 
 For nearly 3+ years, the changelog has not been documented and some old versions have been lost :(
 
+## Version 5.2.4 (hotfix)
+- Fixes to LS.Animation when multiple animations are triggered
+- Fixed focus on modals (keyboard navigation)
+- Fixed tooltips not being hidden on esbuilt (backwards-compatible) builds
+- API now supports esbuild transpilation when enabled to bring better support to old browsers
+
 # Version 5.0.0
 Major update!
 - 🚀 Performance and resource efficiency boosts

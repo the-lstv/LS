@@ -89,6 +89,9 @@
             if (!element) return;
             LS.Animation.clearTimers(element);
 
+            const animationId = Symbol();
+            element._currentAnimationId = animationId;
+
             if (LS.Animation.prefersReducedMotion || duration === 0) {
                 _applyImmediate(element, to);
                 if (cleanup) cleanup();
@@ -100,6 +103,7 @@
                 element.style.transition = 'none';
                 Object.assign(element.style, from);
                 await LS.Animation.nextFrame();
+                if (element._currentAnimationId !== animationId) return;
             }
 
             // Apply transition
@@ -110,6 +114,9 @@
 
             return new Promise(resolve => {
                 LS.Animation.addTimer(element, () => {
+                    // Double check if we are still the active animation
+                    if (element._currentAnimationId !== animationId) return;
+
                     if (cleanup) cleanup();
                     resolve();
                 }, duration);
@@ -144,7 +151,7 @@
 
             const options = _isObject(duration) ? duration : { duration, direction };
 
-            const from = { display: '' };
+            const from = { display: '', transform: '' };
             const to = { opacity: "1" };
 
             if (options.direction) {
