@@ -4,7 +4,7 @@
 
     Last modified: 2025
     License: GPL-3.0
-    Version: 5.2.4
+    Version: 5.2.5
     See: https://github.com/thelstv/LS
 */
 
@@ -205,7 +205,7 @@
 
     const LS = {
         isWeb: typeof window !== 'undefined',
-        version: "5.2.4",
+        version: "5.2.5",
         v: 5,
 
         init(options = {}){
@@ -285,9 +285,11 @@
             N(tagName = "div", content){
                 if(typeof tagName !== "string"){
                     content = tagName;
-                    tagName = content.tag || content.tagName || "div";
-                    delete content.tag;
-                    delete content.tagName;
+                    if(content) {
+                        tagName = content.tag || content.tagName || "div";
+                        delete content.tag;
+                        delete content.tagName;
+                    } else if(content === null) return null;
                 }
 
                 if(!content) return document.createElement(tagName);
@@ -303,7 +305,7 @@
                     content.ns = "http://www.w3.org/2000/svg";
                 }
 
-                const { class: className, tooltip, ns, accent, style, inner, content: innerContent, reactive, ...rest } = content;
+                const { class: className, tooltip, ns, accent, style, inner, content: innerContent, reactive, attr, attributes, ...rest } = content;
 
                 const element = Object.assign(
                     ns ? document.createElementNS(ns, tagName) : document.createElement(tagName),
@@ -312,7 +314,7 @@
 
                 // Handle attributes
                 if (accent) element.setAttribute("ls-accent", accent);
-                if (content.attr || content.attributes) LS.TinyFactory.attrAssign.call(element, content.attr || content.attributes);
+                if (attr || attributes) LS.TinyFactory.attrAssign.call(element, attr || attributes);
 
                 // Handle tooltips
                 if (tooltip) {
@@ -700,7 +702,7 @@
 
         Util: {
             resolveElements(...array){
-                return array.flat().map(element => {
+                return array.flat().filter(Boolean).map(element => {
                     return typeof element === "string" ? document.createTextNode(element) : typeof element === "object" && !(element instanceof Node) ? N(element) : element;
                 });
             },
