@@ -77,9 +77,14 @@
         }
 
         prepareEvent(name, options){
+            if(options && options.completed === false) {
+                // Clear data once uncompleted
+                options.data = null;
+            }
+
             if(!this.events.has(name)){
                 this.events.set(name, { listeners: [], empty: [], ...options, _isEvent: true })
-            } else if(options){
+            } else if(options){ 
                 Object.assign(this.events.get(name), options)
             }
 
@@ -88,7 +93,10 @@
 
         on(name, callback, options){
             const event = (name._isEvent? name: this.events.get(name)) || this.prepareEvent(name);
-            if(event.completed) return callback();
+            if(event.completed) {
+                if(event.data) callback(...event.data); else callback();
+                if(options && options.once) return this;
+            }
 
             const index = event.empty.length > 0 ? event.empty.pop() : event.listeners.length;
 
@@ -185,11 +193,12 @@
             this.events.set(alias, this.prepareEvent(name))
         }
 
-        completed(name){
-            this.emit(name)
+        completed(name, data = []) {
+            this.emit(name, data);
 
             this.prepareEvent(name, {
-                completed: true
+                completed: true,
+                data
             })
         }
     }
@@ -276,7 +285,9 @@
             N(tagName = "div", content){
                 if(typeof tagName !== "string"){
                     content = tagName;
-                    tagName = "div";
+                    tagName = content.tag || content.tagName || "div";
+                    delete content.tag;
+                    delete content.tagName;
                 }
 
                 if(!content) return document.createElement(tagName);

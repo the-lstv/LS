@@ -241,4 +241,16 @@ LS.LoadComponent(class Tabs extends LS.Component {
             this.list.add(tab.handle);
         });
     }
+
+    destroy() {
+        this.emit("destroy");
+        this.element.remove();
+        this.element = null;
+        this.container = null;
+        this.list = null;
+        this.order.length = 0;
+        this.tabs.clear();
+        this.events.clear();
+        return null;
+    }
 }, { name: 'Tabs', global: true });

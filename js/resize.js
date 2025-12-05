@@ -51,6 +51,7 @@ LS.LoadComponent(class Resize extends LS.Component {
      * @param {number} [options.minHeight=20] - Minimum height of the target element (overrides CSS min-height value).
      * @param {number} [options.maxWidth=null] - Maximum width of the target element (overrides CSS max-width value).
      * @param {number} [options.maxHeight=null] - Maximum height of the target element (overrides CSS max-height value).
+     * @param {string|object} [options.boundary=null] - Boundary to constrain resizing. Can be "viewport" or a rect object {x, y, width, height}.
      * @param {string} [options.store=null] - Key name for storage. If set, updates will be persistent and saved into a storage object.
      * @param {object} [options.storage=null] - Custom storage object (must implement getItem/setItem). Default is localStorage.
      * @returns An object with the registered handles
@@ -88,6 +89,8 @@ LS.LoadComponent(class Resize extends LS.Component {
             snapExpand: entry.options?.snapExpand ?? false,
             snapVertical: entry.options?.snapVertical ?? false,
             snapHorizontal: entry.options?.snapHorizontal ?? false,
+            // --- boundary option ---
+            boundary: entry.options?.boundary ?? null,    // "viewport" or {x, y, width, height}
             // --- persistence options ---
             store: entry.options?.store ?? null,          // string key
             storage: entry.options?.storage ?? null,      // custom storage (must implement getItem/setItem)
@@ -187,6 +190,8 @@ LS.LoadComponent(class Resize extends LS.Component {
                 let startTopStyle = 0, startLeftStyle = 0; // style/offsetParent based values used for writing back
                 let minWidth, minHeight, maxWidth, maxHeight;
                 let absolutePositioned = false; // detected at drag start
+                let boundaryRect = null; // computed boundary rect
+                let targetOffsetX = 0, targetOffsetY = 0; // offset from boundary origin to target's offset parent
 
                 // helper to persist current state
                 const persist = () => {
@@ -239,6 +244,30 @@ LS.LoadComponent(class Resize extends LS.Component {
                         startX = mx;
                         startY = my;
                         absolutePositioned = style.position === 'absolute' || style.position === 'fixed';
+                        
+                        // Compute boundary rect
+                        if (options.boundary === 'viewport') {
+                            boundaryRect = { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight };
+                        } else if (options.boundary && typeof options.boundary === 'object') {
+                            boundaryRect = options.boundary;
+                        } else {
+                            boundaryRect = null;
+                        }
+                        
+                        // Calculate offset from boundary to target's positioning context
+                        if (boundaryRect && absolutePositioned) {
+                            if (style.position === 'fixed') {
+                                // Fixed position is relative to viewport
+                                targetOffsetX = 0;
+                                targetOffsetY = 0;
+                            } else {
+                                // Absolute position is relative to offsetParent
+                                const offsetParent = target.offsetParent || document.body;
+                                const parentRect = offsetParent.getBoundingClientRect();
+                                targetOffsetX = parentRect.left + window.scrollX - (boundaryRect.x || 0);
+                                targetOffsetY = parentRect.top + window.scrollY - (boundaryRect.y || 0);
+                            }
+                        }
                     },
                     onMove(mx, my) {
                         let dx = mx - startX;
@@ -349,6 +378,63 @@ LS.LoadComponent(class Resize extends LS.Component {
                         } else {
                             target.classList.remove('ls-resize-collapsed');
                             target.classList.remove('ls-resize-expanded');
+                        }
+
+                        // --- Boundary constraints ---
+                        if (boundaryRect) {
+                            const bx = boundaryRect.x || 0;
+                            const by = boundaryRect.y || 0;
+                            const bw = boundaryRect.width;
+                            const bh = boundaryRect.height;
+
+                            if (absolutePositioned) {
+                                // Constrain left edge
+                                const leftInBoundary = newLeft + targetOffsetX;
+                                if (leftInBoundary < bx) {
+                                    const diff = bx - leftInBoundary;
+                                    newLeft += diff;
+                                    if (["left","topLeft","bottomLeft"].includes(side)) {
+                                        newWidth -= diff;
+                                    }
+                                }
+                                // Constrain top edge
+                                const topInBoundary = newTop + targetOffsetY;
+                                if (topInBoundary < by) {
+                                    const diff = by - topInBoundary;
+                                    newTop += diff;
+                                    if (["top","topLeft","topRight"].includes(side)) {
+                                        newHeight -= diff;
+                                    }
+                                }
+                                // Constrain right edge
+                                const rightInBoundary = newLeft + targetOffsetX + newWidth;
+                                if (rightInBoundary > bx + bw) {
+                                    const diff = rightInBoundary - (bx + bw);
+                                    if (["right","topRight","bottomRight"].includes(side)) {
+                                        newWidth -= diff;
+                                    } else if (["left","topLeft","bottomLeft"].includes(side)) {
+                                        newLeft -= diff;
+                                    }
+                                }
+                                // Constrain bottom edge
+                                const bottomInBoundary = newTop + targetOffsetY + newHeight;
+                                if (bottomInBoundary > by + bh) {
+                                    const diff = bottomInBoundary - (by + bh);
+                                    if (["bottom","bottomLeft","bottomRight"].includes(side)) {
+                                        newHeight -= diff;
+                                    } else if (["top","topLeft","topRight"].includes(side)) {
+                                        newTop -= diff;
+                                    }
+                                }
+                            } else {
+                                // For non-absolute elements, just constrain dimensions
+                                if (newWidth > bw) newWidth = bw;
+                                if (newHeight > bh) newHeight = bh;
+                            }
+
+                            // Re-apply min constraints after boundary clamping
+                            if (newWidth < minWidth) newWidth = minWidth;
+                            if (newHeight < minHeight) newHeight = minHeight;
                         }
 
                         let currentState = 'normal';

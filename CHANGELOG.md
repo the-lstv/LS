@@ -2,6 +2,11 @@
 
 For nearly 3+ years, the changelog has not been documented and some old versions have been lost :(
 
+## Version 5.2.5
+- Data support for completed events
+- Extend LS.Resize options
+- LS.Create now accepts tagName in options
+
 ## Version 5.2.4 (hotfix)
 - Fixes to LS.Animation when multiple animations are triggered
 - Fixed focus on modals (keyboard navigation)
