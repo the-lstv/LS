@@ -23,6 +23,9 @@ LS.LoadComponent(class Tooltips extends LS.Component {
             //     attributeFilter: this.attributes
             // })
         })
+
+        // Allow only harmless tags: i, b, strong, kbd, code, pre, em, u, s, mark, small, sub, sup, br, span (with no attributes)
+        this.allowedTags = ['I', 'B', 'STRONG', 'KBD', 'CODE', 'PRE', 'EM', 'U', 'S', 'MARK', 'SMALL', 'SUB', 'SUP', 'BR', 'SPAN'];
     }
 
     position(x, y){
@@ -61,8 +64,42 @@ LS.LoadComponent(class Tooltips extends LS.Component {
     }
 
     set(text){
-        this.contentElement.set(text);
+        // Create a temporary container
+        const temp = document.createElement('span');
+        temp.innerHTML = text;
+        this.sanitize(temp);
+        this.contentElement.replaceChildren(...temp.childNodes);
         return this;
+    }
+
+    sanitize(node) {
+        if (node.nodeType === Node.ELEMENT_NODE) {
+            if (!this.allowedTags.includes(node.tagName)) {
+                // Replace the node with its children, if parent exists
+                const fragment = document.createDocumentFragment();
+                while (node.firstChild) {
+                    fragment.appendChild(node.firstChild);
+                }
+
+                if (node.parentNode) {
+                    node.parentNode.replaceChild(fragment, node);
+                }
+                return;
+            }
+        }
+
+        // Remove all attributes
+        while (node.attributes && node.attributes.length > 0) {
+            node.removeAttribute(node.attributes[0].name);
+        }
+
+        // Recursively sanitize child nodes
+        let child = node.firstChild;
+        while (child) {
+            const next = child.nextSibling;
+            this.sanitize(child);
+            child = next;
+        }
     }
 
     show(text = null){

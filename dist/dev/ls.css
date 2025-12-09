@@ -4,7 +4,7 @@
 
     Last modified: 2025
     License: GPL-3.0
-    Version: 5.2.6
+    Version: 5.2.7
     See: https://github.com/thelstv/LS
 */
 [ls-theme=light], [ls-theme=light][ls-accent], [ls-theme=light] [ls-accent] {
@@ -391,6 +391,13 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   box-shadow: inset 0 1px 0 0 var(--ui-element);
   border-radius: var(--border-radius);
   white-space: pre-wrap;
+}
+
+.ls-tooltip-content kbd {
+  background: var(--surface-3);
+  padding: 0 6px;
+  border-radius: var(--border-radius);
+  font-size: smaller;
 }
 
 .space-h-xxs {

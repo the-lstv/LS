@@ -1,219 +1,357 @@
-{
-    return _this => class ProgressBar{
-        constructor(id, element, options = {}){
-            this.element = element = O(element)
-            if(!element) throw "No element provided";
+(() => {
+    const { N, O } = LS.Tiny;
 
-            _this = this;
+    class ProgressBar extends LS.Component {
+        constructor(element, options = {}) {
+            super();
+
+            this.element = O(element);
+            if (!this.element) {
+                throw new Error("ProgressBar: No valid element provided");
+            }
+
+            const tagName = this.element.tagName;
 
             this.options = LS.Util.defaults({
-                seeker: element.tagName == "LS-SEEKER",
+                seeker: tagName === "LS-SEEKER",
                 styled: true,
                 vertical: false,
-                padding: options.vertical? 16: 0,
-                separator: element.tagName == "LS-SEEKER"? "" : "/",
-                label: true
-            }, options)
+                padding: options.vertical ? 16 : 0,
+                separator: tagName === "LS-SEEKER" ? "" : "/",
+                label: true,
+                min: null,
+                max: null,
+                step: null,
+                value: null,
+                progress: null,
+                metric: null
+            }, options);
+
+            // Internal state
+            this._min = this.options.min ?? Number(this.element.attr("min")) || 0;
+            this._max = this.options.max ?? Number(this.element.attr("max")) || 100;
+            this._step = this.options.step ?? Number(this.element.attr("step")) || 1;
+            this._value = this._clampValue(
+                this.options.value ?? Number(this.element.attr("value")) || 0
+            );
+            this._progress = this.options.progress ?? 0;
+            this._seeking = false;
+
+            if (!this.options.metric && this.element.attr("metric")) {
+                this.options.metric = this.element.attr("metric");
+            }
+
+            if (this.options.progress != null && this.options.value != null) {
+                console.warn("ProgressBar: Both progress and value defined; using value.");
+            }
+
+            this._buildDOM();
+            this._setupProperties();
+            this._init();
+        }
+
+        _clampValue(value) {
+            return Math.min(this._max, Math.max(this._min, value));
+        }
+
+        _buildDOM() {
+            const { element, options } = this;
 
             element.class("ls-progress");
             element.attrAssign("chv");
 
-            if(this.options.seeker) this.element.class("ls-seek");
-            if(this.options.styled) this.element.class("ls-progress-styled");
+            if (options.seeker) element.class("ls-seek");
+            if (options.styled) element.class("ls-progress-styled");
 
-            element.add(
-                N({class: "ls-progress-bar"}),
+            // Build child elements
+            const children = [N({ class: "ls-progress-bar" })];
 
-                this.options.seeker? N({class: "ls-seeker-thumb"}) : null,
-                this.options.label?
-
-                N({
-                    class: "ls-progress-label",
-                    inner:[
-                        N("span", {class: "ls-progress-label-left"}),
-                        N("span", {class: "ls-progress-label-separator"}),
-                        N("span", {class: "ls-progress-label-right"})
-                    ]
-                }): null
-            )
-
-            if(this.options.label){
-                this.labelLeft = _this.element.get(".ls-progress-label-left");
-                this.labelRight = _this.element.get(".ls-progress-label-right");
-                this.labelSeparator = _this.element.get(".ls-progress-label-separator");
+            if (options.seeker) {
+                children.push(N({ class: "ls-seeker-thumb" }));
             }
 
-            _this._min = this.options.min || +element.attr("min") || 0;
-            _this._max = this.options.max || +element.attr("max") || 100;
-            _this.step = this.options.step || +element.attr("step") || 1;
-
-            _this._progress = this.options.progress || 0;
-            _this._value = Math.min(_this._max, Math.max(_this._min, this.options.value || +element.attr("value") || 0));
-
-            if(!_this.options.metric && element.attr("metric")) _this.options.metric = element.attr("metric");
-
-            this.define(this)
-
-            if(this.options.progress && this.options.value)throw("You can't define both the progress and value.")
-        }
-
-        _init(){
-            _this.bar = _this.element.get(".ls-progress-bar");
-
-            if(_this.options.label) _this.label = _this.element.get(".ls-progress-label");
-
-            if(_this.options.seeker){
-                _this.thumb = _this.element.get(".ls-seeker-thumb");
-
-                let handle = LS.Util.touchHandle(_this.element, {exclude: ".ls-progress-label-left"});
-
-                if(_this.options.label) {
-                    _this.labelLeft.style.userSelect = "";
-    
-                    _this.labelLeft.on("dblclick", ()=>{
-                        _this.labelLeft.attrAssign({"contenteditable": "true", "tabindex": "5"})
-                        _this.labelLeft.focus()
+            if (options.label) {
+                children.push(
+                    N({
+                        class: "ls-progress-label",
+                        inner: [
+                            N("span", { class: "ls-progress-label-left" }),
+                            N("span", { class: "ls-progress-label-separator" }),
+                            N("span", { class: "ls-progress-label-right" })
+                        ]
                     })
-    
-                    _this.labelLeft.on("blur", ()=>{
-                        _this.labelLeft.delAttr("contenteditable")
-                        let value = Math.max(_this._min, Math.min(_this._max, +_this.labelLeft.innerText));
-                        console.log(value);
-    
-                        if(isNaN(value))return _this.labelLeft.set(_this._value);
-    
-                        _this._value = value;
-                        _this.update(false, true);
-                    })
-    
-                    _this.labelLeft.on("keypress", (e) => {
-                        if(e.key == "Enter") _this.labelLeft.blur()
-                    })
-                }
-
-                _this.handle = handle;
-
-                handle.on("start", (e, cancel)=>{
-                    if(_this.element.hasAttr("disabled")) return;
-                    _this.seeking = true;
-                    _this.invoke("seekstart", _this._value, _this._max, _this._progress)
-                    if(LS.Tooltips) LS.Tooltips.show();
-                })
-                
-                handle.on("move", (x, y, event) => {
-                    let rect = _this.element.getBoundingClientRect(),
-                        offset = (_this.options.vertical ? (y - rect.top) : (x - rect.left)) / _this.step,
-                        range = _this.max - _this._min,
-                        newValue = Math.round(((_this.options.vertical ? rect.height - offset : offset) / (_this.options.vertical ? rect.height : rect.width)) * range)
-                    ;
-
-                    newValue = Math.floor(newValue * _this.step) + _this._min;
-
-                    if (newValue >= _this._min && newValue <= _this.max) {
-                        if (LS.Tooltips) {
-                            LS.Tooltips.set(String(newValue));
-                            LS.Tooltips.position(_this.thumb);
-                        }
-                
-                        _this._value = newValue;
-                        _this.update(false, true);
-                    }
-                });                
-
-                handle.on("end", ()=>{
-                    _this.seeking = false;
-
-                    _this.invoke("seekend", _this._value, _this._max, _this._progress)
-
-                    if(LS.Tooltips) LS.Tooltips.hide();
-                })
+                );
             }
 
-            _this.update(_this.options.progress && !_this.options.value);
+            element.add(...children.filter(Boolean));
+
+            // Cache DOM references
+            this.bar = element.get(".ls-progress-bar");
+
+            if (options.label) {
+                this.label = element.get(".ls-progress-label");
+                this.labelLeft = element.get(".ls-progress-label-left");
+                this.labelRight = element.get(".ls-progress-label-right");
+                this.labelSeparator = element.get(".ls-progress-label-separator");
+            }
+
+            if (options.seeker) {
+                this.thumb = element.get(".ls-seeker-thumb");
+            }
         }
 
-        define(scope){
-
-            Object.defineProperties(scope, {
+        _setupProperties() {
+            Object.defineProperties(this, {
                 progress: {
-                    get(){
-                        return _this._progress
-                    },
-
-                    set(value){
-                        _this._progress = value
-                        _this.update(true)
+                    get: () => this._progress,
+                    set: (value) => {
+                        this._progress = value;
+                        this._update(true);
                     }
                 },
                 value: {
-                    get(){
-                        return _this._value
-                    },
-
-                    set(value){
-                        _this._value = value
-                        _this.update()
+                    get: () => this._value,
+                    set: (value) => {
+                        this._value = this._clampValue(value);
+                        this._update(false);
                     }
                 },
                 max: {
-                    get(){
-                        return _this._max
-                    },
-
-                    set(value){
-                        _this._max = value
-                        _this.update()
+                    get: () => this._max,
+                    set: (value) => {
+                        this._max = value;
+                        this._value = this._clampValue(this._value);
+                        this._update(false);
                     }
                 },
                 min: {
-                    get(){
-                        return _this._min
-                    },
-
-                    set(value){
-                        _this._min = value
-                        _this.update()
+                    get: () => this._min,
+                    set: (value) => {
+                        this._min = value;
+                        this._value = this._clampValue(this._value);
+                        this._update(false);
                     }
+                },
+                step: {
+                    get: () => this._step,
+                    set: (value) => {
+                        this._step = value;
+                    }
+                },
+                seeking: {
+                    get: () => this._seeking
                 }
-            })
+            });
         }
 
-        update(setPercentage, isSeeking) {
-            if (_this.seeking && !isSeeking) return;
-        
-            // Adjust calculations to account for _this._min
-            const range = _this.max - _this._min; // The range between min and max
-        
-            if (!setPercentage) {
-                // Calculate progress considering the minimum value
-                _this._progress = ((_this.value - _this._min) / range) * 100;
+        _init() {
+            const { options } = this;
+
+            if (options.seeker) {
+                this._setupSeeker();
+            }
+
+            // Initial update
+            this._update(options.progress != null && options.value == null);
+        }
+
+        _setupSeeker() {
+            const { options } = this;
+
+            if (options.label) {
+                this._setupEditableLabel();
+            }
+
+            this.handle = LS.Util.touchHandle(this.element, {
+                exclude: options.label ? ".ls-progress-label-left" : null
+            });
+
+            this.handle.on("start", (event, cancel) => {
+                if (this.element.hasAttribute("disabled")) {
+                    cancel();
+                    return;
+                }
+                this._seeking = true;
+                this.emit("seekstart", [this._value, this._max, this._progress]);
+                if (LS.Tooltips) LS.Tooltips.show();
+            });
+
+            this.handle.on("move", (x, y, event) => {
+                const rect = this.element.getBoundingClientRect();
+                const isVertical = options.vertical;
+                
+                const size = isVertical ? rect.height : rect.width;
+                const offset = isVertical ? (y - rect.top) : (x - rect.left);
+                const normalizedOffset = isVertical ? (size - offset) : offset;
+                
+                const range = this._max - this._min;
+                const rawValue = (normalizedOffset / size) * range + this._min;
+                
+                // Apply step quantization
+                const steppedValue = Math.round(rawValue / this._step) * this._step;
+                const newValue = this._clampValue(steppedValue);
+
+                if (newValue !== this._value) {
+                    this._value = newValue;
+                    
+                    if (LS.Tooltips) {
+                        LS.Tooltips.set(String(newValue));
+                        LS.Tooltips.position(this.thumb);
+                    }
+
+                    this._update(false, true);
+                }
+            });
+
+            this.handle.on("end", () => {
+                this._seeking = false;
+                this.emit("seekend", [this._value, this._max, this._progress]);
+                if (LS.Tooltips) LS.Tooltips.hide();
+            });
+        }
+
+        _setupEditableLabel() {
+            const { labelLeft } = this;
+
+            labelLeft.style.userSelect = "";
+
+            labelLeft.on("dblclick", () => {
+                labelLeft.attrAssign({ contenteditable: "true", tabindex: "5" });
+                labelLeft.focus();
+                
+                // Select all text
+                const selection = window.getSelection();
+                const range = document.createRange();
+                range.selectNodeContents(labelLeft);
+                selection.removeAllRanges();
+                selection.addRange(range);
+            });
+
+            labelLeft.on("blur", () => {
+                labelLeft.delAttr("contenteditable", "tabindex");
+                
+                const parsed = Number(labelLeft.innerText);
+                
+                if (isNaN(parsed)) {
+                    labelLeft.textContent = String(this._value);
+                    return;
+                }
+
+                this._value = this._clampValue(parsed);
+                this._update(false, true);
+            });
+
+            labelLeft.on("keydown", (e) => {
+                if (e.key === "Enter") {
+                    e.preventDefault();
+                    labelLeft.blur();
+                } else if (e.key === "Escape") {
+                    labelLeft.textContent = String(this._value);
+                    labelLeft.blur();
+                }
+            });
+        }
+
+        _update(setPercentage = false, isSeeking = false) {
+            // Don't update during external changes while seeking
+            if (this._seeking && !isSeeking) return;
+
+            const range = this._max - this._min;
+            
+            if (range <= 0) {
+                console.warn("ProgressBar: Invalid range (max must be greater than min)");
+                return;
+            }
+
+            if (setPercentage) {
+                // Calculate value from progress percentage
+                this._value = this._clampValue(
+                    (this._progress / 100) * range + this._min
+                );
             } else {
-                // Calculate value considering the progress and minimum value
-                _this._value = (_this._progress * range) / 100 + _this._min;
+                // Calculate progress from value
+                this._progress = ((this._value - this._min) / range) * 100;
             }
-        
-            if (_this.options.seeker) {
-                // Set the thumb position based on progress
-                _this.thumb.style[_this.options.vertical ? "bottom" : "left"] = _this.options.padding 
-                    ? `calc(${_this.progress}%)` 
-                    : (_this.progress + "%");
-        
-                // Invoke "seek" event if the user is seeking
-                if (isSeeking) _this.invoke("seek", _this._value, _this._max, _this._progress);
+
+            const { options, _progress: progress } = this;
+            const positionProp = options.vertical ? "bottom" : "left";
+            const sizeProp = options.vertical ? "height" : "width";
+
+            // Update progress bar
+            this.bar.style[sizeProp] = `${progress}%`;
+
+            // Update seeker thumb position
+            if (options.seeker && this.thumb) {
+                this.thumb.style[positionProp] = options.padding
+                    ? `calc(${progress}%)`
+                    : `${progress}%`;
+
+                if (isSeeking) {
+                    this.emit("seek", [this._value, this._max, this._progress]);
+                }
             }
-        
-            // Invoke "change" event whenever the value changes
-            _this.invoke("change", _this._value, _this._max, _this._progress);
-        
-            // Update the progress bar width/height based on progress
-            _this.bar.style[_this.options.vertical ? "height" : "width"] = _this.progress + "%";
-        
-            // Update labels if label options are enabled
-            if (_this.options.label) {
-                _this.labelLeft.set(String(_this.value));
-                _this.labelSeparator.set(_this.options.separator);
-                _this.labelRight.set(String(_this.max) + (_this.options.metric ? " " + _this.options.metric : ""));
+
+            // Emit change event
+            this.emit("change", [this._value, this._max, this._progress]);
+
+            // Update labels
+            if (options.label) {
+                this.labelLeft.textContent = String(this._value);
+                this.labelSeparator.textContent = options.separator;
+                this.labelRight.textContent = options.metric
+                    ? `${this._max} ${options.metric}`
+                    : String(this._max);
             }
-        }        
+        }
+
+        setRange(min, max) {
+            this._min = min;
+            this._max = max;
+            this._value = this._clampValue(this._value);
+            this._update(false);
+            return this;
+        }
+
+        disable() {
+            this.element.setAttribute("disabled", "");
+            return this;
+        }
+
+        enable() {
+            this.element.removeAttribute("disabled");
+            return this;
+        }
+
+        destroy() {
+            if (this.handle) {
+                this.handle.destroy();
+                this.handle = null;
+            }
+
+            this.element.class("ls-progress ls-seek ls-progress-styled", "remove");
+            this.element.delAttr("chv");
+            this.element.clear();
+
+            // Clear references
+            this.bar = null;
+            this.thumb = null;
+            this.label = null;
+            this.labelLeft = null;
+            this.labelRight = null;
+            this.labelSeparator = null;
+
+            this.flush();
+            return true;
+        }
     }
-}
+
+    // Register as a component
+    LS.LoadComponent(ProgressBar, {
+        name: "ProgressBar",
+        global: true,
+        singular: false
+    });
+
+    // Also expose a factory function for convenience
+    LS.Progress = (element, options) => new ProgressBar(element, options);
+})();

@@ -360,6 +360,13 @@ ls-tabs {
     white-space: pre-wrap;
 }
 
+.ls-tooltip-content kbd {
+    background: var(--surface-3);
+    padding: 0 6px;
+    border-radius: var(--border-radius);
+    font-size: smaller;
+}
+
 @for $i from 1 through 7 {
     $sizes: (xxs, xs, sm, md, lg, xl, xxl);
     $size: nth($sizes, $i);

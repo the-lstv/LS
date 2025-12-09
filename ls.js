@@ -4,7 +4,7 @@
 
     Last modified: 2025
     License: GPL-3.0
-    Version: 5.2.6
+    Version: 5.2.7
     See: https://github.com/thelstv/LS
 */
 
@@ -205,7 +205,7 @@
 
     const LS = {
         isWeb: typeof window !== 'undefined',
-        version: "5.2.6",
+        version: "5.2.7",
         v: 5,
 
         init(options = {}){
@@ -985,6 +985,90 @@
         GetComponent(name){
             return LS.components.get(name)
         },
+
+        /**
+         * Global shortcut manager API (not finalized)
+         * @experimental May completely change in future versions, use carefully
+         */
+        ShortcutManager: class ShortcutManager extends EventHandler {
+            constructor({ target = document, signal = null } = {}){
+                super();
+
+                this.shortcuts = new Map();
+                this.handler = this.#handleKeyDown.bind(this);
+                this.target = target;
+                this.target.addEventListener('keydown', this.handler, signal ? { signal } : undefined);
+            }
+
+            register(shortcut, handler = null){
+                if(Array.isArray(shortcut)){
+                    for(const item of shortcut){
+                        this.register(item, handler);
+                    }
+                    return;
+                }
+
+                const parts = shortcut.toLowerCase().split('+');
+                this.shortcuts.set(shortcut, {
+                    key: parts.pop(),
+                    ctrl: parts.includes('ctrl') || parts.includes('control'),
+                    shift: parts.includes('shift'),
+                    alt: parts.includes('alt'),
+                    meta: parts.includes('super') || parts.includes('meta') || parts.includes('cmd') || parts.includes('command'),
+                    handler
+                });
+                return this;
+            }
+
+            unregister(shortcut){
+                if(Array.isArray(shortcut)){
+                    for(const item of shortcut){
+                        this.unregister(item);
+                    }
+                    return;
+                }
+                this.shortcuts.delete(shortcut);
+                return this;
+            }
+
+            destroy(){
+                this.shortcuts.clear();
+                this.events.clear();
+                this.target.removeEventListener('keydown', this.handler);
+            }
+
+            #handleKeyDown(event) {
+                for (const shortcut of this.shortcuts.values()) {
+                    if (this.#matchesShortcut(event, shortcut)) {
+                        event.preventDefault();
+
+                        this.emit('activated', [shortcut, event]);
+
+                        if(typeof shortcut.handler === 'function') {
+                            shortcut.handler(event);
+                        }
+                        return;
+                    }
+                }
+            }
+
+            #matchesShortcut(event, shortcut) {
+                if (shortcut.ctrl !== event.ctrlKey) return false;
+                if (shortcut.shift !== event.shiftKey) return false;
+                if (shortcut.alt !== event.altKey) return false;
+                if (shortcut.meta !== event.metaKey) return false;
+
+                const eventKey = event.key.toLowerCase();
+                if (eventKey === shortcut.key) return true;
+
+                if (shortcut.key === 'space' && event.code === 'Space') return true;
+                if (shortcut.key === 'enter' && eventKey === 'enter') return true;
+                if (shortcut.key === 'esc' && eventKey === 'escape') return true;
+                if (shortcut.key === 'escape' && eventKey === 'escape') return true;
+
+                return false;
+            }
+        }
     }
 
     new LS.EventHandler(LS);
