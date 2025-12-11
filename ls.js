@@ -155,11 +155,18 @@
 
                     if(options.break && result === false) break;
                     if(options.results) returnData.push(result);
+
+                    if(result === LS.REMOVE_LISTENER) {
+                        event.empty.push(listener.index);
+                        event.listeners[listener.index] = null;
+                        listener = null;
+                        continue;
+                    }
                 } catch (error) {
                     console.error(`Error in listener for event '${name}':`, listener, error);
                 }
 
-                if(listener.once) {
+                if(listener && listener.once) {
                     event.empty.push(listener.index);
                     event.listeners[listener.index] = null;
                     listener = null;
@@ -208,7 +215,9 @@
         version: "5.2.7",
         v: 5,
 
-        init(options = {}){
+        REMOVE_LISTENER: Symbol("event-remove"),
+
+        init(options = {}) {
             if(!this.isWeb) return;
 
             options = LS.Util.defaults({
@@ -979,6 +988,7 @@
                 LS[name] = options.singular && component.isConstructor? new componentClass: componentClass;
             }
 
+            LS.emit("component-loaded", [component]);
             return component
         },
 
