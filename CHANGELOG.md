@@ -2,12 +2,22 @@
 
 For nearly 3+ years, the changelog has not been documented and some old versions have been lost :(
 
+## Planned
+- Documentation
+- Migrate LS.Select (soon)
+- Migrate the rest of components
+- Remove or update v4compat (too many changes in v5)
+- Improve accessibility & edge cases
+
 ## Version 5.2.7
 - Data support for completed events
 - Extend LS.Resize options
 - LS.Create now accepts tagName in options
+- Listeners can be removed by returning LS.REMOVE_LISTENER
+- A global event for component registration
+- Experimental LS.Menu component added
 
-## Version 5.2.7 (hotfix)
+## Version 5.2.6 (hotfix)
 - Fixes to LS.Animation when multiple animations are triggered
 - Fixed focus on modals (keyboard navigation)
 - Fixed tooltips not being hidden on esbuilt (backwards-compatible) builds
