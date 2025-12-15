@@ -1,3 +1,9 @@
+/**
+ * ImageCropper Component for LS
+ * Provides an interactive image/video cropping tool with support for animated sources.
+ * @version 1.0.0
+ */
+
 (() => {
     LS.LoadComponent(class ImageCropper extends LS.Component {
         constructor(image, options = {}) {

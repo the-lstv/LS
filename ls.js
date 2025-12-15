@@ -36,18 +36,18 @@
 
         if(window.LS_DONT_GLOBALIZE_TINY !== true)
         for (let key in instance.Tiny){
-            global[key] = instance.Tiny[key]
+            global[key] = instance.Tiny[key];
         }
 
-        if(!window.ls_do_not_prototype) LS.prototypeTiny();
+        if(!window.ls_do_not_prototype) instance.prototypeTiny();
 
-        LS._topLayer = LS.Create({id: "ls-top-layer", style: {
+        instance._topLayer = instance.Create({id: "ls-top-layer", style: {
             position: "fixed"
         }});
 
         function bodyAvailable(){
-            document.body.append(LS._topLayer)
-            LS._events.completed("body-available")
+            document.body.append(instance._topLayer)
+            instance._events.completed("body-available", [document.body]);
         }
 
         if(document.body) bodyAvailable(); else window.addEventListener("load", bodyAvailable);
@@ -58,9 +58,11 @@
 })(() => {
 
     class EventHandler {
+        /**
+         * @param {object} target Possibly deprecated; Binds the event handler methods to a target object.
+         */
         constructor(target){
             LS.EventHandler.prepareHandler(this);
-
             if(target){
                 target._events = this;
 
@@ -176,6 +178,12 @@
             return returnData
         }
 
+        /**
+         * Quickly emit an event without checks - to be used only in specific scenarios.
+         * @param {*} event Event object.
+         * @param {*} data Data array.
+         */
+
         quickEmit(event, data){
             if(!event._isEvent) throw new Error("Event must be a valid event object when using quickEmit");
 
@@ -192,18 +200,29 @@
             }
         }
 
-        flush() {
+        flush(){
             this.events.clear();
         }
 
+        /**
+         * Create an alias for an existing event.
+         * They will become identical and share listeners.
+         * @param {*} name Original event name.
+         * @param {*} alias Alias name.
+         */
         alias(name, alias){
-            this.events.set(alias, this.prepareEvent(name))
+            const event = (name._isEvent? name: this.events.get(name)) || this.prepareEvent(name);
+            event.aliases ??= [];
+
+            if(!event.aliases.includes(alias)) event.aliases.push(alias);
+            this.events.set(alias, event);
         }
 
-        completed(name, data = []) {
+        completed(name, data = [], options = {}){
             this.emit(name, data);
 
             this.prepareEvent(name, {
+                ...options,
                 completed: true,
                 data
             })
@@ -929,6 +948,71 @@
                     }
                 })
             },
+
+            /**
+             * A simple switch that triggers a callback when its value changes, but does nothing if it doesn't.
+             */
+            Switch: class Switch {
+                constructor(onSet) {
+                    this.value = false;
+                    this.onSet = onSet;
+                }
+
+                set(value) {
+                    if(this.value === value) return;
+                    this.value = value;
+                    this.onSet(this.value);
+                }
+
+                on() {
+                    this.set(true);
+                }
+
+                off() {
+                    this.set(false);
+                }
+            },
+
+            /**
+             * Schedules a callback to run on the next animation frame, avoiding multiple calls within the same frame.
+             */
+            FrameScheduler: class FrameScheduler {
+                constructor(callback) {
+                    this.callback = callback;
+                    this.queued = false;
+                }
+
+                schedule() {
+                    if(this.queued) return;
+                    this.queued = true;
+
+                    requestAnimationFrame(() => {
+                        if(this.queued && this.callback) this.callback();
+                        this.queued = false;
+                    });
+                }
+
+                cancel() {
+                    this.queued = false;
+                }
+            },
+
+            /**
+             * Ensures a callback is only run once.
+             */
+            RunOnce: class RunOnce {
+                constructor(callback) {
+                    this.callback = callback;
+                    this.hasRun = false;
+                }
+
+                run() {
+                    if(this.hasRun) return;
+                    this.hasRun = true;
+                    this.callback();
+                    this.callback = null;
+                }
+            }
         },
 
         Component: class Component extends EventHandler {
@@ -1001,21 +1085,33 @@
          * @experimental May completely change in future versions, use carefully
          */
         ShortcutManager: class ShortcutManager extends EventHandler {
-            constructor({ target = document, signal = null } = {}){
+            constructor({ target = document, signal = null, shortcuts = {} } = {}){
                 super();
 
                 this.shortcuts = new Map();
+                this.mappings = new Map();
+
                 this.handler = this.#handleKeyDown.bind(this);
                 this.target = target;
                 this.target.addEventListener('keydown', this.handler, signal ? { signal } : undefined);
+
+                if(shortcuts) for(const [shortcut, handler] of Object.entries(shortcuts)){
+                    this.register(shortcut, handler);
+                }
             }
 
+            /**
+             * Registers a keyboard shortcut.
+             * @param {string|array<string>} shortcut Shortcut (eg. "Ctrl+S" or ["Ctrl+S", "Cmd+S"])
+             * @param {*} handler Callback
+             * @returns 
+             */
             register(shortcut, handler = null){
                 if(Array.isArray(shortcut)){
                     for(const item of shortcut){
                         this.register(item, handler);
                     }
-                    return;
+                    return this;
                 }
 
                 const parts = shortcut.toLowerCase().split('+');
@@ -1035,14 +1131,67 @@
                     for(const item of shortcut){
                         this.unregister(item);
                     }
-                    return;
+                    return this;
                 }
                 this.shortcuts.delete(shortcut);
                 return this;
             }
 
-            destroy(){
+            /**
+             * Applies a map of keys to shortcuts.
+             * @param {Object} mapping Mapping of shortcut to handler OR 
+             * 
+             * FIXME: Complexity is O(n^2)
+             * 
+             * @example
+             * shortcutManager.map({
+             *    "SAVE": "Ctrl+S"
+             * });
+             * 
+             * shortcutManager.assign("SAVE", () => { ... });
+             * 
+             * // Later, you may want to customize the mapping:
+             * shortcutManager.map({
+             *    "SAVE": "Shift+S" // <= updates the previous mapping
+             * });
+             */
+            map(mapping) {
+                for(const [key, shortcut] of Object.entries(mapping)){
+                    for(const [existingShortcut, data] of this.shortcuts.entries()){
+                        if(data.handler === key){
+                            this.unregister(existingShortcut);
+                        }
+                    }
+
+                    this.register(shortcut, key);
+                }
+                return this;
+            }
+
+            /**
+             * Assigns a handler for a key to later be mapped.
+             * This is different from register() as it maps to a key instead of a hard-coded shortcut.
+             * @param {string} key Key
+             * @param {*} handler Callback
+             */
+            assign(key, handler) {
+                this.mappings.set(key, handler);
+                return this;
+            }
+
+            unassign(key) {
+                this.mappings.delete(key);
+                return this;
+            }
+
+            reset(){
                 this.shortcuts.clear();
+                this.mappings.clear();
+                return this;
+            }
+
+            destroy(){
+                this.reset();
                 this.events.clear();
                 this.target.removeEventListener('keydown', this.handler);
             }
@@ -1054,10 +1203,11 @@
 
                         this.emit('activated', [shortcut, event]);
 
-                        if(typeof shortcut.handler === 'function') {
-                            shortcut.handler(event);
+                        const handler = (typeof shortcut.handler === 'function')? shortcut.handler: this.mappings.get(shortcut.handler);
+                        if(typeof handler === 'function') {
+                            handler(event, shortcut);
+                            return;
                         }
-                        return;
                     }
                 }
             }

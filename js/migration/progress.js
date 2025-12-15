@@ -28,11 +28,11 @@
             }, options);
 
             // Internal state
-            this._min = this.options.min ?? Number(this.element.attr("min")) || 0;
-            this._max = this.options.max ?? Number(this.element.attr("max")) || 100;
-            this._step = this.options.step ?? Number(this.element.attr("step")) || 1;
+            this._min = (this.options.min ?? Number(this.element.attr("min"))) || 0;
+            this._max = (this.options.max ?? Number(this.element.attr("max"))) || 100;
+            this._step = (this.options.step ?? Number(this.element.attr("step"))) || 1;
             this._value = this._clampValue(
-                this.options.value ?? Number(this.element.attr("value")) || 0
+                (this.options.value ?? Number(this.element.attr("value"))) || 0
             );
             this._progress = this.options.progress ?? 0;
             this._seeking = false;

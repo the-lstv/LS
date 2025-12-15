@@ -1,3 +1,9 @@
+/**
+ * Modal Component for LS
+ * Provides modal dialog functionality with stacking, focus management, and animations.
+ * @version 1.0.0
+ */
+
 (() => {
     const container = N({
         class: "ls-modal-layer level-1"

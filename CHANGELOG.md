@@ -16,6 +16,7 @@ For nearly 3+ years, the changelog has not been documented and some old versions
 - Listeners can be removed by returning LS.REMOVE_LISTENER
 - A global event for component registration
 - Experimental LS.Menu component added
+- Added some useful utilities for state management
 
 ## Version 5.2.6 (hotfix)
 - Fixes to LS.Animation when multiple animations are triggered

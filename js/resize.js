@@ -53,6 +53,7 @@ LS.LoadComponent(class Resize extends LS.Component {
      * @param {number} [options.maxHeight=null] - Maximum height of the target element (overrides CSS max-height value).
      * @param {string|object} [options.boundary=null] - Boundary to constrain resizing. Can be "viewport" or a rect object {x, y, width, height}.
      * @param {string} [options.store=null] - Key name for storage. If set, updates will be persistent and saved into a storage object.
+     * @param {boolean} [options.storeStringify=true] - Whether to stringify the stored data.
      * @param {object} [options.storage=null] - Custom storage object (must implement getItem/setItem). Default is localStorage.
      * @returns An object with the registered handles
      * Events on handle:
@@ -93,6 +94,7 @@ LS.LoadComponent(class Resize extends LS.Component {
             boundary: entry.options?.boundary ?? null,    // "viewport" or {x, y, width, height}
             // --- persistence options ---
             store: entry.options?.store ?? null,          // string key
+            storeStringify: entry.options?.storeStringify ?? true,
             storage: entry.options?.storage ?? null,      // custom storage (must implement getItem/setItem)
         }, options || {});
 
@@ -140,19 +142,19 @@ LS.LoadComponent(class Resize extends LS.Component {
         }
 
         // --- restore persisted state (once per target) ---
-        const storeKey = typeof options?.store === 'string' ? options.store : null;
+        const storeKey = typeof options?.store === 'string' ? options.store : options.store === true ? "ls-resize-" + target.id : null;
         const storage = options.storage || (typeof window !== 'undefined' ? window.localStorage : null);
 
         if(storeKey && !entry.restored && storage) {
             try {
                 const raw = storage.getItem(storeKey);
                 if(raw) {
-                    const data = JSON.parse(raw);
+                    const data = typeof raw === 'string' ? JSON.parse(raw) : raw;
                     if(data && typeof data === 'object') {
-                        if(data.width != null) target.style.width = data.width;
-                        if(data.height != null) target.style.height = data.height;
-                        if(data.left != null) target.style.left = data.left;
-                        if(data.top != null) target.style.top = data.top;
+                        if(data.width != null) target.style.width = typeof data.width === "number" ? `${data.width}px` : data.width;
+                        if(data.height != null) target.style.height = typeof data.height === "number" ? `${data.height}px` : data.height;
+                        if(data.left != null) target.style.left = typeof data.left === "number" ? `${data.left}px` : data.left;
+                        if(data.top != null) target.style.top = typeof data.top === "number" ? `${data.top}px` : data.top;
                         if(data.state === 'collapsed') target.classList.add('ls-resize-collapsed');
                         else if(data.state === 'expanded') target.classList.add('ls-resize-expanded');
                     }
@@ -204,7 +206,7 @@ LS.LoadComponent(class Resize extends LS.Component {
                             top: target.style.top || null,
                             state: target.classList.contains('ls-resize-collapsed') ? 'collapsed' : (target.classList.contains('ls-resize-expanded') ? 'expanded' : 'normal')
                         };
-                        storage.setItem(storeKey, JSON.stringify(data));
+                        storage.setItem(storeKey, entry.options?.storeStringify !== false ? JSON.stringify(data) : data);
                     } catch(e) { console.error(e) }
                 };
 

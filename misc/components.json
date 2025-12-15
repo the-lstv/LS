@@ -1,6 +1,7 @@
 {
     "js": [
         "animation",
+        "dragdrop",
         "gl",
         "imagecropper",
         "modal",
@@ -9,6 +10,7 @@
         "reactive",
         "resize",
         "tabs",
+        "timeline",
         "toast",
         "tooltips",
         "tree",
