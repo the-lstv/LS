@@ -780,6 +780,7 @@
                     get() {
                         return events._cursor;
                     },
+
                     set(value) {
                         events._cursor = value;
                         if(value && events.seeking) {
@@ -787,7 +788,9 @@
                         } else {
                             document.documentElement.style.cursor = "";
                         }
-                    }
+                    },
+
+                    configurable: true
                 });
 
                 events.target = element // The target will change based on the event target!
@@ -799,7 +802,7 @@
 
                     let x, y, isTouchEvent = event.type == "touchmove";
 
-                    if(!isTouchEvent) event.preventDefault()
+                    if(!isTouchEvent) event.preventDefault();
 
                     if(!events.pointerLockActive) {
                         x = isTouchEvent? event.touches[0].clientX : event.clientX
@@ -827,7 +830,7 @@
                 }
 
                 function cancel() {
-                    cancelled = true
+                    cancelled = true;
                 }
 
                 function pointerLockChangeWatch(){
@@ -847,6 +850,7 @@
                     document.removeEventListener("mouseup", release);
                     document.removeEventListener("touchmove", move);
                     document.removeEventListener("touchend", release);
+                    document.documentElement.style.pointerEvents = "";
                     document.documentElement.style.cursor = "";
     
                     events.emit(evt.type == "destroy"? "destroy" : "end", [evt])
@@ -866,10 +870,10 @@
                     if(typeof options.exclude == "string" && event.target.matches(options.exclude)) return;
                     if(!options.exclude && event.target !== element) return;
 
-                    event.preventDefault()
+                    event.preventDefault();
 
                     if(event.type == "mousedown" && !options.buttons.includes(event.button)) return;
-                    
+
                     events.seeking = true;
 
                     let x = event.type == "touchstart"? event.touches[0].clientX : event.clientX, y = event.type == "touchstart"? event.touches[0].clientY : event.clientY;
@@ -888,10 +892,11 @@
                     }
 
                     events.target = LS.Tiny.O(event.target);
-                    events.target.class("ls-drag-target")
-
-                    element.class("is-dragging")
-                    document.documentElement.class("ls-dragging")
+                    events.target.classList.add("ls-drag-target");
+                    
+                    element.classList.add("is-dragging");
+                    document.documentElement.classList.add("ls-dragging");
+                    document.documentElement.style.pointerEvents = "none";
                     document.addEventListener("mousemove", move);
                     document.addEventListener("mouseup", release);
                     document.addEventListener("touchmove", move);
@@ -909,6 +914,8 @@
                     events.flush();
                     events.destroy = () => false;
                     events.destroyed = true;
+                    events.target = null;
+                    Object.defineProperty(events, "cursor", {});
                     return true
                 }
 

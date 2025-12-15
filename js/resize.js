@@ -144,7 +144,6 @@ LS.LoadComponent(class Resize extends LS.Component {
         // --- restore persisted state (once per target) ---
         const storeKey = typeof options?.store === 'string' ? options.store : options.store === true ? "ls-resize-" + target.id : null;
         const storage = options.storage || (typeof window !== 'undefined' ? window.localStorage : null);
-
         if(storeKey && !entry.restored && storage) {
             try {
                 const raw = storage.getItem(storeKey);
@@ -194,21 +193,6 @@ LS.LoadComponent(class Resize extends LS.Component {
                 let absolutePositioned = false; // detected at drag start
                 let boundaryRect = null; // computed boundary rect
                 let targetOffsetX = 0, targetOffsetY = 0; // offset from boundary origin to target's offset parent
-
-                // helper to persist current state
-                const persist = () => {
-                    if(!storeKey || !storage) return;
-                    try {
-                        const data = {
-                            width: target.style.width || null,
-                            height: target.style.height || null,
-                            left: target.style.left || null,
-                            top: target.style.top || null,
-                            state: target.classList.contains('ls-resize-collapsed') ? 'collapsed' : (target.classList.contains('ls-resize-expanded') ? 'expanded' : 'normal')
-                        };
-                        storage.setItem(storeKey, entry.options?.storeStringify !== false ? JSON.stringify(data) : data);
-                    } catch(e) { console.error(e) }
-                };
 
                 const handler = LS.Util.touchHandle(element, {
                     // frameTimed: true, // Limits move calls to the frame rate
@@ -467,7 +451,16 @@ LS.LoadComponent(class Resize extends LS.Component {
                         }
                     },
                     onEnd() {
-                        persist();
+                        try {
+                            const data = {
+                                width: target.style.width || null,
+                                height: target.style.height || null,
+                                left: target.style.left || null,
+                                top: target.style.top || null,
+                                state: target.classList.contains('ls-resize-collapsed') ? 'collapsed' : (target.classList.contains('ls-resize-expanded') ? 'expanded' : 'normal')
+                            };
+                            storage.setItem(storeKey, entry.options?.storeStringify !== false ? JSON.stringify(data) : data);
+                        } catch(e) { console.error(e) }
                     }
                 });
 
@@ -501,5 +494,17 @@ LS.LoadComponent(class Resize extends LS.Component {
             return true;
         }
         return false;
+    }
+
+    getHandle(target, side) {
+        const entry = this.targets.get(target);
+        if (entry && entry.handles[side]) {
+            return entry.handles[side];
+        }
+        return null;
+    }
+
+    getTarget(element) {
+        return this.targets.get(element) || null;
     }
 }, { name: "Resize", singular: true, global: true })
