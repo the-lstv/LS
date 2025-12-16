@@ -23,13 +23,13 @@ The goal is to have all built-in components reach the highest quality rating so 
 | LS.Tabs | ★★★★☆ (4/5)
 | LS.Toast | ★★★★☆ (4/5)
 | LS.Node | ★★★★☆ (4/5)
+| LS.Timeline | ★★★★☆ (4/5) | Recently migrated and stable, bugs may still show up
 | LS.Animation | ★★★☆☆ (3/5) | Incomplete
 | LS.Tooltips | ★★★☆☆ (3/5) | While updated and stable, it is still based on old code
 | LS.GL | ★★★☆☆ (3/5) | Highly experimental
 | LS.GLMultiShader | ★★★☆☆ (3/5) | Incomplete
 | LS.ImageCropper | ★★★☆☆ (3/5) | Slightly spaghetti/rushed though functional
 | LS.DragDrop | ★★☆☆☆ (2/5) | Recently migrated from v3, needs refactoration
-| LS.Timeline | ★★☆☆☆ (2/5) | Recently migrated from v3, needs refactoration
 | LS.Menu | ★★☆☆☆ (2/5) | In early development
 | LS.Tree | ★☆☆☆☆ (1/5) | Unfinished, unrelated code mixed in
 | LS.Network | ★☆☆☆☆ (1/5) | Unfinished

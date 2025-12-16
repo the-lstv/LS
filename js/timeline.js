@@ -1,7 +1,19 @@
 /**
  * An efficient timeline component, optimized for long timelines with many items via virtual scrolling.
+ * It handles: drag and drop, resizing, markers, touch controls, and virtual scrolling by automatically unloading off-screen items.
+ * 
+ * Based on the original LSv3 implementation, rewritten from scratch.
+ * 
  * @author lstv.space
  * @license GPL-3.0
+ */
+
+/**
+ * TODO List:
+ * - Complete drag and drop functionality
+ * - Add a multi-timeline swap functionality
+ * - Implement proper playback API
+ * - Proper drag-drop cleanup on destroy
  */
 
 (() => {
@@ -20,6 +32,7 @@
         resizable: true,
     };
 
+    // :shrug:
     // const computeZoomMultiplier = (zoom) => {
     //     return zoom < 0.005 ? 512
     //         : zoom < 0.01 ? 256
@@ -35,7 +48,13 @@
 
     LS.LoadComponent(class Timeline extends LS.Component {
         constructor(options = {}) {
-            super();
+            super({
+                dependencies: ["DragDrop", "Resize"]
+            });
+
+            if(!LS.DragDrop) {
+                throw new Error("LS.Timeline: LS.DragDrop component is required for drag and drop functionality.");
+            }
 
             this.options = LS.Util.defaults(DEFAULTS, options);
 
@@ -64,6 +83,8 @@
                     }))
                 ]
             });
+
+            this.dragDrop = new LS.DragDrop();
 
             if (this.options.element) {
                 this.options.element.appendChild(this.container);
@@ -240,10 +261,34 @@
                     this.frameScheduler.schedule();
                 }
             });
-            
+
             if(this.options.resizable && !LS.Resize) {
                 console.warn("LS.Timeline: LS.Resize component is required for resizable timeline items.");
             }
+
+            this.dragDrop.on("drag", (element) => {
+                console.log("Started dragging:", element);
+            });
+
+            this.dragDrop.on("drop", (source, target, event) => {
+                console.log("Dropped into row:", target);
+
+                // Update the timeline item's row assignment
+                const item = this.items.find(i => i.timelineElement === source);
+                if (item && target.classList.contains("ls-timeline-row")) {
+                    const newRow = this.rowElements.indexOf(target);
+                    item.row = newRow;
+                    this.frameScheduler.schedule();
+                }
+            });
+
+            this.dragDrop.on("dropDone", (source, target, event) => {
+                console.log("Drop completed");
+            });
+
+            this.dragDrop.on("cancel", (element) => {
+                console.log("Drag cancelled");
+            });
         }
 
         // --- Camera state values (do not influence content) ---
@@ -333,9 +378,17 @@
                 const rowElement = LS.Create({
                     class: "ls-timeline-row"
                 });
+
+                this.dragDrop.dropZone(rowElement, {});
+                rowElement.lsDropTarget = "timeline-row";
+
                 this.rowContainer.add(rowElement);
                 this.rowElements.push(rowElement);
             }
+        }
+
+        addTrack() {
+            this.reserveRows(this.rowElements.length + 1);
         }
 
         clearUnusedRows() {
@@ -531,6 +584,54 @@
             }
         }
 
+        cut(itemOrTime, offset) {
+            // Cut all intersecting items at a specific time
+            if (typeof itemOrTime === "number") {
+                const time = itemOrTime;
+                const intersecting = this.getIntersectingAt(time);
+                const newItems = [];
+                for (const item of intersecting) {
+                    const newItem = this.cut(item, time);
+                    if (newItem) newItems.push(newItem);
+                }
+                return newItems;
+            }
+
+            // Cut a specific item
+            const item = itemOrTime;
+            let splitTime;
+
+            if (typeof offset === "string" && offset.endsWith("%")) {
+                const percent = parseFloat(offset);
+                splitTime = item.start + (item.duration * (percent / 100));
+            } else {
+                splitTime = offset;
+            }
+
+            // Validate split time
+            // We use a small epsilon to avoid floating point issues at edges
+            if (splitTime <= item.start + 0.0001 || splitTime >= item.start + item.duration - 0.0001) {
+                return null;
+            }
+
+            // Clone item
+            const newItem = Object.assign({}, item);
+            
+            // Clean up internal properties on the clone
+            delete newItem.timelineElement;
+            delete newItem.__previousWidth;
+            
+            // Update durations and start times
+            const originalEndTime = item.start + item.duration;
+            item.duration = splitTime - item.start;
+            
+            newItem.start = splitTime;
+            newItem.duration = originalEndTime - splitTime;
+
+            this.add(newItem);
+            return newItem;
+        }
+
         getIntersectingAt(time) {
             if (this.__needsSort) {
                 this.sortItems();
@@ -603,26 +704,48 @@
                 class: "ls-timeline-item"
             });
 
-            if(LS.Resize && this.options.resizable) {
+            if (LS.Resize && this.options.resizable) {
                 const { left, right } = LS.Resize.set(item.timelineElement, {
                     left: true,
                     right: true,
                     minWidth: 5,
                 });
 
-                left.handler.on("resize", (newSize, delta) => {
-                    console.log(arguments);
-                    
-                    const deltaTime = delta.width / this.#zoom;
-                    item.start += deltaTime;
-                    item.duration -= deltaTime;
-                    this.frameScheduler.schedule();
+                this.dragDrop.set(item.timelineElement, {
+                    handle: item.timelineElement,
+                    container: this.rowContainer,
+                    scrollContainer: this.scrollContainer,
+                    relativeMouse: true,
+                    clone: false,
+                    absoluteX: true,
+                    absoluteY: false,
+                    dropPreview: true,
+                    animate: false,
+                    tolerance: 5,
+                    allowedTargets: ["timeline-row"]
                 });
 
-                right.handler.on("resize", (newSize, delta) => {
-                    const deltaTime = delta.width / this.#zoom;
-                    item.duration += deltaTime;
+                const resizeHandler = (width, side) => {
+                    const intersecting = this.getIntersectingAt(item.start + item.duration - 0.0001).filter(i => i !== item);
+
+                    if(side === 'left') {
+                        const newDuration = width / this.#zoom;
+                        const endTime = item.start + item.duration;
+                        item.start = endTime - newDuration;
+                        item.duration = newDuration;
+                    } else {
+                        item.duration = width / this.#zoom;
+                    }
+
                     this.frameScheduler.schedule();
+                }
+
+                left.handler.on("resize", (width) => {
+                    resizeHandler(width, 'left');
+                });
+
+                right.handler.on("resize", (width) => {
+                    resizeHandler(width, 'right');
                 });
             }
 
@@ -680,6 +803,8 @@
             this.__wheelHandler = null;
             this.dragHandle.destroy();
             this.dragHandle = null;
+            this.dragDrop.destroy();
+            this.dragDrop = null;
         }
     }, { name: "Timeline", global: true });
 })();

@@ -187,6 +187,8 @@ LS.LoadComponent(class Resize extends LS.Component {
 
                 let startX = 0, startY = 0;
                 let startWidth = 0, startHeight = 0;
+                let endWidth = 0, endHeight = 0;
+                let currentState = null;
                 // let startTop = 0, startLeft = 0; // page-based (rect) values
                 let startTopStyle = 0, startLeftStyle = 0; // style/offsetParent based values used for writing back
                 let minWidth, minHeight, maxWidth, maxHeight;
@@ -423,12 +425,14 @@ LS.LoadComponent(class Resize extends LS.Component {
                             if (newHeight < minHeight) newHeight = minHeight;
                         }
 
-                        let currentState = 'normal';
+                        currentState = 'normal';
                         if (snappedCollapsed || target.classList.contains('ls-resize-collapsed')) currentState = 'collapsed';
                         else if (snappedExpanded || target.classList.contains('ls-resize-expanded')) currentState = 'expanded';
 
                         self.emit('resize', [{target, handler, side}, newWidth, newHeight, currentState]);
                         handler.emit('resize', [newWidth, newHeight, currentState]);
+                        endWidth = newWidth;
+                        endHeight = newHeight;
 
                         if (options.cursors !== false && options.boundsCursors !== false) {
                             const canExpandWidth = newWidth < maxWidth;
@@ -461,6 +465,9 @@ LS.LoadComponent(class Resize extends LS.Component {
                             };
                             storage.setItem(storeKey, entry.options?.storeStringify !== false ? JSON.stringify(data) : data);
                         } catch(e) { console.error(e) }
+
+                        self.emit('resize-end', [{target, handler, side}, endHeight, endWidth, currentState]);
+                        handler.emit('resize-end', [endHeight, endWidth, currentState]);
                     }
                 });
 
