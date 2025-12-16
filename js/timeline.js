@@ -30,6 +30,7 @@
         markerSpacing: 100,
         markerMetric: "time",
         resizable: true,
+        autoAppendRows: true,
     };
 
     // :shrug:
@@ -84,7 +85,24 @@
                 ]
             });
 
-            this.dragDrop = new LS.DragDrop();
+            this.dragDrop = new LS.DragDrop({
+                id: "timeline-dragdrop",
+                container: this.rowContainer,
+                scrollContainer: this.scrollContainer,
+                relativeMouse: true,
+                clone: false,
+                absoluteX: true,
+                absoluteY: false,
+                dropPreview: true,
+                animate: false,
+                snapEnabled: true,
+                strictDrop: false,
+                handleOptions: {
+                    exclude: true
+                },
+                // sameParent: true,
+                allowedTargets: ["timeline-row"],
+            });
 
             if (this.options.element) {
                 this.options.element.appendChild(this.container);
@@ -266,29 +284,29 @@
                 console.warn("LS.Timeline: LS.Resize component is required for resizable timeline items.");
             }
 
-            this.dragDrop.on("drag", (element) => {
-                console.log("Started dragging:", element);
-            });
+            // this.dragDrop.on("drag", (element) => { });
 
-            this.dragDrop.on("drop", (source, target, event) => {
-                console.log("Dropped into row:", target);
+            this.dragDrop.on("drop", (event) => {
+                console.log("Drop event:", event);
 
                 // Update the timeline item's row assignment
-                const item = this.items.find(i => i.timelineElement === source);
-                if (item && target.classList.contains("ls-timeline-row")) {
-                    const newRow = this.rowElements.indexOf(target);
+                const item = event.object || this.items.find(i => i.timelineElement === event.source);
+
+                if (item && event.target.classList.contains("ls-timeline-row")) {
+                    const newRow = this.rowElements.indexOf(event.target);
                     item.row = newRow;
+                    item.start = (event.boundX + this.#offset) / this.#zoom;
+                    if(this.options.autoAppendRows && newRow === this.rowElements.length) {
+                        // Add an extra track
+                        this.addTrack();
+                    }
+
+                    // this.__needsSort = true;
                     this.frameScheduler.schedule();
                 }
             });
 
-            this.dragDrop.on("dropDone", (source, target, event) => {
-                console.log("Drop completed");
-            });
-
-            this.dragDrop.on("cancel", (element) => {
-                console.log("Drag cancelled");
-            });
+            // this.dragDrop.on("cancel", (element) => { });
         }
 
         // --- Camera state values (do not influence content) ---
@@ -379,7 +397,9 @@
                     class: "ls-timeline-row"
                 });
 
-                this.dragDrop.dropZone(rowElement, {});
+                this.dragDrop.dropZone(rowElement, {
+
+                });
                 rowElement.lsDropTarget = "timeline-row";
 
                 this.rowContainer.add(rowElement);
@@ -505,6 +525,12 @@
                 }
 
                 const itemElement = item.timelineElement || this.createTimelineElement(item);
+
+                if(this.dragDrop.dragging && this.dragDrop.currentElement === itemElement) {
+                    this.__rendered.delete(itemElement);
+                    itemElement.__eligible = true;
+                    continue;
+                }
 
                 // Drop items that are too small to be seen
                 if(computedWidth <= 0 || computedX + computedWidth < minX) {
@@ -712,17 +738,7 @@
                 });
 
                 this.dragDrop.set(item.timelineElement, {
-                    handle: item.timelineElement,
-                    container: this.rowContainer,
-                    scrollContainer: this.scrollContainer,
-                    relativeMouse: true,
-                    clone: false,
-                    absoluteX: true,
-                    absoluteY: false,
-                    dropPreview: true,
-                    animate: false,
-                    tolerance: 5,
-                    allowedTargets: ["timeline-row"]
+                    object: item
                 });
 
                 const resizeHandler = (width, side) => {

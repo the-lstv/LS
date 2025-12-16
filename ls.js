@@ -762,164 +762,218 @@
                 return get? result[get] : result
             },
 
-            touchHandle(element, options = {}){
-                element = LS.Tiny.O(element);
+            TouchHandle: class TouchHandle extends EventHandler {
+                constructor(element, options = {}) {
+                    super();
+                    
+                    this.element = LS.Tiny.O(element);
+                    if (!this.element) throw "Invalid handle!";
 
-                if(!element) throw "Invalid handle!";
+                    this.options = {
+                        buttons: [0, 1, 2],
+                        disablePointerEvents: true,
+                        ...options
+                    };
 
-                let events = new LS.EventHandler, cancelled = false;
+                    this._cursor = this.options.cursor || null;
+                    this.cancelled = false;
+                    this.seeking = false;
+                    this.pointerLockActive = false;
+                    this.pointerLockPreviousX = 0;
+                    this.pointerLockPreviousY = 0;
+                    this.dragTarget = null;
 
-                options = {
-                    buttons: [0, 1, 2],
-                    ...options
-                };
+                    this.onStart = this.onStart.bind(this);
+                    this.onMove = this.onMove.bind(this);
+                    this.onRelease = this.onRelease.bind(this);
+                    this.cancel = this.cancel.bind(this);
+                    this.onPointerLockChange = this.onPointerLockChange.bind(this);
 
-                if(options.cursor) events._cursor = options.cursor;
-
-                Object.defineProperty(events, "cursor", {
-                    get() {
-                        return events._cursor;
-                    },
-
-                    set(value) {
-                        events._cursor = value;
-                        if(value && events.seeking) {
-                            document.documentElement.style.cursor = value;
-                        } else {
-                            document.documentElement.style.cursor = "";
-                        }
-                    },
-
-                    configurable: true
-                });
-
-                events.target = element // The target will change based on the event target!
-
-                let [pointerLockPreviousX, pointerLockPreviousY] = [0, 0];
-
-                function move(event) {
-                    if(cancelled) return;
-
-                    let x, y, isTouchEvent = event.type == "touchmove";
-
-                    if(!isTouchEvent) event.preventDefault();
-
-                    if(!events.pointerLockActive) {
-                        x = isTouchEvent? event.touches[0].clientX : event.clientX
-                        y = isTouchEvent? event.touches[0].clientY : event.clientY
-                    }
-
-                    if(options.pointerLock){
-                        // The following adds seamles fallback for pointerlock on touch devices and emulates absolute mouse position for pointerlock!
-                        // This allows you to easily enable/disable pointerlock without losing any functionality or having to write custom fallbacks, on both touch and mouse devices!
-
-                        if(events.pointerLockActive){
-                            x = pointerLockPreviousX += !isNaN(event.movementX)? event.movementX: 0
-                            y = pointerLockPreviousY += !isNaN(event.movementY)? event.movementY: 0
-                        } else if(isTouchEvent){
-                            event.movementX = Math.round(x - pointerLockPreviousX)
-                            event.movementY = Math.round(y - pointerLockPreviousY)
-                            pointerLockPreviousX = x
-                            pointerLockPreviousY = y
+                    // Attach initial listeners
+                    this.element.addEventListener("mousedown", this.onStart);
+                    this.element.addEventListener("touchstart", this.onStart, { passive: false });
+                    
+                    if (this.options.startEvents) {
+                        for (const evt of this.options.startEvents) {
+                            this.element.addEventListener(evt, this.onStart);
                         }
                     }
 
-                    if(options.onMove) options.onMove(x, y, event, cancel);
-
-                    events.emit("move", [x, y, event, cancel]);
+                    if (this.options.pointerLock) {
+                        document.addEventListener('pointerlockchange', this.onPointerLockChange);
+                    }
                 }
 
-                function cancel() {
-                    cancelled = true;
+                get cursor() {
+                    return this._cursor;
                 }
 
-                function pointerLockChangeWatch(){
-                    events.pointerLockActive = document.pointerLockElement === element;
+                set cursor(value) {
+                    this._cursor = value;
+                    if (this.seeking) {
+                        document.documentElement.style.cursor = value || "";
+                    }
                 }
 
-                document.addEventListener('pointerlockchange',  pointerLockChangeWatch);
-    
-                function release(evt) {
-                    events.seeking = false;
-                    cancelled = false;
-    
-                    element.class("is-dragging", 0)
-                    events.target.class("ls-drag-target", 0)
-                    document.documentElement.class("ls-dragging",0)
-                    document.removeEventListener("mousemove", move);
-                    document.removeEventListener("mouseup", release);
-                    document.removeEventListener("touchmove", move);
-                    document.removeEventListener("touchend", release);
-                    document.documentElement.style.pointerEvents = "";
-                    document.documentElement.style.cursor = "";
-    
-                    events.emit(evt.type == "destroy"? "destroy" : "end", [evt])
+                onStart(event) {
+                    if (this.options.exclude) {
+                        if (typeof this.options.exclude === "string") {
+                            if (event.target.matches(this.options.exclude)) return;
+                        } else if (event.target !== this.element) {
+                            return;
+                        }
+                    }
 
-                    if(events.pointerLockActive){
+                    // Prevent default to stop text selection, etc.
+                    if (event.cancelable && event.type !== "touchstart") event.preventDefault();
+
+                    if (event.type === "mousedown" && !this.options.buttons.includes(event.button)) return;
+
+                    this.seeking = true;
+                    this.cancelled = false;
+
+                    const isTouch = event.type === "touchstart";
+                    const x = isTouch ? event.touches[0].clientX : event.clientX;
+                    const y = isTouch ? event.touches[0].clientY : event.clientY;
+
+                    this.emit("start", [event, this.cancel, x, y]);
+                    if (this.options.onStart) this.options.onStart(event, this.cancel, x, y);
+
+                    if (this.cancelled) {
+                        this.seeking = false;
+                        return;
+                    }
+
+                    if (this.options.pointerLock && !isTouch) {
+                        this.pointerLockPreviousX = event.clientX;
+                        this.pointerLockPreviousY = event.clientY;
+                        this.element.requestPointerLock();
+                    }
+
+                    this.dragTarget = LS.Tiny.O(event.target);
+                    this.dragTarget.classList.add("ls-drag-target");
+                    this.element.classList.add("is-dragging");
+                    
+                    const docEl = document.documentElement;
+                    docEl.classList.add("ls-dragging");
+                    if (this.options.disablePointerEvents) docEl.style.pointerEvents = "none";
+                    
+                    if (!docEl.style.cursor) docEl.style.cursor = this._cursor || "grab";
+
+                    // Attach move/up listeners to document
+                    document.addEventListener("mousemove", this.onMove);
+                    document.addEventListener("mouseup", this.onRelease);
+                    document.addEventListener("touchmove", this.onMove, { passive: false });
+                    document.addEventListener("touchend", this.onRelease);
+                }
+
+                onMove(event) {
+                    if (this.cancelled) return;
+
+                    const isTouch = event.type === "touchmove";
+                    if (!isTouch && event.cancelable) event.preventDefault();
+
+                    let x, y;
+
+                    if (!this.pointerLockActive) {
+                        x = isTouch ? event.touches[0].clientX : event.clientX;
+                        y = isTouch ? event.touches[0].clientY : event.clientY;
+                    }
+
+                    if (this.options.pointerLock) {
+                        if (this.pointerLockActive) {
+                            x = this.pointerLockPreviousX += !isNaN(event.movementX) ? event.movementX : 0;
+                            y = this.pointerLockPreviousY += !isNaN(event.movementY) ? event.movementY : 0;
+                        } else if (isTouch) {
+                            // Emulate movementX/Y for touch
+                            event.movementX = Math.round(x - this.pointerLockPreviousX);
+                            event.movementY = Math.round(y - this.pointerLockPreviousY);
+                            this.pointerLockPreviousX = x;
+                            this.pointerLockPreviousY = y;
+                        }
+                    }
+
+                    if (this.options.onMove) this.options.onMove(x, y, event, this.cancel);
+                    this.emit("move", [x, y, event, this.cancel]);
+                }
+
+                onRelease(event) {
+                    this.cleanupDragState();
+
+                    const isDestroy = event.type === "destroy";
+                    this.emit(isDestroy ? "destroy" : "end", [event]);
+
+                    if (this.pointerLockActive) {
                         document.exitPointerLock();
                     }
 
-                    if(evt.type === "destroy") {
-                        if(options.onDestroy) options.onDestroy(evt);
-                    } else if(options.onEnd) {
-                        options.onEnd(evt);
+                    if (isDestroy) {
+                        if (this.options.onDestroy) this.options.onDestroy(event);
+                    } else if (this.options.onEnd) {
+                        this.options.onEnd(event);
                     }
                 }
 
-                function start(event){
-                    if(typeof options.exclude == "string" && event.target.matches(options.exclude)) return;
-                    if(!options.exclude && event.target !== element) return;
+                cancel() {
+                    this.cancelled = true;
+                }
 
-                    event.preventDefault();
+                onPointerLockChange() {
+                    this.pointerLockActive = document.pointerLockElement === this.element;
+                }
 
-                    if(event.type == "mousedown" && !options.buttons.includes(event.button)) return;
+                cleanupDragState() {
+                    this.seeking = false;
+                    this.cancelled = false;
 
-                    events.seeking = true;
-
-                    let x = event.type == "touchstart"? event.touches[0].clientX : event.clientX, y = event.type == "touchstart"? event.touches[0].clientY : event.clientY;
-
-                    events.emit("start", [event, cancel, x, y])
-                    if(options.onStart) options.onStart(event, cancel, x, y)
-
-                    if(cancelled) return events.seeking = false;
-
-                    if(options.pointerLock && event.type !== "touchstart") {
-
-                        pointerLockPreviousX = event.clientX
-                        pointerLockPreviousY = event.clientY
-
-                        if (event.type !== "touchstart") element.requestPointerLock();
+                    if (this.element) this.element.classList.remove("is-dragging");
+                    if (this.dragTarget) {
+                        this.dragTarget.classList.remove("ls-drag-target");
+                        this.dragTarget = null;
                     }
 
-                    events.target = LS.Tiny.O(event.target);
-                    events.target.classList.add("ls-drag-target");
-                    
-                    element.classList.add("is-dragging");
-                    document.documentElement.classList.add("ls-dragging");
-                    document.documentElement.style.pointerEvents = "none";
-                    document.addEventListener("mousemove", move);
-                    document.addEventListener("mouseup", release);
-                    document.addEventListener("touchmove", move);
-                    document.addEventListener("touchend", release);
-                    if(!document.documentElement.style.cursor) document.documentElement.style.cursor = events._cursor || "grab";
+                    const docEl = document.documentElement;
+                    docEl.classList.remove("ls-dragging");
+                    docEl.style.pointerEvents = "";
+                    docEl.style.cursor = "";
+
+                    document.removeEventListener("mousemove", this.onMove);
+                    document.removeEventListener("mouseup", this.onRelease);
+                    document.removeEventListener("touchmove", this.onMove);
+                    document.removeEventListener("touchend", this.onRelease);
                 }
 
-                element.on("mousedown", "touchstart", ...(options.startEvents || []), start)
+                destroy() {
+                    if (this.destroyed) return false;
 
-                events.destroy = function (){
-                    release({type: "destroy"});
-                    element.off("mousedown", "touchstart", start);
-                    document.removeEventListener('pointerlockchange',  pointerLockChangeWatch);
-                    cancelled = true;
-                    events.flush();
-                    events.destroy = () => false;
-                    events.destroyed = true;
-                    events.target = null;
-                    Object.defineProperty(events, "cursor", {});
-                    return true
+                    // Trigger release logic with destroy type
+                    this.onRelease({ type: "destroy" });
+
+                    // Remove initial listeners
+                    if (this.element) {
+                        this.element.removeEventListener("mousedown", this.onStart);
+                        this.element.removeEventListener("touchstart", this.onStart);
+                        if (this.options.startEvents) {
+                            for (const evt of this.options.startEvents) {
+                                this.element.removeEventListener(evt, this.onStart);
+                            }
+                        }
+                    }
+
+                    if (this.options.pointerLock) {
+                        document.removeEventListener('pointerlockchange', this.onPointerLockChange);
+                    }
+
+                    this.flush();
+                    this.element = null;
+                    this.options = null;
+                    this.destroyed = true;
+                    return true;
                 }
+            },
 
-                return events
+            touchHandle(element, options) {
+                return new LS.Util.TouchHandle(element, options);
             },
 
             defaults(defaults, target = {}) {

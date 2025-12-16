@@ -17,6 +17,8 @@ For nearly 3+ years, the changelog has not been documented and some old versions
 - A global event for component registration
 - Experimental LS.Menu component added
 - Added some useful utilities for state management
+- Migrated LS.Timeline and LS.DragDrop
+- TouchHandle is now a class
 
 ## Version 5.2.6 (hotfix)
 - Fixes to LS.Animation when multiple animations are triggered
