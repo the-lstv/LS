@@ -904,11 +904,11 @@ try {
 
             const container = this.options.inputContainer || document;
 
-            container.addEventListener("keydown", event => {
+            container.addEventListener("keydown", this._keydownHandler = event => {
                 this.input.keystates[event.code] = true
             })
 
-            container.addEventListener("keyup", event => {
+            container.addEventListener("keyup", this._keyupHandler = event => {
                 this.input.keystates[event.code] = false
             })
 
@@ -918,17 +918,17 @@ try {
                 down: null
             }
 
-            container.addEventListener("mousemove", event => {
+            container.addEventListener("mousemove", this._mousemoveHandler = event => {
                 const [x, y] = this.mapMouse(event.clientX, event.clientY);
                 this.input.mouse.x = x
                 this.input.mouse.y = y
             })
 
-            container.addEventListener("mousedown", event => {
+            container.addEventListener("mousedown", this._mousedownHandler = event => {
                 this.input.mouse.down = event.button
             })
 
-            container.addEventListener("mouseup", event => {
+            container.addEventListener("mouseup", this._mouseupHandler = event => {
                 this.input.mouse.down = null
             })
 
@@ -939,6 +939,61 @@ try {
             return {
                 x: this.renderer.screen.width / 2,
                 y: this.renderer.screen.height / 2
+            };
+        }
+
+        destroy() {
+            this.emit("destroyed");
+
+            // Clear events
+            this.events.clear();
+
+            // Deactivate current scene
+            if(this.currentScene) {
+                this.currentScene.active = false;
+                if(this.currentScene.options.onDeactivated) {
+                    this.currentScene.options.onDeactivated();
+                }
+                this.currentScene.emit("deactivated");
+            }
+
+            // Destroy all scenes
+            for(const [id, scene] of this.scenes) {
+                scene.destroy({ children: true });
+            }
+            this.scenes.clear();
+            this.currentScene = null;
+
+            // Stop and destroy ticker
+            if(this.ticker) {
+                this.ticker.stop();
+                this.ticker.destroy();
+                this.ticker = null;
+            }
+
+            // Clear assets
+            this.assets.clear();
+
+            // Remove input event listeners
+            if(this.options.handleInputEvents) {
+                const container = this.options.inputContainer || document;
+                container.removeEventListener("keydown", this._keydownHandler);
+                container.removeEventListener("keyup", this._keyupHandler);
+                container.removeEventListener("mousemove", this._mousemoveHandler);
+                container.removeEventListener("mousedown", this._mousedownHandler);
+                container.removeEventListener("mouseup", this._mouseupHandler);
+            }
+
+            // Destroy renderer
+            if(this.renderer) {
+                this.renderer.destroy();
+                this.renderer = null;
+            }
+
+            // Clear input state
+            this.input = {
+                keystates: {},
+                mouse: { x: 0, y: 0, down: null }
             };
         }
     }
