@@ -55,6 +55,7 @@ LS.LoadComponent(class Resize extends LS.Component {
      * @param {string} [options.store=null] - Key name for storage. If set, updates will be persistent and saved into a storage object.
      * @param {boolean} [options.storeStringify=true] - Whether to stringify the stored data.
      * @param {object} [options.storage=null] - Custom storage object (must implement getItem/setItem). Default is localStorage.
+     * @param {boolean} [options.translate] - Use translate3d instead of left/top
      * @returns An object with the registered handles
      * Events on handle:
      * - resize: Emitted when the element is resized with the new width, height, and state.
@@ -96,6 +97,7 @@ LS.LoadComponent(class Resize extends LS.Component {
             store: entry.options?.store ?? null,          // string key
             storeStringify: entry.options?.storeStringify ?? true,
             storage: entry.options?.storage ?? null,      // custom storage (must implement getItem/setItem)
+            translate: entry.options?.translate ?? false, // use transform: translate3d instead of left/top
         }, options || {});
 
         entry.options = options;
@@ -152,8 +154,16 @@ LS.LoadComponent(class Resize extends LS.Component {
                     if(data && typeof data === 'object') {
                         if(data.width != null) target.style.width = typeof data.width === "number" ? `${data.width}px` : data.width;
                         if(data.height != null) target.style.height = typeof data.height === "number" ? `${data.height}px` : data.height;
-                        if(data.left != null) target.style.left = typeof data.left === "number" ? `${data.left}px` : data.left;
-                        if(data.top != null) target.style.top = typeof data.top === "number" ? `${data.top}px` : data.top;
+                        if(options.translate) {
+                            if(data.translateX != null || data.translateY != null) {
+                                const tx = data.translateX ?? 0;
+                                const ty = data.translateY ?? 0;
+                                target.style.transform = `translate3d(${tx}px, ${ty}px, 0)`;
+                            }
+                        } else {
+                            if(data.left != null) target.style.left = typeof data.left === "number" ? `${data.left}px` : data.left;
+                            if(data.top != null) target.style.top = typeof data.top === "number" ? `${data.top}px` : data.top;
+                        }
                         if(data.state === 'collapsed') target.classList.add('ls-resize-collapsed');
                         else if(data.state === 'expanded') target.classList.add('ls-resize-expanded');
                     }
@@ -191,6 +201,7 @@ LS.LoadComponent(class Resize extends LS.Component {
                 let currentState = null;
                 // let startTop = 0, startLeft = 0; // page-based (rect) values
                 let startTopStyle = 0, startLeftStyle = 0; // style/offsetParent based values used for writing back
+                let startTranslateX = 0, startTranslateY = 0; // translate values
                 let minWidth, minHeight, maxWidth, maxHeight;
                 let absolutePositioned = false; // detected at drag start
                 let boundaryRect = null; // computed boundary rect
@@ -227,8 +238,15 @@ LS.LoadComponent(class Resize extends LS.Component {
                         // startTop = rect.top + window.scrollY;
                         // startLeft = rect.left + window.scrollX;
                         // Use style / offsetParent coordinates for adjustments to avoid jump
-                        startTopStyle = !isNaN(parseFloat(style.top)) ? parseFloat(style.top) : target.offsetTop;
-                        startLeftStyle = !isNaN(parseFloat(style.left)) ? parseFloat(style.left) : target.offsetLeft;
+                        if (options.translate) {
+                            const transform = style.transform;
+                            const match = transform.match(/translate3d\(([-\d.]+)px,\s*([-\d.]+)px/);
+                            startTranslateX = match ? parseFloat(match[1]) : 0;
+                            startTranslateY = match ? parseFloat(match[2]) : 0;
+                        } else {
+                            startTopStyle = !isNaN(parseFloat(style.top)) ? parseFloat(style.top) : target.offsetTop;
+                            startLeftStyle = !isNaN(parseFloat(style.left)) ? parseFloat(style.left) : target.offsetLeft;
+                        }
                         startX = mx;
                         startY = my;
                         absolutePositioned = style.position === 'absolute' || style.position === 'fixed';
@@ -264,6 +282,8 @@ LS.LoadComponent(class Resize extends LS.Component {
                         let newHeight = startHeight;
                         let newTop = startTopStyle;
                         let newLeft = startLeftStyle;
+                        let newTranslateX = startTranslateX;
+                        let newTranslateY = startTranslateY;
 
                         const affectsWidth = ["left","right","topLeft","topRight","bottomRight","bottomLeft"].includes(side);
                         const affectsHeight = ["top","bottom","topLeft","topRight","bottomRight","bottomLeft"].includes(side);
@@ -281,7 +301,11 @@ LS.LoadComponent(class Resize extends LS.Component {
                             if (candidate < minWidth) { candidate = minWidth; dx = startWidth - candidate; }
                             else if (candidate > maxWidth) { candidate = maxWidth; dx = startWidth - candidate; }
                             newWidth = candidate;
-                            newLeft = startLeftStyle + dx;
+                            if (options.translate) {
+                                newTranslateX = startTranslateX + dx;
+                            } else {
+                                newLeft = startLeftStyle + dx;
+                            }
                         } else if (["right","topRight","bottomRight"].includes(side)) {
                             let candidate = startWidth + dx;
                             if (candidate < minWidth) candidate = minWidth;
@@ -294,7 +318,11 @@ LS.LoadComponent(class Resize extends LS.Component {
                             if (candidate < minHeight) { candidate = minHeight; dy = startHeight - candidate; }
                             else if (candidate > maxHeight) { candidate = maxHeight; dy = startHeight - candidate; }
                             newHeight = candidate;
-                            newTop = startTopStyle + dy;
+                            if (options.translate) {
+                                newTranslateY = startTranslateY + dy;
+                            } else {
+                                newTop = startTopStyle + dy;
+                            }
                         } else if (["bottom","bottomLeft","bottomRight"].includes(side)) {
                             let candidate = startHeight + dy;
                             if (candidate < minHeight) candidate = minHeight;
@@ -342,8 +370,14 @@ LS.LoadComponent(class Resize extends LS.Component {
 
                         // Apply position only if axis affected & absolute
                         if (absolutePositioned) {
-                            if (["left","topLeft","bottomLeft"].includes(side)) target.style.left = newLeft + 'px';
-                            if (["top","topLeft","topRight"].includes(side)) target.style.top = newTop + 'px';
+                            if (options.translate) {
+                                if (["left","topLeft","bottomLeft"].includes(side) || ["top","topLeft","topRight"].includes(side)) {
+                                    target.style.transform = `translate3d(${newTranslateX}px, ${newTranslateY}px, 0)`;
+                                }
+                            } else {
+                                if (["left","topLeft","bottomLeft"].includes(side)) target.style.left = newLeft + 'px';
+                                if (["top","topLeft","topRight"].includes(side)) target.style.top = newTop + 'px';
+                            }
                         }
 
                         // Apply dimensions only when that axis is being resized (prevents assigning fixed px values unintentionally)
@@ -459,10 +493,17 @@ LS.LoadComponent(class Resize extends LS.Component {
                             const data = {
                                 width: target.style.width || null,
                                 height: target.style.height || null,
-                                left: target.style.left || null,
-                                top: target.style.top || null,
                                 state: target.classList.contains('ls-resize-collapsed') ? 'collapsed' : (target.classList.contains('ls-resize-expanded') ? 'expanded' : 'normal')
                             };
+                            if (options.translate) {
+                                const transform = window.getComputedStyle(target).transform;
+                                const match = transform.match(/translate3d\(([-\d.]+)px,\s*([-\d.]+)px/);
+                                data.translateX = match ? parseFloat(match[1]) : 0;
+                                data.translateY = match ? parseFloat(match[2]) : 0;
+                            } else {
+                                data.left = target.style.left || null;
+                                data.top = target.style.top || null;
+                            }
                             storage.setItem(storeKey, entry.options?.storeStringify !== false ? JSON.stringify(data) : data);
                         } catch(e) { console.error(e) }
 

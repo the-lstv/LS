@@ -14,6 +14,17 @@
  * - Add a multi-timeline swap functionality
  * - Implement proper playback API
  * - Proper drag-drop cleanup on destroy
+ * 
+ * CRITICAL:
+ * - Dragging multiple elements does not work
+ * - Snapping issues (desync when dragging & right side snap)
+ * - Resizing is not proportional
+ * - etc
+ * 
+ * As of 5.2.7 i'll take a break and just mark it as incomplete because this one stupid
+ * component is insane in complexity and I wan't to move on to other parts, otherwise I'd get nowhere.
+ * 
+ * I'm thinking using WebGL would have been much easier and better lmao 😭
  */
 
 (() => {
@@ -26,7 +37,7 @@
         zoom: 1,
         offset: 0,
         minZoom: "auto",
-        maxZoom: 50,
+        maxZoom: 100,
         markerSpacing: 100,
         markerMetric: "time",
         resizable: true,
@@ -60,6 +71,7 @@
             this.options = LS.Util.defaults(DEFAULTS, options);
 
             this.container = LS.Create({
+                attributes: { tabindex: "0" },
                 inner: [
                     (this.markerContainer = LS.Create({
                         class: "ls-timeline-markers"
@@ -67,6 +79,11 @@
 
                     (this.playerHead = LS.Create({
                         class: "ls-timeline-player-head"
+                    })),
+
+                    (this.selectionRect = LS.Create({
+                        class: "ls-timeline-selection-rect",
+                        style: "position: absolute; pointer-events: none; display: none; border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent) 50%, rgba(0, 0, 0, 0.2) 50%); z-index: 100;"
                     })),
 
                     (this.scrollContainer = LS.Create({
@@ -85,6 +102,27 @@
                 ]
             });
 
+            if (this.options.element) {
+                this.options.element.appendChild(this.container);
+            }
+
+            this.container.classList.add("ls-timeline");
+
+            this.items = [];
+
+            this.rowElements = [];
+
+            this.markerPool = [];
+            this.activeMarkers = [];
+
+            this.selectedItems = new Set();
+
+            this.__rendered = new Set();
+            this.__needsSort = false;
+            this.maxDuration = 0;
+            this.maxEndTime = 0;
+            this.__spacerWidth = 0;
+
             this.dragDrop = new LS.DragDrop({
                 id: "timeline-dragdrop",
                 container: this.rowContainer,
@@ -97,6 +135,8 @@
                 animate: false,
                 snapEnabled: true,
                 strictDrop: false,
+                multiList: this.selectedItems,
+                multiBehavior: "relative",
                 handleOptions: {
                     exclude: true
                 },
@@ -104,31 +144,13 @@
                 allowedTargets: ["timeline-row"],
             });
 
-            if (this.options.element) {
-                this.options.element.appendChild(this.container);
-            }
-
-            this.container.classList.add("ls-timeline");
-
-            this.items = [];
-
-            this.rowElements = [];
-            this.reserveRows(this.options.reservedRows);
-
-            this.markerPool = [];
-            this.activeMarkers = [];
-
-            this.__rendered = new Set();
-            this.__needsSort = false;
-            this.maxDuration = 0;
-            this.maxEndTime = 0;
-            this.__spacerWidth = 0;
-
             this.frameScheduler = new LS.Util.FrameScheduler(() => this.#render());
+            this.reserveRows(this.options.reservedRows);
 
             // Mouse/touch drag
             // TODO: Should not block scrolling on mobile
             let dragType = null, rect = null, startX = 0, startY = 0;
+            let selectStartWorldX = 0, selectStartWorldY = 0, lastCursorY = 0;
             
             // Inertia & Edge Scroll state
             let velocityX = 0, lastMoveTime = 0, inertiaRaf = null;
@@ -145,12 +167,70 @@
                 edgeScrollSpeed = 0;
             };
 
+            const updateSelectionBox = (x, y) => {
+                const currentX = x;
+                const currentY = y;
+                
+                const scrollLeft = this.offset;
+                const scrollTop = this.scrollContainer.scrollTop;
+
+                const startScreenX = selectStartWorldX - scrollLeft;
+                const startScreenY = selectStartWorldY - scrollTop;
+
+                const left = Math.min(startScreenX, currentX);
+                const top = Math.min(startScreenY, currentY);
+                const width = Math.abs(currentX - startScreenX);
+                const height = Math.abs(currentY - startScreenY);
+                
+                this.selectionRect.style.transform = `translate3d(${left}px, ${top}px, 0)`;
+                this.selectionRect.style.width = `${width}px`;
+                this.selectionRect.style.height = `${height}px`;
+
+                const worldLeft = left + scrollLeft;
+                const worldRight = worldLeft + width;
+                
+                const timeStart = worldLeft / this.#zoom;
+                const timeEnd = worldRight / this.#zoom;
+                
+                const rowRect = this.rowContainer.getBoundingClientRect();
+                const containerRect = this.container.getBoundingClientRect();
+                const relativeRowTop = rowRect.top - containerRect.top;
+                
+                const boxTopRel = top - relativeRowTop;
+                const boxBottomRel = boxTopRel + height;
+                
+                const rowHeight = this.rowElements.length > 0 ? this.rowElements[0].offsetHeight : 30;
+                if(rowHeight <= 0) return;
+
+                const rowStart = Math.floor(boxTopRel / rowHeight);
+                const rowEnd = Math.floor(boxBottomRel / rowHeight);
+
+                const candidates = this.getRange(timeStart, timeEnd, false);
+                
+                this.selectedItems.clear();
+                
+                for(const item of candidates) {
+                    if (item.row >= rowStart && item.row <= rowEnd) {
+                        const itemEnd = item.start + item.duration;
+                        if (itemEnd > timeStart && item.start < timeEnd) {
+                            this.selectedItems.add(item);
+                        }
+                    }
+                }
+                
+                this.frameScheduler.schedule();
+            };
+
             const processEdgeScroll = () => {
                 if (edgeScrollSpeed !== 0) {
                     this.offset += edgeScrollSpeed;
                     // Update seek position based on the last known cursor position relative to the moving viewport
-                    const worldX = lastCursorX + this.offset;
-                    this.seek = worldX / this.#zoom;
+                    if (dragType === "seek") {
+                        const worldX = lastCursorX + this.offset;
+                        this.seek = worldX / this.#zoom;
+                    } else if (dragType === "select") {
+                        updateSelectionBox(lastCursorX, lastCursorY);
+                    }
                     edgeScrollRaf = requestAnimationFrame(processEdgeScroll);
                 } else {
                     stopEdgeScroll();
@@ -177,24 +257,46 @@
                     const touchEvent = event.type.startsWith("touch");
                     const button = touchEvent? ((event.target === this.scrollContainer || this.scrollContainer.contains(event.target)) ? 1 : 0) : event.button;
 
-                    dragType = button === 0 ? "seek" : button === 1 ? "pan" : button === 2 ? "delete" : null;
+                    if (event.ctrlKey && button === 0) {
+                        dragType = "select";
+                    } else {
+                        dragType = button === 0 ? "seek" : button === 1 ? "pan" : button === 2 ? "delete" : null;
+                    }
 
                     if (!dragType) {
                         cancel();
                         return;
                     }
 
+                    rect = this.container.getBoundingClientRect();
                     startX = x;
                     startY = y;
+                    
+                    // Capture world coordinates for selection to handle scrolling
+                    selectStartWorldX = (x - rect.left) + this.offset;
+                    selectStartWorldY = (y - rect.top) + this.scrollContainer.scrollTop;
+
                     velocityX = 0;
                     lastMoveTime = performance.now();
 
-                    this.dragHandle.cursor = dragType === "pan" ? "grabbing" : dragType === "seek" ? "ew-resize" : "no-drop";
-                    rect = this.container.getBoundingClientRect();
+                    if (dragType === "select") {
+                        this.selectionRect.style.display = "block";
+                        this.selectionRect.style.width = "0px";
+                        this.selectionRect.style.height = "0px";
+                        this.dragHandle.cursor = "crosshair";
+                        this.selectedItems.clear();
+                        this.frameScheduler.schedule();
+                    } else {
+                        this.dragHandle.cursor = dragType === "pan" ? "grabbing" : dragType === "seek" ? "ew-resize" : "no-drop";
+                        if (dragType === "seek") {
+                            this.deselectAll();
+                        }
+                    }
                 },
 
                 onMove: (x, y) => {
                     const now = performance.now();
+                    this.__isDragging = true;
 
                     if (dragType === "pan") {
                         const deltaX = x - startX;
@@ -203,17 +305,23 @@
                         this.scrollContainer.scrollTop -= deltaY;
                         
                         // Track velocity
-                        velocityX = deltaX; 
+                        velocityX = deltaX;
                         
                         startX = x;
                         startY = y;
-                    } else if (dragType === "seek") {
+                    } else if (dragType === "seek" || dragType === "select") {
                         const cursorX = x - rect.left;
+                        const cursorY = y - rect.top;
                         lastCursorX = cursorX;
+                        lastCursorY = cursorY;
 
-                        const worldX = cursorX + this.offset;
-                        const time = worldX / this.#zoom;
-                        this.seek = time;
+                        if (dragType === "seek") {
+                            const worldX = cursorX + this.offset;
+                            const time = worldX / this.#zoom;
+                            this.seek = time;
+                        } else {
+                            updateSelectionBox(cursorX, cursorY);
+                        }
 
                         // Edge scrolling
                         const threshold = 50;
@@ -237,15 +345,33 @@
                     lastMoveTime = now;
                 },
 
-                onEnd() {
+                onEnd: () => {
                     if (dragType === "pan") {
                         // Only apply inertia if the last move was recent
                         if (performance.now() - lastMoveTime < 50) {
                             processInertia();
                         }
+                    } else if (dragType === "select") {
+                        this.selectionRect.style.display = "none";
                     }
+
                     stopEdgeScroll();
                     dragType = null;
+                    setTimeout(() => this.__isDragging = false, 10);
+                }
+            });
+
+            this.container.addEventListener("click", (event) => {
+                if (this.__isDragging) return;
+
+                const itemElement = event.target.closest(".ls-timeline-item");
+                if (itemElement) {
+                    const item = this.items.find(i => i.timelineElement === itemElement);
+                    if (item) {
+                        this.select(item);
+                    }
+                } else {
+                    this.deselectAll();
                 }
             });
 
@@ -284,29 +410,67 @@
                 console.warn("LS.Timeline: LS.Resize component is required for resizable timeline items.");
             }
 
-            // this.dragDrop.on("drag", (element) => { });
+            // this.dragDrop.on("drag", (elements) => { });
 
             this.dragDrop.on("drop", (event) => {
-                console.log("Drop event:", event);
-
-                // Update the timeline item's row assignment
-                const item = event.object || this.items.find(i => i.timelineElement === event.source);
-
-                if (item && event.target.classList.contains("ls-timeline-row")) {
-                    const newRow = this.rowElements.indexOf(event.target);
-                    item.row = newRow;
-                    item.start = (event.boundX + this.#offset) / this.#zoom;
-                    if(this.options.autoAppendRows && newRow === this.rowElements.length) {
-                        // Add an extra track
-                        this.addTrack();
+                console.log(event);
+                
+                for(const el of event.items) {
+                    const item = el.__timelineItem || this.items.find(i => i.timelineElement === event.source);
+                    if (item && event.target.classList.contains("ls-timeline-row")) {
+                        const newRow = this.rowElements.indexOf(event.target);
+                        item.row = newRow;
+                        item.start = (event.boundX + this.#offset) / this.#zoom;
+                        if(this.options.autoAppendRows && newRow === this.rowElements.length) {
+                            // Add an extra track
+                            this.addTrack();
+                        }
                     }
 
-                    // this.__needsSort = true;
+                    this.__needsSort = true;
                     this.frameScheduler.schedule();
                 }
             });
 
             // this.dragDrop.on("cancel", (element) => { });
+
+            this.clipboard = [];
+
+            this.container.addEventListener("keydown", (event) => {
+                console.log(event);
+                
+                if (!event.ctrlKey) return;
+
+                const key = event.key.toLowerCase();
+                if (key === "a") {
+                    event.preventDefault();
+                    this.selectedItems.clear();
+                    for (const item of this.items) this.selectedItems.add(item);
+                    this.frameScheduler.schedule();
+                } else if (key === "c") {
+                    event.preventDefault();
+                    if (this.selectedItems.size === 0) return;
+                    let minStart = Infinity;
+                    for (const item of this.selectedItems) {
+                        if (item.start < minStart) minStart = item.start;
+                    }
+                    this.clipboard = Array.from(this.selectedItems, (item) => ({
+                        data: this.cloneItem(item),
+                        row: item.row || 0,
+                        offset: item.start - minStart,
+                    }));
+                } else if (key === "v") {
+                    event.preventDefault();
+                    if (!this.clipboard.length) return;
+                    for (const entry of this.clipboard) {
+                        const newItem = this.cloneItem(entry.data);
+                        newItem.start = this.seek + entry.offset;
+                        newItem.row = entry.row;
+                        this.add(newItem);
+                    }
+                    this.frameScheduler.schedule();
+                }
+            });
         }
 
         // --- Camera state values (do not influence content) ---
@@ -543,6 +707,12 @@
                     item.__previousWidth = computedWidth;
                 }
 
+                if (this.selectedItems.has(item)) {
+                    itemElement.classList.add("selected");
+                } else {
+                    itemElement.classList.remove("selected");
+                }
+
                 itemElement.style.transform = `translate3d(${computedX}px, 0, 0)`;
 
                 this.reserveRows((item.row || 0) + 1);
@@ -592,6 +762,20 @@
             this.frameScheduler.schedule();
         }
 
+        select(item) {
+            this.selectedItems.clear();
+            this.selectedItems.add(item);
+            this.emit("item-select", item);
+            this.frameScheduler.schedule();
+        }
+
+        deselectAll() {
+            if (this.selectedItems.size > 0) {
+                this.selectedItems.clear();
+                this.frameScheduler.schedule();
+            }
+        }
+
         add(item) {
             this.items.push(item);
             this.__needsSort = true;
@@ -608,6 +792,14 @@
                 this.__needsSort = true;
                 this.frameScheduler.schedule();
             }
+        }
+
+        cloneItem(item) {
+            return {
+                start: item.start,
+                duration: item.duration,
+                data: item.data || null,
+            };
         }
 
         cut(itemOrTime, offset) {
@@ -641,11 +833,7 @@
             }
 
             // Clone item
-            const newItem = Object.assign({}, item);
-            
-            // Clean up internal properties on the clone
-            delete newItem.timelineElement;
-            delete newItem.__previousWidth;
+            const newItem = this.cloneItem(item);
             
             // Update durations and start times
             const originalEndTime = item.start + item.duration;
@@ -727,13 +915,17 @@
 
         createTimelineElement(item) {
             item.timelineElement = LS.Create({
-                class: "ls-timeline-item"
+                class: "ls-timeline-item",
+                inner: { tag: "span", textContent: item.data && item.data.label ? item.data.label : "" },
             });
+
+            item.timelineElement.__timelineItem = item;
 
             if (LS.Resize && this.options.resizable) {
                 const { left, right } = LS.Resize.set(item.timelineElement, {
                     left: true,
                     right: true,
+                    translate: true,
                     minWidth: 5,
                 });
 
@@ -742,8 +934,6 @@
                 });
 
                 const resizeHandler = (width, side) => {
-                    const intersecting = this.getIntersectingAt(item.start + item.duration - 0.0001).filter(i => i !== item);
-
                     if(side === 'left') {
                         const newDuration = width / this.#zoom;
                         const endTime = item.start + item.duration;
@@ -751,6 +941,22 @@
                         item.duration = newDuration;
                     } else {
                         item.duration = width / this.#zoom;
+                    }
+
+                    // Resize all selected items proportionally
+                    if (this.selectedItems.size > 1) {
+                        for (const selectedItem of this.selectedItems) {
+                            if (selectedItem === item) continue;
+                            
+                            if (side === 'left') {
+                                const newDuration = width / this.#zoom;
+                                const endTime = selectedItem.start + selectedItem.duration;
+                                selectedItem.start = endTime - newDuration;
+                                selectedItem.duration = newDuration;
+                            } else {
+                                selectedItem.duration = width / this.#zoom;
+                            }
+                        }
                     }
 
                     this.frameScheduler.schedule();
@@ -812,6 +1018,9 @@
             this.activeMarkers = null;
             this.rowElements = null;
             this.spacerElement = null;
+            this.selectedItems = null;
+            this.__rendered = null;
+            this.playerHead = null;
             this.rowContainer = null;
             this.scrollContainer = null;
             this.markerContainer = null;
