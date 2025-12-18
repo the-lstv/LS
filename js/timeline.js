@@ -798,6 +798,9 @@
             return {
                 start: item.start,
                 duration: item.duration,
+                row: item.row || 0,
+                label: item.label || "",
+                color: item.color || null,
                 data: item.data || null,
             };
         }
@@ -916,7 +919,8 @@
         createTimelineElement(item) {
             item.timelineElement = LS.Create({
                 class: "ls-timeline-item",
-                inner: { tag: "span", textContent: item.data && item.data.label ? item.data.label : "" },
+                inner: { tag: "span", textContent: item.label || (item.data && item.data.label ? item.data.label : "") },
+                accent: item.color || null
             });
 
             item.timelineElement.__timelineItem = item;
@@ -991,7 +995,7 @@
             }
         }
 
-        reset(destroyItems = true) {
+        reset(destroyItems = true, replacingItems = null) {
             for (let item of this.items) {
                 if (destroyItems) {
                     this.destroyTimelineElement(item);
@@ -1004,7 +1008,10 @@
             this.maxDuration = 0;
             this.maxEndTime = 0;
             this.clearUnusedRows();
-            this.__needsSort = false;
+            this.__needsSort = !!replacingItems;
+            if (replacingItems) {
+                this.items = replacingItems;
+            }
             this.frameScheduler.schedule();
         }
 
