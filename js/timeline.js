@@ -34,14 +34,15 @@
         element: null,
         chunkSize: "auto",
         reservedRows: 5,
-        zoom: 1,
+        zoom: 10,
         offset: 0,
-        minZoom: "auto",
-        maxZoom: 100,
+        minZoom: 0.001,
+        maxZoom: 1000,
         markerSpacing: 100,
         markerMetric: "time",
         resizable: true,
         autoAppendRows: true,
+        snapping: false
     };
 
     // :shrug:
@@ -59,6 +60,20 @@
     // };
 
     LS.LoadComponent(class Timeline extends LS.Component {
+        /**
+         * Timeline component options configuration
+         * @property {HTMLElement|null} element - The DOM element to attach the timeline to
+         * @property {number|"auto"} chunkSize - Size of chunks for virtual scrolling. "auto" adjusts based on item count
+         * @property {number} reservedRows - Number of rows to pre-allocate
+         * @property {number} zoom - Initial zoom level (pixels per time unit)
+         * @property {number} offset - Initial horizontal scroll offset in pixels
+         * @property {number|"auto"} minZoom - Minimum allowed zoom level. "auto" fits content to viewport width
+         * @property {number} maxZoom - Maximum allowed zoom level
+         * @property {number} markerSpacing - Minimum spacing between time markers in pixels
+         * @property {"time"|"number"|Function} markerMetric - Format for time markers. "time" shows HH:MM:SS, "number" shows raw values, or custom function(time, step)
+         * @property {boolean} resizable - Enable resizing of timeline items
+         * @property {boolean} autoAppendRows - Automatically add new rows when items are dropped on the last row
+         */
         constructor(options = {}) {
             super({
                 dependencies: ["DragDrop", "Resize"]
@@ -227,7 +242,7 @@
                     // Update seek position based on the last known cursor position relative to the moving viewport
                     if (dragType === "seek") {
                         const worldX = lastCursorX + this.offset;
-                        this.seek = worldX / this.#zoom;
+                        this.setSeek(worldX / this.#zoom);
                     } else if (dragType === "select") {
                         updateSelectionBox(lastCursorX, lastCursorY);
                     }
@@ -318,7 +333,7 @@
                         if (dragType === "seek") {
                             const worldX = cursorX + this.offset;
                             const time = worldX / this.#zoom;
-                            this.seek = time;
+                            this.setSeek(time);
                         } else {
                             updateSelectionBox(cursorX, cursorY);
                         }
@@ -471,6 +486,8 @@
                     this.frameScheduler.schedule();
                 }
             });
+
+            this.frameScheduler.schedule();
         }
 
         // --- Camera state values (do not influence content) ---
@@ -520,8 +537,12 @@
         set seek(value) {
             // TODO: implement player controller API
             this.#seek = Math.max(0, value);
-            this.emit("seek", [this.#seek]);
             this.frameScheduler.schedule();
+        }
+
+        setSeek(value) {
+            this.seek = value;
+            this.emit("seek", [this.#seek]);
         }
 
         binarySearch(time) {
@@ -544,14 +565,17 @@
             
             this.maxDuration = 0;
             this.maxEndTime = 0;
-            
+
             for (let i = 0; i < this.items.length; i++) {
                 const item = this.items[i];
+                if(!item.duration || item.duration < 0) item.duration = 0;
+                if(!item.start || item.start < 0) item.start = 0;
+                if(!item.row || item.row < 0) item.row = 0;
                 if (item.duration > this.maxDuration) this.maxDuration = item.duration;
                 const end = item.start + item.duration;
                 if (end > this.maxEndTime) this.maxEndTime = end;
             }
-            
+
             this.__needsSort = false;
         }
 
@@ -595,8 +619,10 @@
             }
 
             // Update spacer width
+            // Ensure the spacer is wide enough for the content plus padding, regardless of zoom/offset
             const endPadding = viewportWidth * 0.5;
-            const spacerWidth = (this.maxEndTime * this.#zoom) + endPadding;
+            const contentWidth = this.maxEndTime * this.#zoom;
+            const spacerWidth = Math.max(contentWidth + endPadding, worldRight + endPadding);
 
             if (Math.abs(this.__spacerWidth - spacerWidth) > 1) {
                 this.spacerElement.style.width = `${spacerWidth}px`;
@@ -746,16 +772,18 @@
 
         formatMarker(time, step) {
             if (this.options.markerMetric === "number") return time.toString();
-            if (this.options.markerMetric === "function") return this.options.markerMetric(time, step);
-            
+            if (typeof this.options.markerMetric === "function") return this.options.markerMetric(time, step);
+
             const absTime = Math.abs(time);
-            const h = Math.floor(absTime / 3600);
+            const d = Math.floor(absTime / 86400);
+            const h = Math.floor((absTime % 86400) / 3600);
             const m = Math.floor((absTime % 3600) / 60);
             const s = Math.floor(absTime % 60);
-            
-            if (step < 1) return absTime.toFixed(1);
+
+            if (time < 1) return absTime.toFixed(1) + "s";
+            if (d > 0) return `${d}d ${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
             if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-            return `${m}:${s.toString().padStart(2, '0')}`;
+            return `${m}:${s.toString().padStart(2, '0')}s`;
         }
 
         render() {
@@ -776,6 +804,15 @@
             }
         }
 
+        /**
+         * Timeline item data structure
+         * @property {number} start - Start time of the item
+         * @property {number} duration - Duration of the item
+         * @property {number} [row=0] - Row index where the item is placed
+         * @property {string} [label=""] - Display label for the item
+         * @property {string|null} [color=null] - Accent color for the item
+         * @property {*} [data=null] - Custom data associated with the item
+         */
         add(item) {
             this.items.push(item);
             this.__needsSort = true;
