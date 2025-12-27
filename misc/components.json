@@ -1,12 +1,14 @@
 {
     "js": [
         "animation",
+        "automationgraph",
         "dragdrop",
         "gl",
         "imagecropper",
         "modal",
         "network",
         "node",
+        "patchbay",
         "reactive",
         "resize",
         "tabs",

@@ -844,10 +844,17 @@
                         return;
                     }
 
-                    if (this.options.pointerLock && !isTouch) {
-                        this.pointerLockPreviousX = event.clientX;
-                        this.pointerLockPreviousY = event.clientY;
-                        this.element.requestPointerLock();
+                    if (this.options.pointerLock) {
+                        if(!this.pointerLockSet) {
+                            document.addEventListener('pointerlockchange', this.onPointerLockChange);
+                            this.pointerLockSet = true;
+                        }
+
+                        if(!isTouch) {
+                            this.pointerLockPreviousX = event.clientX;
+                            this.pointerLockPreviousY = event.clientY;
+                            this.element.requestPointerLock();
+                        }
                     }
 
                     this.dragTarget = LS.Tiny.O(event.target);
@@ -960,9 +967,7 @@
                         }
                     }
 
-                    if (this.options.pointerLock) {
-                        document.removeEventListener('pointerlockchange', this.onPointerLockChange);
-                    }
+                    document.removeEventListener('pointerlockchange', this.onPointerLockChange);
 
                     this.flush();
                     this.element = null;
@@ -1036,25 +1041,99 @@
 
             /**
              * Schedules a callback to run on the next animation frame, avoiding multiple calls within the same frame.
+             * Also has an "active" mode and FPS limit and time sync options.
+             * 
+             * In passive mode (default), you call schedule() whenever.
+             * In active mode (start/stop methods), it works like a ticker.
              */
             FrameScheduler: class FrameScheduler {
-                constructor(callback) {
+                /**
+                 * @param {Function} callback - The function to call on each frame.
+                 * @param {Object} [options] - Optional settings.
+                 * @param {number} [options.limiter] - Minimum ms between frames (rate limit).
+                 * @param {boolean} [options.timeSync] - If true, pass delta time to callback.
+                 * @param {number} [options.speed] - Playback speed multiplier (default: 1).
+                 */
+                constructor(callback, options = {}) {
                     this.callback = callback;
                     this.queued = false;
+                    this.running = false;
+                    this.limiter = options.limiter || null;
+                    this.timeSync = options.timeSync || false;
+                    this.speed = options.speed ?? 1;
+                    this._lastFrame = 0;
+                    this._rafId = null;
+                    if (this.timeSync) this._prevTimestamp = null;
+                }
+
+                #frame = (timestamp) => {
+                    if (this.limiter) {
+                        if (timestamp - this._lastFrame < this.limiter) {
+                            // Not enough time passed, reschedule
+                            this._rafId = requestAnimationFrame(this.#frame);
+                            return;
+                        }
+                        this._lastFrame = timestamp;
+                    }
+
+                    this.queued = false;
+                    
+                    if (this.callback) {
+                        if (this.running && this.timeSync) {
+                            const delta = this._prevTimestamp !== null ? (timestamp - this._prevTimestamp) * this.speed : 0;
+                            this._prevTimestamp = timestamp;
+                            this.callback(delta, timestamp);
+                        } else {
+                            this.callback();
+                        }
+                    }
+
+                    if (this.running) this.schedule();
+                }
+
+                limitFPS(fps) {
+                    this.limiter = fps > 0 ? 1000 / fps : null;
+                }
+
+                removeLimiter() {
+                    this.limiter = null;
+                }
+
+                setSpeed(multiplier) {
+                    this.speed = multiplier;
+                }
+
+                start() {
+                    if (this.running) return;
+                    this.running = true;
+                    if (this.timeSync) this._prevTimestamp = null;
+                    this.schedule();
+                }
+
+                stop() {
+                    this.running = false;
+                    this.cancel();
                 }
 
                 schedule() {
-                    if(this.queued) return;
+                    if (this.queued) return;
                     this.queued = true;
 
-                    requestAnimationFrame(() => {
-                        if(this.queued && this.callback) this.callback();
-                        this.queued = false;
-                    });
+                    this._rafId = requestAnimationFrame(this.#frame);
                 }
 
                 cancel() {
                     this.queued = false;
+                    if (this._rafId) {
+                        cancelAnimationFrame(this._rafId);
+                        this._rafId = null;
+                    }
+                }
+
+                destroy() {
+                    this.cancel();
+                    this.callback = null;
+                    if (this.timeSync) this._prevTimestamp = null;
                 }
             },
 
@@ -1258,6 +1337,17 @@
             }
 
             #handleKeyDown(event) {
+                // Skip if user is typing in an input element
+                const target = event.target;
+                if (target && (
+                    target.tagName === 'INPUT' ||
+                    target.tagName === 'TEXTAREA' ||
+                    target.tagName === 'SELECT' ||
+                    target.isContentEditable
+                )) {
+                    return;
+                }
+
                 for (const shortcut of this.shortcuts.values()) {
                     if (this.#matchesShortcut(event, shortcut)) {
                         event.preventDefault();

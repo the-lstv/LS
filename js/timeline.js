@@ -34,15 +34,20 @@
         element: null,
         chunkSize: "auto",
         reservedRows: 5,
-        zoom: 10,
+        zoom: 200,
         offset: 0,
-        minZoom: 0.001,
+        minZoom: 0.01,
         maxZoom: 1000,
         markerSpacing: 100,
         markerMetric: "time",
         resizable: true,
         autoAppendRows: true,
-        snapping: false
+        allowAutomationClips: false,
+        autoCreateAutomationClips: false,
+        snapping: false,
+        itemHeaderHeight: 20,
+        startingRows: 15,
+        rowHeight: 45
     };
 
     // :shrug:
@@ -135,7 +140,7 @@
             this.__rendered = new Set();
             this.__needsSort = false;
             this.maxDuration = 0;
-            this.maxEndTime = 0;
+            this.#duration = 0;
             this.__spacerWidth = 0;
 
             this.dragDrop = new LS.DragDrop({
@@ -232,7 +237,7 @@
                         }
                     }
                 }
-                
+
                 this.frameScheduler.schedule();
             };
 
@@ -268,12 +273,16 @@
                 onStart: (event, cancel, x, y) => {
                     stopInertia();
                     stopEdgeScroll();
+                    this.dragHandle.options.pointerLock = false;
 
                     const touchEvent = event.type.startsWith("touch");
                     const button = touchEvent? ((event.target === this.scrollContainer || this.scrollContainer.contains(event.target)) ? 1 : 0) : event.button;
 
                     if (event.ctrlKey && button === 0) {
                         dragType = "select";
+                    } else if (event.ctrlKey && button === 1) {
+                        dragType = "zoom-v";
+                        this.dragHandle.options.pointerLock = true;
                     } else {
                         dragType = button === 0 ? "seek" : button === 1 ? "pan" : button === 2 ? "delete" : null;
                     }
@@ -302,7 +311,7 @@
                         this.selectedItems.clear();
                         this.frameScheduler.schedule();
                     } else {
-                        this.dragHandle.cursor = dragType === "pan" ? "grabbing" : dragType === "seek" ? "ew-resize" : "no-drop";
+                        this.dragHandle.cursor = dragType === "pan" ? "grabbing" : dragType === "seek" ? "ew-resize" : dragType === "zoom-v" ? "none" : "no-drop";
                         if (dragType === "seek") {
                             this.deselectAll();
                         }
@@ -323,6 +332,26 @@
                         velocityX = deltaX;
                         
                         startX = x;
+                        startY = y;
+                    } else if (dragType === "zoom-v") {
+                        const deltaY = y - startY;
+                        const sensitivity = 0.5;
+                        const oldHeight = this.rowHeight;
+                        const targetHeight = oldHeight - (deltaY * sensitivity);
+
+                        this.rowHeight = targetHeight;
+                        const newHeight = this.rowHeight;
+
+                        if (newHeight !== oldHeight) {
+                            const rect = this.scrollContainer.getBoundingClientRect();
+                            const mouseY = startY - rect.top;
+                            const oldScrollTop = this.scrollContainer.scrollTop;
+                            const contentY = oldScrollTop + mouseY;
+                            
+                            const ratio = newHeight / oldHeight;
+                            this.scrollContainer.scrollTop = (contentY * ratio) - mouseY;
+                        }
+                        
                         startY = y;
                     } else if (dragType === "seek" || dragType === "select") {
                         const cursorX = x - rect.left;
@@ -409,6 +438,58 @@
 
             document.addEventListener('wheel', this.__wheelHandler, { passive: false });
 
+            // Allow native file drops on the timeline and emit processing info
+            this.__nativeDragOverHandler = (event) => {
+                const dt = event.dataTransfer;
+                if (!dt) return;
+                // Only intercept when files are present
+                const types = dt.types ? Array.from(dt.types) : [];
+                if (!types.includes('Files')) return;
+                event.preventDefault();
+                try { dt.dropEffect = 'copy'; } catch (_) { /* noop */ }
+            };
+
+            this.__nativeDropHandler = (event) => {
+                const dt = event.dataTransfer;
+                if (!dt || !dt.files || dt.files.length === 0) return;
+                event.preventDefault();
+
+                const containerRect = this.container.getBoundingClientRect();
+                const cursorX = event.clientX - containerRect.left;
+                const cursorY = event.clientY - containerRect.top;
+
+                // Compute timeline time offset from X
+                const worldX = cursorX + this.#offset;
+                const timeOffset = worldX / this.#zoom;
+
+                // Determine row from Y
+                let rowIndex = 0;
+                let matched = false;
+                for (let i = 0; i < this.rowElements.length; i++) {
+                    const r = this.rowElements[i].getBoundingClientRect();
+                    if (event.clientY >= r.top && event.clientY <= r.bottom) {
+                        rowIndex = i;
+                        matched = true;
+                        break;
+                    }
+                }
+                if (!matched && this.rowElements.length > 0) {
+                    const firstRect = this.rowElements[0].getBoundingClientRect();
+                    const lastRect = this.rowElements[this.rowElements.length - 1].getBoundingClientRect();
+                    if (event.clientY < firstRect.top) {
+                        rowIndex = 0;
+                    } else if (event.clientY > lastRect.bottom) {
+                        rowIndex = this.rowElements.length - 1;
+                    }
+                }
+
+                const files = Array.from(dt.files);
+                this.emit(this.__fileProcessEventRef, [files, rowIndex, timeOffset]);
+            };
+
+            this.container.addEventListener('dragover', this.__nativeDragOverHandler);
+            this.container.addEventListener('drop', this.__nativeDropHandler);
+
             this.zoom = this.options.zoom;
             this.offset = this.options.offset;
 
@@ -487,12 +568,31 @@
                 }
             });
 
+            this.rowHeight = this.options.rowHeight;
+            this.reserveRows(this.options.startingRows);
             this.frameScheduler.schedule();
+
+            this.__seekEventRef = this.prepareEvent("seek");
+            this.__fileProcessEventRef = this.prepareEvent("file-dropped");
+            this.enabled = true;
         }
 
         // --- Camera state values (do not influence content) ---
         #offset = 0;
         #zoom = 1;
+        #rowHeight = 30;
+
+        get rowHeight() {
+            return this.#rowHeight;
+        }
+
+        set rowHeight(value) {
+            value = clamp(value, 20, 500);
+            if (value === this.#rowHeight) return;
+            this.#rowHeight = value;
+            this.container.style.setProperty("--ls-timeline-row-height", `${value}px`);
+            this.frameScheduler.schedule();
+        }
 
         get zoom() {
             return this.#zoom;
@@ -502,8 +602,8 @@
             let minZoom = this.options.minZoom;
 
             if (minZoom === "auto") {
-                if (this.maxEndTime > 0 && this.container.clientWidth > 0) {
-                    minZoom = this.container.clientWidth / this.maxEndTime;
+                if (this.#duration > 0 && this.container.clientWidth > 0) {
+                    minZoom = this.container.clientWidth / this.#duration;
                 } else {
                     minZoom = 0.000001;
                 }
@@ -529,6 +629,7 @@
 
         // --- Player state values (do influence content) ---
         #seek = 0;
+        #duration = 0;
 
         get seek() {
             return this.#seek;
@@ -541,8 +642,14 @@
         }
 
         setSeek(value) {
+            value = Math.max(0, value);
+            if(this.#seek === value) return;
             this.seek = value;
-            this.emit("seek", [this.#seek]);
+            this.emit(this.__seekEventRef, [this.#seek]);
+        }
+
+        get duration() {
+            return this.#duration;
         }
 
         binarySearch(time) {
@@ -561,22 +668,28 @@
         }
 
         sortItems() {
-            this.items.sort((a, b) => a.start - b.start);
-            
+            this.items.sort((a, b) => (a.start || 0) - (b.start || 0));
+
+            let totalDuration = 0;
             this.maxDuration = 0;
-            this.maxEndTime = 0;
 
             for (let i = 0; i < this.items.length; i++) {
                 const item = this.items[i];
-                if(!item.duration || item.duration < 0) item.duration = 0;
-                if(!item.start || item.start < 0) item.start = 0;
-                if(!item.row || item.row < 0) item.row = 0;
+                if (!item.duration || item.duration < 0) item.duration = 0;
+                if (!item.start || item.start < 0) item.start = 0;
+                if (!item.row || item.row < 0) item.row = 0;
                 if (item.duration > this.maxDuration) this.maxDuration = item.duration;
                 const end = item.start + item.duration;
-                if (end > this.maxEndTime) this.maxEndTime = end;
+                if (end > totalDuration) totalDuration = end;
             }
 
             this.__needsSort = false;
+
+            this.emit("sorted", [this.maxDuration]);
+            if (totalDuration !== this.#duration) {
+                this.#duration = totalDuration;
+                this.emit("duration-changed", [this.#duration]);
+            }
         }
 
         reserveRows(number) {
@@ -607,8 +720,10 @@
             }
         }
 
-        #render() {
+        #render() { 
             // let debug_scanned = 0, debug_time = performance.now();
+
+            if(!this.enabled || document.hidden || document.fullscreenElement) return;
 
             const worldLeft = this.#offset;
             const viewportWidth = this.container.clientWidth;
@@ -621,7 +736,7 @@
             // Update spacer width
             // Ensure the spacer is wide enough for the content plus padding, regardless of zoom/offset
             const endPadding = viewportWidth * 0.5;
-            const contentWidth = this.maxEndTime * this.#zoom;
+            const contentWidth = this.#duration * this.#zoom;
             const spacerWidth = Math.max(contentWidth + endPadding, worldRight + endPadding);
 
             if (Math.abs(this.__spacerWidth - spacerWidth) > 1) {
@@ -728,7 +843,8 @@
                 }
 
                 // Ensure we do not trigger CSS layout
-                if (computedWidth !== item.__previousWidth) {
+                const widthChanged = computedWidth !== item.__previousWidth;
+                if (widthChanged) {
                     itemElement.style.width = `${computedWidth}px`;
                     item.__previousWidth = computedWidth;
                 }
@@ -745,6 +861,27 @@
                 const rowElement = this.rowElements[item.row || 0];
                 if (!itemElement.isConnected || itemElement.parentNode !== rowElement) {
                     rowElement.appendChild(itemElement);
+
+                    if (item.type === "automation") {
+                        if (!item.__automationClip && this.options.autoCreateAutomationClips) {
+                            item.data = item.data || {};
+                            item.data.automationPoints = item.data.automationPoints || [];
+                            item.__automationClip = new LS.AutomationGraph({ items: item.data.automationPoints });
+                        }
+                        if (item.__automationClip) {
+                            item.__automationClip.setElement(itemElement);
+                            item.__automationClip.updateScale(this.#zoom);
+                            item.__automationClip.updateSize(computedWidth, this.rowHeight - this.options.itemHeaderHeight);
+                        }
+                    }
+                } else {
+                    if (item.type === "automation" && item.__automationClip) {
+                        item.__automationClip.updateScale(this.#zoom);
+                        if (widthChanged || this.rowHeight !== item.__previousHeight) {
+                            item.__automationClip.updateSize(computedWidth, this.rowHeight - this.options.itemHeaderHeight);
+                            item.__previousHeight = this.rowHeight;
+                        }
+                    }
                 }
 
                 this.__rendered.add(itemElement);
@@ -754,6 +891,9 @@
             // Hide non-eligible items
             for (let child of this.__rendered) {
                 if (!child.__eligible) {
+                    if (child.__timelineItem && child.__timelineItem.type === "automation" && child.__timelineItem.__automationClip) {
+                        child.__timelineItem.__automationClip.setElement(null);
+                    }
                     child.remove();
                     this.__rendered.delete(child);
                 } else {
@@ -780,20 +920,23 @@
             const m = Math.floor((absTime % 3600) / 60);
             const s = Math.floor(absTime % 60);
 
-            if (time < 1) return absTime.toFixed(1) + "s";
+            if (time < 60) return absTime.toFixed(1) + "s";
             if (d > 0) return `${d}d ${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
             if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-            return `${m}:${s.toString().padStart(2, '0')}s`;
+            return `${m}:${s.toString().padStart(2, '0')}`;
         }
 
-        render() {
+        render(updateItems = false) {
+            if (updateItems) {
+                this.__needsSort = true;
+            }
             this.frameScheduler.schedule();
         }
 
         select(item) {
             this.selectedItems.clear();
             this.selectedItems.add(item);
-            this.emit("item-select", item);
+            this.emit("item-select", [item]);
             this.frameScheduler.schedule();
         }
 
@@ -839,6 +982,9 @@
                 label: item.label || "",
                 color: item.color || null,
                 data: item.data || null,
+                type: item.type || null,
+                cover: item.cover || null,
+                waveform: item.waveform || null,
             };
         }
 
@@ -955,9 +1101,34 @@
 
         createTimelineElement(item) {
             item.timelineElement = LS.Create({
-                class: "ls-timeline-item",
+                class: "ls-timeline-item" + (item.type ? ` ls-timeline-item-${item.type}` : "") + (item.cover ? " ls-timeline-item-cover" : ""),
                 inner: { tag: "span", textContent: item.label || (item.data && item.data.label ? item.data.label : "") },
-                accent: item.color || null
+                accent: item.color || null,
+                style: item.cover ? `background-image: url('${item.cover}'); background-size: cover; background-position: center;` : ""
+            });
+
+            Object.defineProperty(item, "label", {
+                get: () => {
+                    const span = item.timelineElement.querySelector("span");
+                    return span ? span.textContent : "";
+                },
+                set: (value) => {
+                    const span = item.timelineElement.querySelector("span");
+                    if (span) span.textContent = value;
+                }
+            });
+
+            Object.defineProperty(item, "color", {
+                get: () => {
+                    return item.timelineElement.getAttribute("ls-accent");
+                },
+                set: (value) => {
+                    if (value) {
+                        item.timelineElement.setAttribute("ls-accent", value);
+                    } else {
+                        item.timelineElement.removeAttribute("ls-accent");
+                    }
+                }
             });
 
             item.timelineElement.__timelineItem = item;
@@ -967,6 +1138,7 @@
                     left: true,
                     right: true,
                     translate: true,
+                    anchor: 0,
                     minWidth: 5,
                 });
 
@@ -982,6 +1154,10 @@
                         item.duration = newDuration;
                     } else {
                         item.duration = width / this.#zoom;
+                    }
+
+                    if (item.type === "automation" && item.__automationClip) {
+                        item.__automationClip.updateSize(width, this.rowHeight - this.options.itemHeaderHeight);
                     }
 
                     // Resize all selected items proportionally
@@ -1000,6 +1176,7 @@
                         }
                     }
 
+                    LS.Tooltips.set(this.formatMarker(item.duration)).position(item.timelineElement).show();
                     this.frameScheduler.schedule();
                 }
 
@@ -1009,6 +1186,18 @@
 
                 right.handler.on("resize", (width) => {
                     resizeHandler(width, 'right');
+                });
+
+                left.handler.on("resize-end", () => {
+                    this.__needsSort = true;
+                    LS.Tooltips.hide();
+                    this.frameScheduler.schedule();
+                });
+
+                right.handler.on("resize-end", (width) => {
+                    this.__needsSort = true;
+                    LS.Tooltips.hide();
+                    this.frameScheduler.schedule();
                 });
             }
 
@@ -1024,6 +1213,10 @@
         }
 
         destroyItem(item) {
+            if (item.type === "automation" && item.__automationClip) {
+                if (typeof item.__automationClip.destroy === "function") item.__automationClip.destroy();
+                item.__automationClip = null;
+            }
             this.destroyTimelineElement(item);
             const index = this.items.indexOf(item);
             if (index >= 0) {
@@ -1035,21 +1228,33 @@
         reset(destroyItems = true, replacingItems = null) {
             for (let item of this.items) {
                 if (destroyItems) {
+                    if (item.type === "automation" && item.__automationClip) {
+                        if (typeof item.__automationClip.destroy === "function") item.__automationClip.destroy();
+                        item.__automationClip = null;
+                    }
                     this.destroyTimelineElement(item);
                 } else if (item.timelineElement && item.timelineElement.parentNode) {
+                    if (item.type === "automation" && item.__automationClip) {
+                        item.__automationClip.setElement(null);
+                    }
                     item.timelineElement.remove();
                 }
             }
 
-            this.items = [];
-            this.maxDuration = 0;
-            this.maxEndTime = 0;
-            this.clearUnusedRows();
-            this.__needsSort = !!replacingItems;
+            this.items = replacingItems || [];
             if (replacingItems) {
-                this.items = replacingItems;
+                this.sortItems();
             }
+
+            this.maxDuration = 0;
+            this.#duration = 0;
+            this.clearUnusedRows();
+            this.reserveRows(this.options.startingRows);
             this.frameScheduler.schedule();
+        }
+
+        export() {
+            return this.items.map(item => this.cloneItem(item));
         }
 
         destroy() {
@@ -1070,6 +1275,14 @@
             this.markerContainer = null;
             document.removeEventListener('wheel', this.__wheelHandler);
             this.__wheelHandler = null;
+            if (this.container && this.__nativeDragOverHandler) {
+                this.container.removeEventListener('dragover', this.__nativeDragOverHandler);
+                this.__nativeDragOverHandler = null;
+            }
+            if (this.container && this.__nativeDropHandler) {
+                this.container.removeEventListener('drop', this.__nativeDropHandler);
+                this.__nativeDropHandler = null;
+            }
             this.dragHandle.destroy();
             this.dragHandle = null;
             this.dragDrop.destroy();

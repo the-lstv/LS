@@ -21,25 +21,25 @@ LS.WebSocket = class WebSocketWrapper extends LS.EventHandler {
             protocols: null
         }, options);
 
-        this.waiting = [];
+        this.queue = [];
 
         Object.defineProperty(this, "readyState", {
             get(){
                 return this.socket.readyState
             }
-        })
+        });
 
         Object.defineProperty(this, "bufferedAmount", {
             get(){
                 return this.socket.bufferedAmount
             }
-        })
+        });
 
         Object.defineProperty(this, "protocol", {
             get(){
                 return this.socket.protocol
             }
-        })
+        });
 
         this.url = url;
         if(this.options.autoConnect) this.connect();
@@ -51,44 +51,44 @@ LS.WebSocket = class WebSocketWrapper extends LS.EventHandler {
         this.socket = new WebSocket(this.url, this.options.protocols || null);
 
         this.socket.addEventListener("open", event => {
-            if(this.waiting.length > 0){
-                for(let message of this.waiting) this.socket.send(message);
-                this.waiting = []
+            if(this.queue.length > 0){
+                for(let message of this.queue) this.socket.send(message);
+                this.queue = [];
             }
 
-            this.emit("open", [event])
-        })
+            this.emit("open", [event]);
+        });
 
         this.socket.addEventListener("message", event => {
-            this.emit("message", [event])
-        })
+            this.emit("message", [event]);
+        });
 
         this.socket.addEventListener("close", async event => {
             let prevent = false;
 
             this.emit("close", [event, () => {
                 prevent = true
-            }])
+            }]);
 
             if(!prevent && this.options.autoReconnect) this.connect();
-        })
+        });
 
         this.socket.addEventListener("error", event => {
-            this.emit("error", [event])
-        })
+            this.emit("error", [event]);
+        });
     }
 
     send(data){
         if(!this.socket || this.socket.readyState !== 1) {
-            if(this.options.delayMessages) this.waiting.push(data)
-            return false
+            if(this.options.delayMessages) this.queue.push(data);
+            return false;
         }
 
-        this.socket.send(data)
-        return true
+        this.socket.send(data);
+        return true;
     }
 
     close(code, message){
-        this.socket.close(code, message)
+        this.socket.close(code, message);
     }
 };

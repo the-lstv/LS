@@ -24,15 +24,16 @@ The goal is to have all built-in components reach the highest quality rating so 
 | LS.Toast | ★★★★☆ (4/5)
 | LS.Node | ★★★★☆ (4/5)
 | LS.Timeline | ★★★★☆ (4/5) | Recently migrated and stable, bugs may still show up
-| LS.Animation | ★★★☆☆ (3/5) | Incomplete
+| LS.AutomationGraph | ★★★☆☆ (3/5) | Recently migrated, very unstable
 | LS.Tooltips | ★★★☆☆ (3/5) | While updated and stable, it is still based on old code
 | LS.GL | ★★★☆☆ (3/5) | Highly experimental
 | LS.GLMultiShader | ★★★☆☆ (3/5) | Incomplete
 | LS.ImageCropper | ★★★☆☆ (3/5) | Slightly spaghetti/rushed though functional
+| LS.Animation | ★★★☆☆ (3/5) | Incomplete
 | LS.DragDrop | ★★☆☆☆ (2/5) | Recently migrated from v3, needs refactoration
 | LS.Menu | ★★☆☆☆ (2/5) | In early development
 | LS.Tree | ★☆☆☆☆ (1/5) | Unfinished, unrelated code mixed in
-| LS.Network | ★☆☆☆☆ (1/5) | Unfinished
+| LS.Network | ★☆☆☆☆ (1/5) | Just a WebSocket wrapper as of now
 
 ## Migration Status
 Here we track the migration status of old components from LS v3 to v5.<br>
@@ -42,15 +43,13 @@ Components marked "Not Started" are not available yet and may be rejected at any
 |----------------|-----------------|
 | LS.Progress | In *Progress*
 | LS.Select | In Progress
-| LS.AutomationGraph | Not Started
+| LS.AutomationGraph | In Progress
+| LS.Patchbay | In Progress
 | LS.Workspace | Not Started
-| LS.Patchbay | Not Started
 | LS.Knob | Not Started
 | LS.List | Not Started
-| LS.MultiSelect | Not Started
 | LS.Native | Not Started
 | LS.Nav | Not Started
-| LS.Present | Not Started
 | LS.Sheet | Not Started
 | LS.GraphGL | Not Started (this one has the worst code of all 😭)
 
@@ -69,3 +68,5 @@ These are ***very old*** LS v3 components that have been removed and not conside
 - LS.Fragment (not very useful)
 - LS.Debugger (never completed)
 - LS.Menubar (never completed)
+- LS.MultiSelect (currently i am not sure about the implementation)
+- LS.Present (may be better to use custom logic)
