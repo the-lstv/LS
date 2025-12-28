@@ -31,7 +31,7 @@ Don't believe me? [See it in action](https://lstv.space) - all of our platforms 
 <br>
 
 
-## LS v5.2.1
+## LS v5.2.7
 v5 is by far the largest update ever released to LS.<br>
 ### What's new?
 - ✨ New, modern API remade from scratch
@@ -80,14 +80,14 @@ Using LS with Akeno is the best and easiest way to do it, since Akeno comes with
  All you need to import LS is:
 ```html
 <head>
-    @use (ls:5.2.1[]);
+    @use (ls:5.2.7[]);
 </head>
 ```
 And you are using LS! Components are added into the square brackets ([]) as a comma separated list - it will also automatically manage CSS/JS pairs, so you don't have to think about which part to place where! Akeno will also optimize the URL for best shared caching practices to reduce load times.<br>
  If you plan to use the design language, don't forget to specify the style (simply default to flat if you are unsure):
 ```html
 <head>
-    @use (ls:5.2.1[ flat ]);
+    @use (ls:5.2.7[ flat ]);
 
     @page { theme: dark; style: flat; accent: blue }
 </head>
@@ -102,8 +102,8 @@ Or, to only import a component without the core: `/ls/[version]/[component].[?mi
 Or, to import multiple components without the core: `/ls/[version]/[components]/bundle.[?min].[js|css]`
 
 ```html
-<script src="https://cdn.extragon.cloud/ls/5.2.1/ls.min.js"></script>
-<link href="https://cdn.extragon.cloud/ls/5.2.1/flat/ls.min.css" rel="stylesheet">
+<script src="https://cdn.extragon.cloud/ls/5.2.7/ls.min.js"></script>
+<link href="https://cdn.extragon.cloud/ls/5.2.7/flat/ls.min.css" rel="stylesheet">
 ```
 
 And you can start using LS right away!

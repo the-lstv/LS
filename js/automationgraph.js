@@ -19,6 +19,24 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
         BEZIER: "bezier"
     };
 
+    static contextMenuItems = [
+        { type: "radio", group: "curve_type", text: "Linear", value: "linear", checked: true },
+        { type: "radio", group: "curve_type", text: "Exponential", value: "exponential" },
+        { type: "radio", group: "curve_type", text: "Hold", value: "hold" },
+        { type: "radio", group: "curve_type", text: "Stairs", value: "stairs" },
+        { type: "radio", group: "curve_type", text: "Sine Wave", value: "sine" },
+        { type: "radio", group: "curve_type", text: "Half Sine Wave", value: "half_sine" },
+        { type: "radio", group: "curve_type", text: "Pulse Wave", value: "pulse" },
+        { type: "radio", group: "curve_type", text: "Bezier Curve", value: "bezier" },
+        { type: "separator" },
+        { text: "Type In Value", action: "type_in_value" },
+        { text: "Reset Value", action: "reset_value" },
+        { type: "separator" },
+        { text: "Delete Point", action: "delete_point" },
+    ];
+
+    static contextMenu = null;
+
     /**
      * Constructor
      * @param {*} options
@@ -62,6 +80,54 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
 
         if(this.options.items) {
             this.reset(this.options.items);
+        }
+
+        if(!this.contextMenu && LS.Menu) {
+            this.contextMenu = new LS.Menu({
+                items: this.constructor.contextMenuItems
+            });
+
+            this.contextMenu.on('select', (item) => {
+                const focused = this.focusedItem;
+                if (!focused) return;
+
+                console.log(item);
+
+                switch(item.action) {
+                    case 'delete_point':
+                        if (focused !== this.startPoint) {
+                            this.remove(focused);
+                            this.focusedItem = null;
+                        }
+                        break;
+
+                    case 'type_in_value': {
+                        const value = prompt("Enter new value:", focused.value);
+                        if (value !== null) {
+                            const num = parseFloat(value);
+                            if (!isNaN(num)) {
+                                focused.value = Math.max(this.options.minValue, Math.min(this.options.maxValue, num));
+                                this.frameScheduler.schedule();
+                            }
+                        }
+
+                        break;
+                    }
+
+                    case 'reset_value':
+                        focused.value = this.options.value;
+                        this.frameScheduler.schedule();
+                        break;
+                }
+            });
+
+            this.contextMenu.on('check', (item) => {
+                const focused = this.focusedItem;
+                if (!focused) return;
+
+                focused.type = item.value;
+                this.frameScheduler.schedule();
+            });
         }
     }
 
@@ -152,7 +218,8 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
             e.preventDefault();
             if (e.target.__automationItem) {
                 // Context menu for item (TODO)
-                console.log("Context menu for", e.target.__automationItem);
+                this.focusedItem = e.target.__automationItem;
+                this.contextMenu.open(e.clientX, e.clientY);
             } else if (this.options.rightClickToCreate) {
                 const rect = this.element.getBoundingClientRect();
                 const relX = e.clientX - rect.left;
@@ -739,6 +806,15 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
         if(this.handle) {
             this.handle.destroy();
             this.handle = null;
+        }
+
+        this.startPoint = null;
+        this._dragState = null;
+        this.focusedItem = null;
+
+        if(this.contextMenu) {
+            this.contextMenu.destroy();
+            this.contextMenu = null;
         }
 
         this.items.length = 0;

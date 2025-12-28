@@ -1015,6 +1015,48 @@
                 })
             },
 
+            // Allow only harmless tags: i, b, strong, kbd, code, pre, em, u, s, mark, small, sub, sup, br, span (with no attributes)
+            allowedTags: ['I', 'B', 'STRONG', 'KBD', 'CODE', 'PRE', 'EM', 'U', 'S', 'MARK', 'SMALL', 'SUB', 'SUP', 'BR', 'SPAN'],
+
+            sanitize(node) {
+                if (node.nodeType === Node.ELEMENT_NODE) {
+                    if (!LS.Util.allowedTags.includes(node.tagName)) {
+                        // Replace the node with its children, if parent exists
+                        const fragment = document.createDocumentFragment();
+                        while (node.firstChild) {
+                            fragment.appendChild(node.firstChild);
+                        }
+
+                        if (node.parentNode) {
+                            node.parentNode.replaceChild(fragment, node);
+                        }
+                        return;
+                    }
+                }
+
+                // Remove all attributes
+                while (node.attributes && node.attributes.length > 0) {
+                    node.removeAttribute(node.attributes[0].name);
+                }
+
+                // Recursively sanitize child nodes
+                let child = node.firstChild;
+                while (child) {
+                    const next = child.nextSibling;
+                    this.sanitize(child);
+                    child = next;
+                }
+            },
+
+            normalize(string) {
+                return string.toLowerCase()
+                    .normalize("NFD")
+                    .replace(/[\u0300-\u036f]/g, "")
+                    .replace(/[^a-z0-9\s]/g, "")
+                    .replace(/\s+/g, " ")
+                    .trim();
+            },
+
             /**
              * A simple switch that triggers a callback when its value changes, but does nothing if it doesn't.
              */
@@ -1051,7 +1093,7 @@
                  * @param {Function} callback - The function to call on each frame.
                  * @param {Object} [options] - Optional settings.
                  * @param {number} [options.limiter] - Minimum ms between frames (rate limit).
-                 * @param {boolean} [options.timeSync] - If true, pass delta time to callback.
+                 * @param {boolean} [options.deltaTime] - If true, pass delta time to callback.
                  * @param {number} [options.speed] - Playback speed multiplier (default: 1).
                  */
                 constructor(callback, options = {}) {
@@ -1059,11 +1101,11 @@
                     this.queued = false;
                     this.running = false;
                     this.limiter = options.limiter || null;
-                    this.timeSync = options.timeSync || false;
+                    this.deltaTime = options.deltaTime || false;
                     this.speed = options.speed ?? 1;
                     this._lastFrame = 0;
                     this._rafId = null;
-                    if (this.timeSync) this._prevTimestamp = null;
+                    if (this.deltaTime) this._prevTimestamp = null;
                 }
 
                 #frame = (timestamp) => {
@@ -1077,14 +1119,16 @@
                     }
 
                     this.queued = false;
-                    
+
                     if (this.callback) {
-                        if (this.running && this.timeSync) {
+                        if (this.running && this.deltaTime) {
                             const delta = this._prevTimestamp !== null ? (timestamp - this._prevTimestamp) * this.speed : 0;
                             this._prevTimestamp = timestamp;
                             this.callback(delta, timestamp);
+                        } else if(this.deltaTime) {
+                            this.callback(0, timestamp);
                         } else {
-                            this.callback();
+                            this.callback(timestamp);
                         }
                     }
 
@@ -1106,7 +1150,7 @@
                 start() {
                     if (this.running) return;
                     this.running = true;
-                    if (this.timeSync) this._prevTimestamp = null;
+                    if (this.deltaTime) this._prevTimestamp = null;
                     this.schedule();
                 }
 
@@ -1133,7 +1177,7 @@
                 destroy() {
                     this.cancel();
                     this.callback = null;
-                    if (this.timeSync) this._prevTimestamp = null;
+                    if (this.deltaTime) this._prevTimestamp = null;
                 }
             },
 
@@ -1141,9 +1185,11 @@
              * Ensures a callback is only run once.
              */
             RunOnce: class RunOnce {
-                constructor(callback) {
+                constructor(callback, runNow = false) {
                     this.callback = callback;
                     this.hasRun = false;
+
+                    if(runNow) this.run();
                 }
 
                 run() {
@@ -1334,6 +1380,15 @@
                 this.reset();
                 this.events.clear();
                 this.target.removeEventListener('keydown', this.handler);
+            }
+
+            triggerMapping(key) {
+                const handler = this.mappings.get(key);
+                if (typeof handler === 'function') {
+                    handler();
+                    return true;
+                }
+                return false;
             }
 
             #handleKeyDown(event) {

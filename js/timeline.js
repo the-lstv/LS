@@ -36,7 +36,7 @@
         reservedRows: 5,
         zoom: 200,
         offset: 0,
-        minZoom: 0.01,
+        minZoom: 0.1,
         maxZoom: 1000,
         markerSpacing: 100,
         markerMetric: "time",
@@ -127,6 +127,7 @@
             }
 
             this.container.classList.add("ls-timeline");
+            this.container.__lsComponent = this;
 
             this.items = [];
 
@@ -316,6 +317,8 @@
                             this.deselectAll();
                         }
                     }
+
+                    this.emit("drag-start", [dragType]);
                 },
 
                 onMove: (x, y) => {
@@ -333,6 +336,8 @@
                         
                         startX = x;
                         startY = y;
+
+                        this.emit("drag-move", [dragType, deltaX, deltaY]);
                     } else if (dragType === "zoom-v") {
                         const deltaY = y - startY;
                         const sensitivity = 0.5;
@@ -353,6 +358,8 @@
                         }
                         
                         startY = y;
+
+                        this.emit("drag-move", [dragType, 0, deltaY]);
                     } else if (dragType === "seek" || dragType === "select") {
                         const cursorX = x - rect.left;
                         const cursorY = y - rect.top;
@@ -382,6 +389,8 @@
                         if (edgeScrollSpeed !== 0 && !edgeScrollRaf) {
                             edgeScrollRaf = requestAnimationFrame(processEdgeScroll);
                         }
+
+                        this.emit("drag-move", [dragType, cursorX, cursorY]);
                     } else if (dragType === "delete") {
                         // TODO: implement delete
                     }
@@ -400,8 +409,10 @@
                     }
 
                     stopEdgeScroll();
-                    dragType = null;
                     setTimeout(() => this.__isDragging = false, 10);
+
+                    this.emit("drag-end", [dragType]);
+                    dragType = null;
                 }
             });
 
@@ -865,8 +876,8 @@
                     if (item.type === "automation") {
                         if (!item.__automationClip && this.options.autoCreateAutomationClips) {
                             item.data = item.data || {};
-                            item.data.automationPoints = item.data.automationPoints || [];
-                            item.__automationClip = new LS.AutomationGraph({ items: item.data.automationPoints });
+                            item.data.points = item.data.points || [];
+                            item.__automationClip = new LS.AutomationGraph({ items: item.data.points, value: item.data.value || 0 });
                         }
                         if (item.__automationClip) {
                             item.__automationClip.setElement(itemElement);
@@ -977,6 +988,7 @@
         cloneItem(item) {
             return {
                 start: item.start,
+                id: item.id || null,
                 duration: item.duration,
                 row: item.row || 0,
                 label: item.label || "",
@@ -1251,6 +1263,36 @@
             this.clearUnusedRows();
             this.reserveRows(this.options.startingRows);
             this.frameScheduler.schedule();
+        }
+
+        transformCoords(x, y) {
+            const rowsRect = this.rowContainer.getBoundingClientRect();
+            const time = (x - rowsRect.left + this.#offset) / this.#zoom;
+
+            let rowIndex = 0;
+            if(y !== undefined) {
+                let matched = false;
+                for (let i = 0; i < this.rowElements.length; i++) {
+                    const r = this.rowElements[i].getBoundingClientRect();
+                    if (y >= r.top && y <= r.bottom) {
+                        rowIndex = i;
+                        matched = true;
+                        break;
+                    }
+                }
+
+                if (!matched && this.rowElements.length > 0) {
+                    const firstRect = this.rowElements[0].getBoundingClientRect();
+                    const lastRect = this.rowElements[this.rowElements.length - 1].getBoundingClientRect();
+                    if (y < firstRect.top) {
+                        rowIndex = 0;
+                    } else if (y > lastRect.bottom) {
+                        rowIndex = this.rowElements.length - 1;
+                    }
+                }
+            }
+
+            return { time, row: rowIndex };
         }
 
         export() {

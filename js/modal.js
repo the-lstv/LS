@@ -145,7 +145,9 @@
 
             this.container.remove();
             this.container = null;
+            this.previousFocus = null;
             this.emit("destroy");
+            this.events.clear();
             this._destroyed = true;
             return this;
         }

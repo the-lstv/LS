@@ -30,8 +30,8 @@ The goal is to have all built-in components reach the highest quality rating so 
 | LS.GLMultiShader | ★★★☆☆ (3/5) | Incomplete
 | LS.ImageCropper | ★★★☆☆ (3/5) | Slightly spaghetti/rushed though functional
 | LS.Animation | ★★★☆☆ (3/5) | Incomplete
+| LS.Menu | ★★★☆☆ (3/5) | In early development, messy code
 | LS.DragDrop | ★★☆☆☆ (2/5) | Recently migrated from v3, needs refactoration
-| LS.Menu | ★★☆☆☆ (2/5) | In early development
 | LS.Tree | ★☆☆☆☆ (1/5) | Unfinished, unrelated code mixed in
 | LS.Network | ★☆☆☆☆ (1/5) | Just a WebSocket wrapper as of now
 
@@ -42,7 +42,6 @@ Components marked "Not Started" are not available yet and may be rejected at any
 | Component  | Progress |
 |----------------|-----------------|
 | LS.Progress | In *Progress*
-| LS.Select | In Progress
 | LS.AutomationGraph | In Progress
 | LS.Patchbay | In Progress
 | LS.Workspace | Not Started
