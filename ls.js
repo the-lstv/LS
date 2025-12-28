@@ -333,12 +333,17 @@
                     content.ns = "http://www.w3.org/2000/svg";
                 }
 
-                const { class: className, tooltip, ns, accent, style, inner, content: innerContent, reactive, attr, attributes, ...rest } = content;
+                const { class: className, tooltip, ns, accent, style, inner, content: innerContent, reactive, attr, options, attributes, ...rest } = content;
 
                 const element = Object.assign(
                     ns ? document.createElementNS(ns, tagName) : document.createElement(tagName),
                     rest
                 );
+
+                // Special case for ls-select
+                if(tagName.toLowerCase() === "ls-select" && options){
+                    element._lsSelectOptions = options;
+                }
 
                 // Handle attributes
                 if (accent) element.setAttribute("ls-accent", accent);

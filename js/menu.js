@@ -8,6 +8,7 @@
 
 LS.LoadComponent(class Menu extends LS.Component {
     static index = 0;
+    static groups = {};
 
     static addContextMenu(element, itemsProvider, options = {}) {
         if(Array.isArray(itemsProvider)) {
@@ -54,18 +55,18 @@ LS.LoadComponent(class Menu extends LS.Component {
      * @property {boolean} options.fixed If true, the menu position is fixed rather than static
      * @property {boolean} options.ephemeral If true, the menu is destroyed when closed
      * @property {boolean} options.searchable If true, the menu has a search box to filter items
+     * @property {string} options.group If set, only one menu in the group can be open at a time
      */
     constructor(element, options = null) {
         super();
         this.isOpen = false;
 
-        console.log("New menu created", element, options);
-        
-
         this.items = [];
         this.selectedItem = null;
         this.activeSubmenu = null;
         this.parentMenu = null;
+
+        this.__previousActiveElement = null;
 
         const isElement = element instanceof HTMLElement;
         if(!isElement) {
@@ -95,8 +96,16 @@ LS.LoadComponent(class Menu extends LS.Component {
             adjacentMode: "click",
             ephemeral: false,
             searchable: false,
-            inheritAdjacentWidth: false
+            inheritAdjacentWidth: false,
+            group: null
         }, options || {});
+
+        if (this.options.group) {
+            if (!this.constructor.groups[this.options.group]) {
+                this.constructor.groups[this.options.group] = new Set();
+            }
+            this.constructor.groups[this.options.group].add(this);
+        }
 
         if(this.options.topLayer) {
             LS.once("body-available", () => {
@@ -177,6 +186,25 @@ LS.LoadComponent(class Menu extends LS.Component {
                         this.navigate(e.key === 'ArrowDown' ? 1 : -1);
                     }
                 });
+
+                if (this.options.group && this.options.adjacentMode !== 'context') {
+                    this.options.adjacentElement.addEventListener('mouseenter', this.__adjacentHoverHandler = () => {
+                        const group = this.constructor.groups[this.options.group];
+                        if (!group) return;
+                        
+                        let anyOpen = false;
+                        for (const menu of group) {
+                            if (menu.isOpen) {
+                                anyOpen = true;
+                                break;
+                            }
+                        }
+
+                        if (anyOpen && !this.isOpen) {
+                            this.open();
+                        }
+                    });
+                }
             }
         }
 
@@ -349,6 +377,7 @@ LS.LoadComponent(class Menu extends LS.Component {
         item.element = LS.Create({
             class: "ls-list-item ls-menu-item",
             tabindex: -1,
+            attributes: { 'role': 'option' },
             inner
         });
 
@@ -540,6 +569,15 @@ LS.LoadComponent(class Menu extends LS.Component {
     }
 
     select(item) {
+        if(typeof item === 'number') {
+            item = this.items[item];
+        }
+
+        if(typeof item === 'string') {
+            item = this.items.find(i => i.value === item);
+        }
+
+        if (!item) return;
         this.emit("select", [item]);
         this.selectedItem = item;
         this.render();
@@ -590,6 +628,14 @@ LS.LoadComponent(class Menu extends LS.Component {
     }
 
     open(x, y) {
+        if (this.options.group && this.constructor.groups[this.options.group]) {
+            for (const menu of this.constructor.groups[this.options.group]) {
+                if (menu !== this && menu.isOpen) {
+                    menu.close();
+                }
+            }
+        }
+
         if (this.options.fixed) {
             let posX = x;
             let posY = y;
@@ -657,6 +703,7 @@ LS.LoadComponent(class Menu extends LS.Component {
             this.container.style.display = 'block';
         }
         
+        this.__previousActiveElement = document.activeElement;
         if (this.options.searchable && this.searchInput) {
             this.searchInput.value = '';
             this.#filterItems('');
@@ -672,6 +719,11 @@ LS.LoadComponent(class Menu extends LS.Component {
     
     close() {
         if(!this.isOpen) return;
+
+        if(this.__previousActiveElement) {
+            this.__previousActiveElement.focus();
+            this.__previousActiveElement = null;
+        }
         
         if (this.activeSubmenu) {
             this.activeSubmenu.close();
@@ -739,6 +791,10 @@ LS.LoadComponent(class Menu extends LS.Component {
         this.container.remove();
         this.events.clear();
 
+        if (this.options.group && this.constructor.groups[this.options.group]) {
+            this.constructor.groups[this.options.group].delete(this);
+        }
+
         if(this.options.adjacentElement) {
             this.options.adjacentElement.__menu = null;
 
@@ -749,6 +805,10 @@ LS.LoadComponent(class Menu extends LS.Component {
     
             if(this.__adjacentKeyHandler) {
                 this.options.adjacentElement.removeEventListener('keydown', this.__adjacentKeyHandler);
+            }
+
+            if(this.__adjacentHoverHandler) {
+                this.options.adjacentElement.removeEventListener('mouseenter', this.__adjacentHoverHandler);
             }
         }
 
@@ -774,6 +834,7 @@ LS.LoadComponent(class Menu extends LS.Component {
         this.items = null;
         this.selectedItem = null;
         this.isOpen = false;
+        this.__previousActiveElement = null;
         this.__destroyed = true;
     }
 }, { global: true, name: "Menu" });
@@ -781,10 +842,13 @@ LS.LoadComponent(class Menu extends LS.Component {
 customElements.define('ls-select', class LSSelect extends HTMLElement {
     constructor() {
         super();
-        this.options = [];
+        this.__pendingValue = null;
     }
 
     connectedCallback() {
+        if(this.menu) return;
+        if(!this.__pendingValue) this.__pendingValue = this.getAttribute('value');
+
         if(!LS.GetComponent("Menu")) {
             console.error("LSSelect requires LS.Menu component to be loaded.");
 
@@ -805,8 +869,13 @@ customElements.define('ls-select', class LSSelect extends HTMLElement {
         });
 
         this.menu.on("select", (item) => {
-            this.handle.textContent = item.text;
+            console.log(item);
+            
+            if(this.label) this.label.textContent = item.text;
             this.dispatchEvent(new Event('change', { bubbles: true, detail: { value: item.value, item } }));
+            this.dispatchEvent(new Event('input', { bubbles: true, detail: { value: item.value, item } }));
+            if(this.onchange) this.onchange({ target: this, value: item.value, item });
+            if(this.oninput) this.oninput({ target: this, value: item.value, item });
         });
 
         this.menu.on("open", (item) => {
@@ -819,63 +888,56 @@ customElements.define('ls-select', class LSSelect extends HTMLElement {
 
         this.setAttribute('role', 'combobox');
         this.setAttribute('tabindex', '0');
-        this._render();
+        this.#generateMenu();
     }
 
-    disconnectedCallback() {
-        if(this.menu) {
-            this.menu.destroy();
-            this.menu = null;
-        }
-    }
+    // Sadly there is no "garbageCollectedCallback"
+    // So lifecycle management is manual and up to the user when using ls-select!!
+    // disconnectedCallback() {
+    //     this.destroy();
+    // }
 
-    _render() {
-        // const select = this.querySelector('select') || document.createElement('select');
-        // select.style.display = 'none';
-
+    #generateMenu() {
         let selectedOption = null;
-        this.options = [];
 
-        for(const opt of this.querySelectorAll('ls-option, option, optgroup')) {
-            if (opt.selected || opt.getAttribute("selected") !== null) selectedOption = opt;
-            opt.setAttribute('role', 'option');
+        this.label = this.querySelector('.ls-select-label') || N({
+            class: "ls-select-label"
+        });
 
-            const option = opt.tagName.toLowerCase() === 'optgroup'? {
-                type: "label",
-                text: opt.getAttribute("label") || '',
-            }: {
-                value: opt.value || opt.getAttribute('value') || opt.textContent,
-                text: opt.getAttribute("label") || opt.textContent,
-                selected: opt.getAttribute("selected") !== null,
-                optionElement: opt,
-                element: N({
-                    class: "ls-list-item ls-select-option",
-                    textContent: opt.textContent,
-                    tabindex: -1
-                })
-            };
-
-            if(option.type !== "label") {
-                option.element.dataset.value = option.value;
-                option.element.addEventListener('click', (event) => {
-                    event.stopPropagation();
-                    this.selectOption(option);
-                });
-
-                opt.remove();
-            }
-
-            this.menu.add(option); // Moves the element to the menu
-        }
-
-        this.handle = this.querySelector('.ls-select-display') || N({
-            class: "ls-select-display",
-            textContent: selectedOption ? selectedOption.textContent : (this.getAttribute("placeholder") || 'Select an option')
+        this.content = LS.Create({
+            class: "ls-select-content",
+            inner: [
+                this.label, { class: "ls-select-arrow" }
+            ]
         }).addTo(this);
 
-        this._labelTarget = this.querySelector('.ls-select-display .ls-select-label-target, .ls-select-display');
+        if(!this._lsSelectOptions) {
+            for(const optionElement of this.querySelectorAll('ls-option, option, optgroup')) {
+                const isSelected = optionElement.selected || optionElement.getAttribute("selected") !== null;
+    
+                const option = optionElement.tagName.toLowerCase() === 'optgroup'? {
+                    type: "label",
+                    text: optionElement.getAttribute("label") || '',
+                }: {
+                    value: optionElement.value || optionElement.getAttribute('value') || optionElement.textContent,
+                    text: optionElement.getAttribute("label") || optionElement.textContent,
+                    selected: isSelected
+                };
+    
+                optionElement.remove();
+                this.menu.add(option);
+    
+                if(isSelected && !selectedOption) {
+                    selectedOption = option;
+                }
+            }
+        } else {
+            this.menu.items = this._lsSelectOptions;
+            delete this._lsSelectOptions;
+        }
 
-        this.menu.render();
+        this.menu.select(this.__pendingValue || selectedOption || 0);
+        this.__pendingValue = null;
     }
 
     addOption(option) {
@@ -895,6 +957,11 @@ customElements.define('ls-select', class LSSelect extends HTMLElement {
     }
 
     selectOption(value) {
+        if(!this.menu) {
+            this.__pendingValue = value;
+            return;
+        }
+
         this.menu.select(value);
     }
 
@@ -902,7 +969,19 @@ customElements.define('ls-select', class LSSelect extends HTMLElement {
         return this.menu.selectedItem?.value || '';
     }
 
-    set value(val) {
-        this.menu.select(val);
+    set value(value) {
+        this.selectOption(value);
+    }
+
+    destroy() {
+        if(this.menu) {
+            this.menu.destroy();
+            this.menu = null;
+        }
+
+        this.content.remove();
+        this.content = null;
+        this.label = null;
+        this.__pendingValue = null;
     }
 });

@@ -12,11 +12,11 @@
     --border-radius-full:     100px;
     --border-radius-circle:   50%;
 
-    #{$button}, input, select, textarea {
+    #{$control} {
         border-radius: var(--border-radius);
     }
 
-    #{$button} {
+    #{$buttonLike} {
         background-color: var(--accent-35);
         color: var(--on-accent);
 
@@ -49,20 +49,20 @@
         }
     }
 
-    #{$button}:is(.clear, .outline) {
+    #{$buttonLike}:is(.clear, .outline) {
         background: none;
         color: var(--on-background);
     }
 
-    #{$button}.circle {
+    #{$buttonLike}.circle {
         border-radius: 50%;
     }
 
-    #{$button}.square {
+    #{$buttonLike}.square {
         border-radius: var(--border-radius)
     }
 
-    #{$button}:is(.clear, .outline, .elevated):not(:disabled) {
+    #{$buttonLike}:is(.clear, .outline, .elevated):not(:disabled) {
         &:hover, &:focus {
             background-color: var(--accent-mix-40);
         }
@@ -72,17 +72,17 @@
         }
     }
 
-    #{$button}.clear {
+    #{$buttonLike}.clear {
         &:hover, &:focus {
             color: var(--on-transparent);
         }
     }
 
-    #{$button}.outline {
+    #{$buttonLike}.outline {
         border: 1px solid var(--accent-70);
     }
 
-    #{$button}.elevated {
+    #{$buttonLike}.elevated {
         background-color: var(--accent-mix-20);
         color: var(--on-transparent);
 
@@ -95,12 +95,12 @@
         }
     }
 
-    #{$button}.pill {
+    #{$buttonLike}.pill {
         border-radius: var(--border-radius-full);
         padding: var(--padding-control-v) var(--padding-control-h-pill);
     }
 
-    #{$button}.small {
+    #{$buttonLike}.small {
         --padding-control-h: 10px;
         font-size: x-small;
     }

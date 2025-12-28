@@ -1,10 +1,15 @@
 @use "sass:color";
 @use 'sass:math';
 
-$button: ':is(button, input[type="button"], input[type="submit"], input[type="reset"], .ls-button)';
 
 // Yes, this is actually the shortest way to write this. F#cking CSS
 $textInput: ':is(input:not([type]), input[type="text"], input[type="search"], input[type="email"], input[type="url"], input[type="tel"], input[type="password"], input[type="number"], textarea, .ls-text-input)';
+
+$button: ':is(button, input[type="button"], input[type="submit"], input[type="reset"], .ls-button)';
+$select: ':is(select, ls-select, .ls-select .ls-select-handle)';
+$control: ':is(#{$button}, input, textarea, #{$select})';
+
+$buttonLike: ':is(#{$button}, #{$select})';
 
 @function priority($thing, $times) {
     $result: '';

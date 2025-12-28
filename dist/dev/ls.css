@@ -775,6 +775,29 @@ ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   margin-bottom: 8px !important;
 }
 
+ls-select ls-option, ls-select option, ls-select optgroup {
+  display: none;
+}
+
+.ls-select-content {
+  display: flex;
+  align-items: center;
+}
+
+.ls-select-arrow {
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 5px solid currentColor;
+  margin-left: 8px;
+}
+
+[aria-expanded=true] > .ls-select-content > .ls-select-arrow {
+  border-bottom: 5px solid currentColor;
+  border-top: none;
+}
+
 :root {
   --ls-color-navy: rgb(40, 28, 108);
   --ls-color-blue: rgb(0, 133, 255);
@@ -2117,7 +2140,7 @@ template {
   display: none;
 }
 
-input:-webkit-autofill, [ls] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), input, select, textarea), [ls] {
+input:-webkit-autofill, [ls] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), input, textarea, :is(select, ls-select, .ls-select .ls-select-handle)), [ls] {
   font-family: var(--font);
 }
 
@@ -2157,24 +2180,24 @@ body {
 [ls] * {
   box-sizing: border-box;
 }
-[ls] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), input, select, textarea) {
+[ls] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), input, textarea, :is(select, ls-select, .ls-select .ls-select-handle)) {
   box-sizing: border-box;
   border: 0;
   outline: none;
   position: relative;
 }
-[ls] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), input, select, textarea):not(textarea) {
+[ls] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), input, textarea, :is(select, ls-select, .ls-select .ls-select-handle)):not(textarea) {
   line-height: 1;
 }
-[ls] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button) {
+[ls] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), [ls] :is(select, ls-select, .ls-select .ls-select-handle) {
   padding: var(--padding-control-v) var(--padding-control-h);
   margin: var(--margin-control-v) var(--margin-control-h);
   cursor: pointer;
 }
-[ls] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button) i {
+[ls] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button) i, [ls] :is(select, ls-select, .ls-select .ls-select-handle) i {
   margin: 0 4px 0 2px;
 }
-[ls] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button) i:only-child {
+[ls] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button) i:only-child, [ls] :is(select, ls-select, .ls-select .ls-select-handle) i:only-child {
   margin: 0;
 }
 [ls] input, [ls] textarea {
