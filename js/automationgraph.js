@@ -216,6 +216,7 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
         // Right click to create
         this.element.addEventListener('contextmenu', (e) => {
             e.preventDefault();
+            e.stopPropagation();
             if (e.target.__automationItem) {
                 // Context menu for item (TODO)
                 this.focusedItem = e.target.__automationItem;
@@ -700,9 +701,6 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
         const ratio = (time - t0) / (t1 - t0);
 
         switch (nextItem.type) {
-            case this.constructor.POINT_TYPES.LINEAR:
-                return v0 + (v1 - v0) * ratio;
-
             case this.constructor.POINT_TYPES.HOLD:
                 return v0;
 
@@ -712,6 +710,7 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
                 const vStep = (v1 - v0) / steps;
                 return v0 + stepIndex * vStep;
 
+            case this.constructor.POINT_TYPES.LINEAR:
             case this.constructor.POINT_TYPES.EXPONENTIAL:
                 const curv = nextItem.curvature || 0;
                 if(curv === 0) {

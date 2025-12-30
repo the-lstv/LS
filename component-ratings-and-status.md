@@ -24,8 +24,8 @@ The goal is to have all built-in components reach the highest quality rating so 
 | LS.Toast | ★★★★☆ (4/5)
 | LS.Node | ★★★★☆ (4/5)
 | LS.Timeline | ★★★★☆ (4/5) | Recently migrated and stable, bugs may still show up
+| LS.Tooltips | ★★★★☆ (4/5) | Recently updated
 | LS.AutomationGraph | ★★★☆☆ (3/5) | Recently migrated, very unstable
-| LS.Tooltips | ★★★☆☆ (3/5) | While updated and stable, it is still based on old code
 | LS.GL | ★★★☆☆ (3/5) | Highly experimental
 | LS.GLMultiShader | ★★★☆☆ (3/5) | Incomplete
 | LS.ImageCropper | ★★★☆☆ (3/5) | Slightly spaghetti/rushed though functional

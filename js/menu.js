@@ -11,10 +11,10 @@ LS.LoadComponent(class Menu extends LS.Component {
     static groups = {};
 
     static addContextMenu(element, itemsProvider, options = {}) {
-        if(Array.isArray(itemsProvider)) {
+        if (Array.isArray(itemsProvider)) {
             // Create a persistent menu
 
-            if(element.__menu) {
+            if (element.__menu) {
                 element.__menu.destroy();
             }
 
@@ -24,7 +24,7 @@ LS.LoadComponent(class Menu extends LS.Component {
                 items: itemsProvider,
                 ...options
             });
-        } else if(typeof itemsProvider === 'function') {
+        } else if (typeof itemsProvider === 'function') {
             // This method is experimental
             element.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
@@ -46,7 +46,8 @@ LS.LoadComponent(class Menu extends LS.Component {
      * @param {*} element (optional) Container element or null to create a new one
      * @param {*} options Menu options
      * @property {boolean} options.topLayer If true, the menu is added to the top layer
-     * @property {boolean} options.selectable If true, the menu behaves like a select (closes on selection)
+     * @property {boolean} options.selectable If true, the menu behaves like a select
+     * @property {boolean} options.closeOnSelect If true, the menu closes when an item is selected
      * @property {boolean} options.closeable If true, the menu can be closed
      * @property {Element} options.adjacentElement If provided, the menu opens next to this element
      * @property {string} options.adjacentMode 'click' (default) or 'context' to open on right-click
@@ -63,17 +64,18 @@ LS.LoadComponent(class Menu extends LS.Component {
 
         this.items = [];
         this.selectedItem = null;
+        this.focusedItem = null;
         this.activeSubmenu = null;
         this.parentMenu = null;
 
         this.__previousActiveElement = null;
 
         const isElement = element instanceof HTMLElement;
-        if(!isElement) {
+        if (!isElement) {
             options = options || element;
         }
 
-        this.container = (isElement? element : N({
+        this.container = (isElement ? element : N({
             class: "ls-menu",
             style: { display: "none" }
         }));
@@ -81,7 +83,7 @@ LS.LoadComponent(class Menu extends LS.Component {
         this.container.classList.add("ls-menu-container");
         this.container.tabIndex = -1;
 
-        if(options.items) {
+        if (options.items) {
             this.items = options.items;
             delete options.items;
         }
@@ -89,7 +91,8 @@ LS.LoadComponent(class Menu extends LS.Component {
         this.options = LS.Util.defaults({
             topLayer: true,
             fixed: true,
-            selectable: true,
+            selectable: false,
+            closeOnSelect: true,
             closeable: true,
             adjacentElement: null,
             openOnAdjacentClick: true,
@@ -107,7 +110,7 @@ LS.LoadComponent(class Menu extends LS.Component {
             this.constructor.groups[this.options.group].add(this);
         }
 
-        if(this.options.topLayer) {
+        if (this.options.topLayer) {
             LS.once("body-available", () => {
                 this.container.addTo(LS._topLayer.querySelector('.ls-dropdown-layer') || N({
                     class: "ls-dropdown-layer"
@@ -124,35 +127,35 @@ LS.LoadComponent(class Menu extends LS.Component {
                     autocomplete: "off"
                 }
             });
-            
+
             this.searchContainer = LS.Create("div", {
                 class: "ls-menu-search-container",
                 inner: this.searchInput
             });
-            
+
             this.container.appendChild(this.searchContainer);
-            
+
             this.searchInput.addEventListener('input', () => {
                 this.#filterItems(this.searchInput.value);
             });
-            
+
             this.searchInput.addEventListener('keydown', (e) => {
                 if (e.key === 'ArrowDown') {
                     e.preventDefault();
                     this.navigate(1);
                 } else if (e.key === 'Enter') {
                     e.preventDefault();
-                    if (this.selectedItem) {
-                        this.#handleItemClick(this.selectedItem);
+                    if (this.focusedItem) {
+                        this.#handleItemClick(this.focusedItem);
                     }
                 }
             });
         }
 
-        if(this.options.adjacentElement) {
+        if (this.options.adjacentElement) {
             this.options.adjacentElement.__menu = this;
 
-            if(this.options.openOnAdjacentClick) {
+            if (this.options.openOnAdjacentClick) {
                 if (this.options.adjacentMode === 'context') {
                     this.options.adjacentElement.addEventListener('contextmenu', this.__adjacentClickHandler = (e) => {
                         e.preventDefault();
@@ -191,7 +194,7 @@ LS.LoadComponent(class Menu extends LS.Component {
                     this.options.adjacentElement.addEventListener('mouseenter', this.__adjacentHoverHandler = () => {
                         const group = this.constructor.groups[this.options.group];
                         if (!group) return;
-                        
+
                         let anyOpen = false;
                         for (const menu of group) {
                             if (menu.isOpen) {
@@ -214,7 +217,7 @@ LS.LoadComponent(class Menu extends LS.Component {
             if (this.options.adjacentElement && this.options.adjacentElement.contains(e.target)) return;
 
             let parent = this.parentMenu;
-            while(parent) {
+            while (parent) {
                 if (parent.container.contains(e.target)) return;
                 parent = parent.parentMenu;
             }
@@ -222,7 +225,7 @@ LS.LoadComponent(class Menu extends LS.Component {
             this.close();
         });
 
-        if(this.options.ephemeral) {
+        if (this.options.ephemeral) {
             this.on('close', () => {
                 this.destroy();
             });
@@ -240,36 +243,51 @@ LS.LoadComponent(class Menu extends LS.Component {
         this.container.classList.toggle('ls-menu-has-icons', hasIcons);
         this.container.classList.toggle('ls-menu-no-icons', !hasIcons);
 
-        const currentElements = new Set(this.items.map(i => i.element).filter(e => e));
-        if (this.searchContainer) currentElements.add(this.searchContainer);
-        
-        Array.from(this.container.children).forEach(child => {
-            if (!currentElements.has(child)) {
+        // Build set of elements that should remain
+        const currentItems = [], currentElementsSet = new Set();
+        for (const item of this.items) {
+            if (!item.hidden) {
+                currentItems.push(item);
+                currentElementsSet.add(item.element);
+            }
+        }
+
+        while(currentItems[currentItems.length - 1]?.element?.tagName === 'HR') {
+            currentElementsSet.delete(currentItems.pop().element);
+        }
+
+        // Remove elements
+        for (const child of Array.from(this.container.children)) {
+            if (!currentElementsSet.has(child)) {
                 this.container.removeChild(child);
             }
-        });
+        }
 
-        if (this.searchContainer && this.container.firstChild !== this.searchContainer) {
+        if (this.searchContainer?.parentNode === this.container && this.container.firstChild !== this.searchContainer) {
             this.container.prepend(this.searchContainer);
         }
 
-        for(const item of this.items) {
-            if(!item.element) {
+        // Create/update/append items
+        for (const item of currentItems) {
+            if (!item.element) {
                 this.#createItemElement(item);
             }
 
             this.#updateItemElement(item);
-            this.container.appendChild(item.element);
+
+            if (item.element.parentNode !== this.container) {
+                this.container.appendChild(item.element);
+            }
         }
     }
 
     #filterItems(query) {
         const normalizedQuery = LS.Util.normalize(query);
         let firstVisible = null;
-        
+
         for (const item of this.items) {
             if (!item.element) continue;
-            
+
             if (item.type === 'separator' || item.type === 'label') {
                 if (normalizedQuery) {
                     item.element.style.display = 'none';
@@ -278,37 +296,37 @@ LS.LoadComponent(class Menu extends LS.Component {
                 }
                 continue;
             }
-            
+
             const text = item.text || '';
             const normalizedText = LS.Util.normalize(text);
             const match = normalizedText.includes(normalizedQuery);
-            
+
             item.element.style.display = match ? '' : 'none';
-            
+
             if (match && !firstVisible && !item.disabled) {
                 firstVisible = item;
             }
         }
-        
+
         if (firstVisible) {
-            this.select(firstVisible);
+            this.focus(firstVisible);
         } else {
-            this.selectedItem = null;
+            this.focusedItem = null;
             this.items.forEach(i => {
-                if (i.element) i.element.classList.remove('selected');
+                if (i.element) i.element.classList.remove('focused');
             });
         }
     }
 
     #createItemElement(item) {
-        if(item.type === "separator") {
+        if (item.type === "separator") {
             item.element = LS.Create("hr", {
                 class: "ls-menu-separator"
             });
             return;
         }
 
-        if(item.type === "label") {
+        if (item.type === "label") {
             item.element = LS.Create({
                 class: "ls-menu-label",
                 textContent: item.text
@@ -350,7 +368,7 @@ LS.LoadComponent(class Menu extends LS.Component {
             input.addEventListener('change', () => {
                 this.#handleItemClick(item);
             });
-            
+
             item.element.addEventListener('mouseenter', () => {
                 if (item.disabled) return;
                 this.#handleItemHover(item);
@@ -364,7 +382,7 @@ LS.LoadComponent(class Menu extends LS.Component {
         LS.Util.sanitize(label);
         label.classList.add("ls-menu-item-label");
 
-        const inner = [ label ];
+        const inner = [label];
 
         if (item.icon) {
             inner.unshift(LS.Create("i", { class: item.icon + " ls-menu-item-icon" }));
@@ -376,8 +394,7 @@ LS.LoadComponent(class Menu extends LS.Component {
 
         item.element = LS.Create({
             class: "ls-list-item ls-menu-item",
-            tabindex: -1,
-            attributes: { 'role': 'option' },
+            attributes: { 'role': 'option', tabindex: "-1" },
             inner
         });
 
@@ -386,13 +403,13 @@ LS.LoadComponent(class Menu extends LS.Component {
         }
 
         item.element.dataset.value = item.value;
-        
+
         item.element.addEventListener('click', (event) => {
             event.stopPropagation();
             if (item.disabled) return;
             this.#handleItemClick(item);
         });
-        
+
         item.element.addEventListener('mouseenter', () => {
             if (item.disabled) return;
             this.#handleItemHover(item);
@@ -417,9 +434,16 @@ LS.LoadComponent(class Menu extends LS.Component {
     #updateItemElement(item) {
         if (!item.element) return;
 
-        if (item === this.selectedItem) {
+        if (item === this.focusedItem) {
+            item.element.classList.add('focused');
+            item.element.setAttribute('tabindex', '0');
+        } else {
+            item.element.classList.remove('focused');
+            item.element.setAttribute('tabindex', '-1');
+        }
+
+        if (this.options.selectable && item === this.selectedItem) {
             item.element.classList.add('selected');
-            item.element.focus();
         } else {
             item.element.classList.remove('selected');
         }
@@ -435,7 +459,7 @@ LS.LoadComponent(class Menu extends LS.Component {
                 item.element.classList.remove('checked');
             }
         }
-        
+
         if (item.disabled) {
             item.element.classList.add('disabled');
         } else {
@@ -505,8 +529,7 @@ LS.LoadComponent(class Menu extends LS.Component {
             this.activeSubmenu = null;
         }
 
-        this.selectedItem = item;
-        this.render();
+        this.focus(item);
 
         if (item.submenu) {
             this.#openSubmenu(item);
@@ -515,15 +538,15 @@ LS.LoadComponent(class Menu extends LS.Component {
 
     #openSubmenu(item) {
         if (!item.submenu) return;
-        
+
         const rect = item.element.getBoundingClientRect();
         let x = rect.right;
         let y = rect.top;
-        
+
         if (x + 200 > window.innerWidth) {
             x = rect.left - 200;
         }
-        
+
         item.submenu.open(x, y);
         this.activeSubmenu = item.submenu;
     }
@@ -539,47 +562,107 @@ LS.LoadComponent(class Menu extends LS.Component {
             this.navigate(-1);
         } else if (key === 'ArrowRight') {
             event.preventDefault();
-            if (this.selectedItem && this.selectedItem.submenu) {
-                this.#openSubmenu(this.selectedItem);
-                this.selectedItem.submenu.navigate(1);
+            if (this.focusedItem && this.focusedItem.submenu) {
+                this.#openSubmenu(this.focusedItem);
+                this.focusedItem.submenu.navigate(1);
+            } else if (this.options.group && this.options.adjacentMode !== 'context') {
+                this.#navigateGroup(1);
             }
         } else if (key === 'ArrowLeft') {
             event.preventDefault();
             if (this.parentMenu) {
                 this.close();
-                this.parentMenu.container.focus();
+                if (this.parentMenu.focusedItem) {
+                    this.parentMenu.focus(this.parentMenu.focusedItem);
+                } else {
+                    this.parentMenu.container.focus();
+                }
+            } else if (this.options.group && this.options.adjacentMode !== 'context') {
+                this.#navigateGroup(-1);
             }
         } else if (key === 'Enter' || key === ' ') {
             event.preventDefault();
-            if (this.selectedItem) {
-                if ((this.selectedItem.type === 'checkbox' || this.selectedItem.type === 'radio') && this.selectedItem.inputElement) {
-                    this.selectedItem.inputElement.click();
+            if (this.focusedItem) {
+                if ((this.focusedItem.type === 'checkbox' || this.focusedItem.type === 'radio') && this.focusedItem.inputElement) {
+                    this.focusedItem.inputElement.click();
                 } else {
-                    this.#handleItemClick(this.selectedItem);
+                    this.#handleItemClick(this.focusedItem);
                 }
             }
         } else if (key === 'Escape') {
             event.preventDefault();
             this.close();
+        } else if (key === 'Tab') {
+            this.close();
         }
+    }
+
+    #navigateGroup(direction) {
+        const groupName = this.options.group;
+        if (!groupName) return;
+
+        const groupSet = this.constructor.groups[groupName];
+        if (!groupSet || groupSet.size < 2) return;
+
+        const menus = Array.from(groupSet).filter(m => m.options.adjacentElement && document.body.contains(m.options.adjacentElement));
+
+        menus.sort((a, b) => {
+            return (a.options.adjacentElement.compareDocumentPosition(b.options.adjacentElement) & Node.DOCUMENT_POSITION_FOLLOWING) ? -1 : 1;
+        });
+
+        const currentIndex = menus.indexOf(this);
+        if (currentIndex === -1) return;
+
+        let nextIndex = currentIndex + direction;
+        if (nextIndex >= menus.length) nextIndex = 0;
+        if (nextIndex < 0) nextIndex = menus.length - 1;
+
+        const nextMenu = menus[nextIndex];
+        this.close();
+        nextMenu.open();
+        nextMenu.navigate(1);
     }
 
     render() {
         this.frameScheduler.schedule();
     }
 
-    select(item) {
-        if(typeof item === 'number') {
-            item = this.items[item];
+    focus(item) {
+        if (this.focusedItem && this.focusedItem.element) {
+            this.focusedItem.element.classList.remove('focused');
+            this.focusedItem.element.setAttribute('tabindex', '-1');
         }
 
-        if(typeof item === 'string') {
-            item = this.items.find(i => i.value === item);
+        this.focusedItem = item;
+
+        if (this.focusedItem && this.focusedItem.element) {
+            this.focusedItem.element.classList.add('focused');
+            this.focusedItem.element.setAttribute('tabindex', '0');
+            this.focusedItem.element.focus();
+
+            if (this.focusedItem.element.scrollIntoView) {
+                this.focusedItem.element.scrollIntoView({ block: 'nearest' });
+            }
+        }
+    }
+
+    select(item, emitEvent = true) {
+        if (typeof item === 'number') {
+            item = this.items[item] || null;
+        }
+
+        if (typeof item === 'string') {
+            item = this.items.find(i => i.value === item) || this.items[0];
         }
 
         if (!item) return;
-        this.emit("select", [item]);
-        this.selectedItem = item;
+        if (this.options.selectable) {
+            this.selectedItem = item;
+        }
+
+        if (emitEvent) {
+            this.emit("select", [item]);
+        }
         this.render();
     }
 
@@ -603,7 +686,7 @@ LS.LoadComponent(class Menu extends LS.Component {
 
     remove(item) {
         const index = this.items.indexOf(item);
-        if(index === -1) return;
+        if (index === -1) return;
         this.items.splice(index, 1);
         if (item.element) {
             item.element.remove();
@@ -613,14 +696,14 @@ LS.LoadComponent(class Menu extends LS.Component {
     }
 
     addItems(items) {
-        for(const item of items) {
+        for (const item of items) {
             this.items.push(item);
         }
         this.render();
     }
 
     toggle() {
-        if(this.isOpen) {
+        if (this.isOpen) {
             this.close();
         } else {
             this.open();
@@ -635,6 +718,8 @@ LS.LoadComponent(class Menu extends LS.Component {
                 }
             }
         }
+
+        this.render();
 
         if (this.options.fixed) {
             let posX = x;
@@ -697,34 +782,38 @@ LS.LoadComponent(class Menu extends LS.Component {
             this.container.style.visibility = prevVisibility || '';
         }
 
-        if(LS.Animation) {
+        if (LS.Animation) {
             LS.Animation.fadeIn(this.container, 200, "down");
         } else {
             this.container.style.display = 'block';
         }
-        
+
         this.__previousActiveElement = document.activeElement;
         if (this.options.searchable && this.searchInput) {
             this.searchInput.value = '';
             this.#filterItems('');
             this.searchInput.focus();
         } else {
-            this.container.focus();
+            if (this.selectedItem) {
+                this.focus(this.selectedItem);
+            } else {
+                this.navigate(1);
+            }
         }
 
-        if(this.isOpen) return;
+        if (this.isOpen) return;
         this.isOpen = true;
         this.emit("open");
     }
-    
-    close() {
-        if(!this.isOpen) return;
 
-        if(this.__previousActiveElement) {
+    close() {
+        if (!this.isOpen) return;
+
+        if (this.__previousActiveElement) {
             this.__previousActiveElement.focus();
             this.__previousActiveElement = null;
         }
-        
+
         if (this.activeSubmenu) {
             this.activeSubmenu.close();
             this.activeSubmenu = null;
@@ -733,13 +822,13 @@ LS.LoadComponent(class Menu extends LS.Component {
         this.isOpen = false;
         this.emit("close");
 
-        if(LS.Animation) {
+        if (LS.Animation) {
             LS.Animation.fadeOut(this.container, 200, "down");
         } else {
             this.container.style.display = 'none';
         }
     }
-    
+
     closeAll() {
         this.close();
         if (this.parentMenu) {
@@ -748,22 +837,22 @@ LS.LoadComponent(class Menu extends LS.Component {
     }
 
     navigate(direction) {
-        if(this.items.length === 0) return;
+        if (this.items.length === 0) return;
 
-        let currentIndex = this.items.indexOf(this.selectedItem);
+        let currentIndex = this.items.indexOf(this.focusedItem);
         let newIndex = currentIndex;
-        
+
         let count = 0;
         do {
             newIndex += direction;
             if (newIndex >= this.items.length) newIndex = 0;
             if (newIndex < 0) newIndex = this.items.length - 1;
-            
+
             const item = this.items[newIndex];
             const isVisible = !item.element || item.element.style.display !== 'none';
 
             if (item.type !== 'separator' && item.type !== 'label' && !item.disabled && isVisible) {
-                this.select(item);
+                this.focus(item);
                 return;
             }
             count++;
@@ -795,37 +884,37 @@ LS.LoadComponent(class Menu extends LS.Component {
             this.constructor.groups[this.options.group].delete(this);
         }
 
-        if(this.options.adjacentElement) {
+        if (this.options.adjacentElement) {
             this.options.adjacentElement.__menu = null;
 
-            if(this.__adjacentClickHandler) {
+            if (this.__adjacentClickHandler) {
                 this.options.adjacentElement.removeEventListener('click', this.__adjacentClickHandler);
                 this.options.adjacentElement.removeEventListener('contextmenu', this.__adjacentClickHandler);
             }
-    
-            if(this.__adjacentKeyHandler) {
+
+            if (this.__adjacentKeyHandler) {
                 this.options.adjacentElement.removeEventListener('keydown', this.__adjacentKeyHandler);
             }
 
-            if(this.__adjacentHoverHandler) {
+            if (this.__adjacentHoverHandler) {
                 this.options.adjacentElement.removeEventListener('mouseenter', this.__adjacentHoverHandler);
             }
         }
 
-        if(this.__documentClickHandler) {
+        if (this.__documentClickHandler) {
             document.removeEventListener('click', this.__documentClickHandler);
         }
-        
+
         this.items.forEach(item => {
             if (item.submenu) item.submenu.destroy();
         });
 
-        if(this.searchInput) {
+        if (this.searchInput) {
             this.searchInput.remove();
             this.searchInput = null;
         }
 
-        if(this.searchContainer) {
+        if (this.searchContainer) {
             this.searchContainer.remove();
             this.searchContainer = null;
         }
@@ -833,6 +922,7 @@ LS.LoadComponent(class Menu extends LS.Component {
         this.container = null;
         this.items = null;
         this.selectedItem = null;
+        this.focusedItem = null;
         this.isOpen = false;
         this.__previousActiveElement = null;
         this.__destroyed = true;
@@ -846,14 +936,14 @@ customElements.define('ls-select', class LSSelect extends HTMLElement {
     }
 
     connectedCallback() {
-        if(this.menu) return;
-        if(!this.__pendingValue) this.__pendingValue = this.getAttribute('value');
+        if (this.menu) return;
+        if (!this.__pendingValue) this.__pendingValue = this.getAttribute('value');
 
-        if(!LS.GetComponent("Menu")) {
+        if (!LS.GetComponent("Menu")) {
             console.error("LSSelect requires LS.Menu component to be loaded.");
 
             LS.on("component-loaded", (component) => {
-                if(component.name === "Menu") {
+                if (component.name === "Menu") {
                     this.connectedCallback();
                     return LS.REMOVE_LISTENER;
                 }
@@ -861,21 +951,20 @@ customElements.define('ls-select', class LSSelect extends HTMLElement {
             return;
         }
 
-        this.menu = new LS.Menu({ 
-            fixed: true, 
+        this.menu = new LS.Menu({
+            fixed: true,
             searchable: this.hasAttribute('searchable'),
+            selectable: true,
             adjacentElement: this,
             inheritAdjacentWidth: true
         });
 
         this.menu.on("select", (item) => {
-            console.log(item);
-            
-            if(this.label) this.label.textContent = item.text;
+            this.#updateValue();
             this.dispatchEvent(new Event('change', { bubbles: true, detail: { value: item.value, item } }));
             this.dispatchEvent(new Event('input', { bubbles: true, detail: { value: item.value, item } }));
-            if(this.onchange) this.onchange({ target: this, value: item.value, item });
-            if(this.oninput) this.oninput({ target: this, value: item.value, item });
+            if (this.onchange) this.onchange({ target: this, value: item.value, item });
+            if (this.oninput) this.oninput({ target: this, value: item.value, item });
         });
 
         this.menu.on("open", (item) => {
@@ -911,23 +1000,23 @@ customElements.define('ls-select', class LSSelect extends HTMLElement {
             ]
         }).addTo(this);
 
-        if(!this._lsSelectOptions) {
-            for(const optionElement of this.querySelectorAll('ls-option, option, optgroup')) {
+        if (!this._lsSelectOptions) {
+            for (const optionElement of this.querySelectorAll('ls-option, option, optgroup')) {
                 const isSelected = optionElement.selected || optionElement.getAttribute("selected") !== null;
-    
-                const option = optionElement.tagName.toLowerCase() === 'optgroup'? {
+
+                const option = optionElement.tagName.toLowerCase() === 'optgroup' ? {
                     type: "label",
                     text: optionElement.getAttribute("label") || '',
-                }: {
+                } : {
                     value: optionElement.value || optionElement.getAttribute('value') || optionElement.textContent,
                     text: optionElement.getAttribute("label") || optionElement.textContent,
                     selected: isSelected
                 };
-    
+
                 optionElement.remove();
                 this.menu.add(option);
-    
-                if(isSelected && !selectedOption) {
+
+                if (isSelected && !selectedOption) {
                     selectedOption = option;
                 }
             }
@@ -936,7 +1025,8 @@ customElements.define('ls-select', class LSSelect extends HTMLElement {
             delete this._lsSelectOptions;
         }
 
-        this.menu.select(this.__pendingValue || selectedOption || 0);
+        this.menu.select(this.__pendingValue || selectedOption || 0, false);
+        this.#updateValue();
         this.__pendingValue = null;
     }
 
@@ -956,13 +1046,20 @@ customElements.define('ls-select', class LSSelect extends HTMLElement {
         this.menu.close();
     }
 
+    #updateValue() {
+        const item = this.menu.selectedItem;
+        this.label.textContent = item?.text || '';
+        this.setAttribute('data-value', item?.value || '');
+    }
+
     selectOption(value) {
-        if(!this.menu) {
+        if (!this.menu) {
             this.__pendingValue = value;
             return;
         }
 
-        this.menu.select(value);
+        this.menu.select(value, false);
+        this.#updateValue();
     }
 
     get value() {
@@ -974,7 +1071,7 @@ customElements.define('ls-select', class LSSelect extends HTMLElement {
     }
 
     destroy() {
-        if(this.menu) {
+        if (this.menu) {
             this.menu.destroy();
             this.menu = null;
         }

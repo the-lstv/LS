@@ -218,17 +218,17 @@ body {
 
 @each $size in tiny, small, medium, large, xlarge, xxlarge, xxxlarge, huge {
     @each $direction in top, bottom, left, right {
-        .margin-#{$direction}-#{$size} {
+        .margin-#{$direction}-#{$size}.margin-#{$direction}-#{$size}.margin-#{$direction}-#{$size} {
             margin-#{$direction}: var(--space-#{$size});
         }
     }
 
-    .margin-v-#{$size}#{if($size == medium, ', ls-div', '')} {
+    .margin-v-#{$size}#{if($size == medium, ', ls-div', '')}.margin-v-#{$size}#{if($size == medium, ', ls-div', '')}.margin-v-#{$size}#{if($size == medium, ', ls-div', '')} {
         margin-top: var(--space-#{$size});
         margin-bottom: var(--space-#{$size});
     }
 
-    .margin-h-#{$size} {
+    .margin-h-#{$size}.margin-h-#{$size}.margin-h-#{$size} {
         margin-left: var(--space-#{$size});
         margin-right: var(--space-#{$size});
     }

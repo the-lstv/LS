@@ -18,27 +18,30 @@ LS.LoadComponent(class Tabs extends LS.Component {
         }, options);
 
         if(options.slideAnimation) {
-            this.container.class("ls-slide-animation");
+            this.container.classList.add("ls-slide-animation");
         }
         
         if(options.styled) {
-            this.container.class("ls-tabs-styled");
+            this.container.classList.add("ls-tabs-styled");
         }
 
         if(options.mode) {
-            this.container.class("ls-tabs-mode-" + options.mode);
+            this.container.classList.add("ls-tabs-mode-" + options.mode);
         }
 
         if(options.selector) {
-            this.container.getAll(options.selector).forEach((tab, i) => {
+            this.container.querySelectorAll(options.selector).forEach((tab, i) => {
+                tab.classList.add("ls-tab-content");
                 this.add(tab.getAttribute("tab-id") || tab.getAttribute("id") || tab.getAttribute("tab-title") || "tab-" + i, tab);
             });
         }
 
         this.options = options;
 
-        if(options.list) {
-            this.element.class("ls-tabs-has-list");
+        if(this.options.list) {
+            this.frameScheduler = new LS.Util.FrameScheduler(() => this.#renderList());
+
+            this.element.classList.add("ls-tabs-has-list");
 
             this.list = N({
                 class: "ls-tabs-list",
@@ -51,10 +54,12 @@ LS.LoadComponent(class Tabs extends LS.Component {
 
             this.element.add(this.list, this.container);
 
-            this.renderList();
+            this.frameScheduler.schedule();
         } else {
-            this.element.class("ls-tabs-content")
+            this.element.classList.add("ls-tabs-content");
         }
+
+        this.element.classList.add("ls-tabs");
     }
 
     get index() {
@@ -71,6 +76,8 @@ LS.LoadComponent(class Tabs extends LS.Component {
         this.tabs.set(id, tab);
         this.order.push(id);
         this.container.add(content);
+        content.classList.add("ls-tab-content");
+        this.renderList();
         return this;
     }
 
@@ -126,16 +133,16 @@ LS.LoadComponent(class Tabs extends LS.Component {
 
         if(oldTab) {
             if(oldTab.element) {
-                oldTab.element.class("tab-active", false);
+                oldTab.element.classList.remove("tab-active");
             }
 
             if(oldTab.handle) {
-                oldTab.handle.class("active", false);
+                oldTab.handle.classList.remove("active");
             }
         }
 
         if(tab.element) {
-            tab.element.class("tab-active");
+            tab.element.classList.add("tab-active");
 
             if(this.options.slideAnimation && LS.Animation) {
                 LS.Animation.slideInToggle(tab.element, oldTab?.element || null);
@@ -147,7 +154,7 @@ LS.LoadComponent(class Tabs extends LS.Component {
         this.emit("changed", [id, oldTab?.id || null]);
 
         if(tab.handle) {
-            tab.handle.class("active");
+            tab.handle.classList.add("active");
         }
         return true;
     }
@@ -200,7 +207,9 @@ LS.LoadComponent(class Tabs extends LS.Component {
         return false;
     }
 
-    renderList(){
+    #renderList(){
+        if(!this.list || !this.options.list) return;
+
         for(this.list.children.length; this.list.children.length > 0; this.list.children[0].remove());
 
         this.order.forEach((id) => {
@@ -215,7 +224,7 @@ LS.LoadComponent(class Tabs extends LS.Component {
                     onclick: () => {
                         this.set(id);
                     }
-                })
+                });
 
                 if(this.options.closeable){
                     tab.handle.add(N("button", {
@@ -234,16 +243,27 @@ LS.LoadComponent(class Tabs extends LS.Component {
                             this.remove(id);
                             this.renderList();
                         }
-                    }))
+                    }));
                 }
             }
 
+            tab.handle.classList.toggle("active", this.activeTab === id);
             this.list.add(tab.handle);
         });
     }
 
+    renderList() {
+        if(this.frameScheduler) this.frameScheduler.schedule();
+    }
+
     destroy() {
         this.emit("destroy");
+
+        if(this.frameScheduler) {
+            this.frameScheduler.destroy();
+            this.frameScheduler = null;
+        }
+
         this.element.remove();
         this.element = null;
         this.container = null;

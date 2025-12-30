@@ -251,11 +251,16 @@ button#{priority(".ls-toast-close", 3)} {
     overflow: auto;
 }
 
-ls-tab {
+.ls-tab-content {
     display: block;
 }
 
-ls-tabs {
+.ls-tabs-content {
+    flex: 1;
+    min-height: 0;
+}
+
+.ls-tabs {
     display: block;
 
     &.ls-tabs-mode-default {

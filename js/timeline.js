@@ -10,21 +10,13 @@
 
 /**
  * TODO List:
- * - Complete drag and drop functionality
- * - Add a multi-timeline swap functionality
- * - Implement proper playback API
- * - Proper drag-drop cleanup on destroy
  * 
  * CRITICAL:
- * - Dragging multiple elements does not work
- * - Snapping issues (desync when dragging & right side snap)
- * - Resizing is not proportional
+ * - Snapping issues (desync when dragging)
+ * - Resizing is not proportional (bug or feature?)
  * - etc
  * 
- * As of 5.2.7 i'll take a break and just mark it as incomplete because this one stupid
- * component is insane in complexity and I wan't to move on to other parts, otherwise I'd get nowhere.
- * 
- * I'm thinking using WebGL would have been much easier and better lmao 😭
+ * I'm thinking using WebGL would have been much easier and better 😭
  */
 
 (() => {
@@ -47,7 +39,8 @@
         snapping: false,
         itemHeaderHeight: 20,
         startingRows: 15,
-        rowHeight: 45
+        rowHeight: 45,
+        snapEnabled: true
     };
 
     // :shrug:
@@ -81,12 +74,8 @@
          */
         constructor(options = {}) {
             super({
-                dependencies: ["DragDrop", "Resize"]
+                dependencies: ["Menu", "Resize"]
             });
-
-            if(!LS.DragDrop) {
-                throw new Error("LS.Timeline: LS.DragDrop component is required for drag and drop functionality.");
-            }
 
             this.options = LS.Util.defaults(DEFAULTS, options);
 
@@ -104,6 +93,11 @@
                     (this.selectionRect = LS.Create({
                         class: "ls-timeline-selection-rect",
                         style: "position: absolute; pointer-events: none; display: none; border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent) 50%, rgba(0, 0, 0, 0.2) 50%); z-index: 100;"
+                    })),
+
+                    (this.snapLine = LS.Create({
+                        class: "ls-timeline-snap-line",
+                        style: "position: fixed; top: 0; left: 0; width: 1px; background: var(--accent-60); z-index: 1000; pointer-events: none; display: none;"
                     })),
 
                     (this.scrollContainer = LS.Create({
@@ -130,6 +124,7 @@
             this.container.__lsComponent = this;
 
             this.items = [];
+            this.itemMap = new Map();
 
             this.rowElements = [];
 
@@ -144,27 +139,6 @@
             this.#duration = 0;
             this.__spacerWidth = 0;
 
-            this.dragDrop = new LS.DragDrop({
-                id: "timeline-dragdrop",
-                container: this.rowContainer,
-                scrollContainer: this.scrollContainer,
-                relativeMouse: true,
-                clone: false,
-                absoluteX: true,
-                absoluteY: false,
-                dropPreview: true,
-                animate: false,
-                snapEnabled: true,
-                strictDrop: false,
-                multiList: this.selectedItems,
-                multiBehavior: "relative",
-                handleOptions: {
-                    exclude: true
-                },
-                // sameParent: true,
-                allowedTargets: ["timeline-row"],
-            });
-
             this.frameScheduler = new LS.Util.FrameScheduler(() => this.#render());
             this.reserveRows(this.options.reservedRows);
 
@@ -175,7 +149,7 @@
             
             // Inertia & Edge Scroll state
             let velocityX = 0, lastMoveTime = 0, inertiaRaf = null;
-            let edgeScrollSpeed = 0, edgeScrollRaf = null, lastCursorX = 0;
+            let edgeScrollSpeedX = 0, edgeScrollSpeedY = 0, edgeScrollRaf = null, lastCursorX = 0;
 
             const stopInertia = () => {
                 if (inertiaRaf) cancelAnimationFrame(inertiaRaf);
@@ -185,7 +159,8 @@
             const stopEdgeScroll = () => {
                 if (edgeScrollRaf) cancelAnimationFrame(edgeScrollRaf);
                 edgeScrollRaf = null;
-                edgeScrollSpeed = 0;
+                edgeScrollSpeedX = 0;
+                edgeScrollSpeedY = 0;
             };
 
             const updateSelectionBox = (x, y) => {
@@ -243,14 +218,19 @@
             };
 
             const processEdgeScroll = () => {
-                if (edgeScrollSpeed !== 0) {
-                    this.offset += edgeScrollSpeed;
+                if (edgeScrollSpeedX !== 0 || edgeScrollSpeedY !== 0) {
+                    this.offset += edgeScrollSpeedX;
+                    this.scrollContainer.scrollTop += edgeScrollSpeedY;
+
                     // Update seek position based on the last known cursor position relative to the moving viewport
                     if (dragType === "seek") {
                         const worldX = lastCursorX + this.offset;
                         this.setSeek(worldX / this.#zoom);
                     } else if (dragType === "select") {
                         updateSelectionBox(lastCursorX, lastCursorY);
+                    } else if (dragState.draggingItems) {
+                        const rect = this.container.getBoundingClientRect();
+                        updateDragItemPosition(lastCursorX + rect.left, lastCursorY + rect.top);
                     }
                     edgeScrollRaf = requestAnimationFrame(processEdgeScroll);
                 } else {
@@ -268,13 +248,125 @@
                 }
             };
 
-            this.dragHandle = LS.Util.touchHandle(this.container, {
-                exclude: ".ls-timeline-item, .ls-timeline-item *",
+            const dragState = {};
 
+            const updateDragItemPosition = (x, y) => {
+                if (this.options.snapEnabled && !dragState.disableSnapping) {
+                    const snapValues = dragState.snapValues;
+                    const snapArea = 10;
+                    let snapped = false;
+                    if (Array.isArray(snapValues)) {
+                        const currentItemTop = y - (dragState.dragOffsetY || 0);
+                        const currentItemHeight = dragState.itemHeight || 0;
+
+                        for (const snap of snapValues) {
+                            if (snap.dest - x > -snapArea && snap.dest - x < snapArea) {
+                                x = snap.dest;
+                                if (this.snapLine) {
+                                    const top = Math.min(snap.top, y);
+                                    const height = Math.max(snap.top + snap.height, currentItemTop + currentItemHeight) - top;
+                                    
+                                    this.snapLine.style.transform = `translate3d(${snap.line}px, ${top}px, 0)`;
+                                    this.snapLine.style.height = `${height}px`;
+                                    this.snapLine.style.display = "block";
+                                }
+                                snapped = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (!snapped && this.snapLine) this.snapLine.style.display = "none";
+                } else {
+                    if (this.snapLine) this.snapLine.style.display = "none";
+                }
+
+                const rect = this.container.getBoundingClientRect();
+                const currentWorldX = (x - rect.left) + this.offset;
+                const currentWorldY = (y - rect.top) + this.scrollContainer.scrollTop;
+
+                const deltaWorldX = currentWorldX - dragState.startWorldX;
+                const deltaWorldY = currentWorldY - dragState.startWorldY;
+
+                let deltaTime = deltaWorldX / this.#zoom;
+                const rowOffset = Math.round(deltaWorldY / this.rowHeight);
+
+                for (const entry of dragState._initialPositions) {
+                    entry.item.start = Math.max(0, entry.start + deltaTime);
+                    entry.item.row = Math.max(0, entry.row + rowOffset);
+                }
+
+                this.__needsSort = true;
+                this.frameScheduler.schedule();
+            };
+
+            this.dragHandle = LS.Util.touchHandle(this.container, {
+                exclude: ".ls-resize-handle, .ls-automation-point-handle, .ls-automation-center-handle",
                 onStart: (event, cancel, x, y) => {
+                    if(event.button === 2) return cancel(); // Temporarily disabled until implemented
+
                     stopInertia();
                     stopEdgeScroll();
+
                     this.dragHandle.options.pointerLock = false;
+
+                    rect = this.container.getBoundingClientRect();
+                    const itemElement = event.button === 0 ? event.target.closest(".ls-timeline-item") : null;
+                    this.dragHandle.options.disablePointerEvents = !itemElement;
+
+                    // Prepare for dragging items, if that is what we're doing
+                    if(itemElement) {
+
+                        // Dragging an item
+                        dragState.draggingItems = true;
+                        dragState.itemElement = itemElement;
+                        dragState.item = itemElement.__timelineItem || this.items.find(i => i.element === itemElement);
+                        dragState.startX = x;
+                        dragState.startY = y;
+                        dragState.startWorldX = (x - rect.left) + this.offset;
+                        dragState.startWorldY = (y - rect.top) + this.scrollContainer.scrollTop;
+                        dragState.disableSnapping = event.shiftKey;
+
+                        if (this.options.snapEnabled) {
+                            dragState.snapValues = [];
+                            const cw = dragState.item.duration * this.#zoom;
+                            const vh = window.innerHeight;
+                            const vw = window.innerWidth;
+                            const itemRect = dragState.itemElement.getBoundingClientRect();
+                            const dragOffset = x - itemRect.left;
+                            
+                            dragState.dragOffsetY = y - itemRect.top;
+                            dragState.itemHeight = itemRect.height;
+
+                            for (const item of this.items) {
+                                const element = item.timelineElement;
+                                if (!element || element === dragState.itemElement) continue;
+
+                                const box = element.getBoundingClientRect();
+
+                                // Skip invisible or off-screen elements
+                                if (box.width === 0 && box.height === 0) continue;
+                                if (box.bottom < -50 || box.top > vh + 50 || box.right < -50 || box.left > vw + 50) continue;
+
+                                dragState.snapValues.push(
+                                    { dest: box.left + dragOffset, line: box.left, top: box.top, height: box.height },
+                                    { dest: box.right + dragOffset, line: box.right, top: box.top, height: box.height },
+                                    { dest: (box.left - cw) + dragOffset, line: box.left, top: box.top, height: box.height },
+                                    { dest: (box.right - cw) + dragOffset, line: box.right, top: box.top, height: box.height }
+                                );
+                            }
+                        } else dragState.snapValues = [];
+
+                        const itemsToMove = this.selectedItems.size && this.selectedItems.has(dragState.item) ? Array.from(this.selectedItems) : [dragState.item];
+
+                        dragState._initialPositions = itemsToMove.map((itm) => ({
+                            item: itm,
+                            start: itm.start,
+                            row: itm.row || 0
+                        }));
+                        return;
+                    } else {
+                        dragState.draggingItems = false;
+                    }
 
                     const touchEvent = event.type.startsWith("touch");
                     const button = touchEvent? ((event.target === this.scrollContainer || this.scrollContainer.contains(event.target)) ? 1 : 0) : event.button;
@@ -322,6 +414,33 @@
                 },
 
                 onMove: (x, y) => {
+                    const rect = this.container.getBoundingClientRect();
+                    const cursorX = x - rect.left;
+                    const cursorY = y - rect.top;
+                    lastCursorX = cursorX;
+                    lastCursorY = cursorY;
+
+                    if (dragState.draggingItems) {
+                        const threshold = 50;
+                        const maxSpeed = 15;
+
+                        edgeScrollSpeedX = 0;
+                        edgeScrollSpeedY = 0;
+
+                        if (cursorX < threshold) edgeScrollSpeedX = -maxSpeed * ((threshold - cursorX) / threshold);
+                        else if (cursorX > rect.width - threshold) edgeScrollSpeedX = maxSpeed * ((cursorX - (rect.width - threshold)) / threshold);
+                        
+                        if (cursorY < threshold) edgeScrollSpeedY = -maxSpeed * ((threshold - cursorY) / threshold);
+                        else if (cursorY > rect.height - threshold) edgeScrollSpeedY = maxSpeed * ((cursorY - (rect.height - threshold)) / threshold);
+
+                        if ((edgeScrollSpeedX !== 0 || edgeScrollSpeedY !== 0) && !edgeScrollRaf) {
+                            edgeScrollRaf = requestAnimationFrame(processEdgeScroll);
+                        }
+
+                        updateDragItemPosition(x, y);
+                        return;
+                    }
+
                     const now = performance.now();
                     this.__isDragging = true;
 
@@ -361,11 +480,6 @@
 
                         this.emit("drag-move", [dragType, 0, deltaY]);
                     } else if (dragType === "seek" || dragType === "select") {
-                        const cursorX = x - rect.left;
-                        const cursorY = y - rect.top;
-                        lastCursorX = cursorX;
-                        lastCursorY = cursorY;
-
                         if (dragType === "seek") {
                             const worldX = cursorX + this.offset;
                             const time = worldX / this.#zoom;
@@ -378,15 +492,21 @@
                         const threshold = 50;
                         const maxSpeed = 15;
                         
+                        edgeScrollSpeedX = 0;
+                        edgeScrollSpeedY = 0;
+
                         if (cursorX < threshold) {
-                            edgeScrollSpeed = -maxSpeed * ((threshold - cursorX) / threshold);
+                            edgeScrollSpeedX = -maxSpeed * ((threshold - cursorX) / threshold);
                         } else if (cursorX > rect.width - threshold) {
-                            edgeScrollSpeed = maxSpeed * ((cursorX - (rect.width - threshold)) / threshold);
-                        } else {
-                            edgeScrollSpeed = 0;
+                            edgeScrollSpeedX = maxSpeed * ((cursorX - (rect.width - threshold)) / threshold);
                         }
                         
-                        if (edgeScrollSpeed !== 0 && !edgeScrollRaf) {
+                        if (dragType === "select") {
+                            if (cursorY < threshold) edgeScrollSpeedY = -maxSpeed * ((threshold - cursorY) / threshold);
+                            else if (cursorY > rect.height - threshold) edgeScrollSpeedY = maxSpeed * ((cursorY - (rect.height - threshold)) / threshold);
+                        }
+                        
+                        if ((edgeScrollSpeedX !== 0 || edgeScrollSpeedY !== 0) && !edgeScrollRaf) {
                             edgeScrollRaf = requestAnimationFrame(processEdgeScroll);
                         }
 
@@ -408,6 +528,8 @@
                         this.selectionRect.style.display = "none";
                     }
 
+                    if (this.snapLine) this.snapLine.style.display = "none";
+
                     stopEdgeScroll();
                     setTimeout(() => this.__isDragging = false, 10);
 
@@ -416,12 +538,41 @@
                 }
             });
 
+            this.container.addEventListener("contextmenu", (event) => {
+                event.preventDefault();
+
+                const itemElement = event.target.closest(".ls-timeline-item");
+                if(itemElement) {
+                    this.contextMenu.close();
+                    this.itemContextMenu.open(event.clientX, event.clientY);
+                } else {
+                    this.itemContextMenu.close();
+                    this.contextMenu.open(event.clientX, event.clientY);
+                }
+            });
+
+            // TODO:
+            this.contextMenu = new LS.Menu({
+                items: [
+                    { text: "Deselect All", action: () => this.deselectAll() }
+                ]
+            });
+
+            this.itemContextMenu = new LS.Menu({
+                items: [
+                    { text: "Cut Item(s)", action: () => {} },
+                    { text: "Delete Item(s)", action: () => {
+                        this.deleteSelected();
+                    } }
+                ]
+            });
+
             this.container.addEventListener("click", (event) => {
                 if (this.__isDragging) return;
 
                 const itemElement = event.target.closest(".ls-timeline-item");
                 if (itemElement) {
-                    const item = this.items.find(i => i.timelineElement === itemElement);
+                    const item = itemElement.__timelineItem || this.items.find(i => i.element === itemElement);
                     if (item) {
                         this.select(item);
                     }
@@ -430,9 +581,9 @@
                 }
             });
 
-            this.__wheelHandler = (event) => {
-                if (event.target !== this.container && !this.container.contains(event.target)) return;
+            document.addEventListener('wheel', this.__wheelHandler = (event) => {
                 if (!event.ctrlKey) return;
+                if (event.target !== this.container && !this.container.contains(event.target)) return;
 
                 event.preventDefault();
 
@@ -445,12 +596,10 @@
 
                 const worldX = (cursorX + this.offset) / currentZoom;
                 this.offset = (worldX * this.zoom) - cursorX;
-            };
+            }, { passive: false });
 
-            document.addEventListener('wheel', this.__wheelHandler, { passive: false });
 
-            // Allow native file drops on the timeline and emit processing info
-            this.__nativeDragOverHandler = (event) => {
+            this.container.addEventListener('dragover', this.__nativeDragOverHandler = (event) => {
                 const dt = event.dataTransfer;
                 if (!dt) return;
                 // Only intercept when files are present
@@ -458,9 +607,9 @@
                 if (!types.includes('Files')) return;
                 event.preventDefault();
                 try { dt.dropEffect = 'copy'; } catch (_) { /* noop */ }
-            };
+            });
 
-            this.__nativeDropHandler = (event) => {
+            this.container.addEventListener('drop', this.__nativeDropHandler = (event) => {
                 const dt = event.dataTransfer;
                 if (!dt || !dt.files || dt.files.length === 0) return;
                 event.preventDefault();
@@ -496,10 +645,7 @@
 
                 const files = Array.from(dt.files);
                 this.emit(this.__fileProcessEventRef, [files, rowIndex, timeOffset]);
-            };
-
-            this.container.addEventListener('dragover', this.__nativeDragOverHandler);
-            this.container.addEventListener('drop', this.__nativeDropHandler);
+            });
 
             this.zoom = this.options.zoom;
             this.offset = this.options.offset;
@@ -517,35 +663,15 @@
                 console.warn("LS.Timeline: LS.Resize component is required for resizable timeline items.");
             }
 
-            // this.dragDrop.on("drag", (elements) => { });
-
-            this.dragDrop.on("drop", (event) => {
-                console.log(event);
-                
-                for(const el of event.items) {
-                    const item = el.__timelineItem || this.items.find(i => i.timelineElement === event.source);
-                    if (item && event.target.classList.contains("ls-timeline-row")) {
-                        const newRow = this.rowElements.indexOf(event.target);
-                        item.row = newRow;
-                        item.start = (event.boundX + this.#offset) / this.#zoom;
-                        if(this.options.autoAppendRows && newRow === this.rowElements.length) {
-                            // Add an extra track
-                            this.addTrack();
-                        }
-                    }
-
-                    this.__needsSort = true;
-                    this.frameScheduler.schedule();
-                }
-            });
-
-            // this.dragDrop.on("cancel", (element) => { });
-
             this.clipboard = [];
-
             this.container.addEventListener("keydown", (event) => {
                 console.log(event);
-                
+
+                if(event.key === "Delete" || event.key === "Backspace") {
+                    this.deleteSelected();
+                    return;
+                }
+
                 if (!event.ctrlKey) return;
 
                 const key = event.key.toLowerCase();
@@ -663,6 +789,10 @@
             return this.#duration;
         }
 
+        getItemById(id) {
+            return this.itemMap.get(id);
+        }
+
         binarySearch(time) {
             let low = 0;
             let high = this.items.length - 1;
@@ -686,6 +816,10 @@
 
             for (let i = 0; i < this.items.length; i++) {
                 const item = this.items[i];
+                if (!item.id) {
+                    item.id = LS.Misc.uid();
+                    this.itemMap.set(item.id, item);
+                }
                 if (!item.duration || item.duration < 0) item.duration = 0;
                 if (!item.start || item.start < 0) item.start = 0;
                 if (!item.row || item.row < 0) item.row = 0;
@@ -708,11 +842,6 @@
                 const rowElement = LS.Create({
                     class: "ls-timeline-row"
                 });
-
-                this.dragDrop.dropZone(rowElement, {
-
-                });
-                rowElement.lsDropTarget = "timeline-row";
 
                 this.rowContainer.add(rowElement);
                 this.rowElements.push(rowElement);
@@ -842,12 +971,6 @@
 
                 const itemElement = item.timelineElement || this.createTimelineElement(item);
 
-                if(this.dragDrop.dragging && this.dragDrop.currentElement === itemElement) {
-                    this.__rendered.delete(itemElement);
-                    itemElement.__eligible = true;
-                    continue;
-                }
-
                 // Drop items that are too small to be seen
                 if(computedWidth <= 0 || computedX + computedWidth < minX) {
                     continue;
@@ -955,6 +1078,7 @@
             if (this.selectedItems.size > 0) {
                 this.selectedItems.clear();
                 this.frameScheduler.schedule();
+                this.emit("item-deselect");
             }
         }
 
@@ -968,35 +1092,29 @@
          * @property {*} [data=null] - Custom data associated with the item
          */
         add(item) {
+            if (!item.id) item.id = LS.Misc.uid();
             this.items.push(item);
+            this.itemMap.set(item.id, item);
             this.__needsSort = true;
             this.frameScheduler.schedule();
         }
 
-        remove(item) {
-            const index = this.items.indexOf(item);
-            if (index >= 0) {
-                this.items.splice(index, 1);
-                if (item.timelineElement && item.timelineElement.parentNode) {
-                    item.timelineElement.remove();
-                }
-                this.__needsSort = true;
-                this.frameScheduler.schedule();
-            }
-        }
-
         cloneItem(item) {
+            const id = LS.Misc.uid();
             return {
                 start: item.start,
-                id: item.id || null,
                 duration: item.duration,
+                id: id,
                 row: item.row || 0,
-                label: item.label || "",
+                label: item.label || id,
                 color: item.color || null,
-                data: item.data || null,
+                data: JSON.parse(JSON.stringify(item.data || {}, (key, value) => {
+                    if (key.startsWith("_") || (value instanceof Element)) return undefined;
+                    return value;
+                })),
                 type: item.type || null,
-                cover: item.cover || null,
-                waveform: item.waveform || null,
+                ...item.cover ? { cover: item.cover } : null,
+                ...item.waveform ? { waveform: item.waveform } : null,
             };
         }
 
@@ -1154,10 +1272,6 @@
                     minWidth: 5,
                 });
 
-                this.dragDrop.set(item.timelineElement, {
-                    object: item
-                });
-
                 const resizeHandler = (width, side) => {
                     if(side === 'left') {
                         const newDuration = width / this.#zoom;
@@ -1216,6 +1330,70 @@
             return item.timelineElement;
         }
 
+        /**
+         * Remove an item from the timeline, but keeps it alive to be added later.
+         * Use if you think you might want to re-add the item later (eg. multiple timelines).
+         * Optionally destroys it.
+         * @param {*} item Item to remove
+         * @param {*} destroy Whether to destroy the item
+         * @returns {void}
+         */
+        remove(item, destroy = false) {
+            if (destroy) {
+                this.destroyItem(item);
+                return;
+            }
+
+            const index = this.items.indexOf(item);
+            if (index >= 0) {
+                this.items.splice(index, 1);
+
+                if (item.id) this.itemMap.delete(item.id);
+                if(item.type === "automation" && item.__automationClip) {
+                    item.__automationClip?.destroy?.();
+                    item.__automationClip = null;
+                }
+
+                if (item.timelineElement && item.timelineElement.parentNode) {
+                    item.timelineElement.remove();
+                }
+
+                this.emit("item-removed", [item]);
+
+                this.__needsSort = true;
+                this.frameScheduler.schedule();
+            }
+        }
+
+        /**
+         * Destroy an item and remove it from the timeline. Clears any associated resources.
+         * Use if you want to permanently delete an item.
+         * @param {*} item Item to destroy
+         * @returns {void}
+         */
+        destroyItem(item) {
+            this.emit("item-cleanup", [item]);
+
+            if (item.id) this.itemMap.delete(item.id);
+            if (item.type === "automation" && item.__automationClip) {
+                item.__automationClip?.destroy?.();
+                item.__automationClip = null;
+            }
+
+            this.destroyTimelineElement(item);
+
+            const index = this.items.indexOf(item);
+            if (index >= 0) {
+                this.items.splice(index, 1);
+                this.__needsSort = true;
+                this.frameScheduler.schedule();
+            }
+        }
+
+        /**
+         * Clears and removes the timeline element associated with an item.
+         * @param {*} item 
+         */
         destroyTimelineElement(item) {
             if (item.timelineElement) {
                 if(LS.Resize) LS.Resize.remove(item.timelineElement);
@@ -1224,27 +1402,22 @@
             item.timelineElement = null;
         }
 
-        destroyItem(item) {
-            if (item.type === "automation" && item.__automationClip) {
-                if (typeof item.__automationClip.destroy === "function") item.__automationClip.destroy();
-                item.__automationClip = null;
+        deleteSelected() {
+            if (this.selectedItems.size === 0) return;
+
+            for (const item of this.selectedItems) {
+                this.destroyItem(item);
             }
-            this.destroyTimelineElement(item);
-            const index = this.items.indexOf(item);
-            if (index >= 0) {
-                this.items.splice(index, 1);
-                this.frameScheduler.schedule();
-            }
+
+            this.selectedItems.clear();
+            this.frameScheduler.schedule();
+            this.emit("items-deleted", [itemsToDelete]);
         }
 
         reset(destroyItems = true, replacingItems = null) {
             for (let item of this.items) {
                 if (destroyItems) {
-                    if (item.type === "automation" && item.__automationClip) {
-                        if (typeof item.__automationClip.destroy === "function") item.__automationClip.destroy();
-                        item.__automationClip = null;
-                    }
-                    this.destroyTimelineElement(item);
+                    this.destroyItem(item);
                 } else if (item.timelineElement && item.timelineElement.parentNode) {
                     if (item.type === "automation" && item.__automationClip) {
                         item.__automationClip.setElement(null);
@@ -1254,7 +1427,12 @@
             }
 
             this.items = replacingItems || [];
+            this.itemMap.clear();
             if (replacingItems) {
+                for (const item of this.items) {
+                    if (!item.id) item.id = LS.Misc.uid();
+                    this.itemMap.set(item.id, item);
+                }
                 this.sortItems();
             }
 
@@ -1300,23 +1478,36 @@
         }
 
         destroy() {
-            this.reset(true);
-            this.frameScheduler.cancel();
+            this.frameScheduler.destroy();
             this.frameScheduler = null;
+            this.reset(true);
             this.container.remove();
+            this.clipboard = null;
             this.container = null;
             this.markerPool = null;
             this.activeMarkers = null;
+            this.selectedItems.clear();
+            this.selectedItems = null;
+            this.items = null;
+            this.itemMap = null;
+            this.__rendered = null;
+
+            // UI Elements
             this.rowElements = null;
             this.spacerElement = null;
-            this.selectedItems = null;
-            this.__rendered = null;
             this.playerHead = null;
             this.rowContainer = null;
             this.scrollContainer = null;
             this.markerContainer = null;
+            this.selectionRect = null;
+            this.snapLine = null;
+
+            this.__seekEventRef = null;
+            this.__fileProcessEventRef = null;
+
             document.removeEventListener('wheel', this.__wheelHandler);
             this.__wheelHandler = null;
+
             if (this.container && this.__nativeDragOverHandler) {
                 this.container.removeEventListener('dragover', this.__nativeDragOverHandler);
                 this.__nativeDragOverHandler = null;
@@ -1325,10 +1516,23 @@
                 this.container.removeEventListener('drop', this.__nativeDropHandler);
                 this.__nativeDropHandler = null;
             }
+
+            if(this.contextMenu) {
+                this.contextMenu.destroy();
+                this.contextMenu = null;
+            }
+
+            if(this.itemContextMenu) {
+                this.itemContextMenu.destroy();
+                this.itemContextMenu = null;
+            }
+
             this.dragHandle.destroy();
             this.dragHandle = null;
-            this.dragDrop.destroy();
-            this.dragDrop = null;
+
+            this.__destroyed = true;
+            this.emit("destroy");
+            this.events.clear();
         }
     }, { name: "Timeline", global: true });
 })();

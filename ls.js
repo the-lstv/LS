@@ -829,9 +829,6 @@
                         }
                     }
 
-                    // Prevent default to stop text selection, etc.
-                    if (event.cancelable && event.type !== "touchstart") event.preventDefault();
-
                     if (event.type === "mousedown" && !this.options.buttons.includes(event.button)) return;
 
                     this.seeking = true;
@@ -848,6 +845,9 @@
                         this.seeking = false;
                         return;
                     }
+
+                    // Prevent default to stop text selection, etc.
+                    if (event.cancelable && event.type !== "touchstart") event.preventDefault();
 
                     if (this.options.pointerLock) {
                         if(!this.pointerLockSet) {
@@ -1307,7 +1307,7 @@
 
                 const parts = shortcut.toLowerCase().split('+');
                 this.shortcuts.set(shortcut, {
-                    key: parts.pop(),
+                    key: parts.find(part => !['ctrl', 'control', 'shift', 'alt', 'super', 'meta', 'cmd', 'command'].includes(part)),
                     ctrl: parts.includes('ctrl') || parts.includes('control'),
                     shift: parts.includes('shift'),
                     alt: parts.includes('alt'),
@@ -1435,8 +1435,6 @@
                 if (shortcut.key === 'space' && event.code === 'Space') return true;
                 if (shortcut.key === 'enter' && eventKey === 'enter') return true;
                 if (shortcut.key === 'esc' && eventKey === 'escape') return true;
-                if (shortcut.key === 'escape' && eventKey === 'escape') return true;
-
                 return false;
             }
         }

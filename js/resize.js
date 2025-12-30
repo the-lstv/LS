@@ -195,17 +195,36 @@ LS.LoadComponent(class Resize extends LS.Component {
 
                 const element = N("div", { class: `ls-resize-handle ls-${side}` + (options.styled? " ls-resize-handle-styled": "") + (isCorner? " ls-resize-handle-corner": "") });
 
+                // Pre-calculate side flags
+                const isWest = side === 'left' || side === 'topLeft' || side === 'bottomLeft';
+                const isEast = side === 'right' || side === 'topRight' || side === 'bottomRight';
+                const isNorth = side === 'top' || side === 'topLeft' || side === 'topRight';
+                const isSouth = side === 'bottom' || side === 'bottomLeft' || side === 'bottomRight';
+
                 let startX = 0, startY = 0;
                 let startWidth = 0, startHeight = 0;
                 let endWidth = 0, endHeight = 0;
                 let currentState = null;
-                // let startTop = 0, startLeft = 0; // page-based (rect) values
-                let startTopStyle = 0, startLeftStyle = 0; // style/offsetParent based values used for writing back
-                let startTranslateX = 0, startTranslateY = 0; // translate values
+                // Unified position variables (replaces startTopStyle, startLeftStyle, startTranslateX, startTranslateY)
+                let startPosX = 0, startPosY = 0;
                 let minWidth, minHeight, maxWidth, maxHeight;
                 let absolutePositioned = false; // detected at drag start
                 let boundaryRect = null; // computed boundary rect
                 let targetOffsetX = 0, targetOffsetY = 0; // offset from boundary origin to target's offset parent
+
+                const affectsWidth = isWest || isEast;
+                const affectsHeight = isNorth || isSouth;
+
+                const cursorMap = {
+                    top: 'ns-resize',
+                    bottom: 'ns-resize',
+                    left: 'ew-resize',
+                    right: 'ew-resize',
+                    topLeft: 'nwse-resize',
+                    bottomRight: 'nwse-resize',
+                    topRight: 'nesw-resize',
+                    bottomLeft: 'nesw-resize'
+                };
 
                 const handler = LS.Util.touchHandle(element, {
                     // frameTimed: true, // Limits move calls to the frame rate
@@ -214,38 +233,39 @@ LS.LoadComponent(class Resize extends LS.Component {
                         const rect = target.getBoundingClientRect();
                         const style = window.getComputedStyle(target);
                         if (options.cursors !== false) {
-                            const cursorMap = {
-                                top: 'ns-resize',
-                                bottom: 'ns-resize',
-                                left: 'ew-resize',
-                                right: 'ew-resize',
-                                topLeft: 'nwse-resize',
-                                bottomRight: 'nwse-resize',
-                                topRight: 'nesw-resize',
-                                bottomLeft: 'nesw-resize'
-                            };
                             const cur = cursorMap[side];
                             if (cur) {
                                 handler.cursor = cur;
                             }
                         }
+
                         minWidth = options.minWidth || parseFloat(style.minWidth) || 20;
                         minHeight = options.minHeight || parseFloat(style.minHeight) || 20;
                         maxWidth = options.maxWidth || parseFloat(style.maxWidth) || Infinity;
                         maxHeight = options.maxHeight || parseFloat(style.maxHeight) || Infinity;
                         startWidth = rect.width;
                         startHeight = rect.height;
-                        // startTop = rect.top + window.scrollY;
-                        // startLeft = rect.left + window.scrollX;
+                        
                         // Use style / offsetParent coordinates for adjustments to avoid jump
                         if (options.translate) {
                             const transform = style.transform;
-                            const match = transform.match(/translate3d\(([-\d.]+)px,\s*([-\d.]+)px/);
-                            startTranslateX = match ? parseFloat(match[1]) : 0;
-                            startTranslateY = match ? parseFloat(match[2]) : 0;
+                            let mat = transform.match(/^matrix3d\((.+)\)$/);
+                            if (mat) {
+                                startPosX = parseFloat(mat[1].split(', ')[12]);
+                                startPosY = parseFloat(mat[1].split(', ')[13]);
+                            } else {
+                                mat = transform.match(/^matrix\((.+)\)$/);
+                                if (mat) {
+                                    startPosX = parseFloat(mat[1].split(', ')[4]);
+                                    startPosY = parseFloat(mat[1].split(', ')[5]);
+                                } else {
+                                    startPosX = 0;
+                                    startPosY = 0;
+                                }
+                            }
                         } else {
-                            startTopStyle = !isNaN(parseFloat(style.top)) ? parseFloat(style.top) : target.offsetTop;
-                            startLeftStyle = !isNaN(parseFloat(style.left)) ? parseFloat(style.left) : target.offsetLeft;
+                            startPosX = !isNaN(parseFloat(style.left)) ? parseFloat(style.left) : target.offsetLeft;
+                            startPosY = !isNaN(parseFloat(style.top)) ? parseFloat(style.top) : target.offsetTop;
                         }
                         startX = mx;
                         startY = my;
@@ -272,58 +292,55 @@ LS.LoadComponent(class Resize extends LS.Component {
                                 const parentRect = offsetParent.getBoundingClientRect();
                                 targetOffsetX = parentRect.left + window.scrollX - (boundaryRect.x || 0);
                                 targetOffsetY = parentRect.top + window.scrollY - (boundaryRect.y || 0);
+
+                                // If using translate, startPosX is just the transform part. 
+                                // We need to account for the static left/top offset in the boundary calculation.
+                                if (options.translate) {
+                                    targetOffsetX += target.offsetLeft;
+                                    targetOffsetY += target.offsetTop;
+                                }
                             }
                         }
+
+                        self.emit('resize-start', [{target, handler, side}]);
+                        handler.emit('resize-start');
                     },
                     onMove(mx, my) {
                         let dx = mx - startX;
                         let dy = my - startY;
                         let newWidth = startWidth;
                         let newHeight = startHeight;
-                        let newTop = startTopStyle;
-                        let newLeft = startLeftStyle;
-                        let newTranslateX = startTranslateX;
-                        let newTranslateY = startTranslateY;
-
-                        const affectsWidth = ["left","right","topLeft","topRight","bottomRight","bottomLeft"].includes(side);
-                        const affectsHeight = ["top","bottom","topLeft","topRight","bottomRight","bottomLeft"].includes(side);
+                        let newPosX = startPosX;
+                        let newPosY = startPosY;
 
                         // Pre-calc raw candidates (before min/max) for snapping decisions
                         let rawWidthCandidate = startWidth;
                         let rawHeightCandidate = startHeight;
-                        if (["left","topLeft","bottomLeft"].includes(side)) rawWidthCandidate = startWidth - dx;
-                        else if (["right","topRight","bottomRight"].includes(side)) rawWidthCandidate = startWidth + dx;
-                        if (["top","topLeft","topRight"].includes(side)) rawHeightCandidate = startHeight - dy;
-                        else if (["bottom","bottomLeft","bottomRight"].includes(side)) rawHeightCandidate = startHeight + dy;
+                        if (isWest) rawWidthCandidate = startWidth - dx;
+                        else if (isEast) rawWidthCandidate = startWidth + dx;
+                        if (isNorth) rawHeightCandidate = startHeight - dy;
+                        else if (isSouth) rawHeightCandidate = startHeight + dy;
 
-                        if (["left","topLeft","bottomLeft"].includes(side)) {
+                        if (isWest) {
                             let candidate = startWidth - dx;
                             if (candidate < minWidth) { candidate = minWidth; dx = startWidth - candidate; }
                             else if (candidate > maxWidth) { candidate = maxWidth; dx = startWidth - candidate; }
                             newWidth = candidate;
-                            if (options.translate) {
-                                newTranslateX = startTranslateX + dx;
-                            } else {
-                                newLeft = startLeftStyle + dx;
-                            }
-                        } else if (["right","topRight","bottomRight"].includes(side)) {
+                            newPosX = startPosX + dx;
+                        } else if (isEast) {
                             let candidate = startWidth + dx;
                             if (candidate < minWidth) candidate = minWidth;
                             if (candidate > maxWidth) candidate = maxWidth;
                             newWidth = candidate;
                         }
 
-                        if (["top","topLeft","topRight"].includes(side)) {
+                        if (isNorth) {
                             let candidate = startHeight - dy;
                             if (candidate < minHeight) { candidate = minHeight; dy = startHeight - candidate; }
                             else if (candidate > maxHeight) { candidate = maxHeight; dy = startHeight - candidate; }
                             newHeight = candidate;
-                            if (options.translate) {
-                                newTranslateY = startTranslateY + dy;
-                            } else {
-                                newTop = startTopStyle + dy;
-                            }
-                        } else if (["bottom","bottomLeft","bottomRight"].includes(side)) {
+                            newPosY = startPosY + dy;
+                        } else if (isSouth) {
                             let candidate = startHeight + dy;
                             if (candidate < minHeight) candidate = minHeight;
                             if (candidate > maxHeight) candidate = maxHeight;
@@ -371,12 +388,12 @@ LS.LoadComponent(class Resize extends LS.Component {
                         // Apply position only if axis affected & absolute
                         if (absolutePositioned) {
                             if (options.translate) {
-                                if (["left","topLeft","bottomLeft"].includes(side) || ["top","topLeft","topRight"].includes(side)) {
-                                    target.style.transform = `translate3d(${newTranslateX}px, ${newTranslateY}px, 0)`;
+                                if (isWest || isNorth) {
+                                    target.style.transform = `translate3d(${newPosX}px, ${newPosY}px, 0)`;
                                 }
                             } else {
-                                if (["left","topLeft","bottomLeft"].includes(side)) target.style.left = newLeft + 'px';
-                                if (["top","topLeft","topRight"].includes(side)) target.style.top = newTop + 'px';
+                                if (isWest) target.style.left = newPosX + 'px';
+                                if (isNorth) target.style.top = newPosY + 'px';
                             }
                         }
 
@@ -411,41 +428,41 @@ LS.LoadComponent(class Resize extends LS.Component {
 
                             if (absolutePositioned) {
                                 // Constrain left edge
-                                const leftInBoundary = newLeft + targetOffsetX;
+                                const leftInBoundary = newPosX + targetOffsetX;
                                 if (leftInBoundary < bx) {
                                     const diff = bx - leftInBoundary;
-                                    newLeft += diff;
-                                    if (["left","topLeft","bottomLeft"].includes(side)) {
+                                    newPosX += diff;
+                                    if (isWest) {
                                         newWidth -= diff;
                                     }
                                 }
                                 // Constrain top edge
-                                const topInBoundary = newTop + targetOffsetY;
+                                const topInBoundary = newPosY + targetOffsetY;
                                 if (topInBoundary < by) {
                                     const diff = by - topInBoundary;
-                                    newTop += diff;
-                                    if (["top","topLeft","topRight"].includes(side)) {
+                                    newPosY += diff;
+                                    if (isNorth) {
                                         newHeight -= diff;
                                     }
                                 }
                                 // Constrain right edge
-                                const rightInBoundary = newLeft + targetOffsetX + newWidth;
+                                const rightInBoundary = newPosX + targetOffsetX + newWidth;
                                 if (rightInBoundary > bx + bw) {
                                     const diff = rightInBoundary - (bx + bw);
-                                    if (["right","topRight","bottomRight"].includes(side)) {
+                                    if (isEast) {
                                         newWidth -= diff;
-                                    } else if (["left","topLeft","bottomLeft"].includes(side)) {
-                                        newLeft -= diff;
+                                    } else if (isWest) {
+                                        newPosX -= diff;
                                     }
                                 }
                                 // Constrain bottom edge
-                                const bottomInBoundary = newTop + targetOffsetY + newHeight;
+                                const bottomInBoundary = newPosY + targetOffsetY + newHeight;
                                 if (bottomInBoundary > by + bh) {
                                     const diff = bottomInBoundary - (by + bh);
-                                    if (["bottom","bottomLeft","bottomRight"].includes(side)) {
+                                    if (isSouth) {
                                         newHeight -= diff;
-                                    } else if (["top","topLeft","topRight"].includes(side)) {
-                                        newTop -= diff;
+                                    } else if (isNorth) {
+                                        newPosY -= diff;
                                     }
                                 }
                             } else {
@@ -463,8 +480,8 @@ LS.LoadComponent(class Resize extends LS.Component {
                         if (snappedCollapsed || target.classList.contains('ls-resize-collapsed')) currentState = 'collapsed';
                         else if (snappedExpanded || target.classList.contains('ls-resize-expanded')) currentState = 'expanded';
 
-                        self.emit('resize', [{target, handler, side}, newWidth, newHeight, currentState]);
-                        handler.emit('resize', [newWidth, newHeight, currentState]);
+                        self.emit('resize', [{target, handler, side}, newWidth, newHeight, currentState, newPosX, newPosY]);
+                        handler.emit('resize', [newWidth, newHeight, currentState, newPosX, newPosY]);
                         endWidth = newWidth;
                         endHeight = newHeight;
 
@@ -474,15 +491,15 @@ LS.LoadComponent(class Resize extends LS.Component {
                             const canExpandHeight = newHeight < maxHeight;
                             const canShrinkHeight = newHeight > minHeight;
                             let cur = handler.cursor;
-                            if (["left","right"].includes(side)) {
+                            if (isWest || isEast) {
                                 if (canExpandWidth && canShrinkWidth) cur = 'ew-resize';
-                                else if (canExpandWidth && !canShrinkWidth) cur = side === 'left' ? 'w-resize' : 'e-resize';
-                                else if (!canExpandWidth && canShrinkWidth) cur = side === 'left' ? 'e-resize' : 'w-resize';
+                                else if (canExpandWidth && !canShrinkWidth) cur = isWest ? 'w-resize' : 'e-resize';
+                                else if (!canExpandWidth && canShrinkWidth) cur = isWest ? 'e-resize' : 'w-resize';
                                 else cur = 'not-allowed';
-                            } else if (["top","bottom"].includes(side)) {
+                            } else if (isNorth || isSouth) {
                                 if (canExpandHeight && canShrinkHeight) cur = 'ns-resize';
-                                else if (canExpandHeight && !canShrinkHeight) cur = side === 'top' ? 'n-resize' : 's-resize';
-                                else if (!canExpandHeight && canShrinkHeight) cur = side === 'top' ? 's-resize' : 'n-resize';
+                                else if (canExpandHeight && !canShrinkHeight) cur = isNorth ? 'n-resize' : 's-resize';
+                                else if (!canExpandHeight && canShrinkHeight) cur = isNorth ? 's-resize' : 'n-resize';
                                 else cur = 'not-allowed';
                             }
                             handler.cursor = cur;
@@ -495,15 +512,28 @@ LS.LoadComponent(class Resize extends LS.Component {
                                 height: target.style.height || null,
                                 state: target.classList.contains('ls-resize-collapsed') ? 'collapsed' : (target.classList.contains('ls-resize-expanded') ? 'expanded' : 'normal')
                             };
+
                             if (options.translate) {
                                 const transform = window.getComputedStyle(target).transform;
-                                const match = transform.match(/translate3d\(([-\d.]+)px,\s*([-\d.]+)px/);
-                                data.translateX = match ? parseFloat(match[1]) : 0;
-                                data.translateY = match ? parseFloat(match[2]) : 0;
+                                let mat = transform.match(/^matrix3d\((.+)\)$/);
+                                if (mat) {
+                                    data.translateX = parseFloat(mat[1].split(', ')[12]);
+                                    data.translateY = parseFloat(mat[1].split(', ')[13]);
+                                } else {
+                                    mat = transform.match(/^matrix\((.+)\)$/);
+                                    if (mat) {
+                                        data.translateX = parseFloat(mat[1].split(', ')[4]);
+                                        data.translateY = parseFloat(mat[1].split(', ')[5]);
+                                    } else {
+                                        data.translateX = 0;
+                                        data.translateY = 0;
+                                    }
+                                }
                             } else {
                                 data.left = target.style.left || null;
                                 data.top = target.style.top || null;
                             }
+
                             storage.setItem(storeKey, entry.options?.storeStringify !== false ? JSON.stringify(data) : data);
                         } catch(e) { console.error(e) }
 

@@ -203,6 +203,14 @@
 
             modalOptions.content = content;
             const modal = new LS.Modal(modalOptions);
+
+            if(options.onOpen) {
+                modal.on("open", options.onOpen);
+            }
+
+            if(options.onClose) {
+                modal.on("close", options.onClose);
+            }
             return modal;
         }
     }, { name: "Modal", global: true })
