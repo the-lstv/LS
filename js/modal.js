@@ -28,39 +28,44 @@
     LS._modalStack = LS._modalStack || [];
 
     LS.LoadComponent(class Modal extends LS.Component {
+        static DEFAULTS = {
+            styled: true,
+            fadeInDuration: 300,
+            fadeOutDuration: 300
+        }
+
         constructor(options = {}) {
             super();
 
-            this.options = options;
+            this.options = LS.Util.defaults(this.constructor.DEFAULTS, options);
             this.isOpen = false;
 
             this.container = N({
                 class: "ls-modal",
-                inner: options.content || null,
+                inner: this.options.content || null,
                 tabIndex: "0"
             });
 
             this.container.style.display = "none";
 
-            if (options.styled !== false) {
+            if (this.options.styled !== false) {
                 this.container.classList.add("ls-modal-styled");
             }
 
-            this.container.style.width = options.width? typeof options.width === "number" ? options.width + "px" : options.width: "450px";
-
-            if (options.height) {
-                this.container.style.height = typeof options.height === "number" ? options.height + "px" : options.height;
+            this.container.style.width = this.options.width? typeof this.options.width === "number" ? this.options.width + "px" : this.options.width: "450px";
+            if (this.options.height) {
+                this.container.style.height = typeof this.options.height === "number" ? this.options.height + "px" : this.options.height;
             }
 
             container.add(this.container);
 
-            if (options.open) {
+            if (this.options.open) {
                 this.open();
             }
         }
 
         open() {
-            if (this.isOpen || this._destroyed) return;
+            if (this.isOpen || this.__destroyed) return;
             this.previousFocus = document.activeElement;
             this.isOpen = true;
 
@@ -88,7 +93,7 @@
             container.classList.add("is-open");
 
             if (LS.Animation && this.options.animate !== false) {
-                LS.Animation.fadeIn(this.container, null, this.options.fadeInDirection || 'forward');
+                LS.Animation.fadeIn(this.container, this.options.fadeInDuration || 300, this.options.fadeInDirection || 'forward');
             }
 
             this.emit("open");
@@ -96,7 +101,7 @@
         }
 
         close(focus = true) {
-            if (!this.isOpen) return;
+            if (!this.isOpen || this.__destroyed) return;
 
             this.isOpen = false;
             this.container.classList.remove("open");
@@ -114,7 +119,7 @@
                     const top = LS.Modal.top;
                     if (top && top.container) {
                         if (focus) top.container.classList.add("ls-top-modal");
-                        
+
                         if (focus && this.previousFocus) {
                             this.previousFocus.focus();
                         } else {
@@ -125,31 +130,45 @@
             }, 0);
 
             if (LS.Animation && this.options.animate !== false) {
-                LS.Animation.fadeOut(this.container, null, this.options.fadeOutDirection || 'backward');
+                LS.Animation.fadeOut(this.container, this.options.fadeOutDuration || 300, this.options.fadeOutDirection || 'backward');
             }
 
             if (this.options.ephemeral) {
-                setTimeout(() => {
-                    this.destroy();
-                }, 300);
+                this.destroy(true);
             }
 
             this.emit("close");
             return this;
         }
 
-        destroy() {
+        destroy(delayed = false) {
+            if(this.__destroyed) return;
+
             if (this.isOpen) {
                 this.close(false);
             }
 
-            this.container.remove();
-            this.container = null;
+            const index = LS._modalStack.indexOf(this);
+            if (index > -1) {
+                LS._modalStack.splice(index, 1);
+            }
+
+            if (delayed) {
+                setTimeout(() => {
+                    this.container.remove();
+                    this.container = null;
+                }, this.options.fadeOutDuration || 300);
+            } else {
+                this.container.remove();
+                this.container = null;
+            }
+
+            this.options = null;
             this.previousFocus = null;
             this.emit("destroy");
             this.events.clear();
-            this._destroyed = true;
-            return this;
+            this.__destroyed = true;
+            return;
         }
 
         static get top() {
@@ -211,6 +230,8 @@
             if(options.onClose) {
                 modal.on("close", options.onClose);
             }
+
+            options = null;
             return modal;
         }
     }, { name: "Modal", global: true })

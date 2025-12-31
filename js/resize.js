@@ -227,9 +227,14 @@ LS.LoadComponent(class Resize extends LS.Component {
                 };
 
                 const handler = LS.Util.touchHandle(element, {
-                    // frameTimed: true, // Limits move calls to the frame rate
+                    frameTimed: true, // Limits move calls to the frame rate
 
                     onStart(e, c, mx, my) {
+                        self.emit('resize-start', [{target, handler, side}, c]);
+                        handler.emit('resize-start', [c]);
+                        
+                        if(handler.cancelled) return;
+
                         const rect = target.getBoundingClientRect();
                         const style = window.getComputedStyle(target);
                         if (options.cursors !== false) {
@@ -301,9 +306,6 @@ LS.LoadComponent(class Resize extends LS.Component {
                                 }
                             }
                         }
-
-                        self.emit('resize-start', [{target, handler, side}]);
-                        handler.emit('resize-start');
                     },
                     onMove(mx, my) {
                         let dx = mx - startX;

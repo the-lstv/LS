@@ -520,7 +520,10 @@ LS.LoadComponent(class Menu extends LS.Component {
 
         this.select(item);
         if (typeof item.action === 'function') item.action(item);
-        this.closeAll();
+
+        if (this.options.closeOnSelect) {
+            this.closeAll();
+        }
     }
 
     #handleItemHover(item) {

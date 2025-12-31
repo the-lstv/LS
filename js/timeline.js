@@ -538,12 +538,14 @@
                 }
             });
 
+            this.focusedItem = null;
             this.container.addEventListener("contextmenu", (event) => {
                 event.preventDefault();
 
                 const itemElement = event.target.closest(".ls-timeline-item");
                 if(itemElement) {
                     this.contextMenu.close();
+                    this.focusedItem = itemElement.__timelineItem;
                     this.itemContextMenu.open(event.clientX, event.clientY);
                 } else {
                     this.itemContextMenu.close();
@@ -562,6 +564,7 @@
                 items: [
                     { text: "Cut Item(s)", action: () => {} },
                     { text: "Delete Item(s)", action: () => {
+                        
                         this.deleteSelected();
                     } }
                 ]
@@ -643,8 +646,7 @@
                     }
                 }
 
-                const files = Array.from(dt.files);
-                this.emit(this.__fileProcessEventRef, [files, rowIndex, timeOffset]);
+                this.emit(this.__fileProcessEventRef, [dt.files, rowIndex, timeOffset]);
             });
 
             this.zoom = this.options.zoom;
@@ -824,6 +826,7 @@
                 if (!item.start || item.start < 0) item.start = 0;
                 if (!item.row || item.row < 0) item.row = 0;
                 if (item.duration > this.maxDuration) this.maxDuration = item.duration;
+                if (!item.data) item.data = {};
                 const end = item.start + item.duration;
                 if (end > totalDuration) totalDuration = end;
             }
@@ -1092,9 +1095,9 @@
          * @property {*} [data=null] - Custom data associated with the item
          */
         add(item) {
-            if (!item.id) item.id = LS.Misc.uid();
             this.items.push(item);
-            this.itemMap.set(item.id, item);
+            // If no ID, it will be assigned during sorting
+            if(item.id) this.itemMap.set(item.id, item);
             this.__needsSort = true;
             this.frameScheduler.schedule();
         }
@@ -1339,29 +1342,32 @@
          * @returns {void}
          */
         remove(item, destroy = false) {
-            if (destroy) {
-                this.destroyItem(item);
-                return;
-            }
-
             const index = this.items.indexOf(item);
             if (index >= 0) {
                 this.items.splice(index, 1);
-
-                if (item.id) this.itemMap.delete(item.id);
-                if(item.type === "automation" && item.__automationClip) {
-                    item.__automationClip?.destroy?.();
-                    item.__automationClip = null;
-                }
-
-                if (item.timelineElement && item.timelineElement.parentNode) {
-                    item.timelineElement.remove();
-                }
-
-                this.emit("item-removed", [item]);
-
                 this.__needsSort = true;
                 this.frameScheduler.schedule();
+            }
+
+            if (item.id) this.itemMap.delete(item.id);
+            if(item.type === "automation" && item.__automationClip) {
+                item.__automationClip?.destroy?.();
+                item.__automationClip = null;
+            }
+
+            if(this.focusedItem === item) {
+                this.focusedItem = null;
+            }
+
+            if (item.timelineElement && item.timelineElement.parentNode) {
+                item.timelineElement.remove();
+            }
+
+            this.emit("item-removed", [item]);
+
+            if(destroy) {
+                this.destroyTimelineElement(item);
+                this.emit("item-cleanup", [item]);
             }
         }
 
@@ -1372,22 +1378,7 @@
          * @returns {void}
          */
         destroyItem(item) {
-            this.emit("item-cleanup", [item]);
-
-            if (item.id) this.itemMap.delete(item.id);
-            if (item.type === "automation" && item.__automationClip) {
-                item.__automationClip?.destroy?.();
-                item.__automationClip = null;
-            }
-
-            this.destroyTimelineElement(item);
-
-            const index = this.items.indexOf(item);
-            if (index >= 0) {
-                this.items.splice(index, 1);
-                this.__needsSort = true;
-                this.frameScheduler.schedule();
-            }
+            return this.remove(item, true);
         }
 
         /**
@@ -1411,10 +1402,11 @@
 
             this.selectedItems.clear();
             this.frameScheduler.schedule();
-            this.emit("items-deleted", [itemsToDelete]);
         }
 
         reset(destroyItems = true, replacingItems = null) {
+            if(this.__destroyed) return;
+
             for (let item of this.items) {
                 if (destroyItems) {
                     this.destroyItem(item);
@@ -1474,13 +1466,17 @@
         }
 
         export() {
+            if(this.__needsSort) {
+                this.sortItems();
+            }
+
             return this.items.map(item => this.cloneItem(item));
         }
 
         destroy() {
+            this.reset(true);
             this.frameScheduler.destroy();
             this.frameScheduler = null;
-            this.reset(true);
             this.container.remove();
             this.clipboard = null;
             this.container = null;
@@ -1491,6 +1487,7 @@
             this.items = null;
             this.itemMap = null;
             this.__rendered = null;
+            this.focusedItem = null;
 
             // UI Elements
             this.rowElements = null;

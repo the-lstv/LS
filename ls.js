@@ -777,6 +777,7 @@
                     this.options = {
                         buttons: [0, 1, 2],
                         disablePointerEvents: true,
+                        frameTimed: false,
                         ...options
                     };
 
@@ -787,12 +788,15 @@
                     this.pointerLockPreviousX = 0;
                     this.pointerLockPreviousY = 0;
                     this.dragTarget = null;
+                    this.frameQueued = false;
+                    this.latestMoveEvent = null;
 
                     this.onStart = this.onStart.bind(this);
                     this.onMove = this.onMove.bind(this);
                     this.onRelease = this.onRelease.bind(this);
                     this.cancel = this.cancel.bind(this);
                     this.onPointerLockChange = this.onPointerLockChange.bind(this);
+                    this.frameHandler = this.frameHandler.bind(this);
 
                     // Attach initial listeners
                     this.element.addEventListener("mousedown", this.onStart);
@@ -882,6 +886,27 @@
                 onMove(event) {
                     if (this.cancelled) return;
 
+                    if (this.options.frameTimed) {
+                        this.latestMoveEvent = event;
+                        if (!this.frameQueued) {
+                            this.frameQueued = true;
+                            requestAnimationFrame(this.frameHandler);
+                        }
+                        return;
+                    }
+
+                    this.processMove(event);
+                }
+
+                frameHandler() {
+                    this.frameQueued = false;
+                    if (this.latestMoveEvent) {
+                        this.processMove(this.latestMoveEvent);
+                        this.latestMoveEvent = null;
+                    }
+                }
+
+                processMove(event) {
                     const isTouch = event.type === "touchmove";
                     if (!isTouch && event.cancelable) event.preventDefault();
 
@@ -937,6 +962,8 @@
                 cleanupDragState() {
                     this.seeking = false;
                     this.cancelled = false;
+                    this.frameQueued = false;
+                    this.latestMoveEvent = null;
 
                     if (this.element) this.element.classList.remove("is-dragging");
                     if (this.dragTarget) {

@@ -132,7 +132,10 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
     }
 
     setElement(target) {
+        if(target === this.options.element) return;
+
         if (!target) {
+            if(!this.options.render) return;
             this.options.render = false;
             this.options.element = null;
             if (this.element) {
@@ -260,6 +263,7 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
     }
 
     updateScale(scale) {
+        if (scale <= 0 || scale === this.scale) return;
         this.scale = scale;
         this.frameScheduler.schedule();
     }
