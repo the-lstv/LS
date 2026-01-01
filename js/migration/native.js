@@ -1,139 +1,236 @@
 
-/*
+/**
+ * LS.Native is an (unfinished) attempt at making LS a cross-platform framework and bridinging features from any platform into one seamless API.
+ * It aims at being small in size and easy to deploy in any environment without much extra setup.
+ * 
+ * It also has extensions made for seamless integration with platforms like Android (material v3) and GTK on Linux.
+ * This includes the synchronisation of color schemes, dark/light themes, among other things.
+ * 
+ * Based on the original LSv3 implementation - still in *very* early development.
+ * The code sucks.
+ * 
+ * @author lstv.space
+ * @license GPL-3.0
+ */
 
-[ About LS-Native ]
-
-LS-Native is an attempt at a cross-platform, fast and light-weight UI system that works well with mobile devices and desktops alike.
-It combines navigation via keyboard shortcuts and gestures for seamless experience and familiarity.
-
-It aims at being tiny in size, easy to deploy in any environment (thus its written in vanilla JavaScript and CSS), and is free and open-source!
-
-It also has extensions made for seamless integration with other platforms like Android (material v3) and GTK on Linux.
-This includes the synchronisation of color schemes, and of course dark/light themes, among other things.
-
-*/
-
-
-{
-    gl.conf = {
-        batch: false,
-        singular: true
+class DefaultHandler extends LS.EventHandler {
+    constructor(type) {
+        super();
+        this.type = type || "web";
     }
 
-    return _this => class LSNative {
-        constructor(id, element) {
-            this.platform = window.LSNative_Android_Proxy? "android": window.arc? "arc": "web";
+    connect() {
+        return Promise.resolve(this);
+    }
 
-            this.global = {
-                close(){
-                    switch(this.platform){
-                        case "web":
-                            return close()
-                        case "android":
-                            return LSNative_Android_Proxy.handle_void_void("close")
-                        case "arc":
-                            return arc.closeWindow()
-                    }
-                }
+    close() {
+        // This will fail if the window was not opened by a script
+        return close();
+    }
+
+    showToast(text, options = {}) {
+        if(LS.Toast) {
+            LS.Toast.show(text, options);
+        }
+    }
+
+    get preferredTheme() {
+        return window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches? "light" : "dark";
+    }
+
+    applyTheme() {
+        LS.Color.setAdaptiveTheme();
+    }
+
+    applyAccent() {
+        if (localStorage.hasOwnProperty("ls-accent")) {
+            const accent = localStorage.getItem("ls-accent");
+            if (accent.startsWith("#")) {
+                LS.Color.update("custom", accent);
+                LS.Color.setAccent("custom");
+            } else {
+                LS.Color.setAccent(accent);
             }
         }
+    }
 
-        connectAndriod(callback){
-            if(this.android) return this.android;
+    get window() {
+        return null;
+    }
 
-            return new Promise((resolve, reject)=>{
-                if(typeof callback !== "function") throw "Callback must be a function.";
-    
-                let tools, timeout = 0;
-    
-                tools = {
-                    Resolve(event, data, options = {}){
-                        if(typeof options == "string") options = {type: options};
-
-                        let method = ("handle_" + ((data === null || typeof data == "undefined")? "void" : typeof data) + "_" + (options.type || "void")).toLowerCase().trim();
-
-                        if(!LSNative_Android_Proxy[method]) throw `Unsupported method (${method}). Make sure you have types set right.`;
-
-                        return LSNative_Android_Proxy[method](event)
-                    },
-
-                    showToast(text){
-                        return tools.Resolve("android.toast", text)
-                    },
-    
-                    DynamicColors: {
-                        get isAvailable(){
-                            return tools.Resolve("dynamicColors.isAvailable", null, "boolean")
-                        },
-    
-                        get isLightMode(){
-                            return tools.Resolve("dynamicColors.isLight", null, "boolean")
-                        },
-    
-                        getColor(){
-                            return JSON.parse(tools.Resolve("dynamicColors.getColor", null, "string"))
-                        },
-    
-                        getPalette(){
-                            return JSON.parse(tools.Resolve("dynamicColors.getPalette", null, "string"))
-                        },
-    
-                        getMain(){
-                            return JSON.parse(tools.Resolve("dynamicColors.getMain", null, "string"))
-                        },
-                    
-                        applyTheme(){
-                            let isLight = tools.DynamicColors.isLightMode;
-    
-                            O().attrAssign({"ls-theme": isLight? "light": "dark"})
-                            LS._topLayerInherit()
-                        },
-    
-                        applyAccent(){
-                            let colors = tools.DynamicColors.getMain();
-
-                            LS.Color.add("dynamicColor", colors.primary)
-                            LS.Color.setAccent("dynamicColor")
-                        }
-                    }
-                }
-    
-                function checkAvailability(){
-                    if(window.LSNative_Android_Proxy){
-    
-                        this.android = tools;
-                        this.platform = "android";
-                        resolve(tools)
-                        if(callback) callback(tools)
-                        clearInterval(awaiting)
-    
-                    } else {
-    
-                        timeout++
-                        if(timeout > 10){
-                            clearInterval(awaiting)
-                            resolve(null)
-                            if(callback) callback(null)
-                            throw new Error("Could not estabilish communication with the Java backend. Make sure you have setup your WebView properly and are using the latest version of the proxy library!")
-                        }
-    
-                    }
-                }
-    
-                let awaiting = setInterval(checkAvailability, 50)
-                checkAvailability()
-            })
-
+    /**
+     * Method for registering global (system-wide) shortcuts
+     * For normal (in-app) shortcuts, use LS.ShortcutManager instead!
+     * @param {string} shortcut - The global shortcut string (e.g., "Alt+Shift+S")
+     * @param {function} callback - The callback function to execute when the shortcut is triggered
+     */
+    registerShortcut(shortcut, callback) {
+        if(!this.shortcutManager) {
+            this.shortcutManager = new LS.ShortcutManager();
         }
+
+        this.shortcutManager.register(shortcut, callback);
+    }
+
+    toggleDevTools() {
+        return false;
     }
 }
 
+class ArcHandler extends DefaultHandler {
+    constructor(arc) {
+        super("arc");
+        this.arc = arc;
+    }
+
+    close(){
+        return this.arc.window.close();
+    }
+
+    get window() {
+        return this.arc.window;
+    }
+
+    registerShortcut(shortcut, callback) {
+        return this.arc.registerShortcut(shortcut, callback);
+    }
+
+    toggleDevTools() {
+        return this.arc.toggleDevTools();
+    }
+}
+
+class AndroidHandler extends DefaultHandler {
+    constructor(proxy){
+        if(!proxy) throw new Error("Android proxy object is required to create LS.Native.Android instance.");
+        super("android");
+        this.proxy = proxy;
+    }
+
+    connect() {
+        if(this.connected) return Promise.resolve(this);
+
+        return this.__connectPromise || (this.__connectPromise = new Promise((resolve, reject) => {
+            let timeout = 0;
+
+            const check = () => {
+                if(typeof window.LSNative_Android_Proxy !== "undefined"){
+                    this.connected = true;
+                    resolve(this);
+                    clearInterval(connecting);
+                    this.__connectPromise = null;
+                } else {
+                    timeout++
+                    if(timeout > 10){
+                        clearInterval(connecting);
+                        reject(new Error("Could not estabilish communication with the Android backend. Make sure you have setup your WebView properly and are using the latest version of the proxy library!"));
+                    }
+                }
+            }
+
+            const connecting = setInterval(check, 50);
+            check();
+        }));
+    }
+
+    resolve(event, data, options = {}){
+        if(typeof options == "string") options = { type: options };
+        let method = ("handle_" + ((data === null || typeof data == "undefined")? "void" : typeof data) + "_" + (options.type || "void")).toLowerCase().trim();
+        if(!LSNative_Android_Proxy[method]) throw `Unsupported method (${method}). Make sure you have types set right.`;
+        return LSNative_Android_Proxy[method](event);
+    }
+
+    close(){
+        return this.proxy.handle_void_void("close");
+    }
+
+    showToast(text){
+        return this.resolve("android.toast", text)
+    }
+
+    get preferredTheme(){
+        return this.resolve("dynamicColors.isLight", null, "boolean")? "light": "dark";
+    }
+
+    applyTheme(){
+        LS.Color.setTheme(this.preferredTheme);
+    }
+
+    applyAccent(){
+        // Override if ls-accent is set
+        if(localStorage.hasOwnProperty("ls-accent")) {
+            super.applyAccent();
+            return;
+        }
+
+        let colors = JSON.parse(this.resolve("dynamicColors.getMain", null, "string"));
+        LS.Color.add("dynamicColor", colors.primary);
+        LS.Color.setAccent("dynamicColor");
+    }
+
+    get dynamicColorsIsAvailable() {
+        return this.resolve("dynamicColors.isAvailable", null, "boolean");
+    }
+
+    getDynamicColor(){
+        return JSON.parse(this.resolve("dynamicColors.getColor", null, "string"));
+    }
+
+    getDynamicPalette(){
+        return JSON.parse(this.resolve("dynamicColors.getPalette", null, "string"));
+    }
+
+    getDynamicMain(){
+        return JSON.parse(this.resolve("dynamicColors.getMain", null, "string"));
+    }
+}
+
+class iOSHandler extends DefaultHandler {
+    constructor() {
+        super("ios");
+    }
+}
+
+LS.LoadComponent(class Native extends LS.Component {
+    constructor() {
+        super();
+
+        /**
+         * @property {string} platform - The current platform the application is running on.
+         * android - Running inside a WebView with LSNative_Android_Proxy available.
+         * arc - Running inside an Arc launcher environment (desktop/electron).
+         * web - Running in a standard web environment.
+         */
+        this.platform = window.LS_NATIVE_PLATFORM || ((typeof window.LSNative_Android_Proxy !== "undefined")? "android": (typeof window.arc !== "undefined")? "arc": "web");
+
+        this.connected = false;
+        switch(this.platform){
+            case "android":
+                Object.setPrototypeOf(this, AndroidHandler.prototype);
+                this.connect();
+                break;
+
+            case "arc":
+                Object.setPrototypeOf(this, ArcHandler.prototype);
+                this.connected = true;
+                break;
+
+            case "web":
+                Object.setPrototypeOf(this, DefaultHandler.prototype);
+                this.connected = true;
+                break;
+        }
+    }
+}, { global: true, singular: true, name: "Native" });
+
+
 /*
 
-LS.Native.connectAndriod(async android => {
-    with(android){
-        DynamicColors.apply()
-    }
-})
+LS.Native.connect().then(native => {
+    native.applyTheme();
+    native.applyAccent();
+}).catch(err => {
+    console.error(err);
+});
 
 */

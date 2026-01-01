@@ -5,6 +5,7 @@
         "dragdrop",
         "gl",
         "imagecropper",
+        "knob",
         "menu",
         "modal",
         "network",
@@ -20,6 +21,7 @@
         "v4compat"
     ],
     "css": [
-        "flat"
+        "flat",
+        "knob"
     ]
 }

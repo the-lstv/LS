@@ -509,8 +509,8 @@ button.ls-toast-close.ls-toast-close.ls-toast-close {
 
 .ls-modal-styled {
   overflow: hidden;
-  max-height: 90vh;
-  max-width: 90vw;
+  max-height: calc(100vh - 40px);
+  max-width: calc(100vw - 40px);
 }
 
 .ls-modal {

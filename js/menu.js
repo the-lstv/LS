@@ -252,15 +252,19 @@ LS.LoadComponent(class Menu extends LS.Component {
             }
         }
 
+        while(currentItems[0]?.element?.tagName === 'HR') {
+            currentElementsSet.delete(currentItems.shift().element);
+        }
+
         while(currentItems[currentItems.length - 1]?.element?.tagName === 'HR') {
             currentElementsSet.delete(currentItems.pop().element);
         }
 
         // Remove elements
         for (const child of Array.from(this.container.children)) {
-            if (!currentElementsSet.has(child)) {
+            // if (!currentElementsSet.has(child)) {
                 this.container.removeChild(child);
-            }
+            // }
         }
 
         if (this.searchContainer?.parentNode === this.container && this.container.firstChild !== this.searchContainer) {

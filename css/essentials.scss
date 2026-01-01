@@ -434,8 +434,8 @@ button#{priority(".ls-toast-close", 3)} {
 
 .ls-modal-styled {
     overflow: hidden;
-    max-height: 90vh;
-    max-width: 90vw;
+    max-height: calc(100vh - 40px);
+    max-width: calc(100vw - 40px);
 }
 
 .ls-modal {

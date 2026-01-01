@@ -1,0 +1,113 @@
+:root {
+    --knob-size: 3em;
+    --gear-size: 80%;
+    --pointer-offset: 10%;
+    --pointer-size: 5%;
+}
+
+ls-knob {
+    display: inline-flex;
+    position: relative;
+    align-items: center;
+    justify-content: center;
+    width: var(--knob-size);
+    height: var(--knob-size);
+    border-radius: 50%;
+}
+
+ls-knob svg {
+    overflow: visible;
+}
+
+ls-knob svg,
+.ls-knob-rotor {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+}
+
+ls-knob * {
+    pointer-events: none;
+}
+
+.ls-knob-stator {
+    transition: all 0.3s;
+    border-radius: 50%;
+    position: absolute;
+    width: var(--gear-size);
+    height: var(--gear-size);
+    filter: drop-shadow(0px 7px 0px rgba(0, 0, 0, 0.25));
+}
+
+.ls-knob-rotor::after {
+    content: "";
+    position: absolute;
+    top: var(--pointer-offset);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--accent);
+}
+
+.ls-knob-glow .ls-knob-rotor::after {
+    box-shadow: 0 0 5px 1px var(--accent);
+}
+
+[knob-pointer=dot] .ls-knob-rotor::after {
+    padding: var(--pointer-size);
+    border-radius: 50%;
+}
+
+[knob-pointer=line] .ls-knob-rotor::after {
+    width: 2%;
+    height: 30%;
+    border-radius: 300px;
+}
+
+ls-knob[preset=progress] {
+    box-shadow: inset 0 0 0 var(--knob-stroke-width) var(--accent-transparent);
+}
+
+ls-knob[preset=default] {
+    background: linear-gradient(180deg, var(--surface-0), var(--surface-2));
+    outline: 1px solid rgba(0, 0, 0, 0.2666666667);
+}
+
+[preset=flat] .ls-knob-arc-full {
+    stroke: var(--accent-transparent);
+    stroke-width: 7.5%;
+    stroke-linecap: round;
+}
+
+[preset=default] .ls-knob-stator {
+    background: radial-gradient(100% 100% at 50% 17%, var(--surface-5) 0%, var(--surface-1) 100%);
+    box-shadow: 0px -2px 0px 0px rgba(255, 255, 255, 0.08) inset, 0px 2px 0px 0px rgba(255, 255, 255, 0.25) inset;
+}
+
+[preset=chrome] .ls-knob-stator {
+    background: conic-gradient(#252c2f, #63696c, #35393c 130deg, #55595c, #2f3436, #66686b, 340deg, #252c2f) content-box;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.5333333333);
+}
+
+:is(ls-knob:hover, ls-knob.is-dragging) :is(.ls-knob-stator, .ls-knob-rotor) {
+    transform: scale(90%);
+}
+
+[ls-theme=light] ls-knob[preset=default] {
+    background: linear-gradient(180deg, var(--surface-2), var(--surface-0));
+}
+
+[ls-theme=light] [preset=default] .ls-knob-stator {
+    background: radial-gradient(100% 100% at 50% 17%, var(--surface-0) 0%, var(--surface-4) 100%);
+}
+
+[ls-theme=light] .ls-knob-stator {
+    filter: drop-shadow(0px 7px 0px rgba(0, 0, 0, 0.2));
+}
+
+[ls-theme=light] [preset=chrome] .ls-knob-stator {
+    background: conic-gradient(var(--surface-6), var(--surface-5), var(--surface-6) 130deg, var(--surface-2), var(--surface-6), var(--surface-3), 340deg, var(--surface-6)) content-box;
+}

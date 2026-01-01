@@ -25,6 +25,7 @@ The goal is to have all built-in components reach the highest quality rating so 
 | LS.Node | ★★★★☆ (4/5)
 | LS.Timeline | ★★★★☆ (4/5) | Recently migrated and stable, bugs may still show up
 | LS.Tooltips | ★★★★☆ (4/5) | Recently updated
+| LS.Knob | ★★★★☆ (4/5) | Extensive feature set, pretty robust, but needs an overhaul
 | LS.AutomationGraph | ★★★☆☆ (3/5) | Recently migrated, very unstable
 | LS.GL | ★★★☆☆ (3/5) | Highly experimental
 | LS.GLMultiShader | ★★★☆☆ (3/5) | Incomplete
@@ -33,6 +34,7 @@ The goal is to have all built-in components reach the highest quality rating so 
 | LS.Menu | ★★★☆☆ (3/5) | In early development, messy code
 | LS.DragDrop | ★★☆☆☆ (2/5) | Recently migrated from v3, needs refactoration
 | LS.Tree | ★☆☆☆☆ (1/5) | Unfinished, unrelated code mixed in
+| LS.Native | ★☆☆☆☆ (1/5) | Unfinished, very experimental and poor code
 | LS.Network | ★☆☆☆☆ (1/5) | Just a WebSocket wrapper as of now
 
 ## Migration Status
@@ -45,7 +47,6 @@ Components marked "Not Started" are not available yet and may be rejected at any
 | LS.AutomationGraph | In Progress
 | LS.Patchbay | In Progress
 | LS.Workspace | Not Started
-| LS.Knob | Not Started
 | LS.List | Not Started
 | LS.Native | Not Started
 | LS.Nav | Not Started

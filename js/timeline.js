@@ -40,7 +40,9 @@
         itemHeaderHeight: 20,
         startingRows: 15,
         rowHeight: 45,
-        snapEnabled: true
+        snapEnabled: true,
+        remapAutomationTargets: true,
+        framerateLimit: 90
     };
 
     // :shrug:
@@ -140,6 +142,7 @@
             this.__spacerWidth = 0;
 
             this.frameScheduler = new LS.Util.FrameScheduler(() => this.#render());
+            if(this.options.framerateLimit > 0) this.frameScheduler.limitFPS(this.options.framerateLimit);
             this.reserveRows(this.options.reservedRows);
 
             // Mouse/touch drag
@@ -265,7 +268,7 @@
                                 if (this.snapLine) {
                                     const top = Math.min(snap.top, y);
                                     const height = Math.max(snap.top + snap.height, currentItemTop + currentItemHeight) - top;
-                                    
+
                                     this.snapLine.style.transform = `translate3d(${snap.line}px, ${top}px, 0)`;
                                     this.snapLine.style.height = `${height}px`;
                                     this.snapLine.style.display = "block";
@@ -290,9 +293,31 @@
                 let deltaTime = deltaWorldX / this.#zoom;
                 const rowOffset = Math.round(deltaWorldY / this.rowHeight);
 
+                // Prevent items from collapsing when dragged past edges
+                // Find the minimum start time that would result from this drag
+                let minResultStart = Infinity;
                 for (const entry of dragState._initialPositions) {
-                    entry.item.start = Math.max(0, entry.start + deltaTime);
-                    entry.item.row = Math.max(0, entry.row + rowOffset);
+                    const newStart = entry.start + deltaTime;
+                    if (newStart < minResultStart) minResultStart = newStart;
+                }
+                
+                // If any item would go negative, clamp the deltaTime to keep all items at or above 0
+                if (minResultStart < 0) {
+                    deltaTime -= minResultStart; // Adjust deltaTime to keep the leftmost item at 0
+                }
+
+                let minResultRow = Infinity;
+                for (const entry of dragState._initialPositions) {
+                    const newRow = entry.row + rowOffset;
+                    if (newRow < minResultRow) minResultRow = newRow;
+                }
+                
+                const clampedRowOffset = minResultRow < 0 ? rowOffset - minResultRow : rowOffset;
+
+                // Apply the clamped deltas to all items
+                for (const entry of dragState._initialPositions) {
+                    entry.item.start = entry.start + deltaTime;
+                    entry.item.row = entry.row + clampedRowOffset;
                 }
 
                 this.__needsSort = true;
@@ -301,6 +326,8 @@
 
             this.dragHandle = LS.Util.touchHandle(this.container, {
                 exclude: ".ls-resize-handle, .ls-automation-point-handle, .ls-automation-center-handle",
+                frameTimed: true,
+
                 onStart: (event, cancel, x, y) => {
                     if(event.button === 2) return cancel(); // Temporarily disabled until implemented
 
@@ -324,7 +351,10 @@
                         dragState.startY = y;
                         dragState.startWorldX = (x - rect.left) + this.offset;
                         dragState.startWorldY = (y - rect.top) + this.scrollContainer.scrollTop;
-                        dragState.disableSnapping = event.shiftKey;
+                        dragState.disableSnapping = false;
+                        dragState.isCloning = event.shiftKey; // Shift+drag to clone
+
+                        let itemsToMove = this.selectedItems.size && this.selectedItems.has(dragState.item) ? Array.from(this.selectedItems) : [dragState.item];
 
                         if (this.options.snapEnabled) {
                             dragState.snapValues = [];
@@ -341,6 +371,9 @@
                                 const element = item.timelineElement;
                                 if (!element || element === dragState.itemElement) continue;
 
+                                // Exclude all selected items from snapping
+                                if (itemsToMove.includes(item)) continue;
+
                                 const box = element.getBoundingClientRect();
 
                                 // Skip invisible or off-screen elements
@@ -356,13 +389,56 @@
                             }
                         } else dragState.snapValues = [];
 
-                        const itemsToMove = this.selectedItems.size && this.selectedItems.has(dragState.item) ? Array.from(this.selectedItems) : [dragState.item];
-
+                        // Save initial positions for undo
                         dragState._initialPositions = itemsToMove.map((itm) => ({
                             item: itm,
                             start: itm.start,
                             row: itm.row || 0
                         }));
+
+                        // Shift+drag to clone items
+                        if (dragState.isCloning) {
+                            const clonedItems = [];
+                            const cloneMap = new Map();
+                            const idMap = new Map(); // Maps old item IDs to new item IDs
+                            
+                            for (const itm of itemsToMove) {
+                                const cloned = this.cloneItem(itm);
+                                cloned.start = itm.start;
+                                cloned.row = itm.row || 0;
+                                this.add(cloned);
+                                clonedItems.push(cloned);
+                                cloneMap.set(itm, cloned);
+                                idMap.set(itm.id, cloned.id);
+                            }
+                            
+                            // Remap automation targets if enabled
+                            if (this.options.remapAutomationTargets) {
+                                this.remapAutomationTargets(clonedItems, idMap);
+                            }
+                            
+                            // Update dragState to use cloned items
+                            dragState.clonedItems = clonedItems;
+                            dragState._initialPositions = clonedItems.map((itm) => ({
+                                item: itm,
+                                start: itm.start,
+                                row: itm.row || 0
+                            }));
+                            
+                            // Update selection to cloned items
+                            this.selectedItems.clear();
+                            for (const cloned of clonedItems) {
+                                this.selectedItems.add(cloned);
+                            }
+                            
+                            // Update drag target
+                            if (cloneMap.has(dragState.item)) {
+                                dragState.item = cloneMap.get(dragState.item);
+                                dragState.itemElement = dragState.item.timelineElement;
+                            }
+                            
+                            itemsToMove = clonedItems;
+                        }
                         return;
                     } else {
                         dragState.draggingItems = false;
@@ -401,8 +477,11 @@
                         this.selectionRect.style.width = "0px";
                         this.selectionRect.style.height = "0px";
                         this.dragHandle.cursor = "crosshair";
-                        this.selectedItems.clear();
-                        this.frameScheduler.schedule();
+
+                        if(!event.shiftKey) {
+                            this.selectedItems.clear();
+                            this.frameScheduler.schedule();
+                        }
                     } else {
                         this.dragHandle.cursor = dragType === "pan" ? "grabbing" : dragType === "seek" ? "ew-resize" : dragType === "zoom-v" ? "none" : "no-drop";
                         if (dragType === "seek") {
@@ -528,6 +607,41 @@
                         this.selectionRect.style.display = "none";
                     }
 
+                    // Emit action for external history management
+                    if (dragState.draggingItems && dragState._initialPositions) {
+                        const hasChanged = dragState._initialPositions.some(entry => 
+                            entry.item.start !== entry.start || entry.item.row !== entry.row
+                        );
+                        
+                        if (hasChanged || dragState.isCloning) {
+                            if (dragState.isCloning) {
+                                // Emit clone action
+                                this.emitAction({
+                                    type: "clone",
+                                    items: dragState.clonedItems.map(item => ({
+                                        id: item.id,
+                                        data: this.cloneItem(item)
+                                    }))
+                                });
+                            } else {
+                                // Emit move action
+                                this.emitAction({
+                                    type: "move",
+                                    changes: dragState._initialPositions.map(entry => ({
+                                        id: entry.item.id,
+                                        before: { start: entry.start, row: entry.row },
+                                        after: { start: entry.item.start, row: entry.item.row }
+                                    }))
+                                });
+                            }
+                        }
+                        
+                        dragState._initialPositions = null;
+                        dragState.clonedItems = null;
+                        dragState.isCloning = false;
+                        dragState.draggingItems = false;
+                    }
+
                     if (this.snapLine) this.snapLine.style.display = "none";
 
                     stopEdgeScroll();
@@ -546,6 +660,9 @@
                 if(itemElement) {
                     this.contextMenu.close();
                     this.focusedItem = itemElement.__timelineItem;
+                    this.selectedItems.clear();
+                    this.selectedItems.add(this.focusedItem);
+                    this.frameScheduler.schedule();
                     this.itemContextMenu.open(event.clientX, event.clientY);
                 } else {
                     this.itemContextMenu.close();
@@ -553,18 +670,68 @@
                 }
             });
 
+            this.container.addEventListener("pointerdown", () => {
+                this.container.focus();
+            });
+
+            const self = this;
+
             // TODO:
             this.contextMenu = new LS.Menu({
                 items: [
-                    { text: "Deselect All", action: () => this.deselectAll() }
+                    { text: "Paste Item(s)", icon: "bi-clipboard", action: () => {
+                        if (!this.clipboard.length) return;
+                        const pastedItems = [];
+                        const idMap = new Map(); // Maps clipboard item IDs to new item IDs
+                        for (const entry of this.clipboard) {
+                            const newItem = this.cloneItem(entry.data);
+                            newItem.start = this.seek + entry.offset;
+                            newItem.row = entry.row;
+                            idMap.set(entry.data.id, newItem.id);
+                            pastedItems.push(newItem);
+                            this.add(newItem);
+                        }
+                        // Remap automation targets if enabled
+                        if (this.options.remapAutomationTargets) {
+                            this.remapAutomationTargets(pastedItems, idMap);
+                        }
+                        this.frameScheduler.schedule();
+                    }, get hidden() { return self.clipboard.length === 0 } },
+                    { type: "separator" },
+                    { text: "Select All", icon: "bi-check2-all", action: () => this.selectAll() },
+                    { text: "Deselect All", icon: "bi-x-lg", action: () => this.deselectAll() },
                 ]
             });
 
             this.itemContextMenu = new LS.Menu({
                 items: [
-                    { text: "Cut Item(s)", action: () => {} },
-                    { text: "Delete Item(s)", action: () => {
-                        
+                    { text: "Copy Item(s)", icon: "bi-clipboard", action: () => {
+                        if (this.selectedItems.size === 0) return;
+                        let minStart = Infinity;
+                        for (const item of this.selectedItems) {
+                            if (item.start < minStart) minStart = item.start;
+                        }
+                        this.clipboard = Array.from(this.selectedItems, (item) => ({
+                            data: this.cloneItem(item),
+                            row: item.row || 0,
+                            offset: item.start - minStart,
+                        }));
+                    } },
+                    { text: "Cut Item(s)", icon: "bi-scissors", action: () => {
+                        if (this.selectedItems.size === 0) return;
+                        let minStart = Infinity;
+                        for (const item of this.selectedItems) {
+                            if (item.start < minStart) minStart = item.start;
+                        }
+                        this.clipboard = Array.from(this.selectedItems, (item) => ({
+                            data: this.cloneItem(item),
+                            row: item.row || 0,
+                            offset: item.start - minStart,
+                        }));
+                        this.deleteSelected();
+                    } },
+                    { type: "separator" },
+                    { text: "Delete Item(s)", icon: "bi-trash", action: () => {
                         this.deleteSelected();
                     } }
                 ]
@@ -666,9 +833,11 @@
             }
 
             this.clipboard = [];
-            this.container.addEventListener("keydown", (event) => {
-                console.log(event);
+            
+            // Undo/Redo action events (history management is external)
+            this.__actionEventRef = this.prepareEvent("action");
 
+            this.container.addEventListener("keydown", (event) => {
                 if(event.key === "Delete" || event.key === "Backspace") {
                     this.deleteSelected();
                     return;
@@ -677,6 +846,7 @@
                 if (!event.ctrlKey) return;
 
                 const key = event.key.toLowerCase();
+                
                 if (key === "a") {
                     event.preventDefault();
                     this.selectedItems.clear();
@@ -697,11 +867,19 @@
                 } else if (key === "v") {
                     event.preventDefault();
                     if (!this.clipboard.length) return;
+                    const pastedItems = [];
+                    const idMap = new Map(); // Maps clipboard item IDs to new item IDs
                     for (const entry of this.clipboard) {
                         const newItem = this.cloneItem(entry.data);
                         newItem.start = this.seek + entry.offset;
                         newItem.row = entry.row;
+                        idMap.set(entry.data.id, newItem.id);
+                        pastedItems.push(newItem);
                         this.add(newItem);
+                    }
+                    // Remap automation targets if enabled
+                    if (this.options.remapAutomationTargets) {
+                        this.remapAutomationTargets(pastedItems, idMap);
                     }
                     this.frameScheduler.schedule();
                 }
@@ -777,7 +955,7 @@
         set seek(value) {
             // TODO: implement player controller API
             this.#seek = Math.max(0, value);
-            this.frameScheduler.schedule();
+            this.updateHeadPosition();
         }
 
         setSeek(value) {
@@ -796,12 +974,13 @@
         }
 
         binarySearch(time) {
+            const items = this.items;
             let low = 0;
-            let high = this.items.length - 1;
+            let high = items.length - 1;
 
             while (low <= high) {
                 const mid = (low + high) >>> 1;
-                if (this.items[mid].start < time) {
+                if (items[mid].start < time) {
                     low = mid + 1;
                 } else {
                     high = mid - 1;
@@ -863,14 +1042,21 @@
             }
         }
 
-        #render() { 
+        #render() {
             // let debug_scanned = 0, debug_time = performance.now();
 
             if(!this.enabled || document.hidden || document.fullscreenElement) return;
 
-            const worldLeft = this.#offset;
+            const zoom = this.#zoom;
+            const offset = this.#offset;
+            const items = this.items;
+            const rowElements = this.rowElements;
+            const selectedItems = this.selectedItems;
+            const rendered = this.__rendered;
+            const options = this.options;
+
             const viewportWidth = this.container.clientWidth;
-            const worldRight = worldLeft + viewportWidth;
+            const worldRight = offset + viewportWidth;
 
             if (this.__needsSort) {
                 this.sortItems();
@@ -879,46 +1065,58 @@
             // Update spacer width
             // Ensure the spacer is wide enough for the content plus padding, regardless of zoom/offset
             const endPadding = viewportWidth * 0.5;
-            const contentWidth = this.#duration * this.#zoom;
-            const spacerWidth = Math.max(contentWidth + endPadding, worldRight + endPadding);
+            const contentWidth = this.#duration * zoom;
+            const spacerWidth = contentWidth + endPadding > worldRight + endPadding 
+                ? contentWidth + endPadding 
+                : worldRight + endPadding;
 
-            if (Math.abs(this.__spacerWidth - spacerWidth) > 1) {
-                this.spacerElement.style.width = `${spacerWidth}px`;
+            if (this.__spacerWidth - spacerWidth > 1 || spacerWidth - this.__spacerWidth > 1) {
+                this.spacerElement.style.width = spacerWidth + "px";
                 this.__spacerWidth = spacerWidth;
             }
 
             // --- Marker Logic ---
-            // Translate the container to counteract scrolling, creating a virtual viewport
-            this.markerContainer.style.transform = `translate3d(${-worldLeft}px, 0, 0)`;
+            this.markerContainer.style.transform = `translate3d(${-offset}px, 0, 0)`;
 
-            const minMarkerDist = this.options.markerSpacing;
-            const minTimeStep = minMarkerDist / this.#zoom;
+            const minMarkerDist = options.markerSpacing;
+            const invZoom = 1 / zoom; // Pre-compute inverse to avoid repeated division
+            const minTimeStep = minMarkerDist * invZoom;
+
             // Find nearest power of 2 for clean steps (0.5, 1, 2, 4, 8...)
-            let step = Math.pow(2, Math.ceil(Math.log2(minTimeStep)));
+            const step = Math.pow(2, Math.ceil(Math.log2(minTimeStep)));
             
             // Align start time to step grid
-            const startTime = Math.floor(worldLeft / this.#zoom / step) * step;
-            const endTime = worldRight / this.#zoom;
+            const invStep = 1 / step;
+            const startTime = Math.floor(offset * invZoom * invStep) * step;
+            const endTime = worldRight * invZoom;
+            const endTimePlusStep = endTime + step;
 
             let markerIndex = 0;
-            for (let time = startTime; time <= endTime + step; time += step) {
-                const t = Math.round(time * 1000) / 1000; // Fix float precision
-                if (t < 0) continue;
+            const activeMarkers = this.activeMarkers;
+            const markerPool = this.markerPool;
+            const markerContainer = this.markerContainer;
+
+            for (let time = startTime; time <= endTimePlusStep; time += step) {
+                const t = (time * 1000 + 0.5) | 0; // Faster rounding: multiply, truncate
+                const tNorm = t * 0.001; // Normalize back
+                if (tNorm < 0) continue;
 
                 let marker;
-                if (markerIndex < this.activeMarkers.length) {
-                    marker = this.activeMarkers[markerIndex];
+                if (markerIndex < activeMarkers.length) {
+                    marker = activeMarkers[markerIndex];
                 } else {
                     // Reuse or create new marker
-                    marker = this.markerPool.pop() || LS.Create({
-                        class: "ls-timeline-marker"
-                    });
-                    this.markerContainer.appendChild(marker);
-                    this.activeMarkers.push(marker);
+                    marker = markerPool.pop();
+                    if (!marker) {
+                        marker = document.createElement("div");
+                        marker.className = "ls-timeline-marker";
+                    }
+                    markerContainer.appendChild(marker);
+                    activeMarkers.push(marker);
                 }
 
-                const pos = t * this.#zoom;
-                
+                const pos = tNorm * zoom;
+
                 // Since the container moves with scroll, markers stay at fixed world coordinates
                 if (marker.__pos !== pos) {
                     marker.style.transform = `translateX(${pos}px)`;
@@ -926,125 +1124,172 @@
                 }
                 
                 // Only update text if time changed (optimization)
-                if (marker.__time !== t) {
-                    marker.innerText = this.formatMarker(t, step);
-                    marker.__time = t;
+                // Use textContent instead of innerText (faster, no layout)
+                if (marker.__time !== tNorm) {
+                    marker.textContent = this.formatMarker(tNorm, step);
+                    marker.__time = tNorm;
                 }
                 markerIndex++;
             }
 
             // Recycle unused markers
-            while (markerIndex < this.activeMarkers.length) {
-                const marker = this.activeMarkers.pop();
-                marker.remove();
-                this.markerPool.push(marker);
+            const activeLen = activeMarkers.length;
+            if (markerIndex < activeLen) {
+                for (let i = activeLen - 1; i >= markerIndex; i--) {
+                    const marker = activeMarkers[i];
+                    marker.remove();
+                    markerPool.push(marker);
+                }
+                activeMarkers.length = markerIndex;
             }
 
-            const chunkSize = this.options.chunkSize === "auto"
-                ? this.items.length < 1000 ? 2000
-                : this.items.length < 5000 ? 500
+            const itemCount = items.length;
+            const chunkSize = options.chunkSize === "auto"
+                ? itemCount < 1000? 2000
+                : itemCount < 5000? 500
                 : 100
-                : this.options.chunkSize;
+                : options.chunkSize;
 
             // Snap the render window to a grid defined by chunkSize
             // This ensures that the set of rendered items remains stable while scrolling within a chunk
-            const chunkStart = Math.floor((worldLeft - chunkSize) / chunkSize) * chunkSize;
-            const chunkEnd = Math.ceil((worldRight + chunkSize) / chunkSize) * chunkSize;
+            const invChunkSize = 1 / chunkSize;
+            const chunkStart = Math.floor((offset - chunkSize) * invChunkSize) * chunkSize;
+            const chunkEnd = Math.ceil((worldRight + chunkSize) * invChunkSize) * chunkSize;
 
-            const minX = chunkStart - this.#offset;
-            const maxX = chunkEnd - this.#offset;
+            const minX = chunkStart - offset;
+            const maxX = chunkEnd - offset;
 
             // Find the first item that could possibly be visible
             // We look back by maxDuration to ensure we catch long items starting before the view
-            const visibleStartTime = chunkStart / this.#zoom;
-            const searchStartTime = Math.max(0, visibleStartTime - this.maxDuration);
+            const maxDuration = this.maxDuration;
+            const visibleStartTime = chunkStart * invZoom;
+            const searchStartTime = visibleStartTime - maxDuration > 0? visibleStartTime - maxDuration: 0;
             const startIndex = this.binarySearch(searchStartTime);
 
-            for (let i = startIndex; i < this.items.length; i++) {
+            const rowHeight = this.#rowHeight;
+            const autoCreateAutomation = options.autoCreateAutomationClips;
+            const itemHeaderHeight = options.itemHeaderHeight;
+            const automationHeight = rowHeight - itemHeaderHeight;
+
+            for (let i = startIndex; i < itemCount; i++) {
                 // debug_scanned++;
 
-                const item = this.items[i];
-                const computedWidth = item.duration * this.#zoom;
-                const computedX = item.start * this.#zoom - this.#offset;
+                const item = items[i];
+                const itemStart = item.start;
+                const itemDuration = item.duration;
+                const computedX = itemStart * zoom - offset;
 
-                // Early out
+                // Early out - items are sorted by start, so all subsequent items are further right
                 if (computedX > maxX) {
                     break;
                 }
 
-                const itemElement = item.timelineElement || this.createTimelineElement(item);
+                const computedWidth = itemDuration * zoom;
 
-                // Drop items that are too small to be seen
-                if(computedWidth <= 0 || computedX + computedWidth < minX) {
+                // Drop items that are too small to be seen (check before creating element)
+                if (computedWidth <= 0 || computedX + computedWidth < minX) {
                     continue;
                 }
 
-                // Ensure we do not trigger CSS layout
-                const widthChanged = computedWidth !== item.__previousWidth;
-                if (widthChanged) {
-                    itemElement.style.width = `${computedWidth}px`;
+                const itemElement = item.timelineElement || this.createTimelineElement(item);
+                const itemRow = item.row || 0;
+
+                // Ensure we do not trigger CSS layout - only update if changed
+                if (computedWidth !== item.__previousWidth) {
+                    itemElement.style.width = computedWidth + "px";
                     item.__previousWidth = computedWidth;
                 }
 
-                if (this.selectedItems.has(item)) {
-                    itemElement.classList.add("selected");
-                } else {
-                    itemElement.classList.remove("selected");
+                const isSelected = selectedItems.has(item);
+                if (isSelected !== item.__wasSelected) {
+                    if (isSelected) {
+                        itemElement.classList.add("selected");
+                    } else {
+                        itemElement.classList.remove("selected");
+                    }
+                    item.__wasSelected = isSelected;
                 }
 
                 itemElement.style.transform = `translate3d(${computedX}px, 0, 0)`;
 
-                this.reserveRows((item.row || 0) + 1);
-                const rowElement = this.rowElements[item.row || 0];
-                if (!itemElement.isConnected || itemElement.parentNode !== rowElement) {
+                // Inline row reservation for hot path
+                const requiredRows = itemRow + 1;
+                if (rowElements.length < requiredRows) {
+                    this.reserveRows(requiredRows);
+                }
+                
+                const rowElement = rowElements[itemRow];
+                const needsAppend = !itemElement.isConnected || itemElement.parentNode !== rowElement;
+                
+                if (needsAppend) {
                     rowElement.appendChild(itemElement);
+                }
 
-                    if (item.type === "automation") {
-                        if (!item.__automationClip && this.options.autoCreateAutomationClips) {
-                            item.data = item.data || {};
-                            item.data.points = item.data.points || [];
-                            item.__automationClip = new LS.AutomationGraph({ items: item.data.points, value: item.data.value || 0 });
+                // Handle automation clips
+                if (item.type === "automation") {
+                    const clip = item.__automationClip;
+                    if (needsAppend) {
+                        if (!clip && autoCreateAutomation) {
+                            const data = item.data || (item.data = {});
+                            data.points = data.points || [];
+                            item.__automationClip = new LS.AutomationGraph({ items: data.points, value: data.value || 0 });
                         }
                         if (item.__automationClip) {
                             item.__automationClip.setElement(itemElement);
-                            item.__automationClip.updateScale(this.#zoom);
-                            item.__automationClip.updateSize(computedWidth, this.rowHeight - this.options.itemHeaderHeight);
+                            item.__automationClip.updateScale(zoom);
+                            item.__automationClip.updateSize(computedWidth, automationHeight);
                         }
-                    }
-                } else {
-                    if (item.type === "automation" && item.__automationClip) {
-                        item.__automationClip.updateScale(this.#zoom);
-                        if (widthChanged || this.rowHeight !== item.__previousHeight) {
-                            item.__automationClip.updateSize(computedWidth, this.rowHeight - this.options.itemHeaderHeight);
-                            item.__previousHeight = this.rowHeight;
+                    } else if (clip) {
+                        clip.updateScale(zoom);
+                        if (computedWidth !== item.__previousWidth || rowHeight !== item.__previousHeight) {
+                            clip.updateSize(computedWidth, automationHeight);
+                            item.__previousHeight = rowHeight;
                         }
                     }
                 }
 
-                this.__rendered.add(itemElement);
+                rendered.add(itemElement);
                 itemElement.__eligible = true;
             }
 
-            // Hide non-eligible items
-            for (let child of this.__rendered) {
-                if (!child.__eligible) {
-                    if (child.__timelineItem && child.__timelineItem.type === "automation" && child.__timelineItem.__automationClip) {
-                        child.__timelineItem.__automationClip.setElement(null);
+            for (const child of rendered) {
+                if (child.__eligible) {
+                    child.__eligible = false;
+                } else {
+                    const timelineItem = child.__timelineItem;
+                    if (timelineItem && timelineItem.type === "automation" && timelineItem.__automationClip) {
+                        timelineItem.__automationClip.setElement(null);
                     }
                     child.remove();
-                    this.__rendered.delete(child);
-                } else {
-                    child.__eligible = false;
+                    rendered.delete(child);
                 }
             }
 
-            const headPos = (this.#seek * this.#zoom) - worldLeft;
+            const headPos = (this.#seek * zoom) - offset;
             if (this.__headPos !== headPos) {
                 this.playerHead.style.transform = `translate3d(${headPos}px, 0, 0)`;
                 this.__headPos = headPos;
             }
 
-            // console.log(`Timeline rendered: scanned ${debug_scanned} items to render ${this.__rendered.size} items in ${performance.now() - debug_time} ms.`);
+            // console.log(`Timeline rendered: scanned ${debug_scanned} items to render ${rendered.size} items in ${performance.now() - debug_time} ms.`);
+        }
+
+        #updateHeadPosition() {
+            const zoom = this.#zoom;
+            const offset = this.#offset;
+            const headPos = (this.#seek * zoom) - offset;
+            if (this.__headPos !== headPos) {
+                this.playerHead.style.transform = `translate3d(${headPos}px, 0, 0)`;
+                this.__headPos = headPos;
+            }
+
+            this.__headPositionQueued = false;
+        }
+
+        updateHeadPosition() {
+            if (this.__headPositionQueued) return;
+            this.__headPositionQueued = true;
+            requestAnimationFrame(() => this.#updateHeadPosition());
         }
 
         formatMarker(time, step) {
@@ -1073,6 +1318,7 @@
         select(item) {
             this.selectedItems.clear();
             this.selectedItems.add(item);
+            this.focusedItem = item;
             this.emit("item-select", [item]);
             this.frameScheduler.schedule();
         }
@@ -1083,6 +1329,13 @@
                 this.frameScheduler.schedule();
                 this.emit("item-deselect");
             }
+            this.focusedItem = null;
+        }
+
+        selectAll() {
+            this.selectedItems.clear();
+            for (const item of this.items) this.selectedItems.add(item);
+            this.frameScheduler.schedule();
         }
 
         /**
@@ -1102,8 +1355,8 @@
             this.frameScheduler.schedule();
         }
 
-        cloneItem(item) {
-            const id = LS.Misc.uid();
+        cloneItem(item, keepId = false) {
+            const id = keepId? item.id: LS.Misc.uid();
             return {
                 start: item.start,
                 duration: item.duration,
@@ -1112,13 +1365,32 @@
                 label: item.label || id,
                 color: item.color || null,
                 data: JSON.parse(JSON.stringify(item.data || {}, (key, value) => {
-                    if (key.startsWith("_") || (value instanceof Element)) return undefined;
+                    if (key.startsWith("_") || (value instanceof Element) || typeof value === "function") return undefined;
                     return value;
                 })),
                 type: item.type || null,
-                ...item.cover ? { cover: item.cover } : null,
-                ...item.waveform ? { waveform: item.waveform } : null,
+                ...item.cover? { cover: item.cover }: null,
+                ...item.waveform? { waveform: item.waveform }: null,
             };
+        }
+
+        /**
+         * Remaps automation target nodeIds in cloned/pasted items.
+         * If an automation clip's target was also cloned, update the target reference to point to the new clone.
+         * @param {Array} items - The cloned/pasted items to process
+         * @param {Map} idMap - Map from original item IDs to new item IDs
+         */
+        remapAutomationTargets(items, idMap) {
+            for (const item of items) {
+                if (item.type === "automation" && item.data && Array.isArray(item.data.targets)) {
+                    for (const target of item.data.targets) {
+                        if (target.nodeId && idMap.has(target.nodeId)) {
+                            target.nodeId = idMap.get(target.nodeId);
+                            item.__dirty = true; // Mark item as dirty for external systems
+                        }
+                    }
+                }
+            }
         }
 
         cut(itemOrTime, offset) {
@@ -1153,6 +1425,7 @@
 
             // Clone item
             const newItem = this.cloneItem(item);
+            const originalDuration = item.duration;
             
             // Update durations and start times
             const originalEndTime = item.start + item.duration;
@@ -1162,6 +1435,17 @@
             newItem.duration = originalEndTime - splitTime;
 
             this.add(newItem);
+            
+            // Emit action for external history management
+            this.emitAction({
+                type: "cut",
+                originalId: item.id,
+                originalDuration: originalDuration,
+                afterDuration: item.duration,
+                newItemId: newItem.id,
+                newItemData: this.cloneItem(newItem)
+            });
+            
             return newItem;
         }
 
@@ -1394,12 +1678,32 @@
         }
 
         deleteSelected() {
-            if (this.selectedItems.size === 0) return;
-
+            const itemsToDelete = [];
+            
+            if(this.focusedItem && !this.selectedItems.has(this.focusedItem)) {
+                itemsToDelete.push(this.focusedItem);
+            }
+            
             for (const item of this.selectedItems) {
+                itemsToDelete.push(item);
+            }
+            
+            if (itemsToDelete.length === 0) return;
+            
+            // Emit action for external history management
+            this.emitAction({
+                type: "delete",
+                items: itemsToDelete.map(item => ({
+                    id: item.id,
+                    data: this.cloneItem(item)
+                }))
+            });
+            
+            for (const item of itemsToDelete) {
                 this.destroyItem(item);
             }
 
+            this.focusedItem = null;
             this.selectedItems.clear();
             this.frameScheduler.schedule();
         }
@@ -1418,6 +1722,11 @@
                 }
             }
 
+            this.maxDuration = 0;
+            this.#duration = 0;
+            this.clearUnusedRows();
+            this.reserveRows(this.options.startingRows);
+
             this.items = replacingItems || [];
             this.itemMap.clear();
             if (replacingItems) {
@@ -1427,11 +1736,6 @@
                 }
                 this.sortItems();
             }
-
-            this.maxDuration = 0;
-            this.#duration = 0;
-            this.clearUnusedRows();
-            this.reserveRows(this.options.startingRows);
             this.frameScheduler.schedule();
         }
 
@@ -1470,7 +1774,171 @@
                 this.sortItems();
             }
 
-            return this.items.map(item => this.cloneItem(item));
+            return this.items.map(item => this.cloneItem(item, true));
+        }
+
+        /**
+         * Emit an action event for external history management.
+         * External code should listen to the "action" event and store the action for undo/redo.
+         * @param {Object} action - The action data to emit
+         */
+        emitAction(action) {
+            action.source = this;
+            this.emit(this.__actionEventRef, [action]);
+        }
+
+        /**
+         * Apply an undo operation with the given action state.
+         * Called by external history manager with the action to undo.
+         * @param {Object} action - The action state to undo
+         * @returns {boolean} Whether the undo was applied successfully
+         */
+        applyUndo(action) {
+            if (!action || !action.type) return false;
+            
+            switch (action.type) {
+                case "move":
+                    // Restore previous positions
+                    for (const change of action.changes) {
+                        const item = this.getItemById(change.id);
+                        if (item) {
+                            item.start = change.before.start;
+                            item.row = change.before.row;
+                        }
+                    }
+                    this.__needsSort = true;
+                    break;
+                    
+                case "clone":
+                case "add":
+                    // Remove the added/cloned items
+                    for (const entry of action.items) {
+                        const item = this.getItemById(entry.id);
+                        if (item) {
+                            this.remove(item, true);
+                        }
+                    }
+                    break;
+                    
+                case "delete":
+                    // Restore deleted items
+                    for (const entry of action.items) {
+                        const restoredItem = this.cloneItem(entry.data);
+                        restoredItem.id = entry.id;
+                        this.items.push(restoredItem);
+                        this.itemMap.set(restoredItem.id, restoredItem);
+                    }
+                    this.__needsSort = true;
+                    break;
+                    
+                case "resize":
+                    // Restore previous size
+                    for (const change of action.changes) {
+                        const item = this.getItemById(change.id);
+                        if (item) {
+                            item.start = change.before.start;
+                            item.duration = change.before.duration;
+                        }
+                    }
+                    this.__needsSort = true;
+                    break;
+                    
+                case "cut":
+                    // Remove the new item and restore original
+                    if (action.newItemId) {
+                        const newItem = this.getItemById(action.newItemId);
+                        if (newItem) this.remove(newItem, true);
+                    }
+                    const originalItem = this.getItemById(action.originalId);
+                    if (originalItem && action.originalDuration !== undefined) {
+                        originalItem.duration = action.originalDuration;
+                    }
+                    this.__needsSort = true;
+                    break;
+                    
+                default:
+                    return false;
+            }
+            
+            this.frameScheduler.schedule();
+            return true;
+        }
+
+        /**
+         * Apply a redo operation with the given action state.
+         * Called by external history manager with the action to redo.
+         * @param {Object} action - The action state to redo
+         * @returns {boolean} Whether the redo was applied successfully
+         */
+        applyRedo(action) {
+            if (!action || !action.type) return false;
+            
+            switch (action.type) {
+                case "move":
+                    // Apply the move again
+                    for (const change of action.changes) {
+                        const item = this.getItemById(change.id);
+                        if (item) {
+                            item.start = change.after.start;
+                            item.row = change.after.row;
+                        }
+                    }
+                    this.__needsSort = true;
+                    break;
+                    
+                case "clone":
+                case "add":
+                    // Re-add the items
+                    for (const entry of action.items) {
+                        const item = this.cloneItem(entry.data);
+                        item.id = entry.id;
+                        this.items.push(item);
+                        this.itemMap.set(item.id, item);
+                    }
+                    this.__needsSort = true;
+                    break;
+                    
+                case "delete":
+                    // Delete the items again
+                    for (const entry of action.items) {
+                        const item = this.getItemById(entry.id);
+                        if (item) {
+                            this.remove(item, true);
+                        }
+                    }
+                    break;
+                    
+                case "resize":
+                    // Apply resize again
+                    for (const change of action.changes) {
+                        const item = this.getItemById(change.id);
+                        if (item) {
+                            item.start = change.after.start;
+                            item.duration = change.after.duration;
+                        }
+                    }
+                    this.__needsSort = true;
+                    break;
+                    
+                case "cut":
+                    // Re-perform the cut
+                    const cutItem = this.getItemById(action.originalId);
+                    if (cutItem && action.newItemData) {
+                        cutItem.duration = action.afterDuration;
+                        const newItem = this.cloneItem(action.newItemData);
+                        newItem.id = action.newItemId;
+                        this.items.push(newItem);
+                        this.itemMap.set(newItem.id, newItem);
+                    }
+                    this.__needsSort = true;
+                    break;
+                    
+                default:
+                    return false;
+            }
+            
+            this.frameScheduler.schedule();
+            return true;
         }
 
         destroy() {
@@ -1479,6 +1947,7 @@
             this.frameScheduler = null;
             this.container.remove();
             this.clipboard = null;
+            this.__actionEventRef = null;
             this.container = null;
             this.markerPool = null;
             this.activeMarkers = null;
