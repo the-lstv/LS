@@ -22,7 +22,7 @@
             this.__scale = 1;
             this.hover = false;
 
-            let handle = LS.Util.touchHandle(this.element, {exclude: true, buttons: [1]});
+            let handle = new LS.Util.TouchHandle(this.element, {exclude: true, buttons: [1], legacyEvents: true});
             handle.cursor = "grabbing";
 
             this.define(this)

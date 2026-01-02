@@ -241,7 +241,7 @@
             this.setPreset(preset, true);
 
             // Setup touch/mouse interaction
-            this.handle = LS.Util.touchHandle(this.element, {
+            this.handle = new LS.Util.TouchHandle(this.element, {
                 pointerLock: true,
                 buttons: [0]
             });
@@ -249,8 +249,8 @@
             this.handle.cursor = "none";
             this.handle.enabled = this.enabled;
 
-            this.handle.on("start", (event, cancel) => {
-                if (!this.enabled) return cancel();
+            this.handle.on("start", (event) => {
+                if (!this.enabled) return event.cancel();
 
                 this.#startValue = this.#value;
                 this.#rawValue = this.#value;
@@ -259,13 +259,13 @@
                 this.#showTooltip();
             });
 
-            this.handle.on("move", (x, y, event) => {
-                if (!this.enabled || !event) return;
+            this.handle.on("move", (event) => {
+                if (!this.enabled || !event.domEvent) return;
                 // Proportional movement: scale by range so ~200px drag = full range
                 const range = this.options.max - this.options.min;
                 const pixelsForFullRange = 200;
-                const delta = (-event.movementY / pixelsForFullRange) * range * this.options.sensitivity;
-                
+                const delta = (-event.domEvent.movementY / pixelsForFullRange) * range * this.options.sensitivity;
+
                 // Accumulate raw value for smooth interpolation
                 const newRawValue = this.#rawValue + delta;
                 const changed = this.#setRawValue(newRawValue);

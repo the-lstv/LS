@@ -770,7 +770,7 @@
             TouchHandle: class TouchHandle extends EventHandler {
                 constructor(element, options = {}) {
                     super();
-                    
+
                     this.element = LS.Tiny.O(element);
                     if (!this.element) throw "Invalid handle!";
 
@@ -778,12 +778,13 @@
                         buttons: [0, 1, 2],
                         disablePointerEvents: true,
                         frameTimed: false,
+                        legacyEvents: false,
                         ...options
                     };
 
                     this._cursor = this.options.cursor || null;
-                    this.cancelled = false;
                     this.seeking = false;
+                    this.attached = false;
                     this.pointerLockActive = false;
                     this.pointerLockPreviousX = 0;
                     this.pointerLockPreviousY = 0;
@@ -791,12 +792,33 @@
                     this.frameQueued = false;
                     this.latestMoveEvent = null;
 
+                    this._moveEventRef = this.prepareEvent("move");
+
                     this.onStart = this.onStart.bind(this);
                     this.onMove = this.onMove.bind(this);
                     this.onRelease = this.onRelease.bind(this);
                     this.cancel = this.cancel.bind(this);
                     this.onPointerLockChange = this.onPointerLockChange.bind(this);
                     this.frameHandler = this.frameHandler.bind(this);
+
+                    this._eventData = {
+                        x: 0,
+                        y: 0,
+                        dx: 0,
+                        dy: 0,
+                        startX: 0,
+                        startY: 0,
+                        cancel: this.cancel,
+                        isTouch: false,
+                        cancelled: false,
+                        domEvent: null
+                    };
+
+                    this.attach();
+                }
+
+                attach() {
+                    if(this.attached) return;
 
                     // Attach initial listeners
                     this.element.addEventListener("mousedown", this.onStart);
@@ -810,6 +832,30 @@
 
                     if (this.options.pointerLock) {
                         document.addEventListener('pointerlockchange', this.onPointerLockChange);
+                    }
+
+                    this.attached = true;
+                }
+
+                detach(destorying = false) {
+                    if (this.attached) {
+                        this.onRelease(destorying? { type: "destroy" } : {});
+
+                        if (this.element) {
+                            this.element.removeEventListener("mousedown", this.onStart);
+                            this.element.removeEventListener("touchstart", this.onStart);
+                            if (this.options.startEvents) {
+                                for (const evt of this.options.startEvents) {
+                                    this.element.removeEventListener(evt, this.onStart);
+                                }
+                            }
+                        }
+
+                        if (this.options.pointerLock) {
+                            document.removeEventListener('pointerlockchange', this.onPointerLockChange);
+                        }
+
+                        this.attached = false;
                     }
                 }
 
@@ -836,16 +882,29 @@
                     if (event.type === "mousedown" && !this.options.buttons.includes(event.button)) return;
 
                     this.seeking = true;
-                    this.cancelled = false;
+                    this._eventData.cancelled = false;
 
                     const isTouch = event.type === "touchstart";
                     const x = isTouch ? event.touches[0].clientX : event.clientX;
                     const y = isTouch ? event.touches[0].clientY : event.clientY;
 
-                    this.emit("start", [event, this.cancel, x, y]);
-                    if (this.options.onStart) this.options.onStart(event, this.cancel, x, y);
+                    if (this.options.legacyEvents) {
+                        this.emit("start", [event, this.cancel, x, y]);
+                        if (this.options.onStart) this.options.onStart(event, this.cancel, x, y);
+                    } else {
+                        this._eventData.x = x;
+                        this._eventData.y = y;
+                        this._eventData.dx = 0;
+                        this._eventData.dy = 0;
+                        this._eventData.startX = x;
+                        this._eventData.startY = y;
+                        this._eventData.domEvent = event;
+                        this._eventData.isTouch = isTouch;
+                        this.emit("start", [this._eventData]);
+                        if (this.options.onStart) this.options.onStart(this._eventData);
+                    }
 
-                    if (this.cancelled) {
+                    if (this._eventData.cancelled) {
                         this.seeking = false;
                         return;
                     }
@@ -869,11 +928,11 @@
                     this.dragTarget = LS.Tiny.O(event.target);
                     this.dragTarget.classList.add("ls-drag-target");
                     this.element.classList.add("is-dragging");
-                    
+
                     const docEl = document.documentElement;
                     docEl.classList.add("ls-dragging");
                     if (this.options.disablePointerEvents) docEl.style.pointerEvents = "none";
-                    
+
                     if (!docEl.style.cursor) docEl.style.cursor = this._cursor || "grab";
 
                     // Attach move/up listeners to document
@@ -884,7 +943,7 @@
                 }
 
                 onMove(event) {
-                    if (this.cancelled) return;
+                    if (this._eventData.cancelled) return;
 
                     if (this.options.frameTimed) {
                         this.latestMoveEvent = event;
@@ -911,6 +970,8 @@
                     if (!isTouch && event.cancelable) event.preventDefault();
 
                     let x, y;
+                    const prevX = this._eventData.x;
+                    const prevY = this._eventData.y;
 
                     if (!this.pointerLockActive) {
                         x = isTouch ? event.touches[0].clientX : event.clientX;
@@ -930,29 +991,56 @@
                         }
                     }
 
-                    if (this.options.onMove) this.options.onMove(x, y, event, this.cancel);
-                    this.emit("move", [x, y, event, this.cancel]);
+                    if (this.options.legacyEvents) {
+                        if (this.options.onMove) this.options.onMove(x, y, event, this.cancel);
+                        this.emit(this._moveEventRef, [x, y, event, this.cancel]);
+                    } else {
+                        this._eventData.dx = x - prevX;
+                        this._eventData.dy = y - prevY;
+                        this._eventData.x = x;
+                        this._eventData.y = y;
+                        this._eventData.domEvent = event;
+                        this._eventData.isTouch = isTouch;
+                        if (this.options.onMove) this.options.onMove(this._eventData);
+                        this.emit(this._moveEventRef, [this._eventData]);
+                    }
                 }
 
                 onRelease(event) {
                     this.cleanupDragState();
 
                     const isDestroy = event.type === "destroy";
-                    this.emit(isDestroy ? "destroy" : "end", [event]);
+
+                    if (this.options.legacyEvents) {
+                        this.emit(isDestroy ? "destroy" : "end", [event]);
+                    } else {
+                        this._eventData.domEvent = event;
+                        this.emit(isDestroy ? "destroy" : "end", [this._eventData]);
+                    }
 
                     if (this.pointerLockActive) {
                         document.exitPointerLock();
                     }
 
                     if (isDestroy) {
-                        if (this.options.onDestroy) this.options.onDestroy(event);
+                        if (this.options.onDestroy) {
+                            if (this.options.legacyEvents) {
+                                this.options.onDestroy(event);
+                            } else {
+                                this.options.onDestroy(this._eventData);
+                            }
+                        }
                     } else if (this.options.onEnd) {
-                        this.options.onEnd(event);
+                        if (this.options.legacyEvents) {
+                            this.options.onEnd(event);
+                        } else {
+                            this.options.onEnd(this._eventData);
+                        }
                     }
                 }
 
                 cancel() {
-                    this.cancelled = true;
+                    this._eventData.cancelled = true;
                 }
 
                 onPointerLockChange() {
@@ -961,7 +1049,7 @@
 
                 cleanupDragState() {
                     this.seeking = false;
-                    this.cancelled = false;
+                    this._eventData.cancelled = false;
                     this.frameQueued = false;
                     this.latestMoveEvent = null;
 
@@ -985,31 +1073,23 @@
                 destroy() {
                     if (this.destroyed) return false;
 
-                    // Trigger release logic with destroy type
-                    this.onRelease({ type: "destroy" });
-
-                    // Remove initial listeners
-                    if (this.element) {
-                        this.element.removeEventListener("mousedown", this.onStart);
-                        this.element.removeEventListener("touchstart", this.onStart);
-                        if (this.options.startEvents) {
-                            for (const evt of this.options.startEvents) {
-                                this.element.removeEventListener(evt, this.onStart);
-                            }
-                        }
-                    }
-
-                    document.removeEventListener('pointerlockchange', this.onPointerLockChange);
-
-                    this.flush();
+                    this.detach(true);
+                    this._moveEventRef = null;
+                    this.events.clear();
                     this.element = null;
                     this.options = null;
+                    this._eventData = null;
                     this.destroyed = true;
                     return true;
                 }
             },
 
             touchHandle(element, options) {
+                if(options.legacyEvents === undefined) {
+                    console.warn("Use of deprecated LS.Util.touchHandle() with legacy events enabled. Please consider migrating to the LS.Util.TouchHandle class with an upgraded event object.");
+                    options.legacyEvents = true;
+                }
+
                 return new LS.Util.TouchHandle(element, options);
             },
 

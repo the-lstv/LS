@@ -200,19 +200,34 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
         this.handle = new LS.Util.TouchHandle(this.element, {
             cursor: this.options.cursor || 'none',
             buttons: [0],
-            onStart: (event, cancel) => {
-                if(event.target.__automationItem) {
-                    this.focusedItem = event.target.__automationItem;
-                    this.#startDrag(event, event.target.__automationItem, event.target.__automationHandleType);
-                    this.frameScheduler.schedule();
-                } else {
+
+            onStart: (event) => {
+                const item = event.domEvent.target.__automationItem;
+                const type = event.domEvent.target.__automationHandleType;
+
+                if(!item) {
                     this.focusedItem = null;
                     this.frameScheduler.schedule();
-                    return cancel();
+                    return event.cancel();
                 }
-                event.preventDefault();
+
+                this.focusedItem = item;
+                this._dragState = {
+                    item,
+                    type,
+                    startX: event.x,
+                    startY: event.y,
+                    startCurvature: item.curvature || 0,
+                    startTime: item.time,
+                    startValue: item.value
+                };
+
+                event.domEvent.stopPropagation();
+                event.domEvent.preventDefault();
+                this.frameScheduler.schedule();
             },
-            onMove: (x, y) => this.#onMouseMove(x, y),
+
+            onMove: (event) => this.#onMouseMove(event.x, event.y),
             onEnd: () => this._dragState = null
         });
 
@@ -580,19 +595,6 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
         const y1 = this.v2y(item.value);
 
         return this._calculatePath(x0, y0, x1, y1, item).center;
-    }
-
-    #startDrag(event, item, type) {
-        event.stopPropagation();
-        this._dragState = {
-            item,
-            type,
-            startX: event.clientX,
-            startY: event.clientY,
-            startCurvature: item.curvature || 0,
-            startTime: item.time,
-            startValue: item.value
-        };
     }
 
     #onMouseMove(x, y) {

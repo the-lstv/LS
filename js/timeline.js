@@ -147,7 +147,7 @@
 
             // Mouse/touch drag
             // TODO: Should not block scrolling on mobile
-            let dragType = null, rect = null, startX = 0, startY = 0;
+            let dragType = null, rect = null;
             let selectStartWorldX = 0, selectStartWorldY = 0, lastCursorY = 0;
             
             // Inertia & Edge Scroll state
@@ -324,12 +324,12 @@
                 this.frameScheduler.schedule();
             };
 
-            this.dragHandle = LS.Util.touchHandle(this.container, {
+            this.dragHandle = new LS.Util.TouchHandle(this.container, {
                 exclude: ".ls-resize-handle, .ls-automation-point-handle, .ls-automation-center-handle",
                 frameTimed: true,
 
-                onStart: (event, cancel, x, y) => {
-                    if(event.button === 2) return cancel(); // Temporarily disabled until implemented
+                onStart: (event) => {
+                    if(event.domEvent.button === 2) return event.cancel(); // Temporarily disabled until implemented
 
                     stopInertia();
                     stopEdgeScroll();
@@ -337,7 +337,7 @@
                     this.dragHandle.options.pointerLock = false;
 
                     rect = this.container.getBoundingClientRect();
-                    const itemElement = event.button === 0 ? event.target.closest(".ls-timeline-item") : null;
+                    const itemElement = event.domEvent.button === 0 ? event.domEvent.target.closest(".ls-timeline-item") : null;
                     this.dragHandle.options.disablePointerEvents = !itemElement;
 
                     // Prepare for dragging items, if that is what we're doing
@@ -347,12 +347,12 @@
                         dragState.draggingItems = true;
                         dragState.itemElement = itemElement;
                         dragState.item = itemElement.__timelineItem || this.items.find(i => i.element === itemElement);
-                        dragState.startX = x;
-                        dragState.startY = y;
-                        dragState.startWorldX = (x - rect.left) + this.offset;
-                        dragState.startWorldY = (y - rect.top) + this.scrollContainer.scrollTop;
+                        dragState.startX = event.x;
+                        dragState.startY = event.y;
+                        dragState.startWorldX = (event.x - rect.left) + this.offset;
+                        dragState.startWorldY = (event.y - rect.top) + this.scrollContainer.scrollTop;
                         dragState.disableSnapping = false;
-                        dragState.isCloning = event.shiftKey; // Shift+drag to clone
+                        dragState.isCloning = event.domEvent.shiftKey; // Shift+drag to clone
 
                         let itemsToMove = this.selectedItems.size && this.selectedItems.has(dragState.item) ? Array.from(this.selectedItems) : [dragState.item];
 
@@ -362,9 +362,9 @@
                             const vh = window.innerHeight;
                             const vw = window.innerWidth;
                             const itemRect = dragState.itemElement.getBoundingClientRect();
-                            const dragOffset = x - itemRect.left;
+                            const dragOffset = event.x - itemRect.left;
                             
-                            dragState.dragOffsetY = y - itemRect.top;
+                            dragState.dragOffsetY = event.y - itemRect.top;
                             dragState.itemHeight = itemRect.height;
 
                             for (const item of this.items) {
@@ -444,12 +444,12 @@
                         dragState.draggingItems = false;
                     }
 
-                    const touchEvent = event.type.startsWith("touch");
-                    const button = touchEvent? ((event.target === this.scrollContainer || this.scrollContainer.contains(event.target)) ? 1 : 0) : event.button;
+                    const touchEvent = event.domEvent.type.startsWith("touch");
+                    const button = touchEvent? ((event.domEvent.target === this.scrollContainer || this.scrollContainer.contains(event.domEvent.target)) ? 1 : 0) : event.domEvent.button;
 
-                    if (event.ctrlKey && button === 0) {
+                    if (event.domEvent.ctrlKey && button === 0) {
                         dragType = "select";
-                    } else if (event.ctrlKey && button === 1) {
+                    } else if (event.domEvent.ctrlKey && button === 1) {
                         dragType = "zoom-v";
                         this.dragHandle.options.pointerLock = true;
                     } else {
@@ -457,17 +457,15 @@
                     }
 
                     if (!dragType) {
-                        cancel();
+                        event.cancel();
                         return;
                     }
 
                     rect = this.container.getBoundingClientRect();
-                    startX = x;
-                    startY = y;
                     
                     // Capture world coordinates for selection to handle scrolling
-                    selectStartWorldX = (x - rect.left) + this.offset;
-                    selectStartWorldY = (y - rect.top) + this.scrollContainer.scrollTop;
+                    selectStartWorldX = (event.x - rect.left) + this.offset;
+                    selectStartWorldY = (event.y - rect.top) + this.scrollContainer.scrollTop;
 
                     velocityX = 0;
                     lastMoveTime = performance.now();
@@ -478,7 +476,7 @@
                         this.selectionRect.style.height = "0px";
                         this.dragHandle.cursor = "crosshair";
 
-                        if(!event.shiftKey) {
+                        if(!event.domEvent.shiftKey) {
                             this.selectedItems.clear();
                             this.frameScheduler.schedule();
                         }
@@ -492,10 +490,10 @@
                     this.emit("drag-start", [dragType]);
                 },
 
-                onMove: (x, y) => {
+                onMove: (event) => {
                     const rect = this.container.getBoundingClientRect();
-                    const cursorX = x - rect.left;
-                    const cursorY = y - rect.top;
+                    const cursorX = event.x - rect.left;
+                    const cursorY = event.y - rect.top;
                     lastCursorX = cursorX;
                     lastCursorY = cursorY;
 
@@ -516,7 +514,7 @@
                             edgeScrollRaf = requestAnimationFrame(processEdgeScroll);
                         }
 
-                        updateDragItemPosition(x, y);
+                        updateDragItemPosition(event.x, event.y);
                         return;
                     }
 
@@ -524,40 +522,32 @@
                     this.__isDragging = true;
 
                     if (dragType === "pan") {
-                        const deltaX = x - startX;
-                        const deltaY = y - startY;
-                        this.offset -= deltaX;
-                        this.scrollContainer.scrollTop -= deltaY;
+                        this.offset -= event.dx;
+                        this.scrollContainer.scrollTop -= event.dy;
                         
                         // Track velocity
-                        velocityX = deltaX;
-                        
-                        startX = x;
-                        startY = y;
+                        velocityX = event.dx;
 
-                        this.emit("drag-move", [dragType, deltaX, deltaY]);
+                        this.emit("drag-move", [dragType, event.dx, event.dy]);
                     } else if (dragType === "zoom-v") {
-                        const deltaY = y - startY;
                         const sensitivity = 0.5;
                         const oldHeight = this.rowHeight;
-                        const targetHeight = oldHeight - (deltaY * sensitivity);
+                        const targetHeight = oldHeight - (event.dy * sensitivity);
 
                         this.rowHeight = targetHeight;
                         const newHeight = this.rowHeight;
 
                         if (newHeight !== oldHeight) {
                             const rect = this.scrollContainer.getBoundingClientRect();
-                            const mouseY = startY - rect.top;
+                            const mouseY = event.startY - rect.top;
                             const oldScrollTop = this.scrollContainer.scrollTop;
                             const contentY = oldScrollTop + mouseY;
                             
                             const ratio = newHeight / oldHeight;
                             this.scrollContainer.scrollTop = (contentY * ratio) - mouseY;
                         }
-                        
-                        startY = y;
 
-                        this.emit("drag-move", [dragType, 0, deltaY]);
+                        this.emit("drag-move", [dragType, 0, event.dy]);
                     } else if (dragType === "seek" || dragType === "select") {
                         if (dragType === "seek") {
                             const worldX = cursorX + this.offset;

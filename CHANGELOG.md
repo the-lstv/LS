@@ -5,17 +5,22 @@
 - Remove or update v4compat (too many changes in v5)
 - Improve accessibility & edge cases
 
-### Version 5.2.7
-- Data support for completed events
-- Extend LS.Resize options
-- LS.Create now accepts tagName in options
+### Version 5.2.7 (ongoing)
 - Listeners can be removed by returning LS.REMOVE_LISTENER
+- Data support for completed events
 - A global event for component registration
-- Experimental LS.Menu component added
 - Added some useful utilities for state management
-- Migrated LS.Timeline and LS.DragDrop and LS.AutomationGraph and LS.Select and LS.Progress and LS.Patchbay
-- TouchHandle is now a class
+- Migrated LS.Timeline and LS.AutomationGraph and LS.DragDrop and LS.Progress and LS.Knob and LS.Patcher (formerly LS.Patchbay) to v5 from v3, with QOL various improvements
+- LS.Menu component added, which also adds ls-select, with select element compatibility
+- Extend LS.Resize options
+- TouchHandle is now a class with proper lifecycle management
+- Changed and cleaned/unified the event API of TouchHandle, added event.dx/dy. Compatibility retained through the now deprecated original function or a legacyEvents option.
 - Added styles for ls-menu and list items
+- Many updates to LS.Util.FrameScheduler; can now be started/stopped, frame limited, time synced, and more.
+- LS.Tooltips are now more efficient and support some HTML markup
+- LS.Create API ravamped, enhanced performance and security, and now accepts a DSL-like object structure
+- LS.Create now accepts tagName in options
+- Various other smaller fixes and improvements
 
 ### Version 5.2.6 (hotfix)
 - Fixes to LS.Animation when multiple animations are triggered

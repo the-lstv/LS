@@ -163,7 +163,7 @@ LS.LoadComponent(class Menu extends LS.Component {
                         this.open(e.clientX, e.clientY);
                     });
                 } else {
-                    this.options.adjacentElement.addEventListener('click', this.__adjacentClickHandler = (e) => {
+                    this.options.adjacentElement.addEventListener('pointerdown', this.__adjacentClickHandler = (e) => {
                         e.stopPropagation();
                         this.toggle();
                     });
@@ -369,13 +369,13 @@ LS.LoadComponent(class Menu extends LS.Component {
                 }
             });
 
-            input.addEventListener('change', () => {
-                this.#handleItemClick(item);
-            });
-
             item.element.addEventListener('mouseenter', () => {
                 if (item.disabled) return;
                 this.#handleItemHover(item);
+            });
+
+            input.addEventListener('change', () => {
+                this.#handleItemClick(item);
             });
 
             return;
@@ -408,7 +408,7 @@ LS.LoadComponent(class Menu extends LS.Component {
 
         item.element.dataset.value = item.value;
 
-        item.element.addEventListener('click', (event) => {
+        item.element.addEventListener('pointerup', (event) => {
             event.stopPropagation();
             if (item.disabled) return;
             this.#handleItemClick(item);
@@ -992,6 +992,8 @@ customElements.define('ls-select', class LSSelect extends HTMLElement {
     // disconnectedCallback() {
     //     this.destroy();
     // }
+
+    connectedMoveCallback() {}
 
     #generateMenu() {
         let selectedOption = null;

@@ -104,20 +104,17 @@ LS.LoadComponent(class Tooltips extends LS.Component {
     }
 
     addElements(mutations){
-        if(!Array.isArray(mutations)) mutations = [mutations];
-
+        if(!Array.isArray(mutations) && !(mutations instanceof MutationRecord) && !(mutations instanceof NodeList)) mutations = [mutations];
+        
         for(const mutation of mutations) {
-            if(mutation instanceof Element) {
-                mutation = { target: mutation };
-            }
+            const element = (mutation instanceof Element) ? mutation : mutation?.target;
+            if(!element) continue;
 
-            if(typeof mutation !== "object" || !mutation || !mutation.target) continue;
-            if(mutation.attributeName && !this.attributes.includes(mutation.attributeName)) continue;
+            const attributeName = mutation.attributeName || null;
+            if(attributeName && !this.attributes.includes(attributeName)) continue;
 
-            const element = mutation.target;
-
-            element.ls_hasTooltip = this.attributes.some(attr => element.hasAttribute(attr));
             element.ls_tooltip_isHint = element.hasAttribute("ls-hint");
+            element.ls_hasTooltip = element.ls_tooltip_isHint || this.attributes.some(attr => element.hasAttribute(attr));
 
             if(!element.ls_tooltipSetup) this.setup(element); else if(!element.ls_hasTooltip) this.unbind(element);
         }

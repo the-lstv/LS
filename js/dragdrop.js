@@ -133,13 +133,13 @@ LS.LoadComponent(class DragDrop extends LS.Component {
 
         const handle = LS.Tiny.O(this.options.handle || element);
 
-        const touchHandler = LS.Util.touchHandle(handle, {
+        const touchHandler = new LS.Util.TouchHandle(handle, {
             buttons: [0],
             cursor: "grabbing",
             disablePointerEvents: false,
             ...this.options.handleOptions || {},
-            onStart: (ev, cancel, x, y) => this.#onInputStart(element, ev, cancel, x, y),
-            onMove: (x, y) => this.#onInputMove(x, y),
+            onStart: (event) => this.#onInputStart(event),
+            onMove: (event) => this.#onInputMove(event.x, event.y),
             onEnd: () => this.#onInputEnd(),
         });
 
@@ -191,23 +191,25 @@ LS.LoadComponent(class DragDrop extends LS.Component {
         return this.#state.current;
     }
 
-    #onInputStart(element, evt, cancel, x, y) {
+    #onInputStart(event) {
         let enable = true;
-        this.emit("dragStart", [element, evt, () => { enable = false; }]);
+        const element = event.domEvent.target;
+
+        this.emit("dragStart", [element, event, () => { enable = false; }]);
         if(!element.lsDragEnabled || !enable) {
-            cancel();
+            event.cancel();
             return;
         }
 
         const state = this.#state;
         state.items = [];
-        state.prevX = state.initialX = x;
+        state.prevX = state.initialX = event.x;
         state.velocityX = 0;
-        state.initialY = y;
+        state.initialY = event.y;
         state.prevY = state.initialY;
         state.velocityY = 0;
-        state.currentX = x;
-        state.currentY = y;
+        state.currentX = event.x;
+        state.currentY = event.y;
         state.object = element.lsDragOptions?.object || null;
 
         const box = element.getBoundingClientRect();

@@ -623,6 +623,7 @@ button#{priority(".ls-toast-close", 3)} {
     box-shadow: 0 4px 8px 0 #0005;
     display: flex;
     flex-direction: column;
+    user-select: none;
     overflow: auto;
 }
 
@@ -705,6 +706,13 @@ button#{priority(".ls-toast-close", 3)} {
 .ls-menu-search {
     margin: 4px !important;
     margin-bottom: 8px !important;
+}
+
+ls-select {
+    position: relative;
+    display: inline-block;
+    cursor: pointer;
+    user-select: none;
 }
 
 ls-select ls-option, ls-select option, ls-select optgroup {

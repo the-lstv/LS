@@ -201,10 +201,10 @@ LS.LoadComponent(class Resize extends LS.Component {
                 const isNorth = side === 'top' || side === 'topLeft' || side === 'topRight';
                 const isSouth = side === 'bottom' || side === 'bottomLeft' || side === 'bottomRight';
 
-                let startX = 0, startY = 0;
                 let startWidth = 0, startHeight = 0;
                 let endWidth = 0, endHeight = 0;
                 let currentState = null;
+
                 // Unified position variables (replaces startTopStyle, startLeftStyle, startTranslateX, startTranslateY)
                 let startPosX = 0, startPosY = 0;
                 let minWidth, minHeight, maxWidth, maxHeight;
@@ -226,14 +226,14 @@ LS.LoadComponent(class Resize extends LS.Component {
                     bottomLeft: 'nesw-resize'
                 };
 
-                const handler = LS.Util.touchHandle(element, {
+                const handler = new LS.Util.TouchHandle(element, {
                     frameTimed: true, // Limits move calls to the frame rate
 
-                    onStart(e, c, mx, my) {
-                        self.emit('resize-start', [{target, handler, side}, c]);
-                        handler.emit('resize-start', [c]);
-                        
-                        if(handler.cancelled) return;
+                    onStart(event) {
+                        self.emit('resize-start', [{target, handler, side}, event.cancel]);
+                        handler.emit('resize-start', [event.cancel]);
+
+                        if(event.cancelled) return;
 
                         const rect = target.getBoundingClientRect();
                         const style = window.getComputedStyle(target);
@@ -272,8 +272,7 @@ LS.LoadComponent(class Resize extends LS.Component {
                             startPosX = !isNaN(parseFloat(style.left)) ? parseFloat(style.left) : target.offsetLeft;
                             startPosY = !isNaN(parseFloat(style.top)) ? parseFloat(style.top) : target.offsetTop;
                         }
-                        startX = mx;
-                        startY = my;
+
                         absolutePositioned = style.position === 'absolute' || style.position === 'fixed';
                         
                         // Compute boundary rect
@@ -307,9 +306,8 @@ LS.LoadComponent(class Resize extends LS.Component {
                             }
                         }
                     },
-                    onMove(mx, my) {
-                        let dx = mx - startX;
-                        let dy = my - startY;
+
+                    onMove(event) {
                         let newWidth = startWidth;
                         let newHeight = startHeight;
                         let newPosX = startPosX;
@@ -318,32 +316,32 @@ LS.LoadComponent(class Resize extends LS.Component {
                         // Pre-calc raw candidates (before min/max) for snapping decisions
                         let rawWidthCandidate = startWidth;
                         let rawHeightCandidate = startHeight;
-                        if (isWest) rawWidthCandidate = startWidth - dx;
-                        else if (isEast) rawWidthCandidate = startWidth + dx;
-                        if (isNorth) rawHeightCandidate = startHeight - dy;
-                        else if (isSouth) rawHeightCandidate = startHeight + dy;
+                        if (isWest) rawWidthCandidate = startWidth - event.dx;
+                        else if (isEast) rawWidthCandidate = startWidth + event.dx;
+                        if (isNorth) rawHeightCandidate = startHeight - event.dy;
+                        else if (isSouth) rawHeightCandidate = startHeight + event.dy;
 
                         if (isWest) {
-                            let candidate = startWidth - dx;
-                            if (candidate < minWidth) { candidate = minWidth; dx = startWidth - candidate; }
-                            else if (candidate > maxWidth) { candidate = maxWidth; dx = startWidth - candidate; }
+                            let candidate = startWidth - event.dx;
+                            if (candidate < minWidth) { candidate = minWidth; event.dx = startWidth - candidate; }
+                            else if (candidate > maxWidth) { candidate = maxWidth; event.dx = startWidth - candidate; }
                             newWidth = candidate;
-                            newPosX = startPosX + dx;
+                            newPosX = startPosX + event.dx;
                         } else if (isEast) {
-                            let candidate = startWidth + dx;
+                            let candidate = startWidth + event.dx;
                             if (candidate < minWidth) candidate = minWidth;
                             if (candidate > maxWidth) candidate = maxWidth;
                             newWidth = candidate;
                         }
 
                         if (isNorth) {
-                            let candidate = startHeight - dy;
-                            if (candidate < minHeight) { candidate = minHeight; dy = startHeight - candidate; }
-                            else if (candidate > maxHeight) { candidate = maxHeight; dy = startHeight - candidate; }
+                            let candidate = startHeight - event.dy;
+                            if (candidate < minHeight) { candidate = minHeight; event.dy = startHeight - candidate; }
+                            else if (candidate > maxHeight) { candidate = maxHeight; event.dy = startHeight - candidate; }
                             newHeight = candidate;
-                            newPosY = startPosY + dy;
+                            newPosY = startPosY + event.dy;
                         } else if (isSouth) {
-                            let candidate = startHeight + dy;
+                            let candidate = startHeight + event.dy;
                             if (candidate < minHeight) candidate = minHeight;
                             if (candidate > maxHeight) candidate = maxHeight;
                             newHeight = candidate;
@@ -507,6 +505,7 @@ LS.LoadComponent(class Resize extends LS.Component {
                             handler.cursor = cur;
                         }
                     },
+
                     onEnd() {
                         try {
                             const data = {

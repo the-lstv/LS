@@ -162,13 +162,13 @@
                 this._setupEditableLabel();
             }
 
-            this.handle = LS.Util.touchHandle(this.element, {
+            this.handle = new LS.Util.TouchHandle(this.element, {
                 exclude: options.label ? ".ls-progress-label-left" : null
             });
 
-            this.handle.on("start", (event, cancel) => {
+            this.handle.on("start", (event) => {
                 if (this.element.hasAttribute("disabled")) {
-                    cancel();
+                    event.cancel();
                     return;
                 }
                 this._seeking = true;
@@ -176,12 +176,12 @@
                 if (LS.Tooltips) LS.Tooltips.show();
             });
 
-            this.handle.on("move", (x, y, event) => {
+            this.handle.on("move", (event) => {
                 const rect = this.element.getBoundingClientRect();
                 const isVertical = options.vertical;
                 
                 const size = isVertical ? rect.height : rect.width;
-                const offset = isVertical ? (y - rect.top) : (x - rect.left);
+                const offset = isVertical ? (event.y - rect.top) : (event.x - rect.left);
                 const normalizedOffset = isVertical ? (size - offset) : offset;
                 
                 const range = this._max - this._min;
