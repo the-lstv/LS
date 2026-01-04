@@ -18,7 +18,7 @@
             this.keys = new Map();
             this._mutated = false;
         }
-    
+
         /**
          * Renders all keys in the binding.
          * @returns {void}
@@ -45,7 +45,7 @@
         renderValue(element, key) {
             if(this.source || this.object) LSReactive.renderValue(element, key, this.source || this.object);
         }
-    
+
         /**
          * Resets the binding to its initial state, clearing all keys and values.
          * 
@@ -70,7 +70,7 @@
             for (const key of Object.keys(this.object)) {
                 delete this.object[key];
             }
-    
+
             this.updated = true;
             this.render();
             this._mutated = false;
@@ -155,48 +155,47 @@
             return proxy;
         }
     }
-    
+
     LS.LoadComponent(class Reactive extends LS.Component {
         constructor(){
-            super()
-
+            super();
             LSReactive = this;
 
             this.bindCache = new Map();
-    
+
             this.global = this.wrap(null, {}, true);
-    
+
             window.addEventListener("DOMContentLoaded", () => {
                 this.scan();
-            })
+            });
         }
-    
+
         /**
          * Scans the document or specific element for elements with the data-reactive attribute and caches them
          * @param {HTMLElement} scanTarget The target element to scan
          */
-    
+
         scan(scanTarget = document.body){
             const scan = scanTarget.querySelectorAll(`[data-reactive]`);
-    
+ 
             for(let target of scan) {
                 this.bindElement(target);
             }
         }
-    
+
         /**
          * Parses the data-reactive attribute of an element and caches it for lookup
          * @param {HTMLElement} target The target element to bind
          */
-    
+
         bindElement(target, defaultBind = null){
             let attribute = (defaultBind || target.getAttribute("data-reactive")).trim();
             if(!attribute || target.__last_bind === attribute) return;
-    
+
             if(target.__last_bind) this.unbindElement(target, true);
-    
+
             target.__last_bind = attribute;
-    
+
             // Match data prefix
             let value_prefix = null;
             if(this.constructor.matchStringChar(attribute.charCodeAt(0))) {
@@ -206,75 +205,75 @@
                     console.warn("Invalid reactive attribute: " + attribute);
                     return;
                 }
-    
+
                 value_prefix = attribute.slice(1, end);
                 attribute = attribute.slice(end + 1).trim();
             }
-    
+
             const [prefix, name, extra] = this.split_path(attribute);
             if(!name) return;
-    
+
             const key = this.constructor.parseKey(prefix, name, extra);
-    
+
             target.__reactive = key;
-    
+
             if(value_prefix) {
                 target.__reactive.value_prefix = value_prefix;
             }
-    
+
             let binding = this.bindCache.get(prefix);
-    
+
             if(!binding) {
                 binding = new ReactiveBinding(null);
                 binding.updated = false;
                 this.bindCache.set(prefix, binding);
             }
-    
+
             const cache = binding.keys.get(key.name);
             if(cache) cache.add(target); else binding.keys.set(key.name, new Set([target]));
 
             binding.renderValue(target, key.name);
         }
-    
+
         /**
          * Removes a binding from an element
          * @param {HTMLElement} target The target element to unbind
          */
-    
+
         unbindElement(target, keepAttribute = false){
             if(!keepAttribute) target.removeAttribute("data-reactive");
             if(!target.__last_bind) return;
-    
+
             const [prefix, name] = this.split_path(target.__last_bind);
-    
+
             delete target.__last_bind;
             delete target.__reactive;
-    
+
             if(!name) return;
-    
+
             let binding = this.bindCache.get(prefix);
             if(!binding) return;
-    
+
             const cache = binding.keys.get(name);
             if(cache) cache.delete(target);
         }
-    
-    
+
+
         /**
          * A fast, light parser to expand a key to an object with dynamic properties, eg. "username || anonymous".
          * @param {string} extra The key string to parse
         */
-    
+
         static parseKey(prefix, name, extra){
             let i = -1, v_start = 0, v_propety = null, state = 0, string_char = null;
-    
+
             const result = {
                 prefix, name
             };
-    
+
             extra = extra? extra.trim(): null;
             if(!extra) return result;
-    
+
             while(++i < extra.length) {
                 const char = extra.charCodeAt(i);
                 
@@ -284,25 +283,25 @@
                         state = 4;
                         continue;
                     }
-    
+
                     state = 1;
                 }
-    
+
                 if(state === 4) {
                     if(this.matchKeyword(extra.charCodeAt(i + 1)) && i !== extra.length - 1) continue;
                     const type = extra.slice(v_start, i + 1).toLowerCase();
                     result.type = this.types.get(type) || type;
-    
+
                     if(extra.charCodeAt(i + 1) === 40) { // (
                         i++;
                         v_start = i + 1;
                         state = 5;
                         continue;
                     }
-    
+
                     state = 1;
                 }
-    
+
                 if (state === 5) {
                     let args = [];
                     while (i < extra.length && extra.charCodeAt(i) !== 41) { // )
@@ -320,7 +319,7 @@
                     result.args = args;
                     state = 1;
                 }
-    
+
                 if(state === 3) {
                     if(char === string_char) {
                         result[v_propety] = extra.slice(v_start, i);
@@ -328,9 +327,9 @@
                     }
                     continue;
                 }
-    
+
                 if(this.matchWhitespace(char)) continue;
-    
+
                 if(state === 2) {
                     if(this.matchStringChar(char)) {
                         string_char = char;
@@ -339,7 +338,7 @@
                     }
                     continue;
                 }
-    
+
                 switch(char) {
                     case 124: // | - Or
                         if(extra.charCodeAt(i + 1) === 124) {
@@ -348,7 +347,7 @@
                             state = 2;
                             break;
                         }
-    
+
                         console.warn("You have a syntax error in key: " + extra);
                         return result; // Invalid
                     
@@ -359,7 +358,7 @@
                             state = 2;
                             break;
                         }
-    
+
                         console.warn("You have a syntax error in key: " + extra);
                         return result; // Invalid
                     
@@ -368,10 +367,10 @@
                         break;
                 }
             }
-    
+
             return result;
         }
-    
+
         static matchKeyword(char){
             return (
                 (char >= 48 && char <= 57) || // 0-9
@@ -381,15 +380,15 @@
                 char === 45    // -
             )
         }
-    
+
         static matchWhitespace(char){
             return char === 32 || char === 9 || char === 10 || char === 13;
         }
-    
+
         static matchStringChar(char){
             return char === 34 || char === 39 || char === 96;
         }
-    
+
         static types = new Map([
             ["string", String],
             ["number", Number],
@@ -398,36 +397,36 @@
             ["object", Object],
             ["function", Function]
         ]);
-    
+
         registerType(name, type){
             if(typeof name !== "string" || !name.trim()) {
                 throw new Error("Invalid type name: " + name);
             }
-    
+
             if(typeof type !== "function") {
                 throw new Error("Invalid type: " + type);
             }
-    
+
             this.constructor.types.set(name.toLowerCase(), type);
         }
-    
+
         split_path(path){
             if(!path) return [null, null, null];
-    
+
             const match = path.match(/^([a-zA-Z0-9._-]+)(.*)/);
-    
+
             if(!match) return [null, path, null];
-    
+
             path = match[1];
-    
+
             const lastIndex = path.lastIndexOf(".");
             const prefix = lastIndex === -1? "": path.slice(0, path.lastIndexOf(".") +1);
             if(prefix) path = path.slice(lastIndex + 1);
-    
+
             return [prefix, path, match[2].trim()];
         }
-    
-    
+
+
         /**
          * Wraps an object with a reactive proxy.
          * The proxy will get the following extra properties:
@@ -440,10 +439,10 @@
          * @param {boolean} options.fallback Fallback object to use when the key is not found
          * @returns {Proxy} The reactive proxy object
          */
-    
+
         wrap(prefix, object = {}, options = {}){
             if(typeof prefix === "string") prefix += "."; else prefix = "";
-    
+
             let binding = this.bindCache.get(prefix);
             if(!binding) {
                 binding = new ReactiveBinding(object);
@@ -454,7 +453,7 @@
 
             return binding.bindTo(prefix, object, options);
         }
-    
+
         /**
          * Same as wrap(), but changes will not mutate the original object.
          * The proxy will also get the following properties:
@@ -475,7 +474,7 @@
                 fallback: object
             });
         }
-    
+
         /**
          * Binds an existing object property and key without wrapping
          * @param {string} path The path and key to bind to
@@ -484,13 +483,13 @@
 
         bind(path, object){
             const [prefix, key] = this.split_path(path);
-    
+
             let binding = this.bindCache.get(prefix);
             if (!binding) {
                 binding = new ReactiveBinding(object);
                 this.bindCache.set(prefix, binding);
             }
-    
+
             Object.defineProperty(object, key, {
                 get: () => binding.object[key],
                 set: (value) => {
@@ -498,13 +497,13 @@
                     binding.updated = true;
                     this.renderKey(key, binding);
                 },
-    
+
                 configurable: true
             });
-    
+
             return object;
         }
-    
+
         /**
          * Renders all bindings in the cache (everything from any bound element)
          * @param {Array<ReactiveBinding>} bindings An array of bindings to render, defaults to all bindings in the cache
@@ -515,13 +514,13 @@
                 if(binding && binding.object && binding.updated) this.render(binding);
             }
         }
-    
+
         /**
          * Renders a binding object
          * @param {object} binding The binding object to render
          * @param {string} specificKey A specific key to render
          */
-    
+
         render(binding){
             if(!binding) return this.renderAll();
             if(!binding.source && !binding.object) return;
@@ -532,7 +531,7 @@
                 this.renderKey(key, binding);
             }
         }
-    
+
         renderKey(key, binding){
             const cache = binding.keys.get(key);
             if(!cache || cache.size === 0) return;
@@ -542,56 +541,56 @@
                 this.renderValue(target, key, source);
             }
         }
-    
+
         renderValue(target, key, source){
             let value = source[key];
 
             if(typeof value === "function") value = value();
-    
+
             if(!value && target.__reactive.or) {
                 value = target.__reactive.or;
             }
-    
+
             if(target.__reactive.default && (typeof value === "undefined" || value === null)) {
                 value = target.__reactive.default;
             }
-    
+
             // Try getting the type again
             if(typeof target.__reactive.type === "string") {
                 target.__reactive.type = this.constructor.types.get(target.__reactive.type.toLowerCase()) || target.__reactive.type;
             }
-    
+
             if(typeof target.__reactive.type === "function") {
                 value = target.__reactive.type(value, target.__reactive.args || [], target, source, key);
             }
-    
+
             if(target.__reactive.value_prefix) {
                 value = target.__reactive.value_prefix + value;
             }
-    
+
             if(value instanceof Element) {
                 target.replaceChildren(value);
                 return;
             }
-    
+
             if(target.__reactive.attribute) {
                 target.setAttribute(target.__reactive.attribute, value);
                 return;
             }
-    
+
             if(target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT") {
-    
+
                 if(target.type === "checkbox") target.checked = Boolean(value);
                 else target.value = value;
-    
+
             } else if(target.tagName === "IMG" || target.tagName === "VIDEO" || target.tagName === "AUDIO") {
-    
+
                 target.src = value;
-    
+
             } else {
-    
+
                 if(target.__reactive.raw) target.innerHTML = value; else target.textContent = value;
-    
+
             }
         }
     }, { name: "Reactive", singular: true, global: true })

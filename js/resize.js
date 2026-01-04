@@ -316,32 +316,32 @@ LS.LoadComponent(class Resize extends LS.Component {
                         // Pre-calc raw candidates (before min/max) for snapping decisions
                         let rawWidthCandidate = startWidth;
                         let rawHeightCandidate = startHeight;
-                        if (isWest) rawWidthCandidate = startWidth - event.dx;
-                        else if (isEast) rawWidthCandidate = startWidth + event.dx;
-                        if (isNorth) rawHeightCandidate = startHeight - event.dy;
-                        else if (isSouth) rawHeightCandidate = startHeight + event.dy;
+                        if (isWest) rawWidthCandidate = startWidth - event.offsetX;
+                        else if (isEast) rawWidthCandidate = startWidth + event.offsetX;
+                        if (isNorth) rawHeightCandidate = startHeight - event.offsetY;
+                        else if (isSouth) rawHeightCandidate = startHeight + event.offsetY;
 
                         if (isWest) {
-                            let candidate = startWidth - event.dx;
-                            if (candidate < minWidth) { candidate = minWidth; event.dx = startWidth - candidate; }
-                            else if (candidate > maxWidth) { candidate = maxWidth; event.dx = startWidth - candidate; }
+                            let candidate = startWidth - event.offsetX;
+                            if (candidate < minWidth) { candidate = minWidth; event.offsetX = startWidth - candidate; }
+                            else if (candidate > maxWidth) { candidate = maxWidth; event.offsetX = startWidth - candidate; }
                             newWidth = candidate;
-                            newPosX = startPosX + event.dx;
+                            newPosX = startPosX + event.offsetX;
                         } else if (isEast) {
-                            let candidate = startWidth + event.dx;
+                            let candidate = startWidth + event.offsetX;
                             if (candidate < minWidth) candidate = minWidth;
                             if (candidate > maxWidth) candidate = maxWidth;
                             newWidth = candidate;
                         }
 
                         if (isNorth) {
-                            let candidate = startHeight - event.dy;
-                            if (candidate < minHeight) { candidate = minHeight; event.dy = startHeight - candidate; }
-                            else if (candidate > maxHeight) { candidate = maxHeight; event.dy = startHeight - candidate; }
+                            let candidate = startHeight - event.offsetY;
+                            if (candidate < minHeight) { candidate = minHeight; event.offsetY = startHeight - candidate; }
+                            else if (candidate > maxHeight) { candidate = maxHeight; event.offsetY = startHeight - candidate; }
                             newHeight = candidate;
-                            newPosY = startPosY + event.dy;
+                            newPosY = startPosY + event.offsetY;
                         } else if (isSouth) {
-                            let candidate = startHeight + event.dy;
+                            let candidate = startHeight + event.offsetY;
                             if (candidate < minHeight) candidate = minHeight;
                             if (candidate > maxHeight) candidate = maxHeight;
                             newHeight = candidate;

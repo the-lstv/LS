@@ -115,15 +115,22 @@ body {
     }
 
     a {
-        color: var(--accent);
         text-decoration: none;
     }
-    
-    a:focus:not(.ls-button, .ls-plain) {
-        box-shadow: 0 0 0 3px #0004;
-        outline: 3px solid var(--accent);
-        outline-offset: 3px;
-        border-radius: 3px;
+
+    a.ls-plain {
+        color: inherit;
+    }
+
+    a:not(.ls-button, .ls-plain) {
+        color: var(--accent);
+
+        &:focus {
+            box-shadow: 0 0 0 3px #0004;
+            outline: 3px solid var(--accent);
+            outline-offset: 3px;
+            border-radius: 3px;
+        }
     }
 
     hr {
