@@ -20,6 +20,9 @@
 - LS.Tooltips are now more efficient and support some HTML markup
 - LS.Create API ravamped, enhanced performance and security, and now accepts a DSL-like object structure
 - LS.Create now accepts tagName in options
+- LS.Color now supports conversion to primitives (string, number), is iterable, and JSON-serializable.
+- Added HSB support to LS.Color
+- Breaking change: LS.Color methods now mutate itself instead of always returning a clone. Added a clone() method for explicit cloning (eg. color.lighten() => color.clone().lighten()).
 - Various other smaller fixes and improvements
 
 ### Version 5.2.6 (hotfix)

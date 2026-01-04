@@ -2,7 +2,7 @@
     Author: Lukas (thelstv)
     Copyright: (c) https://lstv.space
 
-    Last modified: 2025
+    Last modified: 2026
     License: GPL-3.0
     Version: 5.2.7
     See: https://github.com/thelstv/LS
@@ -84,13 +84,15 @@
                 options.data = null;
             }
 
-            if(!this.events.has(name)){
-                this.events.set(name, { listeners: [], empty: [], ...options, _isEvent: true })
-            } else if(options){ 
-                Object.assign(this.events.get(name), options)
+            let event = this.events.get(name);
+            if(!event) {
+                event = { listeners: [], empty: [], ...options, __isEvent: true };
+                this.events.set(name, event);
+            } else if(options){
+                Object.assign(event, options);
             }
 
-            return this.events.get(name)
+            return event;
         }
 
         on(name, callback, options){
@@ -102,8 +104,8 @@
 
             const index = event.empty.length > 0 ? event.empty.pop() : event.listeners.length;
 
-            event.listeners[index] = { callback, index, ...options }
-            return this
+            event.listeners[index] = { callback, index, ...options };
+            return this;
         }
 
         off(name, callback){
@@ -117,18 +119,18 @@
                 }
             }
 
-            return this
+            return this;
         }
 
         once(name, callback, options){
-            return this.on(name, callback, Object.assign(options || {}, { once: true }))
+            return this.on(name, callback, Object.assign(options || {}, { once: true }));
         }
 
         /**
-         * @deprecated
+         * @deprecated To be removed in 5.3.0
         */
         invoke(name, ...data){
-            return this.emit(name, data, { results: true })
+            return this.emit(name, data, { results: true });
         }
 
         /**
@@ -175,7 +177,7 @@
                 }
             }
 
-            return returnData
+            return returnData;
         }
 
         /**
@@ -1215,11 +1217,22 @@
              * Useful for loading indicators for example
              */
             ElementSwitch: class ElementSwitch {
-                constructor(element1 = null, element2 = null, onSet = null) {
+                constructor(element1 = null, element2 = null, options = null) {
                     this.elements = Array.isArray(element1)? element1: (element1 instanceof NodeList) ? Array.from(element1) : [element1, element2];
-                    this.onSet = onSet;
+
+                    this.options = LS.Util.defaults({
+                        initial: 0,
+                        mode: "display",
+                        parent: null,
+                        onSet: null
+                    }, options || {});
+
+                    if(this.options.mode === "dom" && !this.options.parent) {
+                        throw new Error("ElementSwitch in 'dom' mode requires a parent element in options.parent");
+                    }
+
                     this.value = -1;
-                    this.back();
+                    this.set(this.options.initial);
                 }
 
                 front() {
@@ -1237,15 +1250,22 @@
                 set(index) {
                     if(this.value === index) return;
                     this.value = index;
-                    if(this.elements[0]) this.elements[0].style.display = index === 0 ? "" : "none";
-                    if(this.elements[1]) this.elements[1].style.display = index === 1 ? "" : "none";
-                    if(this.onSet) this.onSet(this.value);
+
+                    if(this.options.mode === "dom" && this.options.parent) {
+                        this.options.parent.appendChild(this.elements[index]);
+                        this.elements[1 - index]?.remove();
+                    } else {
+                        if(this.elements[0]) this.elements[0].style[this.options.mode === "display"? "display" : "visibility"] = index === 0 ? "" : (this.options.mode === "display"? "none" : "hidden");
+                        if(this.elements[1]) this.elements[1].style[this.options.mode === "display"? "display" : "visibility"] = index === 1 ? "" : (this.options.mode === "display"? "none" : "hidden");
+                    }
+
+                    if(this.options.onSet) this.options.onSet(this.value);
                 }
 
                 destroy() {
                     this.elements = null;
                     this.value = null;
-                    this.onSet = null;
+                    this.options = null;
                 }
             },
 
@@ -1616,89 +1636,44 @@
     LS.Misc = LS.Tiny.M;
 
     /**
-     * Color and theme utilities
+     * Extensive color library and theme utilities
      */
-    LS.Color = class {
+    LS.Color = class Color {
         constructor(r, g, b, a) {
-            if (typeof r === "string") {
-
-                // Hex
-                if(r.charCodeAt(0) === 35) {
-                    [r, g, b] = LS.Color.parseHex(r);
-                }
-
-                // RGB
-                else if(r.startsWith("rgb(") || r.startsWith("rgba(")) {
-                    let match = r.match(/rgba?\((\d+)\s*,?\s*(\d+)\s*,?\s*(\d+)(?:\s*,?\s*([0-9.]+))?\)/);
-
-                    if(match) {
-                        [r, g, b, a] = match.slice(1).map(Number);
-                    } else {
-                        throw new Error("Colour " + r + " could not be parsed.");
-                    }
-                }
-
-                else {
-                    if(!LS.Color.context) {
-                        LS.Color._createProcessingCanvas();
-                    }
-                    
-                    // canvas.width = canvas.height = 1;
-                    LS.Color.context.fillStyle = r;
-
-                    [r, g, b] = LS.Color.parseHex(LS.Color.context.fillStyle);
-                }
-            } else if (r instanceof LS.Color) {
-                [r, g, b, a] = r.color;
-            } else if (Array.isArray(r)) {
-                [r, g, b, a] = r;
-            }
-
-            if (r === null || typeof r === "undefined" || isNaN(r)) r = 255;
-            if (g === null || typeof g === "undefined" || isNaN(g)) g = 255;
-            if (b === null || typeof b === "undefined" || isNaN(b)) b = 255;
-            if (a === null || typeof a === "undefined" || isNaN(a)) a = 1;
-
-            this.r = Math.round(Math.min(255, Math.max(0, r)));
-            this.g = Math.round(Math.min(255, Math.max(0, g)));
-            this.b = Math.round(Math.min(255, Math.max(0, b)));
-            this.a = Math.min(1, Math.max(0, a));
+            [r, g, b, a] = LS.Color.parse(r, g, b, a);
+            this.r = r;
+            this.g = g;
+            this.b = b;
+            this.a = a;
         }
 
         static {
-            this._events = new LS.EventHandler(this);
+            Object.setPrototypeOf(this, LS.EventHandler.prototype);
+            LS.EventHandler.prepareHandler(this);
 
             this.colors = new Map;
-            this.themes = new Set(["light", "dark", "amoled"]);
+            this.themes = new Set([ "light", "dark", "amoled" ]);
 
             // Style tag to manage
-            this.style = LS.Tiny.N("style", {id: "ls-colors"});
+            this.style = LS.Create("style", { id: "ls-colors" });
 
-            LS.once("body-available", ()=>{
+            LS.once("body-available", () => {
                 document.head.appendChild(this.style)
-            })
-
-            Object.defineProperties(this, {
-                lightModePreffered: {
-                    get(){
-                        return window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches
-                    }
-                }
-            })
+            });
 
             if(window.matchMedia) {
                 window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', thing => {
-                    this.emit("scheme-changed", [thing.matches])
-                })
+                    this.emit("scheme-changed", [thing.matches]);
+                });
             }
         }
 
         get int(){
-            return (this.r << 16) | (this.g << 8) | this.b;
+            return ((this.r << 16) | (this.g << 8) | this.b) >>> 0;
         }
 
         get hexInt() {
-            return 1 << 24 | this.r << 16 | this.g << 8 | this.b
+            return (this.r << 16) | (this.g << 8) | this.b | (1 << 24);
         }
 
         get hex() {
@@ -1751,6 +1726,44 @@
             return [h, s, l];
         }
 
+        get hsb() {
+            let r = this.r / 255;
+            let g = this.g / 255;
+            let b = this.b / 255;
+
+            let max = Math.max(r, g, b);
+            let min = Math.min(r, g, b);
+
+            let v = max;
+            let h, s;
+
+            let delta = max - min;
+            s = max === 0 ? 0 : delta / max;
+
+            if (max === min) {
+                h = 0;
+            } else {
+                switch (max) {
+                    case r:
+                        h = (g - b) / delta + (g < b ? 6 : 0);
+                        break;
+                    case g:
+                        h = (b - r) / delta + 2;
+                        break;
+                    case b:
+                        h = (r - g) / delta + 4;
+                        break;
+                }
+                h /= 6;
+            }
+
+            h = Math.round(h * 360);
+            s = Math.round(s * 100);
+            v = Math.round(v * 100);
+
+            return [h, s, v];
+        }
+
         get color() {
             return [this.r, this.g, this.b, this.a];
         }
@@ -1773,86 +1786,333 @@
 
         hue(hue) {
             let [h, s, l] = this.hsl;
-            l = Math.max(Math.min(hue, 360), 0);
-            return LS.Color.fromHSL(h, s, l);
+            h = Math.max(Math.min(hue, 360), 0);
+            this.setHSL(h, s, l);
+            return this;
         }
 
         saturation(percent) {
             let [h, s, l] = this.hsl;
             s = Math.max(Math.min(percent, 100), 0);
-            return LS.Color.fromHSL(h, s, l);
+            this.setHSL(h, s, l);
+            return this;
         }
 
         lightness(percent) {
             let [h, s, l] = this.hsl;
             l = Math.max(Math.min(percent, 100), 0);
-            return LS.Color.fromHSL(h, s, l);
+            this.setHSL(h, s, l);
+            return this;
         }
 
         tone(hue, saturation, lightness) {
             let [h, s, l] = this.hsl;
-            return LS.Color.fromHSL(hue || h, (s / 100) * saturation, lightness);
+            this.setHSL(hue || h, (s / 100) * saturation, typeof lightness === "number" ? lightness : l);
+            return this;
         }
 
         lighten(percent) {
             let [h, s, l] = this.hsl;
             l = Math.max(Math.min(l + percent, 100), 0);
-            return LS.Color.fromHSL(h, s, l);
+            this.setHSL(h, s, l);
+            return this;
         }
 
         saturate(percent) {
             let [h, s, l] = this.hsl;
             s = Math.max(Math.min(s + percent, 100), 0);
-            return LS.Color.fromHSL(h, s, l);
+            this.setHSL(h, s, l);
+            return this;
         }
 
         darken(percent) {
             let [h, s, l] = this.hsl;
             l = Math.max(Math.min(l - percent, 100), 0);
-            return LS.Color.fromHSL(h, s, l);
+            this.setHSL(h, s, l);
+            return this;
         }
 
         hueShift(deg) {
             let [h, s, l] = this.hsl;
             h = (h + deg) % 360;
-            return LS.Color.fromHSL(h, s, l);
+            this.setHSL(h, s, l);
+            return this;
         }
 
-        multiply(r2, g2, b2, a2) {
-            let color = new LS.Color(r2, g2, b2, a2).color;
-            return new LS.Color(this.r * color[0], this.g * color[1], this.b * color[2], this.a * color[3]);
+        /**
+         * Multiplies each channel by the given factor
+         * Provide null to skip a channel
+         */
+        multiply(factorR, factorG, factorB, factorA) {
+            return this.setClamped(factorR === null? null: Math.round(this.r * factorR), factorG === null? null: Math.round(this.g * factorG), factorB === null? null: Math.round(this.b * factorB), factorA === null? null: this.a * factorA);
         }
 
-        divide(r2, g2, b2, a2) {
-            let color = new LS.Color(r2, g2, b2, a2).color;
-            return new LS.Color(this.r / color[0], this.g / color[1], this.b / color[2], this.a / color[3]);
+        /**
+         * Divides each channel by the given factor
+         * Provide null to skip a channel
+         */
+        divide(factorR, factorG, factorB, factorA) {
+            return this.setClamped(factorR === null? null: Math.round(this.r / factorR), factorG === null? null: Math.round(this.g / factorG), factorB === null? null: Math.round(this.b / factorB), factorA === null? null: this.a / factorA);
         }
 
+        /**
+         * Adds the given values to each channel
+         */
         add(r2, g2, b2, a2) {
-            let color = new LS.Color(r2, g2, b2, a2).color;
-            return new LS.Color(this.r + color[0], this.g + color[1], this.b + color[2], this.a + color[3]);
+            let color = new LS.Color(r2, g2, b2, a2);
+            return this.setClamped(this.r + color.r, this.g + color.g, this.b + color.b, this.a + color.a);
         }
 
-        mix(anotherColor, weight = 0.5) {
-            let r = Math.round(this.r * (1 - weight) + anotherColor.r * weight);
-            let g = Math.round(this.g * (1 - weight) + anotherColor.g * weight);
-            let b = Math.round(this.b * (1 - weight) + anotherColor.b * weight);
-            let a = this.a * (1 - weight) + anotherColor.a * weight;
-            return new LS.Color(r, g, b, a);
-        }
-
+        /**
+         * Subtracts the given values from each channel
+         */
         subtract(r2, g2, b2, a2) {
             let color = new LS.Color(r2, g2, b2, a2).color;
-            return new LS.Color(this.r - color[0], this.g - color[1], this.b - color[2], this.a - color[3]);
+            return this.setClamped(this.r - color[0], this.g - color[1], this.b - color[2], this.a - color[3]);
         }
 
+        /**
+         * Mixes this color with another one by the given weight (0 to 1)
+         */
+        mix(anotherColor, weight = 0.5) {
+            this.r = Math.round(this.r * (1 - weight) + anotherColor.r * weight);
+            this.g = Math.round(this.g * (1 - weight) + anotherColor.g * weight);
+            this.b = Math.round(this.b * (1 - weight) + anotherColor.b * weight);
+            this.a = this.a * (1 - weight) + anotherColor.a * weight;
+            return this;
+        }
+
+        /**
+         * Sets the alpha channel to a value
+         */
         alpha(v) {
-            return new LS.Color(this.r, this.g, this.b, v);
+            this.a = Math.min(Math.max(v, 0), 1);
+            return this;
+        }
+
+        setHSL(h, s, l, alpha) {
+            let hsl; // Defer calculation if we don't need it
+            if(h === null || typeof h === "undefined" || isNaN(h)) h = hsl? hsl[0]: (hsl = this.hsl)[0];
+            if(s === null || typeof s === "undefined" || isNaN(s)) s = hsl? hsl[1]: (hsl = this.hsl)[1];
+            if(l === null || typeof l === "undefined" || isNaN(l)) l = hsl? hsl[2]: (hsl = this.hsl)[2];
+
+            s /= 100;
+            l /= 100;
+
+            let k = n => (n + h / 30) % 12,
+                a = s * Math.min(l, 1 - l),
+                f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+
+            this.r = 255 * f(0);
+            this.g = 255 * f(8);
+            this.b = 255 * f(4);
+
+            if (typeof alpha === "number" && !isNaN(alpha)) {
+                this.a = Math.min(Math.max(alpha, 0), 1);
+            }
+            return this;
+        }
+
+        setHSB(h, s, b, alpha) {
+            let hsb; // Defer calculation if we don't need it
+            if(h === null || typeof h === "undefined" || isNaN(h)) h = hsb? hsb[0]: (hsb = this.hsb)[0];
+            if(s === null || typeof s === "undefined" || isNaN(s)) s = hsb? hsb[1]: (hsb = this.hsb)[1];
+            if(b === null || typeof b === "undefined" || isNaN(b)) b = hsb? hsb[2]: (hsb = this.hsb)[2];
+
+            s /= 100;
+            b /= 100;
+            h = ((h % 360) + 360) % 360;
+
+            let i = Math.floor(h / 60) % 6;
+            let f = h / 60 - i;
+            let p = b * (1 - s);
+            let q = b * (1 - f * s);
+            let t = b * (1 - (1 - f) * s);
+
+            let r, g, b2;
+            switch (i) {
+                case 0:
+                    r = b; g = t; b2 = p; break;
+                case 1:
+                    r = q; g = b; b2 = p; break;
+                case 2:
+                    r = p; g = b; b2 = t; break;
+                case 3:
+                    r = p; g = q; b2 = b; break;
+                case 4:
+                    r = t; g = p; b2 = b; break;
+                case 5:
+                    r = b; g = p; b2 = q; break;
+            }
+
+            this.r = Math.round(r * 255);
+            this.g = Math.round(g * 255);
+            this.b = Math.round(b2 * 255);
+
+            if (typeof alpha === "number" && !isNaN(alpha)) {
+                this.a = Math.min(Math.max(alpha, 0), 1);
+            }
+            return this;
+        }
+
+        /**
+         * Sets the color channels and clamps them to valid ranges
+         */
+        setClamped(r, g, b, a) {
+            if (typeof r !== "number" || isNaN(r)) r = this.r || 255;
+            if (typeof g !== "number" || isNaN(g)) g = this.g || 255;
+            if (typeof b !== "number" || isNaN(b)) b = this.b || 255;
+            if (typeof a !== "number" || isNaN(a)) a = this.a || 1;
+
+            this.r = Math.round(Math.min(255, Math.max(0, r)));
+            this.g = Math.round(Math.min(255, Math.max(0, g)));
+            this.b = Math.round(Math.min(255, Math.max(0, b)));
+            this.a = Math.min(1, Math.max(0, a));
+            return this;
+        }
+
+        /**
+         * Creates a copy of this color
+         */
+        clone() {
+            return new LS.Color(this.r, this.g, this.b, this.a);
+        }
+
+        toString() {
+            return this.rgba;
+        }
+
+        toArray() {
+            return [this.r, this.g, this.b, this.a];
+        }
+
+        toJSON() {
+            return {
+                r: this.r,
+                g: this.g,
+                b: this.b,
+                a: this.a
+            };
+        }
+
+        *[Symbol.iterator]() {
+            yield this.r;
+            yield this.g;
+            yield this.b;
+            yield this.a;
+        }
+
+        [Symbol.toPrimitive](hint) {
+            if (hint === "number") {
+                return this.int;
+            }
+            return this.rgba;
+        }
+
+        get [Symbol.toStringTag]() {
+            return 'Color';
+        }
+
+        valueOf() {
+            return this.int;
+        }
+
+        static parse(r, g, b, a) {
+            if (typeof r === "string") {
+                r = r.trim().toLowerCase();
+
+                if(r.length === 0) {
+                    return [255, 255, 255, 1];
+                }
+
+                // Hex
+                if(r.charCodeAt(0) === 35) {
+                    [r, g, b, a] = LS.Color.parseHex(r);
+                }
+
+                // RGB
+                else if(r.startsWith("rgb(") || r.startsWith("rgba(")) {
+                    let match = r.match(/rgba?\(\s*(\d{1,3})\s*[, ]\s*(\d{1,3})\s*[, ]\s*(\d{1,3})\s*(?:[,/]\s*([0-9.]+%?))?\s*\)/);
+
+                    if(match) {
+                        [r, g, b] = match.slice(1, 4).map(Number);
+                        let alpha = match[4];
+                        if (alpha) {
+                            a = Math.max(0, Math.min(1, alpha.endsWith('%') ? parseFloat(alpha) / 100 : parseFloat(alpha)));
+                        } else {
+                            a = 1;
+                        }
+                    } else {
+                        throw new Error("Colour " + r + " could not be parsed.");
+                    }
+                }
+
+                // HSL
+                else if (r.startsWith("hsl(") || r.startsWith("hsla(")) {
+                    let match = r.match(/hsla?\(\s*([0-9.]+)(?:deg)?\s*[, ]\s*([0-9.]+)%?\s*[, ]\s*([0-9.]+)%?\s*(?:[,/]\s*([0-9.]+%?))?\s*\)/);
+
+                    if(match) {
+                        this.setHSL(parseFloat(match[1]), parseFloat(match[2]), parseFloat(match[3]), match[4] ? (match[4].endsWith('%') ? parseFloat(match[4]) / 100 : parseFloat(match[4])) : 1);
+                        return;
+                    } else {
+                        throw new Error("Colour " + r + " could not be parsed.");
+                    }
+                }
+
+                // HSB
+                // This is non-CSS-standard but is widely supported
+                else if (r.startsWith("hsb(") || r.startsWith("hsba(")) {
+                    let match = r.match(/hsba?\(\s*([0-9.]+)(?:deg)?\s*[, ]\s*([0-9.]+)%?\s*[, ]\s*([0-9.]+)%?\s*(?:[,/]\s*([0-9.]+%?))?\s*\)/);
+
+                    if(match) {
+                        this.setHSB(parseFloat(match[1]), parseFloat(match[2]), parseFloat(match[3]), match[4] ? (match[4].endsWith('%') ? parseFloat(match[4]) / 100 : parseFloat(match[4])) : 1);
+                        return;
+                    } else {
+                        throw new Error("Colour " + r + " could not be parsed.");
+                    }
+                }
+
+                else if(LS.Color.namedColors.has(r)) {
+                    [r, g, b, a] = LS.Color.namedColors.get(r);
+                }
+
+                // As a last resort, we use fillStyle to let the browser parse any valid CSS color
+                else {
+                    if(!LS.Color.context) {
+                        LS.Color._createProcessingCanvas();
+                    }
+
+                    LS.Color.context.fillStyle = "#000000";
+                    LS.Color.context.fillStyle = r;
+                    [r, g, b, a] = LS.Color.parseHex(LS.Color.context.fillStyle);
+                }
+            } else if (r instanceof LS.Color) {
+                [r, g, b, a] = r.color;
+            } else if (Array.isArray(r)) {
+                [r, g, b, a] = r;
+            } else if (typeof r === "object" && r !== null) {
+                ({ r = 255, g = 255, b = 255, a = 1 } = r);
+            }
+
+            return LS.Color.clamp([ r, g, b, a ]);
+        }
+
+        static clamp([ r, g, b, a ]) {
+            if (typeof r !== "number" || isNaN(r)) r = 255;
+            if (typeof g !== "number" || isNaN(g)) g = 255;
+            if (typeof b !== "number" || isNaN(b)) b = 255;
+            if (typeof a !== "number" || isNaN(a)) a = 1;
+
+            r = Math.round(Math.min(255, Math.max(0, r)));
+            g = Math.round(Math.min(255, Math.max(0, g)));
+            b = Math.round(Math.min(255, Math.max(0, b)));
+            a = Math.min(1, Math.max(0, a));
+            return [ r, g, b, a ];
         }
 
         static parseHex(hex) {
             if(hex.length < 4 || hex.length > 9) {
-                throw new Error("Invalid hex string");
+                throw new Error("Invalid hex string: " + hex.slice(0, 10) + (hex.length > 10 ? "..." : ""));
             }
 
             if (hex.length <= 5) {
@@ -1863,14 +2123,64 @@
         }
 
         static fromHSL(h, s, l) {
-            s /= 100;
-            l /= 100;
+            return new LS.Color().setHSL(h, s, l);
+        }
 
-            let k = n => (n + h / 30) % 12,
-                a = s * Math.min(l, 1 - l),
-                f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+        static fromHSB(h, s, b) {
+            return new LS.Color().setHSB(h, s, b);
+        }
 
-            return new LS.Color(255 * f(0), 255 * f(8), 255 * f(4));
+        static fromHex(hex) {
+            let [r, g, b, a] = LS.Color.parseHex(hex);
+            return new LS.Color(r, g, b, a);
+        }
+
+        static fromInt(int) {
+            let r = (int >> 16) & 0xFF;
+            let g = (int >> 8) & 0xFF;
+            let b = int & 0xFF;
+            return new LS.Color(r, g, b);
+        }
+
+        static fromPixel(pixel) {
+            return new LS.Color(pixel[0], pixel[1], pixel[2], pixel[3] / 255);
+        }
+
+        static fromUint8(data, offset = 0, alpha = true) {
+            return new LS.Color(data[offset], data[offset + 1], data[offset + 2], alpha ? data[offset + 3] / 255 : 1);
+        }
+
+        static fromObject(obj) {
+            return new LS.Color(obj.r, obj.g, obj.b, obj.a);
+        }
+
+        /**
+         * Turns a plain object into a LS.Color instance without copying values or validation.
+         * Avoid using unless you have a specific use case and know what you are doing.
+         * @warning This mutates the provided object. The object must have r, g, b, a properties.
+         */
+        static fromObjectFast(obj) {
+            return Object.setPrototypeOf(obj, LS.Color.prototype);
+        }
+
+        static fromNamed(name) {
+            if(LS.Color.namedColors.has(name)) {
+                let [r, g, b, a] = LS.Color.namedColors.get(name);
+                return new LS.Color(r, g, b, a);
+            }
+            throw new Error("Unknown color name: " + name);
+        }
+
+        static fromCSS(colorString) {
+            if(!LS.Color.context) {
+                LS.Color._createProcessingCanvas();
+            }
+
+            LS.Color.context.fillStyle = "#000000";
+            LS.Color.context.fillStyle = colorString;
+
+            // fillStyle result is weirdly inconsistent; color names become hex, rgb/rgba stay as is, so we still parse it
+            return new LS.Color(LS.Color.context.fillStyle);
         }
 
         static random() {
@@ -1881,34 +2191,38 @@
             return new LS.Color([...crypto.getRandomValues(new Uint8Array(3))]);
         }
 
+        static get lightModePreffered() {
+            return window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+        }
+
         static get theme(){
-            return document.body.getAttribute("ls-theme")
+            return document.body.getAttribute("ls-theme");
         }
 
         static set theme(theme){
-            this.setTheme(theme)
+            this.setTheme(theme);
         }
 
         static get accent(){
-            return document.body.getAttribute("ls-accent")
+            return document.body.getAttribute("ls-accent");
         }
 
         static set accent(color){
-            this.setAccent(color)
+            this.setAccent(color);
         }
 
         static generate(r, g, b) {
             let color = (r instanceof LS.Color)? r: new LS.Color(r, g, b), style = "";
 
             for(let i of [10, 20, 30, 35, 40, 45, 50, 55, 60, 70, 80, 90, 95]){
-                style += `--accent-${i}:${color.lightness(i).hex};`;
+                style += `--accent-${i}:${color.clone().lightness(i).hex};`;
             }
 
             for(let i of [6, 8, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 98]){
-                style += `--base-${i}:${color.tone(null, 12, i).hex};`; 
+                style += `--base-${i}:${color.clone().tone(null, 12, i).hex};`; 
             }
 
-            return style
+            return style;
         }
 
         static add(name, r, g, b){
@@ -1936,12 +2250,12 @@
                 accent.style.textContent = style;
             }
 
-            return accent
+            return accent;
         }
 
         static apply(element, r, g, b){
             let color = (r instanceof LS.Color)? r: new LS.Color(r, g, b);
-            element.style = (element.style? element.style: "") + this.generate(color);
+            element.style.cssText += this.generate(color);
             element.setAttribute("ls-accent", "");
         }
 
@@ -1966,31 +2280,29 @@
             setTimeout(() => {
                 document.body.classList.remove("no-transitions");
             }, 0);
-            return this
+
+            return this;
         }
 
         static setAdaptiveTheme(amoled){
             LS.Color.setTheme(localStorage.getItem("ls-theme") || (this.lightModePreffered? "light": amoled? "amoled" : "dark"));
-            return this
+            return this;
         }
 
         static autoScheme(amoled){
             LS.once("body-available", () => {
                 this.setAdaptiveTheme(amoled);
-                this.on("scheme-changed", () => this.setAdaptiveTheme())
+                this.on("scheme-changed", () => this.setAdaptiveTheme());
             })
-            return this
+
+            return this;
         }
 
         static all(){
-            return this.colors.keys()
+            return [...this.colors.keys()];
         }
 
-        static random(){
-            return new LS.Color(Math.floor(Math.random() * 256), Math.floor(Math.random() * 256), Math.floor(Math.random() * 256))
-        }
-
-        static andomAccent(){
+        static randomAccent(){
             let colors = this.all();
             return colors[Math.floor(Math.random() * colors.length)];
         }
@@ -2012,6 +2324,7 @@
             }
 
             // Set willReadFrequently for better performance on some browsers
+            // This forces software rendering, and since we only process small amounts of data, read speeds are more important
             if (LS.Color.context && LS.Color.context.getImageData) {
                 LS.Color.context.willReadFrequently = true;
             }
@@ -2050,6 +2363,158 @@
                 LS.Color.context = canvas.getContext('2d');
             }
         }
+
+        static namedColors = new Map([
+            ["aliceblue", [240, 248, 255]],
+            ["antiquewhite", [250, 235, 215]],
+            ["aqua", [0, 255, 255]],
+            ["aquamarine", [127, 255, 212]],
+            ["azure", [240, 255, 255]],
+            ["beige", [245, 245, 220]],
+            ["bisque", [255, 228, 196]],
+            ["black", [0, 0, 0]],
+            ["blanchedalmond", [255, 235, 205]],
+            ["blue", [0, 0, 255]],
+            ["blueviolet", [138, 43, 226]],
+            ["brown", [165, 42, 42]],
+            ["burlywood", [222, 184, 135]],
+            ["cadetblue", [95, 158, 160]],
+            ["chartreuse", [127, 255, 0]],
+            ["chocolate", [210, 105, 30]],
+            ["coral", [255, 127, 80]],
+            ["cornflowerblue", [100, 149, 237]],
+            ["cornsilk", [255, 248, 220]],
+            ["crimson", [220, 20, 60]],
+            ["cyan", [0, 255, 255]],
+            ["darkblue", [0, 0, 139]],
+            ["darkcyan", [0, 139, 139]],
+            ["darkgoldenrod", [184, 134, 11]],
+            ["darkgray", [169, 169, 169]],
+            ["darkgreen", [0, 100, 0]],
+            ["darkgrey", [169, 169, 169]],
+            ["darkkhaki", [189, 183, 107]],
+            ["darkmagenta", [139, 0, 139]],
+            ["darkolivegreen", [85, 107, 47]],
+            ["darkorange", [255, 140, 0]],
+            ["darkorchid", [153, 50, 204]],
+            ["darkred", [139, 0, 0]],
+            ["darksalmon", [233, 150, 122]],
+            ["darkseagreen", [143, 188, 143]],
+            ["darkslateblue", [72, 61, 139]],
+            ["darkslategray", [47, 79, 79]],
+            ["darkslategrey", [47, 79, 79]],
+            ["darkturquoise", [0, 206, 209]],
+            ["darkviolet", [148, 0, 211]],
+            ["deeppink", [255, 20, 147]],
+            ["deepskyblue", [0, 191, 255]],
+            ["dimgray", [105, 105, 105]],
+            ["dimgrey", [105, 105, 105]],
+            ["dodgerblue", [30, 144, 255]],
+            ["firebrick", [178, 34, 34]],
+            ["floralwhite", [255, 250, 240]],
+            ["forestgreen", [34, 139, 34]],
+            ["fuchsia", [255, 0, 255]],
+            ["gainsboro", [220, 220, 220]],
+            ["ghostwhite", [248, 248, 255]],
+            ["gold", [255, 215, 0]],
+            ["goldenrod", [218, 165, 32]],
+            ["gray", [128, 128, 128]],
+            ["green", [0, 128, 0]],
+            ["greenyellow", [173, 255, 47]],
+            ["grey", [128, 128, 128]],
+            ["honeydew", [240, 255, 240]],
+            ["hotpink", [255, 105, 180]],
+            ["indianred", [205, 92, 92]],
+            ["indigo", [75, 0, 130]],
+            ["ivory", [255, 255, 240]],
+            ["khaki", [240, 230, 140]],
+            ["lavender", [230, 230, 250]],
+            ["lavenderblush", [255, 240, 245]],
+            ["lawngreen", [124, 252, 0]],
+            ["lemonchiffon", [255, 250, 205]],
+            ["lightblue", [173, 216, 230]],
+            ["lightcoral", [240, 128, 128]],
+            ["lightcyan", [224, 255, 255]],
+            ["lightgoldenrodyellow", [250, 250, 210]],
+            ["lightgray", [211, 211, 211]],
+            ["lightgreen", [144, 238, 144]],
+            ["lightgrey", [211, 211, 211]],
+            ["lightpink", [255, 182, 193]],
+            ["lightsalmon", [255, 160, 122]],
+            ["lightseagreen", [32, 178, 170]],
+            ["lightskyblue", [135, 206, 250]],
+            ["lightslategray", [119, 136, 153]],
+            ["lightslategrey", [119, 136, 153]],
+            ["lightsteelblue", [176, 196, 222]],
+            ["lightyellow", [255, 255, 224]],
+            ["lime", [0, 255, 0]],
+            ["limegreen", [50, 205, 50]],
+            ["linen", [250, 240, 230]],
+            ["magenta", [255, 0, 255]],
+            ["maroon", [128, 0, 0]],
+            ["mediumaquamarine", [102, 205, 170]],
+            ["mediumblue", [0, 0, 205]],
+            ["mediumorchid", [186, 85, 211]],
+            ["mediumpurple", [147, 112, 219]],
+            ["mediumseagreen", [60, 179, 113]],
+            ["mediumslateblue", [123, 104, 238]],
+            ["mediumspringgreen", [0, 250, 154]],
+            ["mediumturquoise", [72, 209, 204]],
+            ["mediumvioletred", [199, 21, 133]],
+            ["midnightblue", [25, 25, 112]],
+            ["mintcream", [245, 255, 250]],
+            ["mistyrose", [255, 228, 225]],
+            ["moccasin", [255, 228, 181]],
+            ["navajowhite", [255, 222, 173]],
+            ["navy", [0, 0, 128]],
+            ["oldlace", [253, 245, 230]],
+            ["olive", [128, 128, 0]],
+            ["olivedrab", [107, 142, 35]],
+            ["orange", [255, 165, 0]],
+            ["orangered", [255, 69, 0]],
+            ["orchid", [218, 112, 214]],
+            ["palegoldenrod", [238, 232, 170]],
+            ["palegreen", [152, 251, 152]],
+            ["paleturquoise", [175, 238, 238]],
+            ["palevioletred", [219, 112, 147]],
+            ["papayawhip", [255, 239, 213]],
+            ["peachpuff", [255, 218, 185]],
+            ["peru", [205, 133, 63]],
+            ["pink", [255, 192, 203]],
+            ["plum", [221, 160, 221]],
+            ["powderblue", [176, 224, 230]],
+            ["purple", [128, 0, 128]],
+            ["rebeccapurple", [102, 51, 153]],
+            ["red", [255, 0, 0]],
+            ["rosybrown", [188, 143, 143]],
+            ["royalblue", [65, 105, 225]],
+            ["saddlebrown", [139, 69, 19]],
+            ["salmon", [250, 128, 114]],
+            ["sandybrown", [244, 164, 96]],
+            ["seagreen", [46, 139, 87]],
+            ["seashell", [255, 245, 238]],
+            ["sienna", [160, 82, 45]],
+            ["silver", [192, 192, 192]],
+            ["skyblue", [135, 206, 235]],
+            ["slateblue", [106, 90, 205]],
+            ["slategray", [112, 128, 144]],
+            ["slategrey", [112, 128, 144]],
+            ["snow", [255, 250, 250]],
+            ["springgreen", [0, 255, 127]],
+            ["steelblue", [70, 130, 180]],
+            ["tan", [210, 180, 140]],
+            ["teal", [0, 128, 128]],
+            ["thistle", [216, 191, 216]],
+            ["tomato", [255, 99, 71]],
+            ["turquoise", [64, 224, 208]],
+            ["violet", [238, 130, 238]],
+            ["wheat", [245, 222, 179]],
+            ["white", [255, 255, 255]],
+            ["whitesmoke", [245, 245, 245]],
+            ["yellow", [255, 255, 0]],
+            ["yellowgreen", [154, 205, 50]],
+            ["transparent", [0, 0, 0, 0]]
+        ]);
     }
 
     if(LS.isWeb){
