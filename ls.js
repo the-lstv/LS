@@ -1232,7 +1232,7 @@
                     }
 
                     this.value = -1;
-                    this.set(this.options.initial);
+                    if(this.options.initial > -1) this.set(this.options.initial);
                 }
 
                 front() {
