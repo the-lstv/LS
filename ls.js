@@ -1243,6 +1243,14 @@
                     this.set(0);
                 }
 
+                get frontElement() {
+                    return this.elements[1];
+                }
+
+                get backElement() {
+                    return this.elements[0];
+                }
+
                 toggle() {
                     this.set(this.value === 0 ? 1 : 0);
                 }

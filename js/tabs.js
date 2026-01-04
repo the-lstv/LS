@@ -5,8 +5,8 @@ LS.LoadComponent(class Tabs extends LS.Component {
         this.order = [];
         this.tabs = new Map;
         this.activeTab = null;
-        this.element = O(element);
-        this.container = O(element);
+        this.element = element? O(element) : N("div");
+        this.container = element? O(element) : N("div");
 
         options = LS.Util.defaults({
             styled: options.unstyled? false: true,
