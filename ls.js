@@ -1236,7 +1236,7 @@
                 }
 
                 front() {
-                    this.set(1);
+                    this.set(this.elements.length - 1);
                 }
 
                 back() {
@@ -1244,7 +1244,7 @@
                 }
 
                 get frontElement() {
-                    return this.elements[1];
+                    return this.elements[this.elements.length - 1];
                 }
 
                 get backElement() {
@@ -1260,11 +1260,19 @@
                     this.value = index;
 
                     if(this.options.mode === "dom" && this.options.parent) {
-                        this.options.parent.appendChild(this.elements[index]);
-                        this.elements[1 - index]?.remove();
+                        for(let i = 0; i < this.elements.length; i++) {
+                            if(!this.elements[i]) continue;
+
+                            if(i === index) {
+                                this.options.parent.appendChild(this.elements[i]);
+                            } else {
+                                this.elements[i].remove();
+                            }
+                        }
                     } else {
-                        if(this.elements[0]) this.elements[0].style[this.options.mode === "display"? "display" : "visibility"] = index === 0 ? "" : (this.options.mode === "display"? "none" : "hidden");
-                        if(this.elements[1]) this.elements[1].style[this.options.mode === "display"? "display" : "visibility"] = index === 1 ? "" : (this.options.mode === "display"? "none" : "hidden");
+                        for(let i = 0; i < this.elements.length; i++) {
+                            if(this.elements[i]) this.elements[i].style[this.options.mode === "display"? "display" : "visibility"] = i === index ? "" : (this.options.mode === "display"? "none" : "hidden");
+                        }
                     }
 
                     if(this.options.onSet) this.options.onSet(this.value);

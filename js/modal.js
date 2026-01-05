@@ -215,6 +215,7 @@
                     return N("button", {
                         class: `ls-modal-button ${button.class || ''}`,
                         inner: button.label || 'Button',
+                        accent: button.accent ? button.accent : null,
                         onclick: button.onClick || button.onclick || (() => modal.close())
                     });
                 })}));
