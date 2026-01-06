@@ -5,7 +5,10 @@
 - Remove or update v4compat (too many changes in v5)
 - Improve accessibility & edge cases
 
-### Version 5.2.7 (ongoing)
+### Version 5.2.8
+
+
+### Version 5.2.7
 - Listeners can be removed by returning LS.REMOVE_LISTENER
 - Data support for completed events
 - A global event for component registration

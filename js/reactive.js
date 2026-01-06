@@ -13,14 +13,30 @@
 (() => {
     let LSReactive;
 
+    /**
+     * A binding that connects an object to the reactive system.
+     * @extends LS.EventHandler
+     * @property {object} object The base object being bound
+     * @property {Map<string, Set<HTMLElement>>} keys A map of keys to sets of HTML elements that are bound
+     * @property {boolean} updated Whether the binding has been updated
+     * @property {boolean} _mutated Whether the binding has been mutated
+     * @property {ReactiveBinding|null} parent The parent binding, if any
+     * @property {Proxy|null} source The proxy object, if any
+     */
     class ReactiveBinding extends LS.EventHandler {
-        constructor(object = {}) {
+        constructor(object = {}, parent = null) {
             super();
 
             this.object = object;
             this.updated = true;
             this.keys = new Map();
             this._mutated = false;
+            this._parent = parent;
+        }
+
+        get parent() {
+            // TODO: Traverse up the chain
+            return this._parent;
         }
 
         /**
@@ -94,41 +110,26 @@
          * @param {string} prefix The prefix to bind the object to
          * @param {object} object The object to wrap
          * @param {object} options Options for the binding
-         * @param {boolean} options.recursive Whether to recursively bind all objects
          * @param {function} options.fallback Fallback function to use when the key is not found
          * @returns {Proxy} The proxy object
          */
         bindTo(prefix, object, options = {}){
-            if(typeof prefix === "string") prefix += "."; else prefix = "";
-            this.object = object;
-
-            if(options.recursive) for(let key in object) {
-                if(typeof object[key] === "object" && object[key] !== null && object[key].__isProxy === undefined && Object.getPrototypeOf(object[key]) === Object.prototype) {
-                    object[key] = LS.Reactive.wrap(prefix + key, object[key], options);
-                }
-            }
-
+            if(typeof prefix === "string") { if (!prefix.endsWith(".")) prefix += "."; } else prefix = "";
             if(object.__isProxy) return object;
 
-            if(options.fallback) {
-                this.fallback = options.fallback;
-            }
+            this.key = prefix.slice(prefix.lastIndexOf(".", prefix.length -2) +1, prefix.length -1);
+
+            this.object = object;
+            this.options = options || {};
 
             const proxy = new Proxy(object, {
                 set: (_, key, value) => {
-                    if(this.fallback && this._mutated === false) {
+                    if(this.options.fallback && this._mutated === false) {
                         this.emit("mutated");
                         this._mutated = true;
                     }
 
                     this.emit("set", [key, value]);
-
-                    // Wrap new nested objects dynamically
-                    if(options.recursive && typeof value === "object" && value !== null && !value.__isProxy) {
-                        value = LS.Reactive.wrap(prefix + key, value, options);
-                        this.object[key] = value;
-                        return true;
-                    }
 
                     this.object[key] = value;
                     this.updated = true;
@@ -139,17 +140,28 @@
                 get: (_, key) => {
                     if (key === "__isProxy") return true;
                     if (key === "__binding") return this;
-                    if (key === "__reset" && this.fallback) return () => this.reset();
-                    if (key === "__data" && this.fallback) return this.object;
-                    if (key === "__parent" && this.fallback) return this.fallback;
+                    if (key === "__reset" && this.options.fallback) return () => this.reset();
 
-                    if(this.fallback && !this.object.hasOwnProperty(key)) return this.fallback[key];
-                    return this.object[key];
+                    if(this.options.fallback && !this.object.hasOwnProperty(key)) return this.options.fallback[key];
+
+                    const value = this.object[key];
+                    if(typeof value === "object" && value !== null && !value.__isProxy) {
+                        return LS.Reactive.wrap(prefix + key, value, options, this);
+                    }
+
+                    return value;
                 },
 
                 deleteProperty: (_, key) => {
+                    const value = this.object[key];
+                    const binding = (typeof value === "object" && value !== null && value.__isProxy)? value.__binding: null;
+
                     delete this.object[key];
                     this.renderKey(key);
+
+                    if(binding) {
+                        binding?.destroy();
+                    }
                 }
             });
 
@@ -176,10 +188,12 @@
             this.keys.clear();
             this.object = null;
             this.source = null;
-            this.fallback = null;
+            this.options = null;
+            this._parent = null;
             this._destroyed = true;
             this.emit("destroy");
             this.events.clear();
+            return;
         }
     }
 
@@ -247,6 +261,8 @@
             }
 
             const [prefix, name, extra] = this.splitPath(rawBinding);
+            console.log(rawBinding);
+
             if(!name) return;
 
             const key = this.parseKey(prefix, name, extra);
@@ -462,17 +478,16 @@
          * @param {string} prefix The prefix to bind to
          * @param {object} object The object to wrap
          * @param {object} options Options for the binding
-         * @param {boolean} options.recursive Whether to recursively bind nested objects
          * @param {boolean} options.fallback Fallback object to use when the key is not found
          * @returns {Proxy} The reactive proxy object
          */
 
-        wrap(prefix, object = {}, options = {}){
-            if(typeof prefix === "string") prefix += "."; else prefix = "";
+        wrap(prefix, object = {}, options = {}, parent){
+            if(typeof prefix === "string") { if (!prefix.endsWith(".")) prefix += "."; } else prefix = "";
 
             let binding = this.bindCache.get(prefix);
             if(!binding) {
-                binding = new ReactiveBinding(object);
+                binding = new ReactiveBinding(object, parent);
                 this.bindCache.set(prefix, binding);
             } else {
                 binding.object = object;
@@ -481,11 +496,14 @@
             return binding.bindTo(prefix, object, options);
         }
 
+        getBinding(prefix){
+            if(typeof prefix === "string") { if (!prefix.endsWith(".")) prefix += "."; } else prefix = "";
+            return this.bindCache.get(prefix);
+        }
+
         /**
          * Same as wrap(), but changes will not mutate the original object.
          * The proxy will also get the following properties:
-         * * `__parent` - The original object
-         * * `__data` - Forked object
          * * `__reset()` - A function to reset the binding (clears changes and reverts to the original object)
          * 
          * @param {string} prefix The prefix to bind to
@@ -561,6 +579,14 @@
 
         renderKey(key, binding){
             const cache = binding.keys.get(key);
+
+            console.log("Rendered key", key, "for binding", binding);
+
+            if(binding.parent) {
+                this.renderKey(binding.key, binding.parent);
+                console.log("Propagating to", binding.parent, binding.key);
+            }
+
             if(!cache || cache.size === 0) return;
 
             const source = binding.source || binding.object;
