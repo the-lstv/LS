@@ -4,6 +4,10 @@
  * 
  * TODO: Support attribute binding
  * TODO: Bind multiple values (eg. {{ user.displayname || user.username }})
+ * 
+ * TODO: Recursive bindings
+ * TODO: Array bindings ("user.friends.0.name", "user.friends[0].name", "each user.friends { ... }")
+ * TODO: Event bindings ("@click user.clicked()")
  */
 
 (() => {
@@ -57,7 +61,7 @@
             this.updated = true;
             this.render();
             this._mutated = false;
-            this.emit("reset");
+            this.emit("reset", [false]);
             return true;
         }
 
@@ -74,7 +78,7 @@
             this.updated = true;
             this.render();
             this._mutated = false;
-            this.emit("reset");
+            this.emit("reset", [true]);
             return true;
         }
 
@@ -154,6 +158,29 @@
 
             return proxy;
         }
+
+        /**
+         * Destroys the binding, cleaning up all references and event listeners.
+         * After calling this, the binding should not be used anymore.
+         * @returns {void}
+         */
+        destroy() {
+            // Clean up all bound elements
+            for (const [key, elements] of this.keys) {
+                for (const element of elements) {
+                    delete element.__reactive;
+                    delete element.__last_bind;
+                }
+            }
+
+            this.keys.clear();
+            this.object = null;
+            this.source = null;
+            this.fallback = null;
+            this._destroyed = true;
+            this.emit("destroy");
+            this.events.clear();
+        }
     }
 
     LS.LoadComponent(class Reactive extends LS.Component {
@@ -162,6 +189,16 @@
             LSReactive = this;
 
             this.bindCache = new Map();
+
+            // Initialize types Map as instance property
+            this.types = new Map([
+                ["string", String],
+                ["number", Number],
+                ["boolean", Boolean],
+                ["array", Array],
+                ["object", Object],
+                ["function", Function]
+            ]);
 
             this.global = this.wrap(null, {}, true);
 
@@ -176,9 +213,7 @@
          */
 
         scan(scanTarget = document.body){
-            const scan = scanTarget.querySelectorAll(`[data-reactive]`);
- 
-            for(let target of scan) {
+            for(let target of scanTarget.querySelectorAll(`[data-reactive]`)) {
                 this.bindElement(target);
             }
         }
@@ -186,34 +221,35 @@
         /**
          * Parses the data-reactive attribute of an element and caches it for lookup
          * @param {HTMLElement} target The target element to bind
+         * @param {string} defaultBind Binding string, defaults to the data-reactive attribute
          */
 
         bindElement(target, defaultBind = null){
-            let attribute = (defaultBind || target.getAttribute("data-reactive")).trim();
-            if(!attribute || target.__last_bind === attribute) return;
+            let rawBinding = (defaultBind || target.getAttribute("data-reactive")).trim();
+            if(!rawBinding || target.__last_bind === rawBinding) return;
 
             if(target.__last_bind) this.unbindElement(target, true);
 
-            target.__last_bind = attribute;
+            target.__last_bind = rawBinding;
 
             // Match data prefix
             let value_prefix = null;
-            if(this.constructor.matchStringChar(attribute.charCodeAt(0))) {
-                const string_char = attribute.charAt(0);
-                const end = attribute.indexOf(string_char, 1);
+            if(this.matchStringChar(rawBinding.charCodeAt(0))) {
+                const string_char = rawBinding.charAt(0);
+                const end = rawBinding.indexOf(string_char, 1);
                 if(end === -1) {
-                    console.warn("Invalid reactive attribute: " + attribute);
+                    console.warn("Invalid reactive attribute: " + rawBinding);
                     return;
                 }
 
-                value_prefix = attribute.slice(1, end);
-                attribute = attribute.slice(end + 1).trim();
+                value_prefix = rawBinding.slice(1, end);
+                rawBinding = rawBinding.slice(end + 1).trim();
             }
 
-            const [prefix, name, extra] = this.split_path(attribute);
+            const [prefix, name, extra] = this.splitPath(rawBinding);
             if(!name) return;
 
-            const key = this.constructor.parseKey(prefix, name, extra);
+            const key = this.parseKey(prefix, name, extra);
 
             target.__reactive = key;
 
@@ -244,7 +280,7 @@
             if(!keepAttribute) target.removeAttribute("data-reactive");
             if(!target.__last_bind) return;
 
-            const [prefix, name] = this.split_path(target.__last_bind);
+            const [prefix, name] = this.splitPath(target.__last_bind);
 
             delete target.__last_bind;
             delete target.__reactive;
@@ -264,7 +300,7 @@
          * @param {string} extra The key string to parse
         */
 
-        static parseKey(prefix, name, extra){
+        parseKey(prefix, name, extra){
             let i = -1, v_start = 0, v_propety = null, state = 0, string_char = null;
 
             const result = {
@@ -371,7 +407,7 @@
             return result;
         }
 
-        static matchKeyword(char){
+        matchKeyword(char){
             return (
                 (char >= 48 && char <= 57) || // 0-9
                 (char >= 65 && char <= 90) || // A-Z
@@ -381,22 +417,13 @@
             )
         }
 
-        static matchWhitespace(char){
+        matchWhitespace(char){
             return char === 32 || char === 9 || char === 10 || char === 13;
         }
 
-        static matchStringChar(char){
+        matchStringChar(char){
             return char === 34 || char === 39 || char === 96;
         }
-
-        static types = new Map([
-            ["string", String],
-            ["number", Number],
-            ["boolean", Boolean],
-            ["array", Array],
-            ["object", Object],
-            ["function", Function]
-        ]);
 
         registerType(name, type){
             if(typeof name !== "string" || !name.trim()) {
@@ -407,10 +434,10 @@
                 throw new Error("Invalid type: " + type);
             }
 
-            this.constructor.types.set(name.toLowerCase(), type);
+            this.types.set(name.toLowerCase(), type);
         }
 
-        split_path(path){
+        splitPath(path){
             if(!path) return [null, null, null];
 
             const match = path.match(/^([a-zA-Z0-9._-]+)(.*)/);
@@ -482,7 +509,7 @@
          */
 
         bind(path, object){
-            const [prefix, key] = this.split_path(path);
+            const [prefix, key] = this.splitPath(path);
 
             let binding = this.bindCache.get(prefix);
             if (!binding) {
@@ -557,7 +584,7 @@
 
             // Try getting the type again
             if(typeof target.__reactive.type === "string") {
-                target.__reactive.type = this.constructor.types.get(target.__reactive.type.toLowerCase()) || target.__reactive.type;
+                target.__reactive.type = this.types.get(target.__reactive.type.toLowerCase()) || target.__reactive.type;
             }
 
             if(typeof target.__reactive.type === "function") {
