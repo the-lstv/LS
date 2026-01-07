@@ -1656,16 +1656,25 @@
      */
     LS.Color = class Color {
         constructor(r, g, b, a) {
-            [r, g, b, a] = LS.Color.parse(r, g, b, a);
-            this.r = r;
-            this.g = g;
-            this.b = b;
-            this.a = a;
+            if (r && (r instanceof Uint8Array || r instanceof Uint8ClampedArray || r instanceof ArrayBuffer)) {
+                this.data = (r instanceof ArrayBuffer) ? new Uint8Array(r) : r;
+                this.offset = (typeof g === "number") ? g : 0;
+                return;
+            }
+
+            // this.data = new Uint8Array(4);
+            // this.offset = 0;
+            // this.data[3] = 255;
+            this.data = [0, 0, 0, 255];
+            this.offset = 0;
+
+            if (typeof r !== "undefined") {
+                LS.Color.parse(r, g, b, a, this.data, this.offset);
+            }
         }
 
         static {
-            Object.setPrototypeOf(this, LS.EventHandler.prototype);
-            LS.EventHandler.prepareHandler(this);
+            this.events = new LS.EventHandler(this);
 
             this.colors = new Map;
             this.themes = new Set([ "light", "dark", "amoled" ]);
@@ -1684,12 +1693,25 @@
             }
         }
 
+        // Direct Buffer Access
+        get r() { return this.data[this.offset] }
+        set r(value) { this.data[this.offset] = value }
+
+        get g() { return this.data[this.offset + 1] }
+        set g(value) { this.data[this.offset + 1] = value }
+
+        get b() { return this.data[this.offset + 2] }
+        set b(value) { this.data[this.offset + 2] = value }
+
+        get a() { return this.data[this.offset + 3] / 255 }
+        set a(value) { this.data[this.offset + 3] = Math.round(value * 255) }
+
         get int(){
-            return ((this.r << 16) | (this.g << 8) | this.b) >>> 0;
+            return ((this.data[this.offset] << 16) | (this.data[this.offset + 1] << 8) | this.data[this.offset + 2]) >>> 0;
         }
 
         get hexInt() {
-            return (this.r << 16) | (this.g << 8) | this.b | (1 << 24);
+            return (this.data[this.offset] << 16) | (this.data[this.offset + 1] << 8) | this.data[this.offset + 2] | (1 << 24);
         }
 
         get hex() {
@@ -1697,17 +1719,17 @@
         }
 
         get rgb() {
-            return `rgb(${this.r}, ${this.g}, ${this.b})`;
+            return `rgb(${this.data[this.offset]}, ${this.data[this.offset + 1]}, ${this.data[this.offset + 2]})`;
         }
 
         get rgba() {
-            return `rgba(${this.r}, ${this.g}, ${this.b}, ${this.a})`;
+            return `rgba(${this.data[this.offset]}, ${this.data[this.offset + 1]}, ${this.data[this.offset + 2]}, ${this.data[this.offset + 3] / 255})`;
         }
 
         get hsl() {
-            let r = this.r / 255;
-            let g = this.g / 255;
-            let b = this.b / 255;
+            let r = this.data[this.offset] / 255;
+            let g = this.data[this.offset + 1] / 255;
+            let b = this.data[this.offset + 2] / 255;
 
             let max = Math.max(r, g, b);
             let min = Math.min(r, g, b);
@@ -1743,9 +1765,9 @@
         }
 
         get hsb() {
-            let r = this.r / 255;
-            let g = this.g / 255;
-            let b = this.b / 255;
+            let r = this.data[this.offset] / 255;
+            let g = this.data[this.offset + 1] / 255;
+            let b = this.data[this.offset + 2] / 255;
 
             let max = Math.max(r, g, b);
             let min = Math.min(r, g, b);
@@ -1781,18 +1803,18 @@
         }
 
         get color() {
-            return [this.r, this.g, this.b, this.a];
+            return [this.data[this.offset], this.data[this.offset + 1], this.data[this.offset + 2], this.data[this.offset + 3] / 255];
         }
 
         get pixel() {
-            return [this.r, this.g, this.b, this.a * 255];
+            return [this.data[this.offset], this.data[this.offset + 1], this.data[this.offset + 2], this.data[this.offset + 3]];
         }
 
         get brightness() {
             return Math.sqrt(
-                0.299 * (this.r * this.r) +
-                0.587 * (this.g * this.g) +
-                0.114 * (this.b * this.b)
+                0.299 * (this.data[this.offset] * this.data[this.offset]) +
+                0.587 * (this.data[this.offset + 1] * this.data[this.offset + 1]) +
+                0.114 * (this.data[this.offset + 2] * this.data[this.offset + 2])
             );
         }
 
@@ -1860,7 +1882,13 @@
          * Provide null to skip a channel
          */
         multiply(factorR, factorG, factorB, factorA) {
-            return this.setClamped(factorR === null? null: Math.round(this.r * factorR), factorG === null? null: Math.round(this.g * factorG), factorB === null? null: Math.round(this.b * factorB), factorA === null? null: this.a * factorA);
+            const d = this.data, o = this.offset;
+            return this.setClamped(
+                factorR === null ? null : Math.round(d[o] * factorR),
+                factorG === null ? null : Math.round(d[o+1] * factorG),
+                factorB === null ? null : Math.round(d[o+2] * factorB),
+                factorA === null ? null : (d[o+3] / 255) * factorA
+            );
         }
 
         /**
@@ -1868,33 +1896,60 @@
          * Provide null to skip a channel
          */
         divide(factorR, factorG, factorB, factorA) {
-            return this.setClamped(factorR === null? null: Math.round(this.r / factorR), factorG === null? null: Math.round(this.g / factorG), factorB === null? null: Math.round(this.b / factorB), factorA === null? null: this.a / factorA);
+            const d = this.data, o = this.offset;
+            return this.setClamped(
+                factorR === null ? null : Math.round(d[o] / factorR),
+                factorG === null ? null : Math.round(d[o+1] / factorG),
+                factorB === null ? null : Math.round(d[o+2] / factorB),
+                factorA === null ? null : (d[o+3] / 255) / factorA
+            );
         }
 
-        /**
-         * Adds the given values to each channel
-         */
         add(r2, g2, b2, a2) {
             let color = new LS.Color(r2, g2, b2, a2);
-            return this.setClamped(this.r + color.r, this.g + color.g, this.b + color.b, this.a + color.a);
+            const d = this.data, o = this.offset;
+            return this.setClamped(
+                d[o] + color.r,
+                d[o+1] + color.g,
+                d[o+2] + color.b,
+                (d[o+3] / 255) + color.a
+            );
         }
 
-        /**
-         * Subtracts the given values from each channel
-         */
         subtract(r2, g2, b2, a2) {
-            let color = new LS.Color(r2, g2, b2, a2).color;
-            return this.setClamped(this.r - color[0], this.g - color[1], this.b - color[2], this.a - color[3]);
+            let color = new LS.Color(r2, g2, b2, a2);
+            const d = this.data, o = this.offset;
+            return this.setClamped(
+                d[o] - color.r,
+                d[o+1] - color.g,
+                d[o+2] - color.b,
+                (d[o+3] / 255) - color.a
+            );
         }
 
         /**
          * Mixes this color with another one by the given weight (0 to 1)
          */
-        mix(anotherColor, weight = 0.5) {
-            this.r = Math.round(this.r * (1 - weight) + anotherColor.r * weight);
-            this.g = Math.round(this.g * (1 - weight) + anotherColor.g * weight);
-            this.b = Math.round(this.b * (1 - weight) + anotherColor.b * weight);
-            this.a = this.a * (1 - weight) + anotherColor.a * weight;
+        mix(val, weight = 0.5) {
+            let r2, g2, b2, a2;
+            if (val instanceof LS.Color) {
+               r2 = val.r; g2 = val.g; b2 = val.b; a2 = val.a;
+            } else if (Array.isArray(val)) {
+               r2 = val[0]; g2 = val[1]; b2 = val[2]; a2 = val[3] !== undefined ? (val[3] > 1 ? val[3]/255 : val[3]) : 1;
+            } else {
+               const c = new LS.Color(val);
+               r2 = c.r; g2 = c.g; b2 = c.b; a2 = c.a;
+            }
+
+            const d = this.data, o = this.offset;
+            
+            d[o] = Math.round(d[o] * (1 - weight) + r2 * weight);
+            d[o+1] = Math.round(d[o+1] * (1 - weight) + g2 * weight);
+            d[o+2] = Math.round(d[o+2] * (1 - weight) + b2 * weight);
+            
+            let currentA = d[o+3] / 255;
+            d[o+3] = Math.round((currentA * (1 - weight) + a2 * weight) * 255);
+            
             return this;
         }
 
@@ -1902,7 +1957,7 @@
          * Sets the alpha channel to a value
          */
         alpha(v) {
-            this.a = Math.min(Math.max(v, 0), 1);
+            this.data[this.offset + 3] = Math.min(Math.max(v, 0), 1) * 255;
             return this;
         }
 
@@ -1919,12 +1974,12 @@
                 a = s * Math.min(l, 1 - l),
                 f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
 
-            this.r = 255 * f(0);
-            this.g = 255 * f(8);
-            this.b = 255 * f(4);
+            this.data[this.offset] = Math.round(255 * f(0));
+            this.data[this.offset+1] = Math.round(255 * f(8));
+            this.data[this.offset+2] = Math.round(255 * f(4));
 
             if (typeof alpha === "number" && !isNaN(alpha)) {
-                this.a = Math.min(Math.max(alpha, 0), 1);
+                this.data[this.offset+3] = Math.round(Math.min(Math.max(alpha, 0), 1) * 255);
             }
             return this;
         }
@@ -1961,12 +2016,12 @@
                     r = b; g = p; b2 = q; break;
             }
 
-            this.r = Math.round(r * 255);
-            this.g = Math.round(g * 255);
-            this.b = Math.round(b2 * 255);
+            this.data[this.offset] = Math.round(r * 255);
+            this.data[this.offset+1] = Math.round(g * 255);
+            this.data[this.offset+2] = Math.round(b2 * 255);
 
             if (typeof alpha === "number" && !isNaN(alpha)) {
-                this.a = Math.min(Math.max(alpha, 0), 1);
+                this.data[this.offset+3] = Math.round(Math.min(Math.max(alpha, 0), 1) * 255);
             }
             return this;
         }
@@ -1975,15 +2030,27 @@
          * Sets the color channels and clamps them to valid ranges
          */
         setClamped(r, g, b, a) {
-            if (typeof r !== "number" || isNaN(r)) r = this.r || 255;
-            if (typeof g !== "number" || isNaN(g)) g = this.g || 255;
-            if (typeof b !== "number" || isNaN(b)) b = this.b || 255;
-            if (typeof a !== "number" || isNaN(a)) a = this.a || 1;
+            const d = this.data, o = this.offset;
+            
+            if (typeof r !== "number" || isNaN(r)) r = d[o];
+            if (typeof g !== "number" || isNaN(g)) g = d[o+1];
+            if (typeof b !== "number" || isNaN(b)) b = d[o+2];
+            if (typeof a !== "number" || isNaN(a)) a = d[o+3] / 255;
 
-            this.r = Math.round(Math.min(255, Math.max(0, r)));
-            this.g = Math.round(Math.min(255, Math.max(0, g)));
-            this.b = Math.round(Math.min(255, Math.max(0, b)));
-            this.a = Math.min(1, Math.max(0, a));
+            // Manual clamping before Uint8 wrapping happens
+            d[o] = Math.max(0, Math.min(255, r));
+            d[o+1] = Math.max(0, Math.min(255, g));
+            d[o+2] = Math.max(0, Math.min(255, b));
+            d[o+3] = Math.max(0, Math.min(1, a)) * 255;
+            
+            return this;
+        }
+
+        /**
+         * Sets the color from any valid input
+         */
+        set(r, g, b, a) {
+            LS.Color.parse(r, g, b, a, this.data, this.offset);
             return this;
         }
 
@@ -1991,7 +2058,13 @@
          * Creates a copy of this color
          */
         clone() {
-            return new LS.Color(this.r, this.g, this.b, this.a);
+            const c = new LS.Color();
+            const d = this.data, o = this.offset;
+            c.data[0] = d[o];
+            c.data[1] = d[o+1];
+            c.data[2] = d[o+2];
+            c.data[3] = d[o+3];
+            return c;
         }
 
         toString() {
@@ -1999,23 +2072,23 @@
         }
 
         toArray() {
-            return [this.r, this.g, this.b, this.a];
+            return [this.data[this.offset], this.data[this.offset+1], this.data[this.offset+2], this.data[this.offset+3] / 255];
         }
 
         toJSON() {
             return {
-                r: this.r,
-                g: this.g,
-                b: this.b,
-                a: this.a
+                r: this.data[this.offset],
+                g: this.data[this.offset+1],
+                b: this.data[this.offset+2],
+                a: this.data[this.offset+3] / 255
             };
         }
 
         *[Symbol.iterator]() {
-            yield this.r;
-            yield this.g;
-            yield this.b;
-            yield this.a;
+            yield this.data[this.offset];
+            yield this.data[this.offset+1];
+            yield this.data[this.offset+2];
+            yield this.data[this.offset+3] / 255;
         }
 
         [Symbol.toPrimitive](hint) {
@@ -2033,12 +2106,124 @@
             return this.int;
         }
 
-        static parse(r, g, b, a) {
+        /**
+         * Creates a Uint8Array pixel with RGBA values
+         * @returns {Uint8Array}
+         */
+        toUint8Array() {
+            return new Uint8Array(this.data.slice(this.offset, this.offset + 4));
+        }
+
+        /**
+         * Creates a WebGL texture with this color
+         * @param {WebGLRenderingContext} gl WebGL context
+         * @returns {WebGLTexture}
+         */
+        toTexture(gl) {
+            const texture = gl.createTexture();
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+
+            gl.texImage2D(
+                gl.TEXTURE_2D,
+                0,                  // level
+                gl.RGBA,            // internal format
+                1, 1,               // width, height
+                0,                  // border
+                gl.RGBA,            // format
+                gl.UNSIGNED_BYTE,   // type
+                this.toUint8Array() // pixel data
+            );
+
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+            return texture;
+        }
+
+        /**
+         * Creates an ImageData object with this color
+         * @returns {ImageData}
+         */
+        toImageData() {
+            if(!LS.Color.context) LS.Color._createProcessingCanvas();
+            const imageData = LS.Color.context.createImageData(1, 1);
+            imageData.data[0] = this.data[this.offset];
+            imageData.data[1] = this.data[this.offset+1];
+            imageData.data[2] = this.data[this.offset+2];
+            imageData.data[3] = this.data[this.offset+3];
+            return imageData;
+        }
+
+        /**
+         * Creates a div element with this color as background
+         * @param {number|string} w Optional width
+         * @param {number|string} h Optional height
+         * @returns {Element}
+         */
+        toDiv(w, h) {
+            const div = document.createElement('div');
+            div.style.backgroundColor = this.rgba;
+            if(w !== null && w !== undefined) div.style.width = typeof w === "number" ? w + 'px' : w;
+            if(h !== null && h !== undefined) div.style.height = typeof h === "number" ? h + 'px' : h;
+            return LS.Select(div);
+        }
+
+        // --- Special methods for multiple pixels
+
+        /**
+         * Set offset by pixel index
+         */
+        at(index) {
+            this.offset = index * 4;
+            return this;
+        }
+
+        /**
+         * Set offset by raw index (snapped to pixel index)
+         */
+        setOffset(index) {
+            this.at(Math.floor(index / 4));
+            return this;
+        }
+
+        next(by = 1) {
+            this.offset += by * 4;
+            return this;
+        }
+
+        get pixelCount() {
+            return this.data.length / 4;
+        }
+
+        get atEnd() {
+            return this.offset +4 >= this.data.length;
+        }
+
+        fill(r, g, b, a, offset = 0, limit = 0) {
+            LS.Color.parse(r, g, b, a, this.data, offset);
+
+            const length = this.data.length;
+            for (let i = offset + 4; i < (Math.min(limit * 4 || length, length)); i += 4) {
+                this.data[i] = this.data[offset];
+                this.data[i + 1] = this.data[offset + 1];
+                this.data[i + 2] = this.data[offset + 2];
+                this.data[i + 3] = this.data[offset + 3];
+            }
+            return this;
+        }
+
+        getAverage(offset = 0, limit = 0, sampleGap = 16) {}
+
+        static parse(r, g, b, a, target, offset = 0) {
+            if(!target) target = [0, 0, 0, 1];
+
             if (typeof r === "string") {
                 r = r.trim().toLowerCase();
 
                 if(r.length === 0) {
-                    return [255, 255, 255, 1];
+                    target[offset] = 0; target[offset + 1] = 0; target[offset + 2] = 0; target[offset + 3] = 255;
+                    return target;
                 }
 
                 // Hex
@@ -2068,8 +2253,15 @@
                     let match = r.match(/hsla?\(\s*([0-9.]+)(?:deg)?\s*[, ]\s*([0-9.]+)%?\s*[, ]\s*([0-9.]+)%?\s*(?:[,/]\s*([0-9.]+%?))?\s*\)/);
 
                     if(match) {
-                        this.setHSL(parseFloat(match[1]), parseFloat(match[2]), parseFloat(match[3]), match[4] ? (match[4].endsWith('%') ? parseFloat(match[4]) / 100 : parseFloat(match[4])) : 1);
-                        return;
+                        const temp = new LS.Color();
+                        const alpha = match[4] ? (match[4].endsWith('%') ? parseFloat(match[4]) / 100 : parseFloat(match[4])) : 1;
+                        temp.setHSL(parseFloat(match[1]), parseFloat(match[2]), parseFloat(match[3]), alpha);
+
+                        target[offset] = temp.data[0];
+                        target[offset + 1] = temp.data[1];
+                        target[offset + 2] = temp.data[2];
+                        target[offset + 3] = temp.data[3];
+                        return target;
                     } else {
                         throw new Error("Colour " + r + " could not be parsed.");
                     }
@@ -2081,8 +2273,15 @@
                     let match = r.match(/hsba?\(\s*([0-9.]+)(?:deg)?\s*[, ]\s*([0-9.]+)%?\s*[, ]\s*([0-9.]+)%?\s*(?:[,/]\s*([0-9.]+%?))?\s*\)/);
 
                     if(match) {
-                        this.setHSB(parseFloat(match[1]), parseFloat(match[2]), parseFloat(match[3]), match[4] ? (match[4].endsWith('%') ? parseFloat(match[4]) / 100 : parseFloat(match[4])) : 1);
-                        return;
+                        const temp = new LS.Color();
+                        const alpha = match[4] ? (match[4].endsWith('%') ? parseFloat(match[4]) / 100 : parseFloat(match[4])) : 1;
+                        temp.setHSB(parseFloat(match[1]), parseFloat(match[2]), parseFloat(match[3]), alpha);
+                        
+                        target[offset] = temp.data[0];
+                        target[offset + 1] = temp.data[1];
+                        target[offset + 2] = temp.data[2];
+                        target[offset + 3] = temp.data[3];
+                        return target;
                     } else {
                         throw new Error("Colour " + r + " could not be parsed.");
                     }
@@ -2090,6 +2289,11 @@
 
                 else if(LS.Color.namedColors.has(r)) {
                     [r, g, b, a] = LS.Color.namedColors.get(r);
+                    target[offset] = r;
+                    target[offset + 1] = g;
+                    target[offset + 2] = b;
+                    target[offset + 3] = a !== undefined ? a : 255;
+                    return target;
                 }
 
                 // As a last resort, we use fillStyle to let the browser parse any valid CSS color
@@ -2103,27 +2307,42 @@
                     [r, g, b, a] = LS.Color.parseHex(LS.Color.context.fillStyle);
                 }
             } else if (r instanceof LS.Color) {
-                [r, g, b, a] = r.color;
+               const d = r.data, o = r.offset;
+               target[offset] = d[o];
+               target[offset + 1] = d[o + 1];
+               target[offset + 2] = d[o + 2];
+               target[offset + 3] = d[o + 3];
+               return target;
             } else if (Array.isArray(r)) {
                 [r, g, b, a] = r;
             } else if (typeof r === "object" && r !== null) {
                 ({ r = 255, g = 255, b = 255, a = 1 } = r);
             }
 
-            return LS.Color.clamp([ r, g, b, a ]);
+            target[offset] = (typeof r === "number" && !isNaN(r)) ? r : 0;
+            target[offset + 1] = (typeof g === "number" && !isNaN(g)) ? g : 0;
+            target[offset + 2] = (typeof b === "number" && !isNaN(b)) ? b : 0;
+
+            let alpha = 255;
+            if (typeof a === "number" && !isNaN(a)) {
+                alpha = Math.round(a * 255);
+            }
+
+            target[offset + 3] = alpha;
+            return target;
         }
 
-        static clamp([ r, g, b, a ]) {
-            if (typeof r !== "number" || isNaN(r)) r = 255;
-            if (typeof g !== "number" || isNaN(g)) g = 255;
-            if (typeof b !== "number" || isNaN(b)) b = 255;
-            if (typeof a !== "number" || isNaN(a)) a = 1;
+        static clamp(target) {
+            if (typeof target[0] !== "number" || isNaN(target[0])) target[0] = 0;
+            if (typeof target[1] !== "number" || isNaN(target[1])) target[1] = 0;
+            if (typeof target[2] !== "number" || isNaN(target[2])) target[2] = 0;
+            if (typeof target[3] !== "number" || isNaN(target[3])) target[3] = 255;
 
-            r = Math.round(Math.min(255, Math.max(0, r)));
-            g = Math.round(Math.min(255, Math.max(0, g)));
-            b = Math.round(Math.min(255, Math.max(0, b)));
-            a = Math.min(1, Math.max(0, a));
-            return [ r, g, b, a ];
+            target[0] = Math.round(Math.min(255, Math.max(0, target[0])));
+            target[1] = Math.round(Math.min(255, Math.max(0, target[1])));
+            target[2] = Math.round(Math.min(255, Math.max(0, target[2])));
+            target[3] = Math.round(Math.min(255, Math.max(0, target[3])));
+            return target;
         }
 
         static parseHex(hex) {
@@ -2170,19 +2389,18 @@
             return new LS.Color(obj.r, obj.g, obj.b, obj.a);
         }
 
-        /**
-         * Turns a plain object into a LS.Color instance without copying values or validation.
-         * Avoid using unless you have a specific use case and know what you are doing.
-         * @warning This mutates the provided object. The object must have r, g, b, a properties.
-         */
-        static fromObjectFast(obj) {
-            return Object.setPrototypeOf(obj, LS.Color.prototype);
+        static fromArray(arr) {
+            return new LS.Color(arr[0], arr[1], arr[2], arr[3]);
+        }
+
+        static fromBuffer(buffer, offset = 0, alpha = true) {
+            const view = new Uint8Array(buffer, offset, alpha ? 4 : 3);
+            return Object.setPrototypeOf(view, LS.Color.prototype);
         }
 
         static fromNamed(name) {
             if(LS.Color.namedColors.has(name)) {
-                let [r, g, b, a] = LS.Color.namedColors.get(name);
-                return new LS.Color(r, g, b, a);
+                return LS.Color.fromArray(LS.Color.namedColors.get(name));
             }
             throw new Error("Unknown color name: " + name);
         }
@@ -2323,10 +2541,16 @@
             return colors[Math.floor(Math.random() * colors.length)];
         }
 
+        static fromBuffer(buffer, offset = 0) {
+            return new LS.ColorView(buffer, offset);
+        }
+
         static fromImage(image, sampleGap = 16, maxResolution = 200){
             if(!(image instanceof HTMLImageElement)) {
                 throw new TypeError("The first argument must be an image element");
             }
+
+            image.crossOrigin = "Anonymous";
 
             sampleGap += sampleGap % 4;
 
@@ -2531,6 +2755,10 @@
             ["yellowgreen", [154, 205, 50]],
             ["transparent", [0, 0, 0, 0]]
         ]);
+    }
+
+    LS.ColorView = function(buffer, offset = 0){
+        return LS.Color.fromBuffer(buffer, offset);
     }
 
     if(LS.isWeb){

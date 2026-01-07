@@ -91,6 +91,8 @@
                     return true;
                 }
             });
+
+            this.#processPending();
         }
 
         #processPending() {
@@ -338,7 +340,7 @@
          * @param {string} prefix The prefix to bind to
          * @param {object} object The object to wrap
          * @param {object} options Options for the binding
-         * @param {boolean} options.fallback Fallback object to use when the key is not found
+         * @param {boolean} options.extends Fallback object to use when the key is not found
          * @returns {Proxy} The reactive proxy object
          */
         wrap(prefix, object, options = {}) {
@@ -356,10 +358,10 @@
          * @param {*} object The object to fork
          * @param {*} data New object to patch new values to, defaults to an empty object
          * @param {*} options Options for the binding (same as wrap())
-         * @returns 
+         * @returns {Proxy} The reactive proxy object
          */
         fork(prefix, object, data, options = {}) {
-            options.fallback = object;
+            options.extends = object;
             return this.wrap(prefix, data || {}, options);
         }
 
@@ -629,17 +631,50 @@
 
             target.__reactive_binding = parsed;
 
-            const binding = this.objectCache.get(parsed.prefix);
+            let binding = this.objectCache.get(parsed.prefix);
             if(!binding) {
-                // TODO: Walk up recursive bindings to see if target already exists
-                const pending = this.pending.get(parsed.prefix);
-                if(pending) pending.push(target); else this.pending.set(parsed.prefix, [target]);
+                let closest = this.closestBinding(parsed.prefix);
+
+                // TODO: i'm moving again, gonna take like till i get home, hope i remember what i left here
+                if(closest) while(closest) {
+                    if(closest) {
+                        console.log("Found closest binding for", parsed.prefix, "=>", closest);
+                        if(closest.prefix === parsed.prefix) {
+                            // Exact match
+                            binding = closest;
+                        } else {
+                            // Create child object binding
+                            const key = parsed.prefix.slice(closest.prefix.length);
+                            binding = LSReactive.wrap(parsed.prefix + key + ".", closest.object[key], {
+                                parent: closest
+                            });
+                        }
+                    }
+                }
+
+                if(!binding) {
+                    // No binding route exists, we wait for it to be created
+                    const pending = this.pending.get(parsed.prefix);
+                    if(pending) pending.push(target); else this.pending.set(parsed.prefix, [target]);
+                }
                 return;
             }
 
             const cache = binding.mappings.get(parsed.name);
             if(cache) cache.add(target); else binding.mappings.set(parsed.name, new Set([target]));
             binding.renderValue(target, parsed.name);
+        }
+
+        closestBinding(prefix) {
+            if(typeof prefix === "string") { if (!prefix.endsWith(".")) prefix += "."; } else prefix = "";
+
+            while(prefix.length > 1) {
+                const binding = this.objectCache.get(prefix);
+                if(binding) return binding;
+                prefix = prefix.slice(0, prefix.lastIndexOf(".", prefix.length - 2) + 1);
+            }
+
+            return null;
         }
 
         /**

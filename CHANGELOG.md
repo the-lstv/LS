@@ -6,7 +6,11 @@
 - Improve accessibility & edge cases
 
 ### Version 5.2.8
-
+- Updated LS.Reactive
+- Significantly improved parsing performance of LS.Reactive
+- LS.Color internal data format changed from an {r,g,b,a} to [r,g,b,a]
+- LS.Color defaults to black instead of white now
+- Added extra methods to LS.Color like toTexture, toImageData and toDiv
 
 ### Version 5.2.7
 - Listeners can be removed by returning LS.REMOVE_LISTENER
@@ -24,7 +28,7 @@
 - LS.Create API ravamped, enhanced performance and security, and now accepts a DSL-like object structure
 - LS.Create now accepts tagName in options
 - LS.Color now supports conversion to primitives (string, number), is iterable, and JSON-serializable.
-- Added HSB support to LS.Color
+- Added HSB support to LS.Color, and named colors are now local.
 - Breaking change: LS.Color methods now mutate itself instead of always returning a clone. Added a clone() method for explicit cloning (eg. color.lighten() => color.clone().lighten()).
 - Various other smaller fixes and improvements
 
