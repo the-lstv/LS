@@ -4,10 +4,11 @@
  * 
  * TODO: Support attribute binding
  * TODO: Bind multiple values (eg. {{ user.displayname || user.username }})
- * 
- * TODO: Recursive bindings
+ *
  * TODO: Array bindings ("user.friends.0.name", "user.friends[0].name", "each user.friends { ... }")
  * TODO: Event bindings ("@click user.clicked()")
+ * 
+ * TODO: Optimize propagation and path walking
  */
 
 
@@ -89,6 +90,10 @@
                 return this.proxyCache.get(object);
             }
 
+            if(objectPath && !objectPath.endsWith(".")) {
+                objectPath += ".";
+            }
+
             const proxy = new Proxy(object, {
                 set: (target, key, value) => {
                     const fullPath = objectPath + key;
@@ -112,13 +117,13 @@
                     if (key === "__bind") return this;
                     if (key === "hasOwnProperty") return target.hasOwnProperty.bind(target);
 
-                    const path = objectPath + key;
+                    const fullPath = objectPath + key;
 
                     const _extends = this.options.extends;
                     const value = target.hasOwnProperty(key)? target[key]: _extends? _extends[key]: undefined;
                     if(typeof value === "object" && value !== null && !Array.isArray(value)) {
                         if(this.options.shallow) return value;
-                        return this.#createProxy(value, path);
+                        return this.#createProxy(value, fullPath);
                     }
 
                     return value;
@@ -168,8 +173,19 @@
          * @returns {void}
          */
         renderKey(key){
-            if(this._destroyed || !this.mappings.has(key)) return;
+            if(this._destroyed || (this.options.propagate === false && !this.mappings.has(key))) return;
             this._pending.add(key);
+
+            // TODO: This is just a quick implementation, needs to be optimized
+            if(this.options.propagate !== false) {
+                const parts = Array.isArray(key) ? key : key.split(".");
+                for (let i = parts.length - 1; i > 0; i--) {
+                    parts.pop();
+                    const parentKey = parts.join(".");
+                    console.log(parentKey, parts);
+                    this._pending.add(parentKey);
+                }
+            }
             
             if (this._renderScheduled) return;
             this._renderScheduled = true;
@@ -191,11 +207,11 @@
          * @returns {void}
         */
         renderKeyImmediate(key){
-           if(this._destroyed) return;
+            if (this._destroyed) return;
 
-           const cache = this.mappings.get(key);
-           if(!cache || cache.size === 0) return;
-           for(let target of cache) {
+            const cache = this.mappings.get(key);
+            if (!cache || cache.size === 0) return;
+            for (let target of cache) {
                 this.renderValue(target, this.#walkObjectPath(key));
             }
         }
