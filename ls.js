@@ -4,13 +4,11 @@
 
     Last modified: 2026
     License: GPL-3.0
-    Version: 5.2.7
+    Version: 5.2.8
     See: https://github.com/thelstv/LS
 */
 
 (exports => {
-
-    const global = typeof window !== 'undefined'? window : globalThis;
     const instance = exports();
 
     // --- Polyfills ---
@@ -32,6 +30,7 @@
     }
 
     if(instance.isWeb){
+        const global = typeof window !== 'undefined'? window : globalThis;
         global.LS = instance;
 
         if(!window.LS_DEFER_INIT){
@@ -49,7 +48,6 @@
     }
 
     return instance;
-
 })(() => {
 
     class EventHandler {
@@ -81,7 +79,7 @@
 
             let event = this.events.get(name);
             if(!event) {
-                event = { listeners: [], empty: [], ...options, __isEvent: true };
+                event = { listeners: [], empty: [], ...options, _isEvent: true };
                 this.events.set(name, event);
             } else if(options){
                 Object.assign(event, options);
@@ -109,8 +107,8 @@
 
             for(let i = 0; i < event.listeners.length; i++){
                 if(event.listeners[i].callback === callback) {
-                    event.empty.push(i)
-                    event.listeners[i] = null
+                    event.empty.push(i);
+                    event.listeners[i] = null;
                 }
             }
 
@@ -229,7 +227,7 @@
     let initialized = false;
     const LS = {
         isWeb: typeof window !== 'undefined',
-        version: "5.2.7",
+        version: "5.2.8-beta",
         v: 5,
 
         REMOVE_LISTENER: Symbol("event-remove"),
@@ -276,32 +274,85 @@
             LS._events.completed("init");
         },
 
-        components: new Map,
-
         EventHandler,
 
-        /**
-         * @deprecated
-         */
-        TinyWrap(elements){
-            if(!elements) return null;
-
-            // No need to wrap anything, if prototypes are global
-            if(LS.Tiny._prototyped) return elements;
-
-            function wrap(element){
-                return element._lsWrapped || (element._lsWrapped = new Proxy(element, {
-                    get(target, key){
-                        return LS.TinyFactory[key] || target[key]
-                    },
-
-                    set(target, key, value){
-                        return target[key] = value
-                    }
-                }))
+        Create(tagName = "div", content){
+            if(typeof tagName !== "string"){
+                content = tagName;
+                if(content) {
+                    tagName = content.tag || content.tagName || "div";
+                    delete content.tag;
+                    delete content.tagName;
+                } else if(content === null) return null;
             }
 
-            return Array.isArray(elements)? elements.map(wrap): wrap(elements);
+            if(!content) return document.createElement(tagName);
+
+            content =
+                typeof content === "string"
+                    ? { innerHTML: content }
+                    : Array.isArray(content)
+                        ? { inner: content }
+                        : content || {};
+
+            if(tagName === "svg" && !content.hasOwnProperty("ns")) {
+                content.ns = "http://www.w3.org/2000/svg";
+            }
+
+            const { class: className, tooltip, ns, accent, style, inner, content: innerContent, reactive, attr, options, attributes, ...rest } = content;
+
+            const element = Object.assign(
+                ns ? document.createElementNS(ns, tagName) : document.createElement(tagName),
+                rest
+            );
+
+            // Special case for ls-select
+            if(tagName.toLowerCase() === "ls-select" && options){
+                element._lsSelectOptions = options;
+            }
+
+            // Handle attributes
+            if (accent) element.setAttribute("ls-accent", accent);
+            if (attr || attributes) LS.TinyFactory.attrAssign.call(element, attr || attributes);
+
+            // Handle tooltips
+            if (tooltip) {
+                if (!LS.Tooltips) {
+                    element.setAttribute("title", tooltip);
+                } else {
+                    element.setAttribute("ls-tooltip", tooltip);
+                    LS.Tooltips.addElements([{ target: element, attributeName: "ls-tooltip" }]);
+                }
+            }
+
+            // Handle reactive bindings
+            if (reactive) {
+                if (!LS.Reactive) {
+                    console.warn("Reactive bindings are not available, please include the Reactive module to use this feature.");
+                    LS.on("component-loaded", (component) => {
+                        if (component.name.toLowerCase() === "reactive") {
+                            LS.Reactive.bindElement(element, reactive);
+                            return LS.REMOVE_LISTENER;
+                        }
+                    });
+                } else {
+                    LS.Reactive.bindElement(element, reactive);
+                }
+            }
+
+            if (typeof className === "string") {
+                element.className = className;
+            } else if(className) {
+                LS.TinyFactory.class.call(element, className);
+            }
+
+            if (typeof style === "object") LS.TinyFactory.applyStyle.call(element, style); else if (typeof style === "string") element.style.cssText = style;
+
+            // Append children or content
+            const contentToAdd = inner || innerContent;
+            if (contentToAdd) LS.TinyFactory.add.call(element, contentToAdd);
+
+            return element;
         },
 
         /**
@@ -338,82 +389,13 @@
 
             /**
              * Element builder utility
+             * Replaced by LS.Create
              */
-            N(tagName = "div", content){
-                if(typeof tagName !== "string"){
-                    content = tagName;
-                    if(content) {
-                        tagName = content.tag || content.tagName || "div";
-                        delete content.tag;
-                        delete content.tagName;
-                    } else if(content === null) return null;
-                }
-
-                if(!content) return document.createElement(tagName);
-
-                content =
-                    typeof content === "string"
-                        ? { innerHTML: content }
-                        : Array.isArray(content)
-                            ? { inner: content }
-                            : content || {};
-
-                if(tagName === "svg" && !content.hasOwnProperty("ns")) {
-                    content.ns = "http://www.w3.org/2000/svg";
-                }
-
-                const { class: className, tooltip, ns, accent, style, inner, content: innerContent, reactive, attr, options, attributes, ...rest } = content;
-
-                const element = Object.assign(
-                    ns ? document.createElementNS(ns, tagName) : document.createElement(tagName),
-                    rest
-                );
-
-                // Special case for ls-select
-                if(tagName.toLowerCase() === "ls-select" && options){
-                    element._lsSelectOptions = options;
-                }
-
-                // Handle attributes
-                if (accent) element.setAttribute("ls-accent", accent);
-                if (attr || attributes) LS.TinyFactory.attrAssign.call(element, attr || attributes);
-
-                // Handle tooltips
-                if (tooltip) {
-                    if (!LS.Tooltips) {
-                        element.setAttribute("title", tooltip);
-                    } else {
-                        element.setAttribute("ls-tooltip", tooltip);
-                        LS.Tooltips.addElements([{ target: element, attributeName: "ls-tooltip" }]);
-                    }
-                }
-
-                // Handle reactive bindings
-                if (reactive) {
-                    if (!LS.Reactive) {
-                        console.warn("Reactive bindings are not available, please include the Reactive module to use this feature.");
-                    }
-
-                    LS.Reactive.bindElement(element, reactive);
-                }
-
-                if (typeof className === "string") {
-                    element.className = className;
-                } else if(className) {
-                    LS.TinyFactory.class.call(element, className);
-                }
-
-                if (typeof style === "object") LS.TinyFactory.applyStyle.call(element, style); else if (typeof style === "string") element.style.cssText = style;
-
-                // Append children or content
-                const contentToAdd = inner || innerContent;
-                if (contentToAdd) LS.TinyFactory.add.call(element, contentToAdd);
-
-                return element;
-            },
+            N: null, // Defined later by LS.Create for backward compatibility
 
             /**
              * Color utilities
+             * @deprecated Use LS.Color instead
              */
             C(r, g, b, a = 1){
                 return new LS.Color(r, g, b, a)
@@ -478,7 +460,7 @@
 
                 LoadScript(src, callback) {
                     return new Promise((resolve, reject) => {
-                        const scriptElement = N("script", {
+                        const scriptElement = LS.Tiny.N("script", {
                             src,
 
                             onload() {
@@ -528,6 +510,29 @@
             _prototyped: false
         },
 
+        /**
+         * @deprecated
+         */
+        TinyWrap(elements){
+            if(!elements) return null;
+
+            // No need to wrap anything, if prototypes are global
+            if(LS.Tiny._prototyped) return elements;
+
+            function wrap(element){
+                return element._lsWrapped || (element._lsWrapped = new Proxy(element, {
+                    get(target, key){
+                        return LS.TinyFactory[key] || target[key]
+                    },
+
+                    set(target, key, value){
+                        return target[key] = value
+                    }
+                }))
+            }
+
+            return Array.isArray(elements)? elements.map(wrap): wrap(elements);
+        },
 
         /**
          * TinyFactory (utilities for HTML elements)
@@ -536,6 +541,13 @@
         TinyFactory: {
             isElement: true,
 
+            /**
+             * Get, set or get all attributes of the element.
+             * @param {*} get Attribute name to get
+             * @param {*} set Value to set
+             * @returns {string|Object|HTMLElement}
+             * @deprecated
+             */
             attr(get = false, set = false) {
                 if (set) {
                     this.setAttribute(get, set);
@@ -554,6 +566,12 @@
                 return attributes;
             },
 
+            /**
+             * Assign multiple attributes to the element.
+             * @param {Object|string|string[]} attributes Attributes to assign
+             * @return {HTMLElement} The element itself for chaining
+             * @deprecated
+             */
             attrAssign(attributes){
                 if (typeof attributes === "string") {
                     attributes = { Array: [attributes] };
@@ -578,6 +596,10 @@
                 return this;
             },
 
+            /**
+             * Removes one or more attributes from the element.
+             * @deprecated
+             */
             delAttr(...attributes){
                 attributes = attributes.flat(2);
                 attributes.forEach(attribute => this.removeAttribute(attribute))
@@ -590,6 +612,7 @@
              * @param {string|string[]} names Class name/s to add, remove or toggle
              * @param {number|string} [action=1] Action to perform: 1 or "add" to add, 0 or "remove" to remove, 2 or "toggle" to toggle
              * @return {HTMLElement} The element itself for chaining
+             * @deprecated
              */
             class(names, action = 1){
                 if(typeof names == "undefined") return this;
@@ -599,7 +622,7 @@
                 for(let className of typeof names === "string"? names.split(" "): names){
                     if(typeof className !== "string" || className.length < 1) continue;
                     this.classList[action](className)
-            }
+                }
 
                 return this
             },
@@ -620,15 +643,10 @@
                 return true;
             },
 
-            toggleClass(name){
-                this.classList.toggle(name);
-                return this;
-            },
-
             /**
              * Selects a single matching element within this element.
              * @param {*} selector
-             * @returns
+             * @deprecated
              */
             get(selector = '*'){
                 return LS.Tiny.O(this, selector)
@@ -636,28 +654,34 @@
 
             /**
              * Selects all matching elements within this element.
-             * @param {*} selector 
-             * @returns 
+             * @param {*} selector
+             * @deprecated
              */
             getAll(selector = '*'){
                 return LS.Tiny.Q(this, selector)
             },
 
             /**
-             * Adds elements to this element.
+             * Adds elements to this element with the element DSL.
              * @param  {...any} elements Elements to add
-             * @returns 
+             * @deprecated
              */
             add(...elements){
                 this.append(...LS.Util.resolveElements(...elements));
                 return this
             },
 
+            /**
+             * Adds element(s) before this element and returns itself.
+             */
             addBefore(target){
                 LS.Util.resolveElements(target).forEach(element => this.parentNode.insertBefore(element, this))
                 return this
             },
 
+            /**
+             * Adds element(s) after this element and returns itself.
+             */
             addAfter(target){
                 LS.Util.resolveElements(target).forEach(element => this.parentNode.insertBefore(element, this.nextSibling))
                 return this
@@ -674,17 +698,31 @@
                 return this
             },
 
+            /**
+             * Wraps this element inside another element and returns the wrapper.
+             * @deprecated
+             */
             wrapIn(element){
                 this.addAfter(LS.Tiny.O(element));
                 element.appendChild(this);
                 return this
             },
 
+            /**
+             * Checks if the element is currently in the viewport.
+             * @returns {boolean}
+             * @deprecated
+             */
             isInView(){
                 var rect = this.getBoundingClientRect();
                 return rect.top < (window.innerHeight || document.documentElement.clientHeight) && rect.left < (window.innerWidth || document.documentElement.clientWidth) && rect.bottom > 0 && rect.right > 0
             },
 
+            /**
+             * Checks if the entire element is currently in the viewport.
+             * @returns {boolean}
+             * @deprecated
+             */
             isEntirelyInView(){
                 var rect = this.getBoundingClientRect();
 
@@ -696,6 +734,11 @@
                 );
             },
 
+            /**
+             * Adds any number of event listeners to the element.
+             * @param  {...any} events Event names followed by the callback function
+             * @deprecated
+             */
             on(...events){
                 let func = events.find(e => typeof e == "function");
                 for (const evt of events) {
@@ -706,6 +749,10 @@
                 return this
             },
 
+            /**
+             * Removes event listeners from the element.
+             * @deprecated
+             */
             off(...events){
                 let func = events.find(e => typeof e == "function");
                 for (const evt of events) {
@@ -713,19 +760,6 @@
                     this.removeEventListener(evt, func);
                 }
 
-                return this
-            },
-
-            hide(){
-                let current = getComputedStyle(this).display;
-                this._display = current;
-
-                this.style.display = "none";
-                return this
-            },
-
-            show(displayOverride){
-                this.style.display = displayOverride || this._display || "inherit";
                 return this
             },
 
@@ -743,18 +777,14 @@
                 }
             },
 
-            set(...elements){
-                this.innerHTML = '';
-                return this.add(...elements)
-            },
-
+            /**
+             * @deprecated
+             */
             clear(){
+                // Tracking usage before removal
+                console.error("Warning: TinyFactory.clear() is deprecated, please avoid it.");
                 this.innerHTML = '';
                 return this
-            },
-
-            has(...elements){
-                return !!elements.find(element => this.get(element))
             }
         },
 
@@ -769,10 +799,15 @@
         Util: {
             resolveElements(...array){
                 return array.flat().filter(Boolean).map(element => {
-                    return typeof element === "string" ? document.createTextNode(element) : typeof element === "object" && !(element instanceof Node) ? N(element) : element;
+                    return typeof element === "string" ? document.createTextNode(element) : typeof element === "object" && !(element instanceof Node) ? LS.Create(element) : element;
                 });
             },
 
+            /**
+             * Iterates over an iterable object and builds an array with the results of the provided function.
+             * Equivalent to Array.prototype.map but works on anything that is iterable.
+             * @deprecated
+             */
             map(it, fn){
                 const r = [];
                 for(let i = 0; i < it.length; i++) {
@@ -781,23 +816,55 @@
                 return r;
             },
 
-            params(get = null){
-                let url = location.href;
-
-                if(!url.includes('?')){
+            /**
+             * Gets URL parameters as an object or a specific parameter by name.
+             * From my testing, this is 3.5x faster than URLSearchParams for all parameters and 11x faster to get a single parameter.
+             * https://jsbm.dev/pNp6dNGXZY1j1
+             * 
+             * @param {string|null} get Name of the parameter to get, or null to get all parameters as an object.
+             * @param {string} baseUrl URL or search string to parse, defaults to current location's search string.
+             * @returns {object|string|null} Object with all parameters, specific parameter value, or null if not found.
+             */
+            params(get = null, baseUrl = typeof location !== "undefined" ? location.search : ""){
+                const index = baseUrl.indexOf('?');
+                const url = baseUrl.slice(index + 1);
+                if(!url.length){
                     return get? null : {}
                 }
 
-                let result = {},
-                    params = url.replaceAll(/(.*?)\?/gi, '').split('&')
-                ;
-                
-                for(let param of params){
-                    param = param.split("=");
-                    result[param[0]] = decodeURIComponent(param[1] || "").replace(/#(.*)/g,"")
+                let i = 0, vi = 0, cparam = null, result = get ? null : {};
+                for(; i < url.length; i++){
+                    const char = url.charCodeAt(i);
+                    const atEnd = i === url.length - 1;
+                    const isDelimiter = char === 61 || char === 38 || char === 35; // =, &, #
+
+                    if(isDelimiter || atEnd){
+                        const sliceEnd = (atEnd && !isDelimiter) ? i + 1 : i;
+                        const param = url.slice(vi, sliceEnd);
+
+                        if((char === 38 || (atEnd && !isDelimiter) || char === 35) && cparam !== null){ // &, end, #
+                            const value = decodeURIComponent(param);
+                            if(get && cparam === get) return value;
+                            if(!get) result[cparam] = value;
+                            cparam = null;
+                            vi = i + 1;
+                            if(char === 35) break;
+                            continue;
+                        }
+
+                        if(param.length !== 0) {
+                            if(!get) result[param] = "";
+                            cparam = param;
+                            vi = i + 1;
+                        }
+
+                        if(char === 35){ // #
+                            break;
+                        }
+                    }
                 }
 
-                return get? result[get] : result
+                return get? null : result;
             },
 
             TouchHandle: class TouchHandle extends EventHandler {
@@ -1442,6 +1509,8 @@
             }
         },
 
+        components: new Map,
+
         Component: class Component extends EventHandler {
             constructor(){
                 super();
@@ -1450,17 +1519,12 @@
                     throw new Error("This class has to be extended and loaded as a component with LS.LoadComponent.");
                 }
 
-                if(this.init) {
-                    LS.once("init", () => this.init())
-                }
-
-                // if(this._component.hasEvents) {
-                //     this._events = new LS.EventHandler(this);
-                // }
+                if(this.init) this.init();
             }
 
             destroy(){
                 console.warn(`[LS] Component ${this._component.name} does not implement destroy method!`);
+                this.events.clear();
                 return false;
             }
         },
@@ -1500,7 +1564,7 @@
             }
 
             LS.emit("component-loaded", [component]);
-            return component
+            return component;
         },
 
         GetComponent(name){
@@ -1677,10 +1741,13 @@
     }
 
     new LS.EventHandler(LS);
+
     LS.SelectAll = LS.Tiny.Q;
     LS.Select = LS.Tiny.O;
-    LS.Create = LS.Tiny.N;
     LS.Misc = LS.Tiny.M;
+
+    // Backward compatibility
+    LS.Tiny.N = LS.Create;
 
     /**
      * Extensive color library and theme utilities
@@ -1710,17 +1777,19 @@
             this.colors = new Map;
             this.themes = new Set([ "light", "dark", "amoled" ]);
 
-            // Style tag to manage
-            this.style = LS.Create("style", { id: "ls-colors" });
+            if(LS.isWeb) {
+                // Style tag to manage
+                this.style = LS.Create("style", { id: "ls-colors" });
 
-            LS.once("body-available", () => {
-                document.head.appendChild(this.style)
-            });
-
-            if(window.matchMedia) {
-                window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', thing => {
-                    this.emit("scheme-changed", [thing.matches]);
+                LS.once("body-available", () => {
+                    document.head.appendChild(this.style)
                 });
+
+                if(window.matchMedia) {
+                    window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', thing => {
+                        this.emit("scheme-changed", [thing.matches]);
+                    });
+                }
             }
         }
 

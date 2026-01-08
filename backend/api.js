@@ -56,7 +56,7 @@ const VERSION_ALIAS = {
 // If true, the patch version will be ignored and only the minor/major version will be used for caching (patch will be used for client/CDN cache breaking).
 // For this to work, patch versions must be compatible with the minor/major version, aka don't do anything breaking.
 // This may become an issue at some point, but the goal is to avoid storing every single patch separately.
-let IGNORE_PATCH_VERSION = true;
+let IGNORE_PATCH_VERSION = false;
 
 const LATEST_MAJOR = LATEST.split(".")[0] || "0";
 const LATEST_PATCH = LATEST.split(".")[2] || "0";

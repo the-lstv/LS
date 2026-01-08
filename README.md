@@ -80,14 +80,14 @@ Using LS with Akeno is the best and easiest way to do it, since Akeno comes with
  All you need to import LS is:
 ```html
 <head>
-    @use (ls:5.2.7[]);
+    @use (ls:5.2.8[]);
 </head>
 ```
 And you are using LS! Components are added into the square brackets ([]) as a comma separated list - it will also automatically manage CSS/JS pairs, so you don't have to think about which part to place where! Akeno will also optimize the URL for best shared caching practices to reduce load times.<br>
  If you plan to use the design language, don't forget to specify the style (simply default to flat if you are unsure):
 ```html
 <head>
-    @use (ls:5.2.7[ flat ]);
+    @use (ls:5.2.8[ flat ]);
 
     @page { theme: dark; style: flat; accent: blue }
 </head>
@@ -102,8 +102,8 @@ Or, to only import a component without the core: `/ls/[version]/[component].[?mi
 Or, to import multiple components without the core: `/ls/[version]/[components]/bundle.[?min].[js|css]`
 
 ```html
-<script src="https://cdn.extragon.cloud/ls/5.2.7/ls.min.js"></script>
-<link href="https://cdn.extragon.cloud/ls/5.2.7/flat/ls.min.css" rel="stylesheet">
+<script src="https://cdn.extragon.cloud/ls/5.2.8/ls.min.js"></script>
+<link href="https://cdn.extragon.cloud/ls/5.2.8/flat/ls.min.css" rel="stylesheet">
 ```
 
 And you can start using LS right away!

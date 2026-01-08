@@ -1,18 +1,21 @@
 ## Planned
 - Documentation
-- Migrate LS.Select (soon)
 - Migrate the rest of components
-- Remove or update v4compat (too many changes in v5)
 - Improve accessibility & edge cases
 
 ### Version 5.2.8
-- Updated LS.Reactive
-- Significantly improved parsing performance of LS.Reactive
-- LS.Color internal data format changed from an {r,g,b,a} to [r,g,b,a]
+- LS.Reactive now supports recursive properties and has been upgraded all around
+- Significantly improved expression parsing performance of LS.Reactive
+- LS.Color internal data format changed from an {r,g,b,a} to [r,g,b,a] | Uint8Array
 - LS.Color defaults to black instead of white now
+- Added LS.ColorView, which allows you to use a single LS.Color instance on a large buffer of collors and move within it. This can have many neat usecases, whenever you need to process lots of colors with low/zero memory overhead.
 - Added extra methods to LS.Color like toTexture, toImageData and toDiv
+- LS now initiates from one proper init function
+- Breaking changes: Deprecated LS.Tiny and removed some very old and bad methods that somehow made it until now. Damage is essentially zero as nobody ever used those.
+- LS.Util.params has been replaced by a much more optimized parser
+- Removed v4compat layer as there is no need to support it anymore and maintenance would become impossible
 
-### Version 5.2.7
+### Version 5.2.8
 - Listeners can be removed by returning LS.REMOVE_LISTENER
 - Data support for completed events
 - A global event for component registration

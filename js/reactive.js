@@ -607,7 +607,7 @@
             if(!path) return this.EMPTY_PATH;
 
             let padding = true, start = 0, firstDot = -1, end = null;
-            
+
             const strEnd = path.length - 1;
             for (let i = 0; i < path.length; i++) {
                 const char = path.charCodeAt(i);
@@ -655,9 +655,9 @@
          * @returns {Object} An object with parsed properties
         */
         parseExpression(expr, result = {}) {
-            let i = -1, state = 0, v_start = 0, v_property = null, string_char = null, len = expr.length;
+            let i = 0, state = 0, v_start = 0, v_property = null, string_char = null, len = expr.length;
 
-            while(++i < len) {
+            for(; i < len; i++) {
                 const char = expr.charCodeAt(i);
 
                 // Inside string
