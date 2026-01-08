@@ -18,7 +18,6 @@
         constructor(object, prefix, options = {}) {
             super();
 
-            // TODO:
             const existing = LSReactive.objectCache.get(prefix);
             if(existing && !existing._destroyed) {
                 return existing;
@@ -27,7 +26,6 @@
             if(typeof prefix === "string") { if (!prefix.endsWith(".")) prefix += "."; } else prefix = "";
 
             this.prefix = prefix;
-            this.key = prefix.slice(prefix.lastIndexOf(".", prefix.length - 2) + 1, prefix.length - 1);
 
             this.object = object;
             this.options = options;
@@ -35,12 +33,7 @@
 
             this.updated = true;
             this.mutated = false;
-            
-            this.children = new Map();
-            this._parent = options.parent || LSReactive.getBinding(prefix.slice(0, prefix.length - this.key.length));
-            if(this._parent) {
-                this._parent.children.set(this.key, this);
-            }
+            this.mutatedKeys = new Set();
 
             LSReactive.objectCache.set(this.prefix, this);
 
@@ -48,79 +41,123 @@
             this._renderScheduled = false;
             this._destroyed = false;
 
-            this.proxy = new Proxy(this.object, {
-                set: (target, key, value) => {
-                    if(this.options.extends && this.mutated === false) {
-                        this.emit("mutated");
-                        this.mutated = true;
+            this.proxyCache = new WeakMap();
+
+            this.#processPending();
+        }
+
+        registerProperty(key) {
+            Object.defineProperty(this.object, key, {
+                get: () => {
+                    const _extends = this.options.extends;
+                    if(this.object.hasOwnProperty(key)) {
+                        return this.object[key];
+                    }
+                    
+                    if(_extends && _extends.hasOwnProperty(key)) {
+                        return _extends[key];
+                    }
+
+                    return undefined;
+                },
+                set: (value) => {
+                    if(this.options.extends) {
+                        if(!this.mutated) {
+                            this.emit("mutated");
+                            this.mutated = true;
+                        }
+
+                        this.mutatedKeys.add(key);
                     }
 
                     this.object[key] = value;
                     this.updated = true;
                     this.renderKey(key);
+                },
+
+                enumerable: true,
+                configurable: true
+            });
+        }
+
+        get proxy () {
+            return this.#createProxy(this.object);
+        }
+
+        #createProxy(object, objectPath = "") {
+            if(this.proxyCache.has(object)) {
+                return this.proxyCache.get(object);
+            }
+
+            const proxy = new Proxy(object, {
+                set: (target, key, value) => {
+                    const fullPath = objectPath + key;
+                    if(this.options.extends) {
+                        if(!this.mutated) {
+                            this.emit("mutated");
+                            this.mutated = true;
+                        }
+
+                        this.mutatedKeys.add(fullPath);
+                    }
+
+                    target[key] = value;
+                    this.updated = true;
+                    this.renderKey(fullPath);
                     return true;
                 },
 
-                get: (_, key) => {
+                get: (target, key) => {
                     if (key === "__isProxy") return true;
-                    if (key === "__binding") return this;
-                    if (this.options.extends && key === "__reset") return () => this.reset();
+                    if (key === "__bind") return this;
+                    if (key === "hasOwnProperty") return target.hasOwnProperty.bind(target);
 
-                    const value = (this.options.extends && !this.object.hasOwnProperty(key)? this.options.extends[key]: this.object[key]);
-                    if(typeof value === "object" && value !== null && !value.__isProxy) {
-                        const wrap = this.children.get(key) || LSReactive.wrap(this.prefix + key, value, {
-                            parent: this,
-                            extends: this.options.extends ? this.options.extends[key] : null
-                        });
-                        return wrap;
+                    const path = objectPath + key;
+
+                    const _extends = this.options.extends;
+                    const value = target.hasOwnProperty(key)? target[key]: _extends? _extends[key]: undefined;
+                    if(typeof value === "object" && value !== null && !Array.isArray(value)) {
+                        if(this.options.shallow) return value;
+                        return this.#createProxy(value, path);
                     }
 
                     return value;
                 },
 
-                deleteProperty: (_, key) => {
-                    const value = this.object[key];
-                    const binding = (typeof value === "object" && value !== null && value.__isProxy)? value.__binding: null;
-
-                    delete this.object[key];
-                    this.renderKey(key);
-
-                    if(binding) {
-                        binding?.destroy();
-                    }
+                deleteProperty: (target, key) => {
+                    delete target[key];
+                    this.renderKey(objectPath + key);
                     return true;
                 }
             });
 
-            this.#processPending();
+            this.proxyCache.set(object, proxy);
+            return proxy;
         }
 
         #processPending() {
             if (this._destroyed) return;
             const pendingTargets = LSReactive.pending.get(this.prefix);
+
             if (pendingTargets) {
                 for (const target of pendingTargets) {
-                    const cache = this.mappings.get(target.__reactive_binding.name);
-                    if (cache) cache.add(target); else this.mappings.set(target.__reactive_binding.name, new Set([target]));
-                    this.renderValue(target, target.__reactive_binding.name);
+                    const cache = this.mappings.get(target.__reactive_binding.path);
+                    if (cache) cache.add(target); else this.mappings.set(target.__reactive_binding.path, new Set([target]));
+                    this.renderValue(target, this.#walkObjectPath(target.__reactive_binding.path));
                 }
                 LSReactive.pending.delete(this.prefix);
             }
         }
 
-        get parent() {
-            // TODO: Traverse up the chain
-            return this._parent;
-        }
-
         /**
-         * Renders all keys in the binding.
+         * Renders all or specific keys in the binding.
+         * @param {array|Set<string>} [keys] An optional set of keys to render, defaults to all keys
          * @returns {void}
          */
-        render(){
+        render(keys){
             this.updated = false;
 
-            for(let key of this.mappings.keys()) {
+            for(const key of keys || this.mappings.keys()) {
                 this.renderKey(key);
             }
         }
@@ -131,99 +168,112 @@
          * @returns {void}
          */
         renderKey(key){
-            if(this._destroyed) return;
-            
+            if(this._destroyed || !this.mappings.has(key)) return;
             this._pending.add(key);
-
+            
             if (this._renderScheduled) return;
             this._renderScheduled = true;
-
+            
             queueMicrotask(() => {
                 if (this._destroyed) return;
                 this._renderScheduled = false;
-
+                
                 for (const key of this._pending) {
                     this.renderKeyImmediate(key);
                 }
                 this._pending.clear();
             });
         }
-
+        
         /**
          * Renders a specific key in the binding immediately without batching.
          * @param {*} key The key to render
          * @returns {void}
-         */
+        */
         renderKeyImmediate(key){
-            if(this._destroyed) return;
-            const cache = this.mappings.get(key);
+           if(this._destroyed) return;
 
-            console.log("Rendered key", key, "for binding", this);
-
-            if (this.parent && !this._bubbled) {
-                this._bubbled = true;
-                queueMicrotask(() => {
-                    this._bubbled = false;
-                    this.parent.renderKey(this.key);
-                    console.log("Propagating to", this.parent, this.key);
-                });
-            }
-
-            if(!cache || cache.size === 0) return;
-            for(let target of cache) {
-                this.renderValue(target, key);
+           const cache = this.mappings.get(key);
+           if(!cache || cache.size === 0) return;
+           for(let target of cache) {
+                this.renderValue(target, this.#walkObjectPath(key));
             }
         }
 
-        renderValue(target, key, source = this.proxy || this.object){
-            let value = source[key];
+        #walkObjectPath(path, object = this.object, fp = true) {
+            const ext = this.options.extends;
 
-            if(typeof value === "function") value = value();
+            if (object[path] !== undefined) return object[path];
+            if (ext[path] !== undefined) return ext[path];
 
-            if(!value && target.__reactive_binding.or) {
-                value = target.__reactive_binding.or;
+            const parts = Array.isArray(path) ? path : path.split(".");
+            let current = object;
+
+            for (const part of parts) {
+                if (!part) continue;
+
+                if (current && current[part] !== undefined) {
+                    current = current[part];
+                } else {
+                    return ext && fp ? this.#walkObjectPath(parts, ext, false) : undefined;
+                }
             }
 
-            if(target.__reactive_binding.default && (typeof value === "undefined" || value === null)) {
-                value = target.__reactive_binding.default;
-            }
+            return current;
+        }
 
-            // Try getting the type again
-            if(typeof target.__reactive_binding.type === "string") {
-                target.__reactive_binding.type = LSReactive.types.get(target.__reactive_binding.type.toLowerCase()) || target.__reactive_binding.type;
-            }
+        renderValue(target, value){
+            if(this._destroyed || this.options.render === false) return;
+            try {
+                if(typeof value === "function") value = value();
 
-            if(typeof target.__reactive_binding.type === "function") {
-                value = target.__reactive_binding.type(value, target.__reactive_binding.args || [], target, source, key);
-            }
+                if(!value && target.__reactive_binding.or) {
+                    value = target.__reactive_binding.or;
+                }
 
-            if(target.__reactive_binding.value_prefix) {
-                value = target.__reactive_binding.value_prefix + value;
-            }
+                if(target.__reactive_binding.default && (typeof value === "undefined" || value === null)) {
+                    value = target.__reactive_binding.default;
+                }
 
-            if(value instanceof Element) {
-                target.replaceChildren(value);
-                return;
-            }
+                // Try getting the type again
+                if(typeof target.__reactive_binding.type === "string") {
+                    target.__reactive_binding.type = LSReactive.types.get(target.__reactive_binding.type.toLowerCase()) || target.__reactive_binding.type;
+                }
 
-            if(target.__reactive_binding.attribute) {
-                target.setAttribute(target.__reactive_binding.attribute, value);
-                return;
-            }
+                if(typeof target.__reactive_binding.type === "function") {
+                    value = target.__reactive_binding.type(value, target.__reactive_binding.args || [], target, this.options.extends || this.object);
+                }
 
-            if(target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT") {
+                if(target.__reactive_binding.value_prefix) {
+                    value = target.__reactive_binding.value_prefix + value;
+                }
 
-                if(target.type === "checkbox") target.checked = Boolean(value);
-                else target.value = value;
+                if(value instanceof Element) {
+                    target.replaceChildren(value);
+                    return;
+                }
 
-            } else if(target.tagName === "IMG" || target.tagName === "VIDEO" || target.tagName === "AUDIO") {
+                if(target.__reactive_binding.attribute) {
+                    target.setAttribute(target.__reactive_binding.attribute, value);
+                    return;
+                }
 
-                target.src = value;
+                if(target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT") {
 
-            } else {
+                    if(target.type === "checkbox") target.checked = Boolean(value);
+                    else target.value = value;
 
-                if(target.__reactive_binding.raw) target.innerHTML = value; else target.textContent = value;
+                } else if(target.tagName === "IMG" || target.tagName === "VIDEO" || target.tagName === "AUDIO") {
 
+                    target.src = value;
+
+                } else {
+
+                    if(target.__reactive_binding.raw) target.innerHTML = value; else target.textContent = value;
+
+                }
+            } catch (e) {
+                console.error("Error rendering target", target, "in binding", this.prefix, e);
             }
         }
 
@@ -237,8 +287,9 @@
                 delete this.object[key];
             }
 
-            this.render();
             this.mutated = false;
+            this.render(this.mutatedKeys);
+            this.mutatedKeys.clear();
             this.emit("reset", [true]);
             return true;
         }
@@ -254,11 +305,6 @@
             LSReactive.objectCache.delete(this.prefix);
 
             this.object = null;
-            if(this._parent) {
-                this._parent.children.delete(this.prefix);
-            }
-
-            this._parent = null;
 
             this.options = null;
             this.mappings.clear();
@@ -270,15 +316,8 @@
             this._pending = null;
 
             this.prefix = null;
+
             this._destroyed = true;
-
-            for(let child of this.children.values()) {
-                child.destroy();
-            }
-
-            this.children.clear();
-            this.children = null;
-
             this.emit("destroy");
             this.events.clear();
             this.events = null;
@@ -302,7 +341,24 @@
             ["object", Object],
             ["function", Function],
             ["date", Date],
-            ["regexp", RegExp]
+            ["regexp", RegExp],
+            ["json", (value) => {
+                try {
+                    return JSON.parse(value);
+                } catch(e) {
+                    console.warn("Reactive: Failed to parse JSON value:", value);
+                    return null;
+                }
+            }],
+            ["int", (value) => parseInt(value, 10)],
+            ["float", (value) => parseFloat(value)],
+            ["formatdate", (value, args) => {
+                const date = new Date(value);
+                if(args[0]) {
+                    return date.toLocaleDateString(undefined, { dateStyle: args[0] });
+                }
+                return date.toLocaleDateString();
+            }]
         ]);
 
         registerType(name, func){
@@ -340,12 +396,21 @@
          * @param {string} prefix The prefix to bind to
          * @param {object} object The object to wrap
          * @param {object} options Options for the binding
+         * @param {boolean} options.shallow Whether to only wrap the top-level object
+         * @param {boolean} options.render Disable rendering
+         * @param {boolean} options.propagate Whether to propagate changes to parent bindings (eg. if user.data.name changes, user.data and user also update)
          * @param {boolean} options.extends Fallback object to use when the key is not found
          * @returns {Proxy} The reactive proxy object
          */
         wrap(prefix, object, options = {}) {
             if(typeof prefix === "string") { if (!prefix.endsWith(".")) prefix += "."; } else prefix = "";
-            if (this.objectCache.has(prefix)) return this.objectCache.get(prefix);
+            if (this.objectCache.has(prefix)) {
+                const existing = this.objectCache.get(prefix);
+                if (!existing._destroyed) {
+                    existing.destroy();
+                }
+            }
+
             const binding = new ReactiveBinding(object, prefix, options);
             return binding.proxy;
         }
@@ -353,7 +418,6 @@
         /**
          * Forks an object into a new reactive proxy without mutating the original object.
          * Mutating this proxy will affect only the new object.
-         * There will be an extra `__reset()` function to reset the binding back to the original object's state.
          * @param {*} prefix The prefix to bind to
          * @param {*} object The object to fork
          * @param {*} data New object to patch new values to, defaults to an empty object
@@ -363,18 +427,6 @@
         fork(prefix, object, data, options = {}) {
             options.extends = object;
             return this.wrap(prefix, data || {}, options);
-        }
-
-        /**
-         * TODO:
-         * getter/setter binds
-         * @param {*} value 
-         */
-        // ref(value) {}
-
-        getBinding(prefix) {
-            if(typeof prefix === "string") { if (!prefix.endsWith(".")) prefix += "."; } else prefix = "";
-            return this.objectCache.get(prefix);
         }
 
         /**
@@ -388,13 +440,15 @@
         splitPath(path){
             if(!path) return this.EMPTY_PATH;
 
-            let padding = true, start = 0, ld = path.length, end = null;
-            for(let i = 0; i < path.length; i++) {
+            let padding = true, start = 0, firstDot = -1, end = null;
+            
+            const strEnd = path.length - 1;
+            for (let i = 0; i < path.length; i++) {
                 const char = path.charCodeAt(i);
 
                 // Trim initial whitespace
                 if(padding && this.#matchWhitespace(char)) {
-                    if(i === path.length - 1) {
+                    if(i === strEnd) {
                         return this.EMPTY_PATH;
                     }
 
@@ -407,20 +461,25 @@
                     continue;
                 } else padding = false;
 
-                if(char === 46) {
-                    ld = i;
+                if(char === 46) { // .
+                    if (firstDot === -1) firstDot = i;
                     continue;
                 }
 
-                if(!this.#matchKeyword(char)) {
-                    if(ld === path.length) ld = i;
+                if (!this.#matchKeyword(char)) {
                     end = i;
                     break;
                 }
             }
 
-            const dotFound = ld < path.length && path.charCodeAt(ld) === 46;
-            return [ path.slice(start, dotFound ? (ld +1) : ld) + (dotFound ? "" : "."), dotFound ? path.slice(ld + 1, end || path.length) : null, end? path.slice(end) : null ];
+            const dotFound = firstDot !== -1;
+            const identEnd = end === null ? path.length : end;
+
+            return [
+                dotFound? path.slice(start, firstDot + 1): path.slice(start, identEnd) + ".",
+                dotFound? path.slice(firstDot + 1, identEnd): null,
+                end ? path.slice(end) : null
+            ];
         }
 
         /**
@@ -585,7 +644,7 @@
             const parts = this.splitPath(bindingString);
             
             expression.prefix = parts[0];
-            expression.name = parts[1];
+            expression.path = parts[1];
             if(parts[2] !== null) this.parseExpression(parts[2], expression);
 
             return expression;
@@ -606,7 +665,6 @@
          * Scans the document or specific element for elements with the data-reactive attribute and caches them
          * @param {HTMLElement} scanTarget The target element to scan
          */
-
         scan(scanTarget = document.body){
             for(let target of scanTarget.querySelectorAll(`[data-reactive]`)) {
                 this.bindElement(target);
@@ -632,49 +690,17 @@
             target.__reactive_binding = parsed;
 
             let binding = this.objectCache.get(parsed.prefix);
+
             if(!binding) {
-                let closest = this.closestBinding(parsed.prefix);
-
-                // TODO: i'm moving again, gonna take like till i get home, hope i remember what i left here
-                if(closest) while(closest) {
-                    if(closest) {
-                        console.log("Found closest binding for", parsed.prefix, "=>", closest);
-                        if(closest.prefix === parsed.prefix) {
-                            // Exact match
-                            binding = closest;
-                        } else {
-                            // Create child object binding
-                            const key = parsed.prefix.slice(closest.prefix.length);
-                            binding = LSReactive.wrap(parsed.prefix + key + ".", closest.object[key], {
-                                parent: closest
-                            });
-                        }
-                    }
-                }
-
-                if(!binding) {
-                    // No binding route exists, we wait for it to be created
-                    const pending = this.pending.get(parsed.prefix);
-                    if(pending) pending.push(target); else this.pending.set(parsed.prefix, [target]);
-                }
+                // No binding route exists
+                const pending = this.pending.get(parsed.prefix);
+                if(pending) pending.push(target); else this.pending.set(parsed.prefix, [target]);
                 return;
             }
 
-            const cache = binding.mappings.get(parsed.name);
-            if(cache) cache.add(target); else binding.mappings.set(parsed.name, new Set([target]));
-            binding.renderValue(target, parsed.name);
-        }
-
-        closestBinding(prefix) {
-            if(typeof prefix === "string") { if (!prefix.endsWith(".")) prefix += "."; } else prefix = "";
-
-            while(prefix.length > 1) {
-                const binding = this.objectCache.get(prefix);
-                if(binding) return binding;
-                prefix = prefix.slice(0, prefix.lastIndexOf(".", prefix.length - 2) + 1);
-            }
-
-            return null;
+            const cache = binding.mappings.get(parsed.path);
+            if(cache) cache.add(target); else binding.mappings.set(parsed.path, new Set([target]));
+            binding.renderValue(target, parsed.path);
         }
 
         /**
@@ -692,7 +718,7 @@
 
             const binding = this.objectCache.get(target.__reactive_binding.prefix);
             if(binding) {
-                const cache = binding.mappings.get(target.__reactive_binding.name);
+                const cache = binding.mappings.get(target.__reactive_binding.path);
                 if(cache) cache.delete(target);
             }
 
