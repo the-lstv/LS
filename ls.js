@@ -32,28 +32,23 @@
     }
 
     if(instance.isWeb){
-        global.LS = instance
+        global.LS = instance;
 
-        if(window.LS_DONT_GLOBALIZE_TINY !== true)
-        for (let key in instance.Tiny){
-            global[key] = instance.Tiny[key];
+        if(!window.LS_DEFER_INIT){
+            instance.init({
+                globalizeTiny: window.LS_DONT_GLOBALIZE_TINY !== true,
+                globalPrototype: window.ls_do_not_prototype !== true
+            });
         }
 
-        if(!window.ls_do_not_prototype) instance.prototypeTiny();
-
-        instance._topLayer = instance.Create({id: "ls-top-layer", style: {
-            position: "fixed"
-        }});
-
         function bodyAvailable(){
-            document.body.append(instance._topLayer)
             instance._events.completed("body-available", [document.body]);
         }
 
-        if(document.body) bodyAvailable(); else window.addEventListener("load", bodyAvailable);
+        if(document.body) bodyAvailable(); else window.addEventListener("DOMContentLoaded", bodyAvailable);
     }
 
-    return instance
+    return instance;
 
 })(() => {
 
@@ -231,6 +226,7 @@
         }
     }
 
+    let initialized = false;
     const LS = {
         isWeb: typeof window !== 'undefined',
         version: "5.2.7",
@@ -238,33 +234,59 @@
 
         REMOVE_LISTENER: Symbol("event-remove"),
 
-        init(options = {}) {
+        init(options) {
             if(!this.isWeb) return;
+            if(initialized) {
+                console.warn("LS has already been initialized, this attempt has been ignored.");
+                return;
+            }
+
+            initialized = true;
 
             options = LS.Util.defaults({
                 globalPrototype: true,
                 theme: null,
                 accent: null,
                 autoScheme: true,
-                adaptiveTheme: false
+                adaptiveTheme: false,
+                globalizeTiny: false
             }, options);
 
             if(options.globalPrototype) LS.prototypeTiny();
             if(options.theme) this.Color.setTheme(options.theme);
             if(options.accent) this.Color.setAccent(options.accent);
             if(options.autoScheme) this.Color.autoScheme(options.adaptiveTheme);
+            if(options.globalizeTiny) {
+                /**
+                 * @deprecated
+                 */
+                for (let key in this.Tiny){
+                    window[key] = this.Tiny[key];
+                }
+            }
 
-            LS._events.completed("init")
+            this._topLayer = this.Create({id: "ls-top-layer", style: {
+                position: "fixed"
+            }});
+
+            LS.once("body-available", () => {
+                document.body.append(this._topLayer);
+            });
+
+            LS._events.completed("init");
         },
 
         components: new Map,
 
         EventHandler,
 
+        /**
+         * @deprecated
+         */
         TinyWrap(elements){
             if(!elements) return null;
-            
-            // No need to wrap anything, prototypes are global
+
+            // No need to wrap anything, if prototypes are global
             if(LS.Tiny._prototyped) return elements;
 
             function wrap(element){
@@ -282,6 +304,11 @@
             return Array.isArray(elements)? elements.map(wrap): wrap(elements);
         },
 
+        /**
+         * Note: Tiny is deprecated since 5.3.0
+         * It is not going to be removed as of now, but there are now more modern approaches in LS.
+         * @deprecated
+         */
         Tiny: {
             /**
              * Element selector utility
@@ -392,6 +419,9 @@
                 return new LS.Color(r, g, b, a)
             },
 
+            /**
+             * @deprecated
+             */
             M: {
                 _GlobalID: {
                     count: 0,
@@ -501,6 +531,7 @@
 
         /**
          * TinyFactory (utilities for HTML elements)
+         * @deprecated
          */
         TinyFactory: {
             isElement: true,
@@ -1400,13 +1431,13 @@
                 run() {
                     if(this.hasRun) return false;
                     this.hasRun = true;
-                    this.callback();
+                    this.callback(...arguments);
                     this.callback = null;
                     return true;
                 }
 
-                get bind() {
-                    return this.run.bind(this);
+                bind(context) {
+                    return this.run.bind(context || this);
                 }
             }
         },

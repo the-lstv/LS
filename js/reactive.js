@@ -47,33 +47,19 @@
             this.#processPending();
         }
 
-        registerProperty(key) {
-            Object.defineProperty(this.object, key, {
+        registerProperty(virtualKey, physicalKey = null, defaultValue = undefined) {
+            if(physicalKey === null) physicalKey = "_" + virtualKey;
+            if(!this.object.hasOwnProperty(physicalKey) && typeof defaultValue !== "undefined") {
+                this.object[physicalKey] = defaultValue;
+            }
+
+            Object.defineProperty(this.object, virtualKey, {
                 get: () => {
-                    const _extends = this.options.extends;
-                    if(this.object.hasOwnProperty(key)) {
-                        return this.object[key];
-                    }
-                    
-                    if(_extends && _extends.hasOwnProperty(key)) {
-                        return _extends[key];
-                    }
-
-                    return undefined;
+                    return this.#get(this.object, physicalKey, "", false);
                 },
+
                 set: (value) => {
-                    if(this.options.extends) {
-                        if(!this.mutated) {
-                            this.emit("mutated");
-                            this.mutated = true;
-                        }
-
-                        this.mutatedKeys.add(key);
-                    }
-
-                    this.object[key] = value;
-                    this.updated = true;
-                    this.renderKey(key);
+                    this.#set(this.object, physicalKey, value);
                 },
 
                 enumerable: true,
@@ -82,6 +68,7 @@
         }
 
         get proxy () {
+            if(this._destroyed) return null;
             return this.#createProxy(this.object);
         }
 
@@ -96,40 +83,24 @@
 
             const proxy = new Proxy(object, {
                 set: (target, key, value) => {
-                    const fullPath = objectPath + key;
-                    if(this.options.extends) {
-                        if(!this.mutated) {
-                            this.emit("mutated");
-                            this.mutated = true;
-                        }
+                    if(this._destroyed) throw new TypeError("Can't access a proxy of a destroyed ReactiveBinding");
 
-                        this.mutatedKeys.add(fullPath);
-                    }
-
-                    target[key] = value;
-                    this.updated = true;
-                    this.renderKey(fullPath);
-                    return true;
+                    return this.#set(target, key, value, objectPath);
                 },
 
                 get: (target, key) => {
+                    if(this._destroyed) throw new TypeError("Can't access a proxy of a destroyed ReactiveBinding");
+
                     if (key === "__isProxy") return true;
                     if (key === "__bind") return this;
                     if (key === "hasOwnProperty") return target.hasOwnProperty.bind(target);
 
-                    const fullPath = objectPath + key;
-
-                    const _extends = this.options.extends;
-                    const value = target.hasOwnProperty(key)? target[key]: _extends? _extends[key]: undefined;
-                    if(typeof value === "object" && value !== null && !Array.isArray(value)) {
-                        if(this.options.shallow) return value;
-                        return this.#createProxy(value, fullPath);
-                    }
-
-                    return value;
+                    return this.#get(target, key, objectPath);
                 },
 
                 deleteProperty: (target, key) => {
+                    if(this._destroyed) throw new TypeError("Can't access a proxy of a destroyed ReactiveBinding");
+
                     delete target[key];
                     this.renderKey(objectPath + key);
                     return true;
@@ -137,7 +108,61 @@
             });
 
             this.proxyCache.set(object, proxy);
+            object = null; // We can't use the object reference anymore
             return proxy;
+        }
+
+        #set(object, key, value, objectPath = "") {
+            if(this._destroyed) return false;
+
+            const fullPath = objectPath + key;
+            if(this.options.extends) {
+                if(!this.mutated) {
+                    this.emit("mutated");
+                    this.mutated = true;
+                }
+
+                this.mutatedKeys.add(fullPath);
+            }
+
+            object[key] = value;
+            this.updated = true;
+            this.renderKey(fullPath);
+            return true;
+        }
+
+        #isDeepObject(value) {
+            return (typeof value === "object" && value !== null && !Array.isArray(value) && !(value instanceof Date) && !(value instanceof RegExp) && !(value instanceof Function) && !(value instanceof Element));
+        }
+
+        #get(object, key, objectPath = "", nest = true) {
+            if(this._destroyed) return null;
+
+            const hasOwn = object.hasOwnProperty(key);
+
+            if(hasOwn && !this.options.extends) {
+                if(!hasOwn) return undefined;
+
+                const value = object[key];
+                if(!nest || this.options.shallow) return value;
+
+                // Nesting
+                if(!this.#isDeepObject(value)) return value;
+
+                const fullPath = objectPath + key;
+                return this.#createProxy(value, fullPath);
+            } else {
+                // Fallback to extends
+                const fullPath = objectPath + key;
+                const value = this.#walkObjectPath(fullPath, this.options.extends, false);
+                if(!nest || this.options.shallow) return value;
+
+                // Nesting
+                if(!this.#isDeepObject(value)) return value;
+
+                object[key] = {};
+                return this.#createProxy(object[key], fullPath);
+            }
         }
 
         #processPending() {
@@ -146,11 +171,29 @@
 
             if (pendingTargets) {
                 for (const target of pendingTargets) {
-                    const cache = this.mappings.get(target.__reactive_binding.path);
-                    if (cache) cache.add(target); else this.mappings.set(target.__reactive_binding.path, new Set([target]));
-                    this.renderValue(target, this.#walkObjectPath(target.__reactive_binding.path));
+                    this.addTarget(target.__reactive_binding.path, target);
                 }
                 LSReactive.pending.delete(this.prefix);
+            }
+        }
+
+        addTarget(path, target) {
+            if(this.options.collapseValue && path === null) path = "_value";
+
+            const cache = this.mappings.get(path);
+            if(cache) cache.add(target); else this.mappings.set(path, new Set([target]));
+            this.renderValue(target, this.#walkObjectPath(path), path);
+        }
+
+        removeTarget(path, target) {
+            if(this.options.collapseValue && path === null) path = "_value";
+
+            const cache = this.mappings.get(path);
+            if(cache) {
+                cache.delete(target);
+                if(cache.size === 0) {
+                    this.mappings.delete(path);
+                }
             }
         }
 
@@ -182,7 +225,6 @@
                 for (let i = parts.length - 1; i > 0; i--) {
                     parts.pop();
                     const parentKey = parts.join(".");
-                    console.log(parentKey, parts);
                     this._pending.add(parentKey);
                 }
             }
@@ -212,15 +254,16 @@
             const cache = this.mappings.get(key);
             if (!cache || cache.size === 0) return;
             for (let target of cache) {
-                this.renderValue(target, this.#walkObjectPath(key));
+                this.renderValue(target, this.#walkObjectPath(key), key);
             }
         }
 
         #walkObjectPath(path, object = this.object, fp = true) {
-            const ext = this.options.extends;
+            const ext = fp && this.options.extends;
 
             if (object[path] !== undefined) return object[path];
-            if (ext[path] !== undefined) return ext[path];
+            if (ext && ext[path] !== undefined) return ext[path];
+            if (!path) return this.options.collapseValue ? object._value || ext._value : object;
 
             const parts = Array.isArray(path) ? path : path.split(".");
             let current = object;
@@ -238,30 +281,52 @@
             return current;
         }
 
-        renderValue(target, value){
+        renderValue(target, value, path = null) {
             if(this._destroyed || this.options.render === false) return;
+
+            const config = target && target.__reactive_binding;
+            if(!config) {
+                this.removeTarget(path, target);
+                return;
+            }
+
+            if(typeof this.options.render === "function") {
+                try {
+                    this.options.render.call(this, target, value);
+                } catch (e) {
+                    console.error("Error in custom render function for binding", this.prefix, e);
+                }
+                return;
+            }
+
             try {
                 if(typeof value === "function") value = value();
 
-                if(!value && target.__reactive_binding.or) {
-                    value = target.__reactive_binding.or;
-                }
-
-                if(target.__reactive_binding.default && (typeof value === "undefined" || value === null)) {
-                    value = target.__reactive_binding.default;
-                }
-
                 // Try getting the type again
-                if(typeof target.__reactive_binding.type === "string") {
-                    target.__reactive_binding.type = LSReactive.types.get(target.__reactive_binding.type.toLowerCase()) || target.__reactive_binding.type;
+                if(typeof config.type === "string") {
+                    config.type = LSReactive.types.get(config.type.toLowerCase()) || config.type;
                 }
 
-                if(typeof target.__reactive_binding.type === "function") {
-                    value = target.__reactive_binding.type(value, target.__reactive_binding.args || [], target, this.options.extends || this.object);
+                if(typeof config.type === "function") {
+                    value = config.type(value, config.args || [], target, this.proxy);
                 }
 
-                if(target.__reactive_binding.value_prefix) {
-                    value = target.__reactive_binding.value_prefix + value;
+                if(config.render === false) return;
+
+                if(config.default && (typeof value === "undefined" || value === null)) {
+                    value = config.default;
+                }
+
+                if(!value && config.or) {
+                    value = config.or;
+                }
+
+                if(config.compare) {
+                    value === config.compare;
+                }
+
+                if(config.prependValue) {
+                    value = config.prependValue + value;
                 }
 
                 if(value instanceof Element) {
@@ -269,8 +334,8 @@
                     return;
                 }
 
-                if(target.__reactive_binding.attribute) {
-                    target.setAttribute(target.__reactive_binding.attribute, value);
+                if(config.attribute) {
+                    target.setAttribute(config.attribute, value);
                     return;
                 }
 
@@ -285,7 +350,7 @@
 
                 } else {
 
-                    if(target.__reactive_binding.raw) target.innerHTML = value; else target.textContent = value;
+                    if(config.raw) target.innerHTML = value; else target.textContent = value;
 
                 }
             } catch (e) {
@@ -305,15 +370,50 @@
 
             this.mutated = false;
             this.render(this.mutatedKeys);
+            this.emit("reset", [this.mutatedKeys]);
             this.mutatedKeys.clear();
-            this.emit("reset", [true]);
             return true;
         }
 
         /**
-         * Drops all connected elements (does not unbind them!).
+         * Applies mutated values to the original extended object and resets self.
+         * Only works for forked bindings with an extends option set.
+         * @returns {boolean} True if the sync was successful
+         */
+        sync() {
+            if (!this.options.extends || !this.mutated) return false;
+
+            const ext = this.options.extends;
+            for (const key of this.mutatedKeys) {
+                const value = this.#walkObjectPath(key, this.object, false);
+                if (value !== undefined) {
+                    const parts = key.split(".");
+                    let target = ext;
+                    for (let i = 0; i < parts.length - 1; i++) {
+                        if (target[parts[i]] === undefined) {
+                            target[parts[i]] = {};
+                        }
+                        target = target[parts[i]];
+                    }
+                    target[parts[parts.length - 1]] = value;
+                }
+            }
+
+            this.reset();
+            this.emit("sync");
+            return true;
+        }
+
+        /**
+         * Drops and unbinds all connected elements to this binding.
+         * @returns {void}
         */
-        drop() {
+        dropAll() {
+            for (const cache of this.mappings.values()) {
+                for (const element of cache) {
+                    LSReactive.unbindElement(element);
+                }
+            }
             this.mappings.clear();
         }
 
@@ -323,9 +423,10 @@
             this.object = null;
 
             this.options = null;
-            this.mappings.clear();
+            this.dropAll();
 
-            this.proxy = null;
+            // Should drop all proxies, except some that somebody somehow stored a reference of, which we sadly can't revoke as its a weakmap
+            this.proxyCache = null;
 
             this._renderScheduled = false;
             this._pending.clear();
@@ -404,6 +505,18 @@
             });
         }
 
+        createBinding(object, prefix, options = {}) {
+            if(typeof prefix === "string") { if (!prefix.endsWith(".")) prefix += "."; } else prefix = "";
+
+            if (this.objectCache.has(prefix)) {
+                const existing = this.objectCache.get(prefix);
+                if (!existing._destroyed) {
+                    existing.destroy();
+                }
+            }
+            return new ReactiveBinding(object, prefix, options);
+        }
+
         /**
          * Wraps an object with a reactive proxy.
          * The proxy will get the following extra properties:
@@ -413,21 +526,14 @@
          * @param {object} object The object to wrap
          * @param {object} options Options for the binding
          * @param {boolean} options.shallow Whether to only wrap the top-level object
-         * @param {boolean} options.render Disable rendering
+         * @param {boolean|function} options.render Disables rendering if set to false, or replaces with a custom render function
          * @param {boolean} options.propagate Whether to propagate changes to parent bindings (eg. if user.data.name changes, user.data and user also update)
          * @param {boolean} options.extends Fallback object to use when the key is not found
+         * @param {boolean} options.collapseValue Whether to collapse references to the object itself to its _value property (eg. if "test" is {_value: 5} and we bind {{ test }}, 5 will be used instead of the object)
          * @returns {Proxy} The reactive proxy object
          */
         wrap(prefix, object, options = {}) {
-            if(typeof prefix === "string") { if (!prefix.endsWith(".")) prefix += "."; } else prefix = "";
-            if (this.objectCache.has(prefix)) {
-                const existing = this.objectCache.get(prefix);
-                if (!existing._destroyed) {
-                    existing.destroy();
-                }
-            }
-
-            const binding = new ReactiveBinding(object, prefix, options);
+            const binding = this.createBinding(object, prefix, options);
             return binding.proxy;
         }
 
@@ -441,8 +547,52 @@
          * @returns {Proxy} The reactive proxy object
          */
         fork(prefix, object, data, options = {}) {
-            options.extends = object;
+            options.extends = object.__isProxy ? object.__bind?.object : object;
             return this.wrap(prefix, data || {}, options);
+        }
+
+        /**
+         * Creates a shallow reactive reference object with a single "value" property.
+         * @param {string} prefix The prefix to bind to
+         * @param {*} value The initial value of the reference
+         * @returns {object} The reference object with a "value" property
+         * 
+         * @example
+         * const countRef = reactive.valueRef("count", 0);
+         * countRef.value = 5;
+         * 
+         * // In HTML: {{ countRef }} <!-- This will update to 5 -->
+         */
+        valueRef(prefix, value) {
+            const refObject = { value: value };
+            const binding = this.createBinding(refObject, prefix, { shallow: true, propagate: false, collapseValue: true });
+            binding.registerProperty("value", "_value", value);
+            return refObject;
+        }
+
+        /**
+         * Destroys a binding by its prefix.
+         * @param {*} prefix The prefix of the binding to destroy
+         * @returns {boolean} True if the binding was found and destroyed
+         */
+        destroyBinding(prefix) {
+            const binding = this.objectCache.get(prefix);
+            if(binding) {
+                binding.destroy();
+                return true;
+            }
+            return false;
+        }
+
+        /**
+         * Destroys all bindings.
+         * @returns {void}
+         */
+        destroyAll() {
+            for(const binding of this.objectCache.values()) {
+                binding.destroy();
+            }
+            this.objectCache.clear();
         }
 
         /**
@@ -611,7 +761,18 @@
 
                         console.warn("You have a syntax error in key: " + expr);
                         return result; // Invalid
-                    
+
+                    case 61: // = - Compare
+                        if(expr.charCodeAt(i + 1) === 61) {
+                            i++;
+                            v_property = "compare";
+                            state = 2;
+                            break;
+                        }
+
+                        console.warn("You have a syntax error in key: " + expr);
+                        return result; // Invalid
+
                     case 33: // ! - Raw HTML
                         result.raw = true;
                         break;
@@ -714,9 +875,7 @@
                 return;
             }
 
-            const cache = binding.mappings.get(parsed.path);
-            if(cache) cache.add(target); else binding.mappings.set(parsed.path, new Set([target]));
-            binding.renderValue(target, parsed.path);
+            binding.addTarget(parsed.path, target);
         }
 
         /**
@@ -726,6 +885,7 @@
          * @returns {void}
          */
         unbindElement(target, keepAttribute = false) {
+            if(!target) return;
             if(!keepAttribute) {
                 target.removeAttribute("data-reactive");
             }
@@ -734,8 +894,7 @@
 
             const binding = this.objectCache.get(target.__reactive_binding.prefix);
             if(binding) {
-                const cache = binding.mappings.get(target.__reactive_binding.path);
-                if(cache) cache.delete(target);
+                binding.removeTarget(target.__reactive_binding.path, target);
             }
 
             if(target.__reactive_binding) {
@@ -751,7 +910,7 @@
          * Renders all bindings in the cache (everything from any bound element)
          * @param {Array<ReactiveBinding>} bindings An array of bindings to render, defaults to all bindings in the cache
          */
-        renderAll(bindings){
+        renderAll(bindings) {
             for(let binding of Array.isArray(bindings)? bindings: this.objectCache.values()) {            
                 if(binding && binding.object && binding.updated) binding.render();
             }
@@ -761,7 +920,7 @@
          * Renders a binding object
          * @param {object} binding The binding object to render
          */
-        render(binding){
+        render(binding) {
             if(typeof binding === "undefined") return this.renderAll();
             if(binding.object && binding.updated) return binding.render();
             return null;
