@@ -154,7 +154,7 @@
             } else {
                 // Fallback to extends
                 const fullPath = objectPath + key;
-                const value = this.#walkObjectPath(fullPath, this.options.extends, false);
+                const value = this.walkObjectPath(fullPath, this.options.extends, false);
                 if(!nest || this.options.shallow) return value;
 
                 // Nesting
@@ -182,7 +182,7 @@
 
             const cache = this.mappings.get(path);
             if(cache) cache.add(target); else this.mappings.set(path, new Set([target]));
-            this.renderValue(target, this.#walkObjectPath(path), path);
+            this.renderValue(target, this.walkObjectPath(path), path);
         }
 
         removeTarget(path, target) {
@@ -254,28 +254,60 @@
             const cache = this.mappings.get(key);
             if (!cache || cache.size === 0) return;
             for (let target of cache) {
-                this.renderValue(target, this.#walkObjectPath(key), key);
+                this.renderValue(target, this.walkObjectPath(key), key);
             }
         }
 
-        #walkObjectPath(path, object = this.object, fp = true) {
-            const ext = fp && this.options.extends;
-
+        /**
+         * This is currently a bottleneck and should be optimized ("obj.key" being fastest, "obj.a.b" being the slowest, especially with extends)
+         * 
+         * Though from my benchmarks, this is the fastest known way to walk a path.
+         * 
+         * @param {string|Array<string>} path The path to walk
+         * @param {object} [object=this.object] The object to walk
+         * @param {boolean} [fp=true] Whether to fallback to extends
+         * @returns {*} The value at the path, or undefined if not found
+         */
+        walkObjectPath(path, object = this.object, fp = true) {
             if (object[path] !== undefined) return object[path];
+
+            const ext = fp && this.options.extends;
             if (ext && ext[path] !== undefined) return ext[path];
             if (!path) return this.options.collapseValue ? object._value || ext._value : object;
 
             const parts = Array.isArray(path) ? path : path.split(".");
+
             let current = object;
+            let fallback = ext;
+            let usingFallback = false;
 
             for (const part of parts) {
                 if (!part) continue;
 
-                if (current && current[part] !== undefined) {
-                    current = current[part];
-                } else {
-                    return ext && fp ? this.#walkObjectPath(parts, ext, false) : undefined;
+                const next = (!usingFallback && current) ? current[part] : undefined;
+
+                if (next !== undefined) {
+                    current = next;
+
+                    if (!usingFallback && fallback) {
+                        const candidate = fallback[part];
+                        fallback = candidate !== undefined ? candidate : undefined;
+                    }
+
+                    continue;
                 }
+
+                if (fallback) {
+                    const fbNext = fallback[part];
+                    if (fbNext === undefined) return undefined;
+
+                    current = fbNext;
+                    fallback = fbNext;
+                    usingFallback = true;
+                    continue;
+                }
+
+                return undefined;
             }
 
             return current;
@@ -385,7 +417,7 @@
 
             const ext = this.options.extends;
             for (const key of this.mutatedKeys) {
-                const value = this.#walkObjectPath(key, this.object, false);
+                const value = this.walkObjectPath(key, this.object, false);
                 if (value !== undefined) {
                     const parts = key.split(".");
                     let target = ext;
@@ -904,6 +936,18 @@
 
             target.__bindHash = null;
             delete target.__bindHash;
+        }
+
+        /**
+         * Gets the value at a specific path in the reactive system
+         * @param {string} fullPath The full path to get the value from
+         * @returns {*} The value at the specified path, or undefined if not found
+         */
+        valueAt(fullPath) {
+            const [prefix, path] = this.splitPath(fullPath);
+            const binding = this.objectCache.get(prefix);
+            if(!binding) return undefined;
+            return binding.walkObjectPath(path);
         }
 
         /**

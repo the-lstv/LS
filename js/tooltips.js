@@ -1,11 +1,11 @@
-LS.LoadComponent(class Tooltips extends LS.Component {
+LS.LoadComponent(class Tooltips extends LS.DestroyableComponent {
     constructor(){
-        super()
+        super();
 
-        this.container = N({ class: "ls-tooltip-layer" });
-        this.contentElement = N({ class:"ls-tooltip-content" });
+        this.container = this.createElement({ class: "ls-tooltip-layer" });
+        this.contentElement = this.createElement({ class:"ls-tooltip-content" });
 
-        this.container.add(this.contentElement);
+        this.container.append(this.contentElement);
 
         this.attributes = ['ls-tooltip', 'ls-hint'];
 
@@ -13,10 +13,10 @@ LS.LoadComponent(class Tooltips extends LS.Component {
         this.__onMouseMove = this._onMouseMove.bind(this);
         this.__onMouseLeave = this._onMouseLeave.bind(this);
 
-        this.frameScheduler = new LS.Util.FrameScheduler(() => this.#render());
+        this.frameScheduler = this.addDestroyable(new LS.Util.FrameScheduler(() => this.#render()));
 
         LS.once("body-available", () => {
-            LS._topLayer.add(this.container);
+            LS._topLayer.append(this.container);
             this.rescan();
         });
     }
@@ -143,8 +143,15 @@ LS.LoadComponent(class Tooltips extends LS.Component {
         element.removeEventListener("mouseleave", this.__onMouseLeave);
     }
 
+    unbindAll(){
+        const elements = document.querySelectorAll(this.attributes.map(a => `[${a}]`).join(","));
+        for(const element of elements) {
+            this.unbind(element);
+        }
+    }
+
     _onMouseEnter(event){
-        const element = O(event.target);
+        const element = event.target;
         if(!element.ls_hasTooltip) return;
 
         element.ls_tooltip = element.getAttribute("ls-tooltip") || element.getAttribute("ls-hint") || element.getAttribute("title") || element.getAttribute("aria-label") || element.getAttribute("alt") || "";
@@ -155,27 +162,22 @@ LS.LoadComponent(class Tooltips extends LS.Component {
     }
 
     _onMouseMove(event) {
-        const element = O(event.target);
+        const element = event.target;
         if(!element.ls_hasTooltip) return;
 
         this.position(element, event);
     }
 
     _onMouseLeave(event) {
-        const element = O(event.target);
+        const element = event.target;
         if(!element.ls_hasTooltip) return;
 
-        this.emit("leave", [element.tooltip_value]);
+        this.emit("leave", [element.ls_tooltip]);
         this.hide();
     }
 
-    destroy(){
-        this.frameScheduler.destroy();
-        this.container.remove();
-        this.container = null;
-        this.contentElement = null;
-        this.emit("destroy");
-        this.events.clear();
-        return null;
+    destroy() {
+        this.unbindAll();
+        super.destroy();
     }
 }, { global: true, singular: true, name: "Tooltips" });

@@ -224,6 +224,156 @@
         }
     }
 
+    /**
+     * @concept
+     * @experimental Direction undecided, so far an abstract concept
+     * 
+     * Best-effort based destroy container.
+     * It destroys explicitly added destroyables and tries to recursively destroy itself.
+     * Supports various destroyable types, timers, and external events.
+     */
+    class Context extends EventHandler {
+        #destroyables = new Set();
+        #timers = new Set();
+        #externalEvents = [];
+
+        constructor(options = {}) {
+            super();
+            this.destroyed = false;
+
+            if(options.container) {
+                if(typeof options.container === "string") {
+                    this.container = LS.Tiny.O(options.container);
+                } else if(typeof options.container === "function") {
+                    this.container = options.container(options.data || {});
+                } else {
+                    this.container = options.container;
+                }
+            }
+        }
+
+        createElement(tagName, content) {
+            const element = LS.Create(tagName, content);
+            this.addDestroyable(element);
+            return element;
+        }
+
+        addDestroyable(destroyable) {
+            if (!destroyable || this.destroyed) return null;
+            this.#destroyables.add(destroyable);
+            return destroyable;
+        }
+
+        removeDestroyable(destroyable, destroy = false) {
+            this.#destroyables.delete(destroyable);
+            if (destroy) this.destroyOne(destroyable, false);
+        }
+
+        setTimeout(callback, delay, ...args) {
+            const timer = setTimeout(() => {
+                this.#timers.delete(timer);
+                callback(...args);
+            }, delay);
+            this.#timers.add(timer);
+            return timer;
+        }
+
+        setInterval(callback, interval, ...args) {
+            const timer = setInterval(() => {
+                this.#timers.delete(timer);
+                callback(...args);
+            }, interval);
+            this.#timers.add(timer);
+            return timer;
+        }
+
+        destroyOne(destroyable, _remove = true, _explicit = true) {
+            try {
+                if (_remove) this.#destroyables.delete(destroyable);
+
+                if(destroyable === null || destroyable === undefined || (typeof destroyable !== "object" && typeof destroyable !== "function")) return;
+
+                if(destroyable instanceof Element) {
+                    destroyable.remove();
+                    return;
+                }
+
+                if(destroyable instanceof NodeList || Array.isArray(destroyable)) {
+                    destroyable.forEach(item => this.destroyOne(item, false, _explicit));
+                    return;
+                }
+
+                if(destroyable instanceof EventHandler) {
+                    destroyable.events.clear();
+                }
+
+                if(destroyable instanceof AbortController) {
+                    destroyable.abort();
+                }
+
+                if(typeof destroyable === "function" && _explicit) {
+                    destroyable();
+                }
+
+                if (typeof destroyable.destroy === "function") destroyable.destroy();
+            } catch (error) {
+                console.error("Error destroying:", error);
+            }
+        }
+
+        externalAddEventListener(target, event, callback, options) {
+            const addListener = (target.addEventListener || target.on);
+            if (typeof addListener === "function") addListener.call(target, event, callback, options);
+            this.#externalEvents.push([target, event, callback]);
+        }
+
+        externalRemoveEventListener(target, event, callback, options) {
+            const index = this.#externalEvents.findIndex(([t, e, c]) => t === target && e === event && c === callback);
+            if (index !== -1) {
+                const removeListener = (target.removeEventListener || target.off);
+                if (typeof removeListener === "function") removeListener.call(target, event, callback, options);
+                this.#externalEvents.splice(index, 1);
+            }
+        }
+
+        destroy() {
+            if (this.destroyed) return;
+            this.emit("destroyed");
+            this.events.clear();
+
+            for(const timer of this.#timers) {
+                clearTimeout(timer);
+                clearInterval(timer);
+            }
+
+            for(const destroyable of this.#destroyables) {
+                this.destroyOne(destroyable, false);
+            }
+
+            for(const [target, event, callback] of this.#externalEvents) {
+                const removeListener = (target.removeEventListener || target.off);
+                if (typeof removeListener === "function") removeListener.call(target, event, callback);
+            }
+            this.#externalEvents = null;
+
+            this.#destroyables.clear();
+            this.#destroyables = null;
+            this.events = null;
+
+            this.destroyed = true;
+            if(this.container && this.container instanceof Element) {
+                this.container.remove();
+                this.container = null;
+            }
+            
+            for(const key of Object.keys(this)) {
+                this.destroyOne(this[key], false, false);
+                delete this[key];
+            }
+            this.destroyed = true;
+        }
+    }
+
     let initialized = false;
     const LS = {
         isWeb: typeof window !== 'undefined',
@@ -814,21 +964,22 @@
 
             /**
              * Gets URL parameters as an object or a specific parameter by name.
-             * From my testing, this is 3.5x faster than URLSearchParams for all parameters and 11x faster to get a single parameter.
-             * https://jsbm.dev/pNp6dNGXZY1j1
+             * From my testing, this is 8x faster than URLSearchParams for all parameters and 11x faster to get a single parameter.
+             * Meaning that for 99% of use cases where duplicate keys are not a concern, this is almost always faster (and imho cleaner).
+             * https://jsbm.dev/XMZyoeowQqoPm
              * 
-             * @param {string|null} get Name of the parameter to get, or null to get all parameters as an object.
+             * @param {string|null} getOne Name of the parameter to get, or null to get all parameters as an object.
              * @param {string} baseUrl URL or search string to parse, defaults to current location's search string.
              * @returns {object|string|null} Object with all parameters, specific parameter value, or null if not found.
              */
-            params(get = null, baseUrl = typeof location !== "undefined" ? location.search : ""){
+            parseURLParams(baseUrl = typeof location !== "undefined" ? location.search : "", getOne = null){
                 const index = baseUrl.indexOf('?');
                 const url = baseUrl.slice(index + 1);
                 if(!url.length){
-                    return get? null : {}
+                    return getOne? null : {};
                 }
 
-                let i = 0, vi = 0, cparam = null, result = get ? null : {};
+                let i = 0, vi = 0, cparam = null, result = getOne ? null : {};
                 for(; i < url.length; i++){
                     const char = url.charCodeAt(i);
                     const atEnd = i === url.length - 1;
@@ -840,8 +991,8 @@
 
                         if((char === 38 || (atEnd && !isDelimiter) || char === 35) && cparam !== null){ // &, end, #
                             const value = decodeURIComponent(param);
-                            if(get && cparam === get) return value;
-                            if(!get) result[cparam] = value;
+                            if(getOne && cparam === getOne) return value;
+                            if(!getOne) result[cparam] = value;
                             cparam = null;
                             vi = i + 1;
                             if(char === 35) break;
@@ -849,7 +1000,7 @@
                         }
 
                         if(param.length !== 0) {
-                            if(!get) result[param] = "";
+                            if(!getOne) result[param] = "";
                             cparam = param;
                             vi = i + 1;
                         }
@@ -860,7 +1011,15 @@
                     }
                 }
 
-                return get? null : result;
+                return getOne? null : result;
+            },
+
+            /**
+             * The same as LS.Util.parseURLParams but with parameters reversed for backward compatibility.
+             * @deprecated
+             */
+            params(get = null, baseUrl = typeof location !== "undefined" ? location.search : ""){
+                return LS.Util.parseURLParams(baseUrl, get);
             },
 
             TouchHandle: class TouchHandle extends EventHandler {
@@ -1506,6 +1665,12 @@
         },
 
         /**
+         * @concept
+         * @experimental Direction undecided, so far an abstract concept
+         */
+        Context,
+
+        /**
          * Similar behavior as LS.Create, but compiles into a direct optimized function for repeated use.
          * Useful if you have a medium/large structure you expect to create many times and want direct access to its elements.
          * **Not** useful if you intend to do this once ever, it will be slower than LS.Create.
@@ -1955,7 +2120,10 @@
         Component: class Component extends EventHandler {
             constructor(){
                 super();
+                this.__check();
+            }
 
+            __check(){
                 if(!this._component || !LS.components.has(this._component.name)){
                     throw new Error("This class has to be extended and loaded as a component with LS.LoadComponent.");
                 }
@@ -1967,6 +2135,21 @@
                 console.warn(`[LS] Component ${this._component.name} does not implement destroy method!`);
                 this.events.clear();
                 return false;
+            }
+        },
+
+        DestroyableComponent: class DestroyableComponent extends Context {
+            constructor(){
+                super();
+                LS.Component.prototype.__check.call(this);
+            }
+
+            destroy() {
+                if(this._component.singular){
+                    this._component.instance.destroyed = true;
+                    LS.UnregisterComponent(this._component.name);
+                }
+                super.destroy();
             }
         },
 
@@ -1984,6 +2167,7 @@
                 metadata: options.metadata,
                 global: !!options.global,
                 hasEvents: options.events !== false,
+                singular: !!options.singular,
                 name
             }
 
@@ -2001,7 +2185,7 @@
             LS.components.set(name, component);
 
             if(component.global){
-                LS[name] = options.singular && component.isConstructor? new componentClass: componentClass;
+                LS[name] = options.singular && component.isConstructor? (component.instance = new componentClass): componentClass;
             }
 
             LS.emit("component-loaded", [component]);
@@ -2010,6 +2194,28 @@
 
         GetComponent(name){
             return LS.components.get(name)
+        },
+
+        UnregisterComponent(name){
+            const component = LS.components.get(name);
+            if(!component) return false;
+
+            if(component.instance && !component.instance.destroyed){
+                const destroyMethod = component.isConstructor ? component.instance.destroy : component.class.destroy;
+                if(typeof destroyMethod === "function"){
+                    destroyMethod.call(component.instance);
+                } else {
+                    console.warn(`[LS] Component ${name} does not implement destroy method!`);
+                }
+            }
+
+            if(component.global){
+                delete LS[name];
+            }
+
+            LS.components.delete(name);
+            LS.emit("component-unloaded", [component]);
+            return true;
         },
 
         /**
@@ -3307,13 +3513,13 @@
             M.lastKey = event.key;
             if(event.key == "Shift") LS.Tiny.M.ShiftDown = true;
             if(event.key == "Control") LS.Tiny.M.ControlDown = true;
-        })
+        });
 
         LS.Tiny.M.on("keyup", event => {
             LS.Tiny.M.lastKey = event.key;
             if(event.key == "Shift") LS.Tiny.M.ShiftDown = false;
             if(event.key == "Control") LS.Tiny.M.ControlDown = false;
-        })
+        });
 
         LS.Tiny.M.on("mousedown", () => LS.Tiny.M.mouseDown = true)
         LS.Tiny.M.on("mouseup", () => LS.Tiny.M.mouseDown = false)
