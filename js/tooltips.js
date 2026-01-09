@@ -113,11 +113,14 @@ LS.LoadComponent(class Tooltips extends LS.Component {
             const attributeName = mutation.attributeName || null;
             if(attributeName && !this.attributes.includes(attributeName)) continue;
 
-            element.ls_tooltip_isHint = element.hasAttribute("ls-hint");
-            element.ls_hasTooltip = element.ls_tooltip_isHint || this.attributes.some(attr => element.hasAttribute(attr));
-
-            if(!element.ls_tooltipSetup) this.setup(element); else if(!element.ls_hasTooltip) this.unbind(element);
+            this.updateElement(element);
         }
+    }
+
+    updateElement(element){
+        element.ls_tooltip_isHint = element.hasAttribute("ls-hint");
+        element.ls_hasTooltip = element.ls_tooltip_isHint || this.attributes.some(attr => element.hasAttribute(attr));
+        if(!element.ls_tooltipSetup) this.setup(element); else if(!element.ls_hasTooltip) this.unbind(element);
     }
 
     rescan(){

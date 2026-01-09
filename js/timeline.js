@@ -45,6 +45,47 @@
         framerateLimit: 90
     };
 
+    // const TEMPLATE = LS.CompileTemplate((data, exportElement) => ({
+    //     attributes: { tabindex: "0" },
+    //     inner: [
+    //         (exportElement("markerContainer", {
+    //             class: "ls-timeline-markers"
+    //         })),
+
+    //         (exportElement("playerHead", {
+    //             class: "ls-timeline-player-head"
+    //         })),
+
+    //         (exportElement("selectionRect", {
+    //             class: "ls-timeline-selection-rect",
+    //             style: "position: absolute; pointer-events: none; display: none; border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent) 50%, rgba(0, 0, 0, 0.2) 50%); z-index: 100;"
+    //         })),
+
+    //         (exportElement("snapLine", {
+    //             class: "ls-timeline-snap-line",
+    //             style: "position: fixed; top: 0; left: 0; width: 1px; background: var(--accent-60); z-index: 1000; pointer-events: none; display: none;"
+    //         })),
+
+    //         (exportElement("scrollContainer", {
+    //             class: "ls-timeline-scroll-container",
+    //             inner: [
+    //                 (exportElement("spacerElement", {
+    //                     class: "ls-timeline-spacer",
+    //                     style: "height: 1px; width: 0px;"
+    //                 })),
+
+    //                 (exportElement("rowContainer", {
+    //                     class: "ls-timeline-rows"
+    //                 }))
+    //             ]
+    //         }))
+    //     ]
+    // }));
+
+    // Until I have a server-side transpiler of LS.CompileTemplate, I will hard-code the output here to give the client some rest :P
+    const TEMPLATE = function(d){'use strict';var e0=document.createElement("div");e0.setAttribute("tabindex","0");var e1=document.createElement("div");e1.className="ls-timeline-markers";var e2=document.createElement("div");e2.className="ls-timeline-player-head";var e3=document.createElement("div");e3.className="ls-timeline-selection-rect";e3.style.cssText="position: absolute; pointer-events: none; display: none; border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent) 50%, rgba(0, 0, 0, 0.2) 50%); z-index: 100;";var e4=document.createElement("div");e4.className="ls-timeline-snap-line";e4.style.cssText="position: fixed; top: 0; left: 0; width: 1px; background: var(--accent-60); z-index: 1000; pointer-events: none; display: none;";var e5=document.createElement("div");e5.className="ls-timeline-scroll-container";var e6=document.createElement("div");e6.className="ls-timeline-spacer";e6.style.cssText="height: 1px; width: 0px;";var e7=document.createElement("div");e7.className="ls-timeline-rows";e5.append(e6,e7);e0.append(e1,e2,e3,e4,e5);var __rootValue=e0;return{"markerContainer":e1,"playerHead":e2,"selectionRect":e3,"snapLine":e4,"scrollContainer":e5,"spacerElement":e6,"rowContainer":e7,root:__rootValue};}
+
+
     // :shrug:
     // const computeZoomMultiplier = (zoom) => {
     //     return zoom < 0.005 ? 512
@@ -81,42 +122,16 @@
 
             this.options = LS.Util.defaults(DEFAULTS, options);
 
-            this.container = LS.Create({
-                attributes: { tabindex: "0" },
-                inner: [
-                    (this.markerContainer = LS.Create({
-                        class: "ls-timeline-markers"
-                    })),
+            const element = TEMPLATE();
 
-                    (this.playerHead = LS.Create({
-                        class: "ls-timeline-player-head"
-                    })),
-
-                    (this.selectionRect = LS.Create({
-                        class: "ls-timeline-selection-rect",
-                        style: "position: absolute; pointer-events: none; display: none; border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent) 50%, rgba(0, 0, 0, 0.2) 50%); z-index: 100;"
-                    })),
-
-                    (this.snapLine = LS.Create({
-                        class: "ls-timeline-snap-line",
-                        style: "position: fixed; top: 0; left: 0; width: 1px; background: var(--accent-60); z-index: 1000; pointer-events: none; display: none;"
-                    })),
-
-                    (this.scrollContainer = LS.Create({
-                        class: "ls-timeline-scroll-container",
-                        inner: [
-                            (this.spacerElement = LS.Create({
-                                class: "ls-timeline-spacer",
-                                style: "height: 1px; width: 0px;"
-                            })),
-
-                            (this.rowContainer = LS.Create({
-                                class: "ls-timeline-rows"
-                            }))
-                        ]
-                    }))
-                ]
-            });
+            this.container = element.root;
+            this.scrollContainer = element.scrollContainer;
+            this.rowContainer = element.rowContainer;
+            this.spacerElement = element.spacerElement;
+            this.markerContainer = element.markerContainer;
+            this.playerHead = element.playerHead;
+            this.selectionRect = element.selectionRect;
+            this.snapLine = element.snapLine;
 
             if (this.options.element) {
                 this.options.element.appendChild(this.container);

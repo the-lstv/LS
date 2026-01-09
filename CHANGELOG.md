@@ -14,6 +14,7 @@
 - Breaking changes: Deprecated LS.Tiny and removed some very old and bad methods that somehow made it until now. Damage is essentially zero as nobody ever used those.
 - LS.Util.params has been replaced by a much more optimized parser
 - Removed v4compat layer as there is no need to support it anymore and maintenance would become impossible
+- Added (currently experimental) LS.CompileTemplate, with similar API to LS.Create, but compiles to an optimized function for better performance when creating many instances of the same structure.
 
 ### Version 5.2.8
 - Listeners can be removed by returning LS.REMOVE_LISTENER

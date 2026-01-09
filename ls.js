@@ -321,7 +321,7 @@
                     element.setAttribute("title", tooltip);
                 } else {
                     element.setAttribute("ls-tooltip", tooltip);
-                    LS.Tooltips.addElements([{ target: element, attributeName: "ls-tooltip" }]);
+                    LS.Tooltips.updateElement(element);
                 }
             }
 
@@ -340,17 +340,15 @@
                 }
             }
 
-            if (typeof className === "string") {
-                element.className = className;
-            } else if(className) {
-                LS.TinyFactory.class.call(element, className);
+            if (className) {
+                element.className = Array.isArray(className)? className.filter(Boolean).join(" ") : className;
             }
 
             if (typeof style === "object") LS.TinyFactory.applyStyle.call(element, style); else if (typeof style === "string") element.style.cssText = style;
 
             // Append children or content
             const contentToAdd = inner || innerContent;
-            if (contentToAdd) LS.TinyFactory.add.call(element, contentToAdd);
+            if (contentToAdd) element.append(...LS.Util.resolveElements(contentToAdd));
 
             return element;
         },
@@ -574,23 +572,21 @@
              */
             attrAssign(attributes){
                 if (typeof attributes === "string") {
-                    attributes = { Array: [attributes] };
+                    this.setAttribute(attributes, "");
+                    return this;
                 } else if (Array.isArray(attributes)) {
-                    attributes = { Array: attributes };
+                    for (const attr of attributes) {
+                        if (typeof attr === "object") {
+                            this.attrAssign(attr);
+                        } else if (attr) {
+                            this.setAttribute(attr, "");
+                        }
+                    }
+                    return this;
                 }
             
                 for (const [key, value] of Object.entries(attributes)) {
-                    if (key === "Array") {
-                        for (const attr of value) {
-                            if (typeof attr === "object") {
-                                this.attrAssign(attr);
-                            } else if (attr) {
-                                this.setAttribute(attr, "");
-                            }
-                        }
-                    } else if (key) {
-                        this.setAttribute(key, value || "");
-                    }
+                    this.setAttribute(key, value || "");
                 }
 
                 return this;
@@ -773,7 +769,7 @@
 
                     if(!rule.startsWith("--")) rule = rule.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
 
-                    this.style.setProperty(rule, value)
+                    this.style.setProperty(rule, value);
                 }
             },
 
@@ -1506,6 +1502,451 @@
                 bind(context) {
                     return this.run.bind(context || this);
                 }
+            }
+        },
+
+        /**
+         * Similar behavior as LS.Create, but compiles into a direct optimized function for repeated use.
+         * Useful if you have a medium/large structure you expect to create many times and want direct access to its elements.
+         * **Not** useful if you intend to do this once ever, it will be slower than LS.Create.
+         * @experimental Very experimental
+         * 
+         * @param {Function|Array|Object|string} templateBuilder A function that returns a template array/object/string or a template array/object/string directly.
+         */
+        CompileTemplate(templateBuilder, asString = false) {
+            const symbolProxy = LS.CompileTemplate.SYMBOL_PROXY || (LS.CompileTemplate.SYMBOL_PROXY = new Proxy({}, {
+                get(target, prop) {
+                    return Symbol(prop);
+                }
+            }));
+
+            const If = (condition, thenValue, elseValue) => {
+                const node = {
+                    __lsIf: true,
+                    branches: [{ condition, value: thenValue }],
+                    hasElse: typeof elseValue !== "undefined",
+                    elseValue
+                };
+
+                node.elseIf = (cond, value) => {
+                    node.branches.push({ condition: cond, value });
+                    return node;
+                };
+
+                node.else = (value) => {
+                    node.hasElse = true;
+                    node.elseValue = value;
+                    return node;
+                };
+
+                return node;
+            };
+
+            let template = typeof templateBuilder === "function" ? templateBuilder(symbolProxy, (name, input) => {
+                input.__exportName = name;
+                return input;
+            }, If) : templateBuilder;
+
+            if (!Array.isArray(template)) {
+                template = [template];
+            }
+
+            const lines = [];
+            let varCounter = 0;
+            const exports = [];
+
+            function stripWhitespace(value) {
+                return (value ?? "").toString().replace(/\s+/g, "");
+            }
+
+            function dataRef(sym) {
+                const key = stripWhitespace(sym && sym.description);
+                return `d.${key.replace(/[^a-zA-Z0-9_$.]/g, "_").replace(/\.\.*/g, ".")}`;
+            }
+
+            function jsValue(value) {
+                if (typeof value === "symbol") return dataRef(value);
+                if (value === undefined) return "undefined";
+                return JSON.stringify(value);
+            }
+
+            function isIfNode(value) {
+                return !!(value && typeof value === "object" && value.__lsIf);
+            }
+
+            function containsConditional(value) {
+                if (isIfNode(value)) return true;
+                if (Array.isArray(value)) return value.some(containsConditional);
+                return false;
+            }
+
+            function textNodeExpr(value) {
+                return `document.createTextNode(${jsValue(value)})`;
+            }
+
+            function conditionExpr(condition) {
+                return `!!(${jsValue(condition)})`;
+            }
+
+            function getVarName() {
+                return `e${varCounter++}`;
+            }
+
+            function emitToArray(arrayVar, value) {
+                if (value === null || value === undefined) return;
+
+                if (isIfNode(value)) {
+                    const branches = value.branches || [];
+                    if (branches.length > 0) {
+                        lines.push(`if(${conditionExpr(branches[0].condition)}){`);
+                        emitToArray(arrayVar, branches[0].value);
+                        for (let i = 1; i < branches.length; i++) {
+                            lines.push(`}else if(${conditionExpr(branches[i].condition)}){`);
+                            emitToArray(arrayVar, branches[i].value);
+                        }
+                        if (value.hasElse) {
+                            lines.push(`}else{`);
+                            emitToArray(arrayVar, value.elseValue);
+                        }
+                        lines.push(`}`);
+                    } else if (value.hasElse) {
+                        emitToArray(arrayVar, value.elseValue);
+                    }
+                    return;
+                }
+
+                if (Array.isArray(value)) {
+                    // Nested array is treated as a div wrapper
+                    const wrapperVar = getVarName();
+                    lines.push(`var ${wrapperVar}=document.createElement("div");`);
+                    for (const v of value) emitToElement(wrapperVar, v);
+                    lines.push(`${arrayVar}.push(${wrapperVar});`);
+                    return;
+                }
+
+                if (typeof value === "string" || typeof value === "symbol" || typeof value === "number" || typeof value === "boolean") {
+                    lines.push(`${arrayVar}.push(${textNodeExpr(value)});`);
+                    return;
+                }
+
+                if (typeof value !== "object") return;
+
+                const nodeVar = processItem(value);
+                if (nodeVar) lines.push(`${arrayVar}.push(${nodeVar});`);
+            }
+
+            function emitToElement(parentVar, value) {
+                if (value === null || value === undefined) return;
+
+                if (isIfNode(value)) {
+                    const branches = value.branches || [];
+                    if (branches.length > 0) {
+                        lines.push(`if(${conditionExpr(branches[0].condition)}){`);
+                        emitToElement(parentVar, branches[0].value);
+                        for (let i = 1; i < branches.length; i++) {
+                            lines.push(`}else if(${conditionExpr(branches[i].condition)}){`);
+                            emitToElement(parentVar, branches[i].value);
+                        }
+                        if (value.hasElse) {
+                            lines.push(`}else{`);
+                            emitToElement(parentVar, value.elseValue);
+                        }
+                        lines.push(`}`);
+                    } else if (value.hasElse) {
+                        emitToElement(parentVar, value.elseValue);
+                    }
+                    return;
+                }
+
+                if (Array.isArray(value)) {
+                    // Nested array is treated as a div wrapper
+                    const wrapperVar = getVarName();
+                    lines.push(`var ${wrapperVar}=document.createElement("div");`);
+                    for (const v of value) emitToElement(wrapperVar, v);
+                    lines.push(`${parentVar}.appendChild(${wrapperVar});`);
+                    return;
+                }
+
+                if (typeof value === "string" || typeof value === "symbol" || typeof value === "number" || typeof value === "boolean") {
+                    lines.push(`${parentVar}.appendChild(${textNodeExpr(value)});`);
+                    return;
+                }
+
+                if (typeof value !== "object") return;
+
+                const nodeVar = processItem(value);
+                if (nodeVar) lines.push(`${parentVar}.appendChild(${nodeVar});`);
+            }
+
+            function processItem(item, assignTo = null) {
+                // Text node
+                if (typeof item === "symbol" || typeof item === "string" || typeof item === "number" || typeof item === "boolean") {
+                    if (assignTo) {
+                        lines.push(`var ${assignTo}=document.createTextNode(${jsValue(item)});`);
+                        return assignTo;
+                    }
+                    return `document.createTextNode(${jsValue(item)})`;
+                }
+
+                // Skip invalid items
+                if (typeof item !== "object" || item === null) {
+                    return null;
+                }
+
+                if (isIfNode(item)) {
+                    throw new Error("CompileTemplate error: conditional nodes (If) must be used as children/root values, not as an element object.");
+                }
+
+                if (typeof Element !== "undefined" && item instanceof Element) {
+                    throw new Error("CompileTemplate error: you can't pass a live Element to a template.");
+                }
+
+                const {
+                    tag, tagName: tn, __exportName,
+                    class: className, tooltip, ns, accent, style,
+                    inner, content: innerContent, reactive,
+                    attr, options, attributes,
+                    ...rest
+                } = item;
+
+                const tagName = tag || tn || "div";
+                const varName = assignTo || getVarName();
+                const needsExport = !!__exportName;
+
+                // Create element
+                if (ns) {
+                    lines.push(`var ${varName}=document.createElementNS(${JSON.stringify(ns)},${JSON.stringify(tagName)});`);
+                } else {
+                    lines.push(`var ${varName}=document.createElement(${JSON.stringify(tagName)});`);
+                }
+
+                // Track exports
+                if (needsExport) {
+                    exports.push({ name: __exportName, varName });
+                }
+
+                // Apply direct properties (innerHTML, textContent, id, etc.)
+                for (const [key, value] of Object.entries(rest)) {
+                    if (typeof value === "function") {
+                        // Skip functions - they can't be serialized
+                        console.warn(`CompileTemplate: function property "${key}" will be ignored`);
+                    } else if (value !== null && value !== undefined) {
+                        lines.push(`${varName}.${key}=${jsValue(value)};`);
+                    }
+                }
+
+                // Handle accent attribute
+                if (accent) {
+                    lines.push(`${varName}.setAttribute("ls-accent",${jsValue(accent)});`);
+                }
+
+                // Handle tooltip
+                if (tooltip) {
+                    lines.push(`${varName}.setAttribute("ls-tooltip",${jsValue(tooltip)});`);
+                }
+
+                // Handle reactive bindings
+                if (reactive) {
+                    lines.push(`if(!LS.Reactive){LS.on&&LS.on("component-loaded",(c)=>{if(c&&c.name&&c.name.toLowerCase&&c.name.toLowerCase()==="reactive"){LS.Reactive.bindElement(${varName},${jsValue(reactive)});return LS.REMOVE_LISTENER;}});}else{LS.Reactive.bindElement(${varName},${jsValue(reactive)});}`);
+                }
+
+                // Handle attributes
+                const attrs = attr || attributes;
+                if (attrs) {
+                    if (Array.isArray(attrs)) {
+                        for (const a of attrs) {
+                            if (typeof a === "string") {
+                                lines.push(`${varName}.setAttribute(${JSON.stringify(a)},"");`);
+                            } else if (typeof a === "object" && a !== null) {
+                                for (const [aKey, aValue] of Object.entries(a)) {
+                                    lines.push(`${varName}.setAttribute(${JSON.stringify(aKey)},${jsValue(aValue ?? "")});`);
+                                }
+                            }
+                        }
+                    } else if (typeof attrs === "object") {
+                        for (const [aKey, aValue] of Object.entries(attrs)) {
+                            lines.push(`${varName}.setAttribute(${JSON.stringify(aKey)},${jsValue(aValue ?? "")});`);
+                        }
+                    }
+                }
+
+                // Handle className
+                if (className) {
+                    if (Array.isArray(className)) {
+                        lines.push(`${varName}.className=${JSON.stringify(className.filter(Boolean).join(" "))};`);
+                    } else {
+                        lines.push(`${varName}.className=${jsValue(className)};`);
+                    }
+                }
+
+                // Handle style
+                if (style) {
+                    if (typeof style === "string") {
+                        lines.push(`${varName}.style.cssText=${JSON.stringify(style)};`);
+                    } else if (typeof style === "object") {
+                        const styleEntries = Object.entries(style);
+                        if (styleEntries.length > 0) {
+                            const staticParts = [];
+                            const dynamicParts = [];
+
+                            for (const [rule, value] of styleEntries) {
+                                const prop = rule.startsWith("--") ? rule : rule.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
+                                if (typeof value === "symbol") {
+                                    dynamicParts.push({ prop, value });
+                                } else {
+                                    staticParts.push(`${prop}:${value}`);
+                                }
+                            }
+
+                            if (dynamicParts.length === 0) {
+                                lines.push(`${varName}.style.cssText=${JSON.stringify(staticParts.join(";"))};`);
+                            } else if (staticParts.length === 0) {
+                                const parts = dynamicParts.map(d => `${JSON.stringify(d.prop + ":")}+${dataRef(d.value)}`);
+                                lines.push(`${varName}.style.cssText=${parts.join('+";"+')};`);
+                            } else {
+                                const dynamicExprs = dynamicParts.map(d => `${JSON.stringify(";" + d.prop + ":")}+${dataRef(d.value)}`);
+                                lines.push(`${varName}.style.cssText=${JSON.stringify(staticParts.join(";"))}+${dynamicExprs.join("+")};`);
+                            }
+                        }
+                    }
+                }
+
+                // Handle ls-select options
+                if (tagName.toLowerCase() === "ls-select" && options) {
+                    lines.push(`${varName}._lsSelectOptions=${jsValue(options)};`);
+                }
+
+                // Handle children
+                const contentToAdd = inner || innerContent;
+                if (contentToAdd !== undefined && contentToAdd !== null) {
+                    // Simple text content optimization
+                    if (typeof contentToAdd === "symbol" || typeof contentToAdd === "string") {
+                        lines.push(`${varName}.textContent=${jsValue(contentToAdd)};`);
+                    } else if (typeof contentToAdd === "number") {
+                        lines.push(`${varName}.textContent=${JSON.stringify(String(contentToAdd))};`);
+                    } else {
+                        const children = Array.isArray(contentToAdd) ? contentToAdd : [contentToAdd];
+                        const validChildren = children.filter(c => c !== null && c !== undefined);
+                        const hasConditional = validChildren.some(containsConditional);
+
+                        if (hasConditional) {
+                            for (const child of validChildren) {
+                                emitToElement(varName, child);
+                            }
+                        } else {
+                            if (validChildren.length === 1) {
+                                const child = validChildren[0];
+                                if (typeof child === "string" || typeof child === "symbol") {
+                                    const childExpr = processItem(child);
+                                    if (childExpr) {
+                                        lines.push(`${varName}.appendChild(${childExpr});`);
+                                    }
+                                } else if (Array.isArray(child)) {
+                                    // Nested array as child - treat as div wrapper
+                                    emitToElement(varName, child);
+                                } else {
+                                    const childVar = processItem(child);
+                                    if (childVar) {
+                                        lines.push(`${varName}.appendChild(${childVar});`);
+                                    }
+                                }
+                            } else if (validChildren.length > 1) {
+                                const childRefs = [];
+                                for (const child of validChildren) {
+                                    if (typeof child === "string" || typeof child === "symbol") {
+                                        const expr = processItem(child);
+                                        if (expr) childRefs.push(expr);
+                                    } else if (Array.isArray(child)) {
+                                        // Nested array - create wrapper and add as variable
+                                        const wrapperVar = getVarName();
+                                        lines.push(`var ${wrapperVar}=document.createElement("div");`);
+                                        for (const v of child) emitToElement(wrapperVar, v);
+                                        childRefs.push(wrapperVar);
+                                    } else {
+                                        const childVar = processItem(child);
+                                        if (childVar) childRefs.push(childVar);
+                                    }
+                                }
+                                if (childRefs.length > 0) {
+                                    lines.push(`${varName}.append(${childRefs.join(",")});`);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                return varName;
+            }
+
+            // Check if root structure is known at compile time (no conditionals at root level)
+            const rootHasConditional = template.some(containsConditional);
+
+            if (rootHasConditional) {
+                // Build root as a runtime array so conditionals can decide output
+                lines.push(`var __root=[];`);
+                for (const item of template) {
+                    emitToArray(`__root`, item);
+                }
+                lines.push(`var __rootValue=__root.length===1?__root[0]:__root;`);
+            } else {
+                // Root is known at compile time
+                if (template.length === 1) {
+                    const item = template[0];
+                    if (Array.isArray(item)) {
+                        // Single nested array at root - wrap in div
+                        const wrapperVar = getVarName();
+                        lines.push(`var ${wrapperVar}=document.createElement("div");`);
+                        for (const v of item) emitToElement(wrapperVar, v);
+                        lines.push(`var __rootValue=${wrapperVar};`);
+                    } else if (typeof item === "string" || typeof item === "symbol") {
+                        lines.push(`var __rootValue=${textNodeExpr(item)};`);
+                    } else {
+                        const rootVar = processItem(item);
+                        lines.push(`var __rootValue=${rootVar};`);
+                    }
+                } else if (template.length > 1) {
+                    const rootRefs = [];
+                    for (const item of template) {
+                        if (Array.isArray(item)) {
+                            const wrapperVar = getVarName();
+                            lines.push(`var ${wrapperVar}=document.createElement("div");`);
+                            for (const v of item) emitToElement(wrapperVar, v);
+                            rootRefs.push(wrapperVar);
+                        } else if (typeof item === "string" || typeof item === "symbol") {
+                            const nodeVar = getVarName();
+                            lines.push(`var ${nodeVar}=${textNodeExpr(item)};`);
+                            rootRefs.push(nodeVar);
+                        } else {
+                            const nodeVar = processItem(item);
+                            if (nodeVar) rootRefs.push(nodeVar);
+                        }
+                    }
+                    lines.push(`var __rootValue=[${rootRefs.join(",")}];`);
+                } else {
+                    lines.push(`var __rootValue=null;`);
+                }
+            }
+
+            // Build return object
+            const retParts = [];
+            for (const exp of exports) {
+                retParts.push(`${JSON.stringify(exp.name)}:${exp.varName}`);
+            }
+
+            retParts.push(`root:__rootValue`);
+
+            lines.push(`return{${retParts.join(",")}};`);
+
+            const fnBody = `'use strict';${lines.join("")}`;
+
+            // For static/inline compiling
+            if (asString) return `function(d){${fnBody}}`;
+
+            try {
+                return new Function("d", fnBody);
+            } catch (e) {
+                console.error("CompileTemplate error:", e, "\nGenerated code:", fnBody);
+                throw e;
             }
         },
 
