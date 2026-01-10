@@ -20,7 +20,7 @@
             super();
 
             const existing = LSReactive.objectCache.get(prefix);
-            if(existing && !existing._destroyed) {
+            if(existing && !existing.destroyed) {
                 return existing;
             }
 
@@ -40,7 +40,7 @@
 
             this._pending = new Set();
             this._renderScheduled = false;
-            this._destroyed = false;
+            this.destroyed = false;
 
             this.proxyCache = new WeakMap();
 
@@ -68,7 +68,7 @@
         }
 
         get proxy () {
-            if(this._destroyed) return null;
+            if(this.destroyed) return null;
             return this.#createProxy(this.object);
         }
 
@@ -83,13 +83,13 @@
 
             const proxy = new Proxy(object, {
                 set: (target, key, value) => {
-                    if(this._destroyed) throw new TypeError("Can't access a proxy of a destroyed ReactiveBinding");
+                    if(this.destroyed) throw new TypeError("Can't access a proxy of a destroyed ReactiveBinding");
 
                     return this.#set(target, key, value, objectPath);
                 },
 
                 get: (target, key) => {
-                    if(this._destroyed) throw new TypeError("Can't access a proxy of a destroyed ReactiveBinding");
+                    if(this.destroyed) throw new TypeError("Can't access a proxy of a destroyed ReactiveBinding");
 
                     if (key === "__isProxy") return true;
                     if (key === "__bind") return this;
@@ -99,7 +99,7 @@
                 },
 
                 deleteProperty: (target, key) => {
-                    if(this._destroyed) throw new TypeError("Can't access a proxy of a destroyed ReactiveBinding");
+                    if(this.destroyed) throw new TypeError("Can't access a proxy of a destroyed ReactiveBinding");
 
                     delete target[key];
                     this.renderKey(objectPath + key);
@@ -113,7 +113,7 @@
         }
 
         #set(object, key, value, objectPath = "") {
-            if(this._destroyed) return false;
+            if(this.destroyed) return false;
 
             const fullPath = objectPath + key;
             if(this.options.extends) {
@@ -136,7 +136,7 @@
         }
 
         #get(object, key, objectPath = "", nest = true) {
-            if(this._destroyed) return null;
+            if(this.destroyed) return null;
 
             const hasOwn = object.hasOwnProperty(key);
 
@@ -166,7 +166,7 @@
         }
 
         #processPending() {
-            if (this._destroyed) return;
+            if (this.destroyed) return;
             const pendingTargets = LSReactive.pending.get(this.prefix);
 
             if (pendingTargets) {
@@ -216,7 +216,7 @@
          * @returns {void}
          */
         renderKey(key){
-            if(this._destroyed || (this.options.propagate === false && !this.mappings.has(key))) return;
+            if(this.destroyed || (this.options.propagate === false && !this.mappings.has(key))) return;
             this._pending.add(key);
 
             // TODO: This is just a quick implementation, needs to be optimized
@@ -233,7 +233,7 @@
             this._renderScheduled = true;
             
             queueMicrotask(() => {
-                if (this._destroyed) return;
+                if (this.destroyed) return;
                 this._renderScheduled = false;
                 
                 for (const key of this._pending) {
@@ -249,7 +249,7 @@
          * @returns {void}
         */
         renderKeyImmediate(key){
-            if (this._destroyed) return;
+            if (this.destroyed) return;
 
             const cache = this.mappings.get(key);
             if (!cache || cache.size === 0) return;
@@ -314,7 +314,7 @@
         }
 
         renderValue(target, value, path = null) {
-            if(this._destroyed || this.options.render === false) return;
+            if(this.destroyed || this.options.render === false) return;
 
             const config = target && target.__reactive_binding;
             if(!config) {
@@ -466,7 +466,7 @@
 
             this.prefix = null;
 
-            this._destroyed = true;
+            this.destroyed = true;
             this.emit("destroy");
             this.events.clear();
             this.events = null;
@@ -542,7 +542,7 @@
 
             if (this.objectCache.has(prefix)) {
                 const existing = this.objectCache.get(prefix);
-                if (!existing._destroyed) {
+                if (!existing.destroyed) {
                     existing.destroy();
                 }
             }

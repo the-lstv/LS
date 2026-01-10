@@ -76,10 +76,10 @@ LS.LoadComponent(class Menu extends LS.Component {
         }
 
         this.container = (isElement ? element : N({
-            class: "ls-menu",
-            style: { display: "none" }
+            class: "ls-menu"
         }));
 
+        this.container.style.display = "none";
         this.container.classList.add("ls-menu-container");
         this.container.tabIndex = -1;
 
@@ -932,7 +932,7 @@ LS.LoadComponent(class Menu extends LS.Component {
         this.focusedItem = null;
         this.isOpen = false;
         this.__previousActiveElement = null;
-        this.__destroyed = true;
+        this.destroyed = true;
     }
 }, { global: true, name: "Menu" });
 

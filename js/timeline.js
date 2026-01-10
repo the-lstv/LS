@@ -45,36 +45,36 @@
         framerateLimit: 90
     };
 
-    // const TEMPLATE = LS.CompileTemplate((data, exportElement) => ({
+    // const TEMPLATE = LS.CompileTemplate((data, logic) => ({
     //     attributes: { tabindex: "0" },
     //     inner: [
-    //         (exportElement("markerContainer", {
+    //         (logic.export("markerContainer", {
     //             class: "ls-timeline-markers"
     //         })),
 
-    //         (exportElement("playerHead", {
+    //         (logic.export("playerHead", {
     //             class: "ls-timeline-player-head"
     //         })),
 
-    //         (exportElement("selectionRect", {
+    //         (logic.export("selectionRect", {
     //             class: "ls-timeline-selection-rect",
     //             style: "position: absolute; pointer-events: none; display: none; border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent) 50%, rgba(0, 0, 0, 0.2) 50%); z-index: 100;"
     //         })),
 
-    //         (exportElement("snapLine", {
+    //         (logic.export("snapLine", {
     //             class: "ls-timeline-snap-line",
     //             style: "position: fixed; top: 0; left: 0; width: 1px; background: var(--accent-60); z-index: 1000; pointer-events: none; display: none;"
     //         })),
 
-    //         (exportElement("scrollContainer", {
+    //         (logic.export("scrollContainer", {
     //             class: "ls-timeline-scroll-container",
     //             inner: [
-    //                 (exportElement("spacerElement", {
+    //                 (logic.export("spacerElement", {
     //                     class: "ls-timeline-spacer",
     //                     style: "height: 1px; width: 0px;"
     //                 })),
 
-    //                 (exportElement("rowContainer", {
+    //                 (logic.export("rowContainer", {
     //                     class: "ls-timeline-rows"
     //                 }))
     //             ]
@@ -1714,7 +1714,7 @@
         }
 
         reset(destroyItems = true, replacingItems = null) {
-            if(this.__destroyed) return;
+            if(this.destroyed) return;
 
             for (let item of this.items) {
                 if (destroyItems) {
@@ -2001,7 +2001,7 @@
             this.dragHandle.destroy();
             this.dragHandle = null;
 
-            this.__destroyed = true;
+            this.destroyed = true;
             this.emit("destroy");
             this.events.clear();
         }

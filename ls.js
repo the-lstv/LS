@@ -135,7 +135,7 @@
          */
 
         emit(name, data, options = {}){
-            if(!name) return;
+            if(!name || !this.events) return;
 
             const event = name._isEvent? name: this.events.get(name);
 
@@ -253,15 +253,23 @@
         }
 
         createElement(tagName, content) {
-            const element = LS.Create(tagName, content);
-            this.addDestroyable(element);
-            return element;
+            return this.addDestroyable(LS.Create(tagName, content));
         }
 
-        addDestroyable(destroyable) {
-            if (!destroyable || this.destroyed) return null;
-            this.#destroyables.add(destroyable);
-            return destroyable;
+        /**
+         * Element selector that searches within own container.
+         */
+        selectElement(selector, one = false) {
+            if(!this.container) return null;
+            return LS.Tiny.Q(this.container, selector, one);
+        }
+
+        addDestroyable(...destroyables) {
+            for(const item of destroyables) {
+                if (!item || this.destroyed) continue;
+                this.#destroyables.add(item);
+                if(destroyables.length === 1) return item;
+            }
         }
 
         removeDestroyable(destroyable, destroy = false) {
@@ -271,48 +279,75 @@
 
         setTimeout(callback, delay, ...args) {
             const timer = setTimeout(() => {
-                this.#timers.delete(timer);
+                this.#timers.delete(ref);
                 callback(...args);
             }, delay);
-            this.#timers.add(timer);
+            const ref = [timer, 0];
+            this.#timers.add(ref);
             return timer;
         }
 
         setInterval(callback, interval, ...args) {
             const timer = setInterval(() => {
-                this.#timers.delete(timer);
                 callback(...args);
             }, interval);
-            this.#timers.add(timer);
+            this.#timers.add([timer, 1]);
             return timer;
+        }
+
+        clearIntervals() {
+            for(const timer of this.#timers) {
+                const [id, type] = timer;
+                if(type === 1) {
+                    clearInterval(id);
+                    this.#timers.delete(timer);
+                }
+            }
+        }
+
+        clearTimeouts() {
+            for(const timer of this.#timers) {
+                const [id, type] = timer;
+                if(type === 0) {
+                    clearTimeout(id);
+                    this.#timers.delete(timer);
+                }
+            }
         }
 
         destroyOne(destroyable, _remove = true, _explicit = true) {
             try {
                 if (_remove) this.#destroyables.delete(destroyable);
 
+                if(typeof destroyable === "function") {
+                    if(!_explicit) return;
+
+                    const isClass = LS.Util.isClass(destroyable);
+                    if(!isClass) {
+                        destroyable();
+                    }
+                    return;
+                }
+
                 if(destroyable === null || destroyable === undefined || (typeof destroyable !== "object" && typeof destroyable !== "function")) return;
 
-                if(destroyable instanceof Element) {
+                if(typeof Element !== "undefined" && destroyable instanceof Element) {
                     destroyable.remove();
                     return;
                 }
 
-                if(destroyable instanceof NodeList || Array.isArray(destroyable)) {
+                if(typeof NodeList !== "undefined" && (destroyable instanceof NodeList || Array.isArray(destroyable))) {
                     destroyable.forEach(item => this.destroyOne(item, false, _explicit));
+                    return;
+                }
+                
+                if(typeof AbortController !== "undefined" && destroyable instanceof AbortController) {
+                    destroyable.abort();
                     return;
                 }
 
                 if(destroyable instanceof EventHandler) {
-                    destroyable.events.clear();
-                }
-
-                if(destroyable instanceof AbortController) {
-                    destroyable.abort();
-                }
-
-                if(typeof destroyable === "function" && _explicit) {
-                    destroyable();
+                    destroyable.events?.clear?.();
                 }
 
                 if (typeof destroyable.destroy === "function") destroyable.destroy();
@@ -321,56 +356,72 @@
             }
         }
 
-        externalAddEventListener(target, event, callback, options) {
+        addExternalEventListener(target, event, callback, options) {
+            const cap = typeof options === "boolean" ? options : !!options?.capture;
             const addListener = (target.addEventListener || target.on);
-            if (typeof addListener === "function") addListener.call(target, event, callback, options);
-            this.#externalEvents.push([target, event, callback]);
+            if (typeof addListener === "function") addListener.call(target, event, callback, cap);
+            this.#externalEvents.push([target, event, callback, cap]);
         }
 
-        externalRemoveEventListener(target, event, callback, options) {
-            const index = this.#externalEvents.findIndex(([t, e, c]) => t === target && e === event && c === callback);
+        removeExternalEventListener(target, event, callback, options) {
+            const cap = typeof options === "boolean" ? options : !!options?.capture;
+            const index = this.#externalEvents.findIndex(([t, e, c, o]) => t === target && e === event && c === callback && o === cap);
             if (index !== -1) {
                 const removeListener = (target.removeEventListener || target.off);
-                if (typeof removeListener === "function") removeListener.call(target, event, callback, options);
+                if (typeof removeListener === "function") removeListener.call(target, event, callback, cap);
                 this.#externalEvents.splice(index, 1);
             }
         }
 
         destroy() {
             if (this.destroyed) return;
+            this.destroyed = true;
             this.emit("destroyed");
             this.events.clear();
 
             for(const timer of this.#timers) {
-                clearTimeout(timer);
-                clearInterval(timer);
+                const [id, type] = timer;
+                if(type === 0) clearTimeout(id); else clearInterval(id);
+            }
+
+            for(const [target, event, callback, options] of this.#externalEvents) {
+                const removeListener = (target.removeEventListener || target.off);
+                if (typeof removeListener === "function") removeListener.call(target, event, callback, options);
+            }
+
+            this.#externalEvents = null;
+            this.events = null;
+
+            /**
+             * Clears up everything from the object as it should be, detaches any set elements etc.
+             * Still does not fully guarantee that there isn't some leaking reference but it's the best we can do
+             * Argument for this practice:
+             * - Destroyed objects are not supposed to exist. In any way. Any design that expects a destroyed object to be reachable is flawed.
+             * - Think of it like freeing memory; you are explicitly stating the object is gone. Except in JS you can't free memory, so you have to do your best.
+             * - Code in the real world is never perfect. Just one single forgotten reference will keep the object in memory forever. If the object is large and complex or in the worst case has nodes with events, circular references etc., it will inevitably result in major memory leaks and possibly critical bugs.
+             * - By deleting all keys, clearing any data and removing all elements, even if a reference still exists, we minimize the damage it can do.
+            */
+            for(const key of Object.keys(this)) {
+                const value = this[key];
+                if(this.#destroyables.has(value)) {
+                    this.destroyOne(value, true);
+                } else {
+                    this.destroyOne(value, false, false);
+                }
+                delete this[key];
             }
 
             for(const destroyable of this.#destroyables) {
                 this.destroyOne(destroyable, false);
             }
 
-            for(const [target, event, callback] of this.#externalEvents) {
-                const removeListener = (target.removeEventListener || target.off);
-                if (typeof removeListener === "function") removeListener.call(target, event, callback);
-            }
-            this.#externalEvents = null;
-
             this.#destroyables.clear();
             this.#destroyables = null;
-            this.events = null;
 
-            this.destroyed = true;
             if(this.container && this.container instanceof Element) {
                 this.container.remove();
                 this.container = null;
             }
-            
-            for(const key of Object.keys(this)) {
-                this.destroyOne(this[key], false, false);
-                delete this[key];
-            }
-            this.destroyed = true;
         }
     }
 
@@ -518,13 +569,12 @@
                 const isElement = selector instanceof Element;
                 const target = (isElement? selector : document);
 
-                if(isElement && !subSelector) return LS.TinyWrap(one? selector: [selector]);
+                if(isElement && !subSelector) return one? selector: [selector]; // LS.TinyWrap();
 
                 const actualSelector = isElement? subSelector || "*" : selector || '*';
 
                 let elements = one? target.querySelector(actualSelector): target.querySelectorAll(actualSelector);
-
-                return LS.Tiny._prototyped? elements: LS.TinyWrap(one? elements: [...elements]);
+                return elements; // LS.Tiny._prototyped? elements: LS.TinyWrap(one? elements: [...elements]);
             },
 
             /**
@@ -960,6 +1010,22 @@
                     r.push(fn(it[i], i));
                 }
                 return r;
+            },
+
+            /**
+             * https://stackoverflow.com/a/66120819/14541617
+             */
+            isClass(func) {
+                // Class constructor is also a function
+                if (!(func && func.constructor === Function) || func.prototype === undefined)
+                    return false;
+
+                // This is a class that extends other class
+                if (Function.prototype !== Object.getPrototypeOf(func))
+                    return true;
+
+                // Usually a function will only have 'constructor' in the prototype
+                return Object.getOwnPropertyNames(func.prototype).length > 1;
             },
 
             /**
@@ -1678,441 +1744,611 @@
          * 
          * @param {Function|Array|Object|string} templateBuilder A function that returns a template array/object/string or a template array/object/string directly.
          */
-        CompileTemplate(templateBuilder, asString = false) {
-            const symbolProxy = LS.CompileTemplate.SYMBOL_PROXY || (LS.CompileTemplate.SYMBOL_PROXY = new Proxy({}, {
+        CompileTemplate: (() => {
+            class ifNode {
+                constructor(condition, thenValue, elseValue) {
+                    this.__lsIf = true;
+                    this.branches = [{ condition, value: thenValue }];
+                    this.hasElse = typeof elseValue !== "undefined";
+                    this.elseValue = elseValue;
+                }
+
+                elseIf(cond, value) {
+                    this.branches.push({ condition: cond, value });
+                    return this;
+                }
+
+                else(value) {
+                    this.hasElse = true;
+                    this.elseValue = value;
+                    return this;
+                }
+            }
+
+            const symbolProxy = new Proxy({}, {
                 get(target, prop) {
                     return Symbol(prop);
                 }
-            }));
+            });
 
-            const If = (condition, thenValue, elseValue) => {
-                const node = {
-                    __lsIf: true,
-                    branches: [{ condition, value: thenValue }],
-                    hasElse: typeof elseValue !== "undefined",
-                    elseValue
-                };
+            const iterProxy = new Proxy({}, {
+                get(target, prop) {
+                    return Symbol(`__iter__.${String(prop)}`);
+                }
+            });
 
-                node.elseIf = (cond, value) => {
-                    node.branches.push({ condition: cond, value });
-                    return node;
-                };
+            // Static logic object
+            const logic = {
+                // Conditional node
+                if(condition, thenValue, elseValue) {
+                    return new ifNode(condition, thenValue, elseValue);
+                },
 
-                node.else = (value) => {
-                    node.hasElse = true;
-                    node.elseValue = value;
-                    return node;
-                };
+                // Export node
+                export(name, input) {
+                    input.__exportName = name;
+                    return input;
+                },
 
-                return node;
+                // Concat strings
+                concat(...args) {
+                    return { __lsConcat: true, args };
+                },
+
+                // Join with separator
+                join(sep, ...args) {
+                    return { __lsJoin: true, sep, args };
+                },
+
+                // Or
+                or(...args) {
+                    return { __lsOr: true, args };
+                },
+
+                // Loop
+                map(source, fn) {
+                    return { __lsMap: true, source, fn };
+                }
             };
 
-            let template = typeof templateBuilder === "function" ? templateBuilder(symbolProxy, (name, input) => {
-                input.__exportName = name;
-                return input;
-            }, If) : templateBuilder;
+            return (templateBuilder, asString = false) => {
 
-            if (!Array.isArray(template)) {
-                template = [template];
-            }
+                // Builder now gets (symbolProxy, logic)
+                let template = typeof templateBuilder === "function"
+                    ? templateBuilder(symbolProxy, logic)
+                    : templateBuilder;
 
-            const lines = [];
-            let varCounter = 0;
-            const exports = [];
+                if (!Array.isArray(template)) {
+                    template = [template];
+                }
 
-            function stripWhitespace(value) {
-                return (value ?? "").toString().replace(/\s+/g, "");
-            }
+                const lines = [];
+                let varCounter = 0;
+                const exports = [];
 
-            function dataRef(sym) {
-                const key = stripWhitespace(sym && sym.description);
-                return `d.${key.replace(/[^a-zA-Z0-9_$.]/g, "_").replace(/\.\.*/g, ".")}`;
-            }
+                function stripWhitespace(value) {
+                    return (value ?? "").toString().replace(/\s+/g, "");
+                }
 
-            function jsValue(value) {
-                if (typeof value === "symbol") return dataRef(value);
-                if (value === undefined) return "undefined";
-                return JSON.stringify(value);
-            }
+                const iterPrefix = "__iter__.";
+                function dataRef(sym, iterVar) {
+                    const desc = stripWhitespace(sym && sym.description) || "";
+                    let prefix = "d.", key = desc;
 
-            function isIfNode(value) {
-                return !!(value && typeof value === "object" && value.__lsIf);
-            }
-
-            function containsConditional(value) {
-                if (isIfNode(value)) return true;
-                if (Array.isArray(value)) return value.some(containsConditional);
-                return false;
-            }
-
-            function textNodeExpr(value) {
-                return `document.createTextNode(${jsValue(value)})`;
-            }
-
-            function conditionExpr(condition) {
-                return `!!(${jsValue(condition)})`;
-            }
-
-            function getVarName() {
-                return `e${varCounter++}`;
-            }
-
-            function emitToArray(arrayVar, value) {
-                if (value === null || value === undefined) return;
-
-                if (isIfNode(value)) {
-                    const branches = value.branches || [];
-                    if (branches.length > 0) {
-                        lines.push(`if(${conditionExpr(branches[0].condition)}){`);
-                        emitToArray(arrayVar, branches[0].value);
-                        for (let i = 1; i < branches.length; i++) {
-                            lines.push(`}else if(${conditionExpr(branches[i].condition)}){`);
-                            emitToArray(arrayVar, branches[i].value);
-                        }
-                        if (value.hasElse) {
-                            lines.push(`}else{`);
-                            emitToArray(arrayVar, value.elseValue);
-                        }
-                        lines.push(`}`);
-                    } else if (value.hasElse) {
-                        emitToArray(arrayVar, value.elseValue);
+                    if (iterVar && desc.startsWith(iterPrefix)) {
+                        key = desc.slice(iterPrefix.length);
+                        prefix = `${iterVar}.`;
                     }
-                    return;
+
+                    return `${prefix}${key.replace(/[^a-zA-Z0-9_$.]/g, "_").replace(/\.\.*/g, ".")}`;
                 }
 
-                if (Array.isArray(value)) {
-                    // Nested array is treated as a div wrapper
-                    const wrapperVar = getVarName();
-                    lines.push(`var ${wrapperVar}=document.createElement("div");`);
-                    for (const v of value) emitToElement(wrapperVar, v);
-                    lines.push(`${arrayVar}.push(${wrapperVar});`);
-                    return;
-                }
-
-                if (typeof value === "string" || typeof value === "symbol" || typeof value === "number" || typeof value === "boolean") {
-                    lines.push(`${arrayVar}.push(${textNodeExpr(value)});`);
-                    return;
-                }
-
-                if (typeof value !== "object") return;
-
-                const nodeVar = processItem(value);
-                if (nodeVar) lines.push(`${arrayVar}.push(${nodeVar});`);
-            }
-
-            function emitToElement(parentVar, value) {
-                if (value === null || value === undefined) return;
-
-                if (isIfNode(value)) {
-                    const branches = value.branches || [];
-                    if (branches.length > 0) {
-                        lines.push(`if(${conditionExpr(branches[0].condition)}){`);
-                        emitToElement(parentVar, branches[0].value);
-                        for (let i = 1; i < branches.length; i++) {
-                            lines.push(`}else if(${conditionExpr(branches[i].condition)}){`);
-                            emitToElement(parentVar, branches[i].value);
+                function jsValue(value, iterVar = null) {
+                    if (typeof value === "symbol") return dataRef(value, iterVar);
+                    if (value === undefined) return "undefined";
+                    
+                    // Handle logic operations
+                    if (value && typeof value === "object") {
+                        if (value.__lsOr) {
+                            const argExprs = value.args.map(arg => `(${jsValue(arg, iterVar)})`);
+                            return argExprs.join(" || ");
                         }
-                        if (value.hasElse) {
-                            lines.push(`}else{`);
-                            emitToElement(parentVar, value.elseValue);
+                        if (value.__lsJoin) {
+                            const argExprs = value.args.map(arg => jsValue(arg, iterVar));
+                            return `[${argExprs.join(",")}].filter(Boolean).join(${JSON.stringify(value.sep)})`;
                         }
-                        lines.push(`}`);
-                    } else if (value.hasElse) {
-                        emitToElement(parentVar, value.elseValue);
-                    }
-                    return;
-                }
-
-                if (Array.isArray(value)) {
-                    // Nested array is treated as a div wrapper
-                    const wrapperVar = getVarName();
-                    lines.push(`var ${wrapperVar}=document.createElement("div");`);
-                    for (const v of value) emitToElement(wrapperVar, v);
-                    lines.push(`${parentVar}.appendChild(${wrapperVar});`);
-                    return;
-                }
-
-                if (typeof value === "string" || typeof value === "symbol" || typeof value === "number" || typeof value === "boolean") {
-                    lines.push(`${parentVar}.appendChild(${textNodeExpr(value)});`);
-                    return;
-                }
-
-                if (typeof value !== "object") return;
-
-                const nodeVar = processItem(value);
-                if (nodeVar) lines.push(`${parentVar}.appendChild(${nodeVar});`);
-            }
-
-            function processItem(item, assignTo = null) {
-                // Text node
-                if (typeof item === "symbol" || typeof item === "string" || typeof item === "number" || typeof item === "boolean") {
-                    if (assignTo) {
-                        lines.push(`var ${assignTo}=document.createTextNode(${jsValue(item)});`);
-                        return assignTo;
-                    }
-                    return `document.createTextNode(${jsValue(item)})`;
-                }
-
-                // Skip invalid items
-                if (typeof item !== "object" || item === null) {
-                    return null;
-                }
-
-                if (isIfNode(item)) {
-                    throw new Error("CompileTemplate error: conditional nodes (If) must be used as children/root values, not as an element object.");
-                }
-
-                if (typeof Element !== "undefined" && item instanceof Element) {
-                    throw new Error("CompileTemplate error: you can't pass a live Element to a template.");
-                }
-
-                const {
-                    tag, tagName: tn, __exportName,
-                    class: className, tooltip, ns, accent, style,
-                    inner, content: innerContent, reactive,
-                    attr, options, attributes,
-                    ...rest
-                } = item;
-
-                const tagName = tag || tn || "div";
-                const varName = assignTo || getVarName();
-                const needsExport = !!__exportName;
-
-                // Create element
-                if (ns) {
-                    lines.push(`var ${varName}=document.createElementNS(${JSON.stringify(ns)},${JSON.stringify(tagName)});`);
-                } else {
-                    lines.push(`var ${varName}=document.createElement(${JSON.stringify(tagName)});`);
-                }
-
-                // Track exports
-                if (needsExport) {
-                    exports.push({ name: __exportName, varName });
-                }
-
-                // Apply direct properties (innerHTML, textContent, id, etc.)
-                for (const [key, value] of Object.entries(rest)) {
-                    if (typeof value === "function") {
-                        // Skip functions - they can't be serialized
-                        console.warn(`CompileTemplate: function property "${key}" will be ignored`);
-                    } else if (value !== null && value !== undefined) {
-                        lines.push(`${varName}.${key}=${jsValue(value)};`);
-                    }
-                }
-
-                // Handle accent attribute
-                if (accent) {
-                    lines.push(`${varName}.setAttribute("ls-accent",${jsValue(accent)});`);
-                }
-
-                // Handle tooltip
-                if (tooltip) {
-                    lines.push(`${varName}.setAttribute("ls-tooltip",${jsValue(tooltip)});`);
-                }
-
-                // Handle reactive bindings
-                if (reactive) {
-                    lines.push(`if(!LS.Reactive){LS.on&&LS.on("component-loaded",(c)=>{if(c&&c.name&&c.name.toLowerCase&&c.name.toLowerCase()==="reactive"){LS.Reactive.bindElement(${varName},${jsValue(reactive)});return LS.REMOVE_LISTENER;}});}else{LS.Reactive.bindElement(${varName},${jsValue(reactive)});}`);
-                }
-
-                // Handle attributes
-                const attrs = attr || attributes;
-                if (attrs) {
-                    if (Array.isArray(attrs)) {
-                        for (const a of attrs) {
-                            if (typeof a === "string") {
-                                lines.push(`${varName}.setAttribute(${JSON.stringify(a)},"");`);
-                            } else if (typeof a === "object" && a !== null) {
-                                for (const [aKey, aValue] of Object.entries(a)) {
-                                    lines.push(`${varName}.setAttribute(${JSON.stringify(aKey)},${jsValue(aValue ?? "")});`);
-                                }
-                            }
-                        }
-                    } else if (typeof attrs === "object") {
-                        for (const [aKey, aValue] of Object.entries(attrs)) {
-                            lines.push(`${varName}.setAttribute(${JSON.stringify(aKey)},${jsValue(aValue ?? "")});`);
+                        if (value.__lsConcat) {
+                            const argExprs = value.args.map(arg => `String(${jsValue(arg, iterVar)})`);
+                            return `(${argExprs.join(" + ")})`;
                         }
                     }
+                    
+                    return JSON.stringify(value);
                 }
 
-                // Handle className
-                if (className) {
-                    if (Array.isArray(className)) {
-                        lines.push(`${varName}.className=${JSON.stringify(className.filter(Boolean).join(" "))};`);
-                    } else {
-                        lines.push(`${varName}.className=${jsValue(className)};`);
-                    }
+                function isIfNode(value) {
+                    return !!(value && typeof value === "object" && value.__lsIf);
                 }
 
-                // Handle style
-                if (style) {
-                    if (typeof style === "string") {
-                        lines.push(`${varName}.style.cssText=${JSON.stringify(style)};`);
-                    } else if (typeof style === "object") {
-                        const styleEntries = Object.entries(style);
-                        if (styleEntries.length > 0) {
-                            const staticParts = [];
-                            const dynamicParts = [];
+                function isMapNode(value) {
+                    return !!(value && typeof value === "object" && value.__lsMap);
+                }
 
-                            for (const [rule, value] of styleEntries) {
-                                const prop = rule.startsWith("--") ? rule : rule.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
-                                if (typeof value === "symbol") {
-                                    dynamicParts.push({ prop, value });
-                                } else {
-                                    staticParts.push(`${prop}:${value}`);
-                                }
-                            }
+                function containsConditional(value) {
+                    if (isIfNode(value)) return true;
+                    if (Array.isArray(value)) return value.some(containsConditional);
+                    return false;
+                }
 
-                            if (dynamicParts.length === 0) {
-                                lines.push(`${varName}.style.cssText=${JSON.stringify(staticParts.join(";"))};`);
-                            } else if (staticParts.length === 0) {
-                                const parts = dynamicParts.map(d => `${JSON.stringify(d.prop + ":")}+${dataRef(d.value)}`);
-                                lines.push(`${varName}.style.cssText=${parts.join('+";"+')};`);
+                function textNodeExpr(value, iterVar = null) {
+                    return `document.createTextNode(${jsValue(value, iterVar)})`;
+                }
+
+                function conditionExpr(condition, iterVar = null) {
+                    return `!!(${jsValue(condition, iterVar)})`;
+                }
+
+                function getVarName(prefix = "e") {
+                    return `${prefix}${varCounter++}`;
+                }
+
+                function emitToArray(arrayVar, value, iterVar = null) {
+                    if (value === null || value === undefined) return;
+
+                    // If node
+                    if (isIfNode(value)) {
+                        const branches = value.branches || [];
+                        if (branches.length > 0) {
+                            lines.push(`if(${conditionExpr(branches[0].condition, iterVar)}){`);
+                            const branchValue = branches[0].value;
+                            if (Array.isArray(branchValue)) {
+                                for (const v of branchValue) emitToArray(arrayVar, v, iterVar);
                             } else {
-                                const dynamicExprs = dynamicParts.map(d => `${JSON.stringify(";" + d.prop + ":")}+${dataRef(d.value)}`);
-                                lines.push(`${varName}.style.cssText=${JSON.stringify(staticParts.join(";"))}+${dynamicExprs.join("+")};`);
+                                emitToArray(arrayVar, branchValue, iterVar);
                             }
-                        }
-                    }
-                }
-
-                // Handle ls-select options
-                if (tagName.toLowerCase() === "ls-select" && options) {
-                    lines.push(`${varName}._lsSelectOptions=${jsValue(options)};`);
-                }
-
-                // Handle children
-                const contentToAdd = inner || innerContent;
-                if (contentToAdd !== undefined && contentToAdd !== null) {
-                    // Simple text content optimization
-                    if (typeof contentToAdd === "symbol" || typeof contentToAdd === "string") {
-                        lines.push(`${varName}.textContent=${jsValue(contentToAdd)};`);
-                    } else if (typeof contentToAdd === "number") {
-                        lines.push(`${varName}.textContent=${JSON.stringify(String(contentToAdd))};`);
-                    } else {
-                        const children = Array.isArray(contentToAdd) ? contentToAdd : [contentToAdd];
-                        const validChildren = children.filter(c => c !== null && c !== undefined);
-                        const hasConditional = validChildren.some(containsConditional);
-
-                        if (hasConditional) {
-                            for (const child of validChildren) {
-                                emitToElement(varName, child);
-                            }
-                        } else {
-                            if (validChildren.length === 1) {
-                                const child = validChildren[0];
-                                if (typeof child === "string" || typeof child === "symbol") {
-                                    const childExpr = processItem(child);
-                                    if (childExpr) {
-                                        lines.push(`${varName}.appendChild(${childExpr});`);
-                                    }
-                                } else if (Array.isArray(child)) {
-                                    // Nested array as child - treat as div wrapper
-                                    emitToElement(varName, child);
+                            for (let i = 1; i < branches.length; i++) {
+                                lines.push(`}else if(${conditionExpr(branches[i].condition, iterVar)}){`);
+                                const branchValue = branches[i].value;
+                                if (Array.isArray(branchValue)) {
+                                    for (const v of branchValue) emitToArray(arrayVar, v, iterVar);
                                 } else {
-                                    const childVar = processItem(child);
-                                    if (childVar) {
-                                        lines.push(`${varName}.appendChild(${childVar});`);
-                                    }
-                                }
-                            } else if (validChildren.length > 1) {
-                                const childRefs = [];
-                                for (const child of validChildren) {
-                                    if (typeof child === "string" || typeof child === "symbol") {
-                                        const expr = processItem(child);
-                                        if (expr) childRefs.push(expr);
-                                    } else if (Array.isArray(child)) {
-                                        // Nested array - create wrapper and add as variable
-                                        const wrapperVar = getVarName();
-                                        lines.push(`var ${wrapperVar}=document.createElement("div");`);
-                                        for (const v of child) emitToElement(wrapperVar, v);
-                                        childRefs.push(wrapperVar);
-                                    } else {
-                                        const childVar = processItem(child);
-                                        if (childVar) childRefs.push(childVar);
-                                    }
-                                }
-                                if (childRefs.length > 0) {
-                                    lines.push(`${varName}.append(${childRefs.join(",")});`);
+                                    emitToArray(arrayVar, branchValue, iterVar);
                                 }
                             }
+                            if (value.hasElse) {
+                                lines.push(`}else{`);
+                                const elseValue = value.elseValue;
+                                if (Array.isArray(elseValue)) {
+                                    for (const v of elseValue) emitToArray(arrayVar, v, iterVar);
+                                } else {
+                                    emitToArray(arrayVar, elseValue, iterVar);
+                                }
+                            }
+                            lines.push(`}`);
+                        } else if (value.hasElse) {
+                            const elseValue = value.elseValue;
+                            if (Array.isArray(elseValue)) {
+                                for (const v of elseValue) emitToArray(arrayVar, v, iterVar);
+                            } else {
+                                emitToArray(arrayVar, elseValue, iterVar);
+                            }
                         }
+                        return;
                     }
-                }
 
-                return varName;
-            }
+                    // Map node
+                    if (isMapNode(value)) {
+                        const arrVar = getVarName("a");
+                        const itVar = getVarName("i");
+                        // Build item template once with iterator symbol proxy
+                        const mapItemTemplate = value.fn?.(iterProxy, logic);
 
-            // Check if root structure is known at compile time (no conditionals at root level)
-            const rootHasConditional = template.some(containsConditional);
+                        lines.push(`var ${arrVar}=${jsValue(value.source)}||[];`);
+                        lines.push(`for(const ${itVar} of ${arrVar}){`);
+                        emitToArray(arrayVar, mapItemTemplate, itVar);
+                        lines.push(`}`);
+                        return;
+                    }
 
-            if (rootHasConditional) {
-                // Build root as a runtime array so conditionals can decide output
-                lines.push(`var __root=[];`);
-                for (const item of template) {
-                    emitToArray(`__root`, item);
-                }
-                lines.push(`var __rootValue=__root.length===1?__root[0]:__root;`);
-            } else {
-                // Root is known at compile time
-                if (template.length === 1) {
-                    const item = template[0];
-                    if (Array.isArray(item)) {
-                        // Single nested array at root - wrap in div
+                    if (Array.isArray(value)) {
+                        // Nested array is treated as a div wrapper
                         const wrapperVar = getVarName();
                         lines.push(`var ${wrapperVar}=document.createElement("div");`);
-                        for (const v of item) emitToElement(wrapperVar, v);
-                        lines.push(`var __rootValue=${wrapperVar};`);
-                    } else if (typeof item === "string" || typeof item === "symbol") {
-                        lines.push(`var __rootValue=${textNodeExpr(item)};`);
-                    } else {
-                        const rootVar = processItem(item);
-                        lines.push(`var __rootValue=${rootVar};`);
+                        for (const v of value) emitToElement(wrapperVar, v, iterVar);
+                        lines.push(`${arrayVar}.push(${wrapperVar});`);
+                        return;
                     }
-                } else if (template.length > 1) {
-                    const rootRefs = [];
+
+                    if (typeof value === "string" || typeof value === "symbol" || typeof value === "number" || typeof value === "boolean") {
+                        lines.push(`${arrayVar}.push(${textNodeExpr(value, iterVar)});`);
+                        return;
+                    }
+
+                    if (typeof value !== "object") return;
+
+                    const nodeVar = processItem(value, null, iterVar);
+                    if (nodeVar) lines.push(`${arrayVar}.push(${nodeVar});`);
+                }
+
+                function emitToElement(parentVar, value, iterVar = null) {
+                    if (value === null || value === undefined) return;
+
+                    // If node
+                    if (isIfNode(value)) {
+                        const branches = value.branches || [];
+                        if (branches.length > 0) {
+                            lines.push(`if(${conditionExpr(branches[0].condition, iterVar)}){`);
+                            const branchValue = branches[0].value;
+                            if (Array.isArray(branchValue)) {
+                                for (const v of branchValue) emitToElement(parentVar, v, iterVar);
+                            } else {
+                                emitToElement(parentVar, branchValue, iterVar);
+                            }
+                            for (let i = 1; i < branches.length; i++) {
+                                lines.push(`}else if(${conditionExpr(branches[i].condition, iterVar)}){`);
+                                const branchValue = branches[i].value;
+                                if (Array.isArray(branchValue)) {
+                                    for (const v of branchValue) emitToElement(parentVar, v, iterVar);
+                                } else {
+                                    emitToElement(parentVar, branchValue, iterVar);
+                                }
+                            }
+                            if (value.hasElse) {
+                                lines.push(`}else{`);
+                                const elseValue = value.elseValue;
+                                if (Array.isArray(elseValue)) {
+                                    for (const v of elseValue) emitToElement(parentVar, v, iterVar);
+                                } else {
+                                    emitToElement(parentVar, elseValue, iterVar);
+                                }
+                            }
+                            lines.push(`}`);
+                        } else if (value.hasElse) {
+                            const elseValue = value.elseValue;
+                            if (Array.isArray(elseValue)) {
+                                for (const v of elseValue) emitToElement(parentVar, v, iterVar);
+                            } else {
+                                emitToElement(parentVar, elseValue, iterVar);
+                            }
+                        }
+                        return;
+                    }
+
+                    // Map node
+                    if (isMapNode(value)) {
+                        const arrVar = getVarName("a");
+                        const itVar = getVarName("i");
+
+                        const mapItemTemplate = value.fn?.(iterProxy, logic);
+
+                        lines.push(`var ${arrVar}=${jsValue(value.source)}||[];`);
+                        lines.push(`for(const ${itVar} of ${arrVar}){`);
+                        emitToElement(parentVar, mapItemTemplate, itVar);
+                        lines.push(`}`);
+                        return;
+                    }
+
+                    if (Array.isArray(value)) {
+                        // Nested array is treated as a div wrapper
+                        const wrapperVar = getVarName();
+                        lines.push(`var ${wrapperVar}=document.createElement("div");`);
+                        for (const v of value) emitToElement(wrapperVar, v, iterVar);
+                        lines.push(`${parentVar}.appendChild(${wrapperVar});`);
+                        return;
+                    }
+
+                    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+                        lines.push(`${parentVar}.appendChild(${textNodeExpr(value, iterVar)});`);
+                        return;
+                    }
+
+                    if (typeof value === "symbol") {
+                        lines.push(`${parentVar}.appendChild(LS.__dynamicInnerToNode(${jsValue(value, iterVar)}));`);
+                        return;
+                    }
+
+                    if (typeof value !== "object") return;
+
+                    const nodeVar = processItem(value, null, iterVar);
+                    if (nodeVar) lines.push(`${parentVar}.appendChild(${nodeVar});`);
+                }
+
+                function processItem(item, assignTo = null, iterVar = null) {
+                    // Dynamic symbol node
+                    if (typeof item === "symbol") {
+                        const dynVar = assignTo || getVarName("dyn");
+                        const valueExpr = jsValue(item, iterVar);
+                        lines.push(`var ${dynVar}=LS.__dynamicInnerToNode(${valueExpr});`);
+                        return dynVar;
+                    }
+
+                    // Text node
+                    if (typeof item === "string" || typeof item === "number" || typeof item === "boolean") {
+                        if (assignTo) {
+                            lines.push(`var ${assignTo}=document.createTextNode(${jsValue(item, iterVar)});`);
+                            return assignTo;
+                        }
+                        return `document.createTextNode(${jsValue(item, iterVar)})`;
+                    }
+
+                    // Skip invalid items
+                    if (typeof item !== "object" || item === null) {
+                        return null;
+                    }
+
+                    if (isIfNode(item)) {
+                        throw new Error("CompileTemplate error: conditional nodes (logic.if) must be used as children/root values, not as an element object.");
+                    }
+
+                    if (typeof Element !== "undefined" && item instanceof Element) {
+                        throw new Error("CompileTemplate error: you can't pass a live Element to a template.");
+                    }
+
+                    const {
+                        tag, tagName: tn, __exportName,
+                        class: className, tooltip, ns, accent, style,
+                        inner, content: innerContent, reactive,
+                        attr, options, attributes,
+                        ...rest
+                    } = item;
+
+                    const tagName = tag || tn || "div";
+                    const varName = assignTo || getVarName();
+                    const needsExport = !!__exportName;
+
+                    // Create element
+                    if (ns) {
+                        lines.push(`var ${varName}=document.createElementNS(${JSON.stringify(ns)},${JSON.stringify(tagName)});`);
+                    } else {
+                        lines.push(`var ${varName}=document.createElement(${JSON.stringify(tagName)});`);
+                    }
+
+                    // Track exports
+                    if (needsExport) {
+                        exports.push({ name: __exportName, varName });
+                    }
+
+                    // Apply direct properties (innerHTML, textContent, id, etc.)
+                    for (const [key, value] of Object.entries(rest)) {
+                        if (typeof value === "function") {
+                            console.warn(`CompileTemplate: function property "${key}" will be ignored`);
+                        } else if (value !== null && value !== undefined) {
+                            lines.push(`${varName}.${key}=${jsValue(value, iterVar)};`);
+                        }
+                    }
+
+                    // Handle accent attribute
+                    if (accent) {
+                        lines.push(`${varName}.setAttribute("ls-accent",${jsValue(accent, iterVar)});`);
+                    }
+
+                    // Handle tooltip
+                    if (tooltip) {
+                        lines.push(`${varName}.setAttribute("ls-tooltip",${jsValue(tooltip, iterVar)});`);
+                    }
+
+                    // Handle reactive bindings
+                    if (reactive) {
+                        lines.push(`if(!LS.Reactive){LS.on&&LS.on("component-loaded",(c)=>{if(c&&c.name&&c.name.toLowerCase&&c.name.toLowerCase()==="reactive"){LS.Reactive.bindElement(${varName},${jsValue(reactive, iterVar)});return LS.REMOVE_LISTENER;}});}else{LS.Reactive.bindElement(${varName},${jsValue(reactive, iterVar)});}`);
+                    }
+
+                    // Handle attributes
+                    const attrs = attr || attributes;
+                    if (attrs) {
+                        if (Array.isArray(attrs)) {
+                            for (const a of attrs) {
+                                if (typeof a === "string") {
+                                    lines.push(`${varName}.setAttribute(${JSON.stringify(a)},"");`);
+                                } else if (typeof a === "object" && a !== null) {
+                                    for (const [aKey, aValue] of Object.entries(a)) {
+                                        lines.push(`${varName}.setAttribute(${JSON.stringify(aKey)},${jsValue(aValue ?? "", iterVar)});`);
+                                    }
+                                }
+                            }
+                        } else if (typeof attrs === "object") {
+                            for (const [aKey, aValue] of Object.entries(attrs)) {
+                                lines.push(`${varName}.setAttribute(${JSON.stringify(aKey)},${jsValue(aValue ?? "", iterVar)});`);
+                            }
+                        }
+                    }
+
+                    // Handle className
+                    if (className) {
+                        if (Array.isArray(className)) {
+                            lines.push(`${varName}.className=${JSON.stringify(className.filter(Boolean).join(" "))};`);
+                        } else {
+                            lines.push(`${varName}.className=${jsValue(className, iterVar)};`);
+                        }
+                    }
+
+                    // Handle style
+                    if (style) {
+                        if (typeof style === "string") {
+                            lines.push(`${varName}.style.cssText=${JSON.stringify(style)};`);
+                        } else if (typeof style === "object") {
+                            const styleEntries = Object.entries(style);
+                            if (styleEntries.length > 0) {
+                                const staticParts = [];
+                                const dynamicParts = [];
+
+                                for (const [rule, value] of styleEntries) {
+                                    const prop = rule.startsWith("--") ? rule : rule.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
+                                    if (typeof value === "symbol") {
+                                        dynamicParts.push({ prop, value });
+                                    } else {
+                                        staticParts.push(`${prop}:${value}`);
+                                    }
+                                }
+
+                                if (dynamicParts.length === 0) {
+                                    lines.push(`${varName}.style.cssText=${JSON.stringify(staticParts.join(";"))};`);
+                                } else if (staticParts.length === 0) {
+                                    const parts = dynamicParts.map(d => `${JSON.stringify(d.prop + ":")}+${dataRef(d.value, iterVar)}`);
+                                    lines.push(`${varName}.style.cssText=${parts.join('+";"+')};`);
+                                } else {
+                                    const dynamicExprs = dynamicParts.map(d => `${JSON.stringify(";" + d.prop + ":")}+${dataRef(d.value, iterVar)}`);
+                                    lines.push(`${varName}.style.cssText=${JSON.stringify(staticParts.join(";"))}+${dynamicExprs.join("+")};`);
+                                }
+                            }
+                        }
+                    }
+
+                    // Handle ls-select options
+                    if (tagName.toLowerCase() === "ls-select" && options) {
+                        lines.push(`${varName}._lsSelectOptions=${jsValue(options, iterVar)};`);
+                    }
+
+                    // Handle children
+                    const contentToAdd = inner || innerContent;
+                    if (contentToAdd !== undefined && contentToAdd !== null) {
+                        if(contentToAdd.__lsOr) {
+                            throw new Error("CompileTemplate error: logic.or cannot be used as element content via inner at this time. Consider { textContent: logic.or(...) } or logic.if(a, b, c) instead.");
+                        }
+
+                        // Map node as child content
+                        if (isMapNode(contentToAdd)) {
+                            emitToElement(varName, contentToAdd, iterVar);
+                        } else if (typeof contentToAdd === "symbol") {
+                            lines.push(`${varName}.append(LS.__dynamicInnerToNode(${dataRef(contentToAdd, iterVar)}));`);
+                        } else if (typeof contentToAdd === "string") {
+                            lines.push(`${varName}.textContent=${jsValue(contentToAdd, iterVar)};`);
+                        } else if (typeof contentToAdd === "number") {
+                            lines.push(`${varName}.textContent=${JSON.stringify(String(contentToAdd))};`);
+                        } else {
+                            const children = Array.isArray(contentToAdd) ? contentToAdd : [contentToAdd];
+                            const validChildren = children.filter(c => c !== null && c !== undefined);
+                            const hasConditional = validChildren.some(containsConditional);
+
+                            if (hasConditional) {
+                                for (const child of validChildren) {
+                                    emitToElement(varName, child, iterVar);
+                                }
+                            } else {
+                                if (validChildren.length === 1) {
+                                    const child = validChildren[0];
+                                    if (typeof child === "string" || typeof child === "symbol") {
+                                        const childExpr = processItem(child, null, iterVar);
+                                        if (childExpr) {
+                                            lines.push(`${varName}.appendChild(${childExpr});`);
+                                        }
+                                    } else if (Array.isArray(child)) {
+                                        emitToElement(varName, child, iterVar);
+                                    } else {
+                                        const childVar = processItem(child, null, iterVar);
+                                        if (childVar) {
+                                            lines.push(`${varName}.appendChild(${childVar});`);
+                                        }
+                                    }
+                                } else if (validChildren.length > 1) {
+                                    const childRefs = [];
+                                    for (const child of validChildren) {
+                                        if (typeof child === "string" || typeof child === "symbol") {
+                                            const expr = processItem(child, null, iterVar);
+                                            if (expr) childRefs.push(expr);
+                                        } else if (Array.isArray(child)) {
+                                            const wrapperVar = getVarName();
+                                            lines.push(`var ${wrapperVar}=document.createElement("div");`);
+                                            for (const v of child) emitToElement(wrapperVar, v, iterVar);
+                                            childRefs.push(wrapperVar);
+                                        } else {
+                                            const childVar = processItem(child, null, iterVar);
+                                            if (childVar) childRefs.push(childVar);
+                                        }
+                                    }
+                                    if (childRefs.length > 0) {
+                                        lines.push(`${varName}.append(${childRefs.join(",")});`);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    return varName;
+                }
+
+                // Check if root structure is known at compile time (no conditionals at root level)
+                const rootHasConditional = template.some(containsConditional);
+
+                if (rootHasConditional) {
+                    lines.push(`var __root=[];`);
                     for (const item of template) {
+                        emitToArray(`__root`, item, null);
+                    }
+                    lines.push(`var __rootValue=__root.length===1?__root[0]:__root;`);
+                } else {
+                    if (template.length === 1) {
+                        const item = template[0];
                         if (Array.isArray(item)) {
                             const wrapperVar = getVarName();
                             lines.push(`var ${wrapperVar}=document.createElement("div");`);
-                            for (const v of item) emitToElement(wrapperVar, v);
-                            rootRefs.push(wrapperVar);
+                            for (const v of item) emitToElement(wrapperVar, v, null);
+                            lines.push(`var __rootValue=${wrapperVar};`);
                         } else if (typeof item === "string" || typeof item === "symbol") {
-                            const nodeVar = getVarName();
-                            lines.push(`var ${nodeVar}=${textNodeExpr(item)};`);
-                            rootRefs.push(nodeVar);
+                            lines.push(`var __rootValue=${textNodeExpr(item, null)};`);
                         } else {
-                            const nodeVar = processItem(item);
-                            if (nodeVar) rootRefs.push(nodeVar);
+                            const rootVar = processItem(item, null, null);
+                            lines.push(`var __rootValue=${rootVar};`);
                         }
+                    } else if (template.length > 1) {
+                        const rootRefs = [];
+                        for (const item of template) {
+                            if (Array.isArray(item)) {
+                                const wrapperVar = getVarName();
+                                lines.push(`var ${wrapperVar}=document.createElement("div");`);
+                                for (const v of item) emitToElement(wrapperVar, v, null);
+                                rootRefs.push(wrapperVar);
+                            } else if (typeof item === "string" || typeof item === "symbol") {
+                                const nodeVar = getVarName();
+                                lines.push(`var ${nodeVar}=${textNodeExpr(item, null)};`);
+                                rootRefs.push(nodeVar);
+                            } else {
+                                const nodeVar = processItem(item, null, null);
+                                if (nodeVar) rootRefs.push(nodeVar);
+                            }
+                        }
+                        lines.push(`var __rootValue=[${rootRefs.join(",")}];`);
+                    } else {
+                        lines.push(`var __rootValue=null;`);
                     }
-                    lines.push(`var __rootValue=[${rootRefs.join(",")}];`);
-                } else {
-                    lines.push(`var __rootValue=null;`);
+                }
+
+                // Build return object
+                const retParts = [];
+                for (const exp of exports) {
+                    retParts.push(`${JSON.stringify(exp.name)}:${exp.varName}`);
+                }
+
+                retParts.push(`root:__rootValue`);
+
+                lines.push(`return{${retParts.join(",")}};`);
+
+                const fnBody = `'use strict';${lines.join("")}`;
+
+                if (asString) return `function(d){${fnBody}}`;
+
+                try {
+                    return new Function("d", fnBody);
+                } catch (e) {
+                    console.error("CompileTemplate error:", e, "\nGenerated code:", fnBody);
+                    throw e;
                 }
             }
+        })(),
 
-            // Build return object
-            const retParts = [];
-            for (const exp of exports) {
-                retParts.push(`${JSON.stringify(exp.name)}:${exp.varName}`);
+        __dynamicInnerToNode(expr) {
+            if (typeof expr === "string") {
+                return document.createTextNode(expr);
             }
 
-            retParts.push(`root:__rootValue`);
-
-            lines.push(`return{${retParts.join(",")}};`);
-
-            const fnBody = `'use strict';${lines.join("")}`;
-
-            // For static/inline compiling
-            if (asString) return `function(d){${fnBody}}`;
-
-            try {
-                return new Function("d", fnBody);
-            } catch (e) {
-                console.error("CompileTemplate error:", e, "\nGenerated code:", fnBody);
-                throw e;
+            if (!expr) {
+                return null;
             }
+
+            if(expr instanceof Node) {
+                return expr;
+            }
+
+            return LS.Create(expr);
         },
 
         components: new Map,
@@ -2145,11 +2381,11 @@
             }
 
             destroy() {
+                super.destroy();
                 if(this._component.singular){
                     this._component.instance.destroyed = true;
                     LS.UnregisterComponent(this._component.name);
                 }
-                super.destroy();
             }
         },
 

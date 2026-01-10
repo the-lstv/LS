@@ -170,13 +170,28 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
         this.element.setAttribute("tabindex", "0");
         this.element.style.outline = "none";
 
-        this.element.innerHTML = `
-        <defs>
-            <linearGradient id="ls-automation-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" style="stop-color:var(--accent);stop-opacity:12%" />
-                <stop offset="100%" style="stop-color:var(--accent);stop-opacity:4%" />
-            </linearGradient>
-        </defs>`;
+        const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+        const gradient = document.createElementNS("http://www.w3.org/2000/svg", "linearGradient");
+        gradient.setAttribute("id", "ls-automation-gradient");
+        gradient.setAttribute("x1", "0%");
+        gradient.setAttribute("y1", "0%");
+        gradient.setAttribute("x2", "0%");
+        gradient.setAttribute("y2", "100%");
+
+        const stops = [
+            { offset: "0%", style: "stop-color:var(--accent);stop-opacity:12%" },
+            { offset: "100%", style: "stop-color:var(--accent);stop-opacity:4%" }
+        ];
+
+        for (const stopData of stops) {
+            const stop = document.createElementNS("http://www.w3.org/2000/svg", "stop");
+            stop.setAttribute("offset", stopData.offset);
+            stop.setAttribute("style", stopData.style);
+            gradient.appendChild(stop);
+        }
+
+        defs.appendChild(gradient);
+        this.element.appendChild(defs);
 
         // Create groups for layering
         this.pathGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
