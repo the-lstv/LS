@@ -49,7 +49,6 @@
 
     return instance;
 })(() => {
-
     class EventHandler {
         /**
          * @param {object} target Possibly deprecated; Binds the event handler methods to a target object.
@@ -97,8 +96,8 @@
 
             const index = event.empty.length > 0 ? event.empty.pop() : event.listeners.length;
 
-            event.listeners[index] = { callback, index, ...options };
-            return this;
+            const listener = event.listeners[index] = { callback, index, ...options };
+            return listener;
         }
 
         off(name, callback){
@@ -376,8 +375,9 @@
         destroy() {
             if (this.destroyed) return;
             this.destroyed = true;
+
             this.emit("destroyed");
-            this.events.clear();
+            if (this.events) this.events.clear(); // It should never happen that this.events is null, yet it somehow did
 
             for(const timer of this.#timers) {
                 const [id, type] = timer;
@@ -402,6 +402,8 @@
              * - By deleting all keys, clearing any data and removing all elements, even if a reference still exists, we minimize the damage it can do.
             */
             for(const key of Object.keys(this)) {
+                if(key === "destroyed") continue;
+
                 const value = this[key];
                 if(this.#destroyables.has(value)) {
                     this.destroyOne(value, true);
@@ -2124,7 +2126,7 @@
 
                     // Handle tooltip
                     if (tooltip) {
-                        lines.push(`${varName}.setAttribute("ls-tooltip",${jsValue(tooltip, iterVar)});`);
+                        lines.push(`${varName}.setAttribute("ls-tooltip",${jsValue(tooltip, iterVar)});LS.Tooltips.updateElement(${varName});`);
                     }
 
                     // Handle reactive bindings

@@ -44,6 +44,18 @@
 
             this.proxyCache = new WeakMap();
 
+            if(this.options.extends && this.options.extends.__isProxy) {
+                // If the extending object swaps objects, we need to overwrite the proxy reference
+                this.rebindHandler = this.options.extends.__bind?.on("swap", (newObj) => {
+                    if(this.destroyed) return;
+
+                    this.options.extends = this.options.extends.__bind.proxy;
+                    this.updated = true;
+                    this.render();
+                    this.emit("extendsSwap", [newObj]);
+                });
+            }
+
             this.#processPending();
         }
 
@@ -208,6 +220,17 @@
             for(const key of keys || this.mappings.keys()) {
                 this.renderKey(key);
             }
+        }
+
+        swapObject(newObject) {
+            if(this.destroyed) return;
+
+            this.object = newObject;
+            this.proxyCache = new WeakMap();
+
+            this.updated = true;
+            this.render();
+            this.emit("swap", [newObject]);
         }
 
         /**
@@ -395,13 +418,13 @@
          * This is slower but keeps the original reference.
          * @returns {boolean} True if the reset was successful
          */
-        reset() {
+        reset(reRender = false) {
             for (const key of Object.keys(this.object)) {
                 delete this.object[key];
             }
 
             this.mutated = false;
-            this.render(this.mutatedKeys);
+            this.render(reRender? null: this.mutatedKeys);
             this.emit("reset", [this.mutatedKeys]);
             this.mutatedKeys.clear();
             return true;
@@ -453,6 +476,13 @@
             LSReactive.objectCache.delete(this.prefix);
 
             this.object = null;
+
+            if(this.rebindHandler) {
+                if(this.options.extends && this.options.extends.__bind) {
+                    this.options.extends.__bind.off(this.rebindHandler);
+                }
+                this.rebindHandler = null;
+            }
 
             this.options = null;
             this.dropAll();
@@ -579,7 +609,7 @@
          * @returns {Proxy} The reactive proxy object
          */
         fork(prefix, object, data, options = {}) {
-            options.extends = object.__isProxy ? object.__bind?.object : object;
+            options.extends = object;
             return this.wrap(prefix, data || {}, options);
         }
 
