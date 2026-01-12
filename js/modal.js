@@ -5,31 +5,9 @@
  */
 
 (() => {
-    const container = N({
-        class: "ls-modal-layer level-1"
-    });
-
-    LS.once("body-available", () => {
-        LS._topLayer.add(container);
-    });
-
-    window.addEventListener("keydown", (event) => {
-        if (event.key === "Escape") {
-            LS.Modal.closeTop();
-        }
-    });
-
-    container.addEventListener("click", (event) => {
-        if (event.target === container && LS.Modal.top && LS.Modal.top.options.canClickAway !== false) {
-            LS.Modal.closeTop();
-        }
-    });
-
-    LS._modalStack = LS._modalStack || [];
-
     function closeModal() {
         if(this instanceof HTMLElement) this.closest(".ls-modal").lsComponent.close(); else {
-            LS.Modal.closeTop();
+            LS.Stack.pop();
         }
     }
 
@@ -80,11 +58,19 @@
                 this.container.style.height = typeof this.options.height === "number" ? this.options.height + "px" : this.options.height;
             }
 
-            container.add(this.container);
+            LS.Stack.container.add(this.container);
 
             if (this.options.open) {
                 this.open();
             }
+        }
+
+        get isCloseable() {
+            return this.options.closeable !== false;
+        }
+
+        get hasShade() {
+            return this.options.shade !== false;
         }
 
         open() {
@@ -92,18 +78,20 @@
             this.previousFocus = document.activeElement;
             this.isOpen = true;
 
-            if (LS._modalStack.length > 0) {
+            if (LS.Stack.length > 0) {
                 const topModal = LS.Modal.top;
                 if (topModal && topModal.container) {
                     topModal.container.classList.remove("ls-top-modal");
                 }
             }
 
-            LS._modalStack.push(this);
+            LS.Stack.push(this);
             this.container.classList.add("open");
             this.container.classList.add("ls-top-modal");
 
             setTimeout(() => {
+                if(!this.isOpen || this.destroyed) return;
+
                 const focusable = this.container.querySelector("input, button, select, textarea, [tabindex]:not([tabindex='-1'])");
                 if (focusable) {
                     focusable.focus();
@@ -112,8 +100,7 @@
                 }
             }, 0);
 
-            this.container.style.zIndex = LS._modalStack.length;
-            container.classList.add("is-open");
+            this.container.style.zIndex = LS.Stack.length;
 
             if (LS.Animation && this.options.animate !== false) {
                 LS.Animation.fadeIn(this.container, this.options.fadeInDuration || 300, this.options.fadeInDirection || 'forward');
@@ -123,27 +110,25 @@
             return this;
         }
 
-        close(focus = true) {
+        close(refocus = true) {
             if (!this.isOpen || this.destroyed) return;
 
             this.isOpen = false;
             this.container.classList.remove("open");
             this.container.classList.remove("ls-top-modal");
-            const index = LS._modalStack.indexOf(this);
-            if (index > -1) {
-                LS._modalStack.splice(index, 1);
-            }
+            LS.Stack.remove(this);
 
             setTimeout(() => {
-                if (LS._modalStack.length === 0) {
-                    container.classList.remove("is-open");
-                    if (focus) (this.previousFocus || document.body).focus();
+                if(this.isOpen || this.destroyed) return;
+
+                if (LS.Stack.length === 0) {
+                    if (refocus) (this.previousFocus || document.body).focus();
                 } else {
                     const top = LS.Modal.top;
                     if (top && top.container) {
-                        if (focus) top.container.classList.add("ls-top-modal");
+                        if (refocus) top.container.classList.add("ls-top-modal");
 
-                        if (focus && this.previousFocus) {
+                        if (refocus && this.previousFocus) {
                             this.previousFocus.focus();
                         } else {
                             top.container.focus();
@@ -171,10 +156,7 @@
                 this.close(false);
             }
 
-            const index = LS._modalStack.indexOf(this);
-            if (index > -1) {
-                LS._modalStack.splice(index, 1);
-            }
+            LS.Stack.remove(this);
 
             if (delayed) {
                 setTimeout(() => {
@@ -195,25 +177,19 @@
         }
 
         static get top() {
-            return LS._modalStack[LS._modalStack.length - 1] || null;
+            return LS.Stack.top;
         }
 
         static closeAll() {
-            for (const modal of LS._modalStack) {
-                modal.close(false);
+            for (const modal of LS.Stack.items) {
+                if(modal instanceof LS.Modal) modal.close(false);
             }
-            LS._modalStack = [];
-            container.classList.remove("is-open");
+
             document.body.focus();
         }
 
         static closeTop() {
-            if (LS._modalStack.length > 0) {
-                const topModal = LS.Modal.top;
-                if (topModal.isOpen && topModal.options.closeable !== false) {
-                    topModal.close();
-                }
-            }
+            return LS.Stack.pop();
         }
 
         static buildEphemeral(options = {}, modalOptions = {}) {

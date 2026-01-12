@@ -105,6 +105,40 @@
         font-size: x-small;
     }
 
+    #{$buttonLike}[state="loading"] {
+        pointer-events: none;
+        opacity: 0.7;
+    }
+
+    #{$buttonLike}[state="loading"]::after {
+        content: "";
+        border: 2px solid var(--on-accent);
+        border-top-color: transparent;
+        border-radius: 50%;
+        width: 12px;
+        height: 12px;
+        margin-left: auto;
+        animation: spin 1s linear infinite;
+        float: right;
+        user-select: none;
+
+        // I guess this adds support for both absolute and relative positioning.
+        right: var(--padding-control-h);
+    }
+
+    #{$buttonLike}[state="loading"].loading-left::after {
+        float: left;
+        margin-left: 0;
+        margin-right: 8px;
+
+        left: var(--padding-control-h);
+    }
+
+    @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+
     #{$textInput}:not(.clear) {
         --background: var(--elevate-0, var(--surface-n2));
         background: var(--background);

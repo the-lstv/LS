@@ -1733,6 +1733,102 @@
         },
 
         /**
+         * A global modal escape stack.
+         * @experimental Very new & direction undecided
+         */
+        Stack: class Stack {
+            static {
+                this.items = [];
+            }
+
+            static _init() {
+                if(this.container) return;
+                window.addEventListener("keydown", (event) => {
+                    if (event.key === "Escape") {
+                        this.pop();
+                    }
+                });
+
+                this.container = LS.Create({
+                    class: "ls-modal-layer level-1"
+                });
+
+                this.container.addEventListener("click", (event) => {
+                    if (event.target === this.container && LS.Stack.length > 0 && LS.Stack.top.canClickAway !== false) {
+                        LS.Stack.pop();
+                    }
+                });
+
+                LS.once("body-available", () => {
+                    LS._topLayer.add(this.container);
+                });
+            }
+
+            static push(item) {
+                if(this.items.indexOf(item) !== -1) {
+                    this.remove(item);
+                }
+
+                if(item.hasShade) {
+                    this.container.classList.add("is-open");
+                }
+
+                this.items.push(item);
+                return item;
+            }
+
+            static pop() {
+                if(this.items.length === 0) return null;
+
+                const item = this.top;
+                if (item && item.isCloseable !== false) {
+                    item.close?.();
+                }
+                return item;
+            }
+
+            static remove(item) {
+                const index = this.items.indexOf(item);
+                if (index > -1) {
+                    this.items.splice(index, 1);
+                }
+
+                if(this.items.length === 0 || !this.items.some(i => i.hasShade)) {
+                    this.container.classList.remove("is-open");
+                }
+            }
+
+            static indexOf(item) {
+                return this.items.indexOf(item);
+            }
+
+            static get length() {
+                return this.items.length;
+            }
+
+            static get top() {
+                return this.items[this.items.length - 1] || null;
+            }
+        },
+
+        StackItem: class StackItem {
+            constructor(modal) {
+                this.ref = modal;
+            }
+
+            get zIndex() {
+                return LS.Stack.indexOf(this);
+            }
+
+            close() {
+                LS.Stack.remove(this);
+                if(this.ref && this.ref.close) {
+                    this.ref.close();
+                }
+            }
+        },
+
+        /**
          * @concept
          * @experimental Direction undecided, so far an abstract concept
          */
@@ -3747,6 +3843,9 @@
     }
 
     if(LS.isWeb){
+        LS.Stack._init();
+
+        // Deprecated
         LS.Tiny.M.on("keydown", event => {
             M.lastKey = event.key;
             if(event.key == "Shift") LS.Tiny.M.ShiftDown = true;
@@ -3759,8 +3858,8 @@
             if(event.key == "Control") LS.Tiny.M.ControlDown = false;
         });
 
-        LS.Tiny.M.on("mousedown", () => LS.Tiny.M.mouseDown = true)
-        LS.Tiny.M.on("mouseup", () => LS.Tiny.M.mouseDown = false)
+        LS.Tiny.M.on("mousedown", () => LS.Tiny.M.mouseDown = true);
+        LS.Tiny.M.on("mouseup", () => LS.Tiny.M.mouseDown = false);
     }
 
     return LS
