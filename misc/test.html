@@ -21,11 +21,21 @@
     <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/8.6.6/packages/advanced-blend-modes.min.js" integrity="sha512-cwI7v4mcTPl+zp5PU+WpyzOiaX8BmtTtSV3X9qgPG8qTpwcvIEVwa6Eyx7eKKGJPfT5cVz0VLeHmB9aSt58IcQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script> -->
     <!-- <script src="https://cdn.jsdelivr.net/npm/pixi-filters@6.1.2/dist/pixi-filters.min.js"></script> -->
 
+    <script>
+        window.LS_INIT_OPTIONS = {
+            autoScheme: true,
+            autoAccent: true
+        };
+    </script>
+
     <script src="../ls.js"></script>
     <script src="../js/toast.js"></script>
     <script src="../js/tooltips.js"></script>
     <script src="../js/tabs.js"></script>
     <script src="../js/node.js"></script>
+    <script src="../js/imagecropper.js"></script>
+    <script src="../js/timeline.js"></script>
+    <script src="../js/menu.js"></script>
     <script src="../js/gl.js"></script>
 
     <style>
@@ -53,13 +63,6 @@
         </div>
     </div>
 
-    <script>
-        LS.init({
-            autoScheme: true,
-            globalPrototype: true
-        });
-    </script>
-
     <div class="sidebar-content">
         <section>
             <h1>LS <span style="color: var(--accent)">v5</span></h1>
@@ -82,12 +85,14 @@
             <ls-div>
                 <button>Button</button>
                 <button class="elevated">Elevated button</button>
+                <button class="elevated" state="loading">Loading button</button>
                 <button class="outline">Outlined button</button>
                 <button class="clear">Clear button</button>
             </ls-div>
-        
+            
             <ls-div>
                 <button class="pill">Pill button</button>
+                <button class="pill" state="loading">Loading button</button>
                 <button class="pill elevated">Pill button</button>
                 <button class="pill outline">Outlined button</button>
                 <button class="pill clear">Clear button</button>
@@ -95,11 +100,20 @@
         
             <ls-div>
                 <button class="circle"><i class="fa fa-plus"></i></button>
+                <button class="circle" state="loading"></button>
                 <button class="circle outline"><i class="fa fa-plus"></i></button>
                 <button class="circle elevated"><i class="fa fa-plus"></i></button>
                 <button class="circle clear"><i class="fa fa-plus"></i></button>
             </ls-div>
-        
+
+            <ls-div>
+                <button class="square"><i class="fa fa-plus"></i></button>
+                <button class="square" state="loading"></button>
+                <button class="square outline"><i class="fa fa-plus"></i></button>
+                <button class="square elevated"><i class="fa fa-plus"></i></button>
+                <button class="square clear"><i class="fa fa-plus"></i></button>
+            </ls-div>
+
             <ls-div>
                 <button disabled>Disabled button</button>
                 <button disabled class="elevated">Disabled button</button>
@@ -129,6 +143,8 @@
                     <span></span>
                 </label>
             </ls-div>
+
+            <ls-select searchable ls-options-values="Select option 1, Select option 2"></ls-select>
         
             <ls-div>
                 <label class="ls-radio">
@@ -163,33 +179,7 @@
                 <ul>
                     <li>
                         From the default set: <br>
-                        <select id="colorPresetSelect">
-                            <option>navy</option>
-                            <option>blue</option>
-                            <option>pastel-indigo</option>
-                            <option>lapis</option>
-                            <option>teal</option>
-                            <option>pastel-teal</option>
-                            <option selected>aquamarine</option>
-                            <option>mint</option>
-                            <option>green</option>
-                            <option>lime</option>
-                            <option>neon</option>
-                            <option>yellow</option>
-                            <option>lstv-red</option>
-                            <option>lstv-yellow</option>
-                            <option>lstv-blue</option>
-                            <option>orange</option>
-                            <option>deep-orange</option>
-                            <option>red</option>
-                            <option>rusty-red</option>
-                            <option>pink</option>
-                            <option>hotpink</option>
-                            <option>purple</option>
-                            <option>soap</option>
-                            <option>burple</option>
-                            <option>white</option>
-                        </select>
+                        <ls-select id="colorPresetSelect" searchable ls-options-values="navy, blue, pastel-indigo, lapis, teal, pastel-teal, [aquamarine], mint, green, lime, neon, yellow, orange, deep-orange, red, rusty-red, pink, hotpink, purple, soap, burple, white"></ls-select>
                     </li>
     
                     <br>
@@ -200,7 +190,7 @@
                     </li>
     
                     <br>
-                    
+
                     <li>
                         From an image (click to select): <br>
                         <label for="imageInput">
@@ -220,26 +210,23 @@
                 <br>
     
                 <script>
-                    document.querySelector('#colorInput').on('input', function() {
-                        LS.Color.update("dynamic", this.value);
-                        LS.Color.setAccent("dynamic");
+                    document.querySelector('#colorInput').addEventListener('input', function() {
+                        LS.Color.setAccent(this.value);
                     });
-    
-                    document.querySelector('#colorPresetSelect').on('input', function() {
+
+                    document.querySelector('#colorPresetSelect').addEventListener('input', function() {
                         LS.Color.setAccent(this.value);
                     });
     
-                    document.querySelector('#imageInput').on('change', function() {
+                    document.querySelector('#imageInput').addEventListener('change', function() {
                         const url = URL.createObjectURL(this.files[0]);
                         const image = document.querySelector('#dynamicColorResult');
-        
+
                         image.onload = function() {
-                            LS.Color.update("dynamic", LS.Color.fromImage(image));
-                            LS.Color.setAccent("dynamic");
-    
+                            LS.Color.fromImage(image).applyAsAccent();
                             URL.revokeObjectURL(this.src);
                         }
-        
+
                         image.src = url;
                     });
                 </script>

@@ -4,10 +4,26 @@
 
     Last modified: 2026
     License: GPL-3.0
-    Version: 5.2.7
+    Version: 5.2.8
     See: https://github.com/thelstv/LS
 */
-[ls-theme=light], [ls-theme=light][ls-accent], [ls-theme=light] [ls-accent] {
+/*
+    Text inputs (input[type="text"], textarea, etc).
+    Yes, this is actually the shortest way to write this.
+*/
+/*
+    Buttons.
+*/
+/*
+    Things that are select-like (select, ls-select, etc).
+*/
+/*
+    Things that are interactive controls (buttons, inputs, textareas, selects, etc).
+*/
+/*
+    Things that look and behave like buttons.
+*/
+[ls-theme=light][ls-theme=light][ls-theme=light], [ls-theme=light][ls-accent], [ls-theme=light] [ls-accent] {
   --background: var(--base-90);
   --color: var(--base-20);
   --surface-n3: var(--base-100);
@@ -28,17 +44,17 @@
   --ui-element: var(--base-95);
   --ui-border: var(--base-40);
 }
-[ls-theme=light], [ls-theme=light] [ls-accent], [ls-theme=light] :disabled, [ls-theme=light][ls-accent], [ls-theme=light][ls-accent] [ls-accent], [ls-theme=light][ls-accent] :disabled, [ls-theme=light] [ls-accent], [ls-theme=light] [ls-accent] [ls-accent], [ls-theme=light] [ls-accent] :disabled {
+[ls-theme=light][ls-theme=light][ls-theme=light], [ls-theme=light][ls-theme=light][ls-theme=light] [ls-accent], [ls-theme=light][ls-theme=light][ls-theme=light] :disabled, [ls-theme=light][ls-accent], [ls-theme=light][ls-accent] [ls-accent], [ls-theme=light][ls-accent] :disabled, [ls-theme=light] [ls-accent], [ls-theme=light] [ls-accent] [ls-accent], [ls-theme=light] [ls-accent] :disabled {
   --on-background: var(--accent-40);
   --on-accent: var(--accent-90);
   --on-transparent: var(--accent-30);
 }
-[ls-theme=light] [ls-accent=auto], [ls-theme=light][ls-accent=auto], [ls-theme=light][ls-accent] [ls-accent=auto], [ls-theme=light][ls-accent][ls-accent=auto], [ls-theme=light] [ls-accent] [ls-accent=auto], [ls-theme=light] [ls-accent][ls-accent=auto] {
+[ls-theme=light][ls-theme=light][ls-theme=light] [ls-accent=auto], [ls-theme=light][ls-theme=light][ls-theme=light][ls-accent=auto], [ls-theme=light][ls-accent] [ls-accent=auto], [ls-theme=light][ls-accent][ls-accent=auto], [ls-theme=light] [ls-accent] [ls-accent=auto], [ls-theme=light] [ls-accent][ls-accent=auto] {
   --accent: var(--accent-10);
   --on-accent: var(--accent-95);
 }
 
-[ls-theme=dark], body:not([ls-theme]), [ls-theme=dark][ls-accent], [ls-theme=dark] [ls-accent] {
+[ls-theme=dark][ls-theme=dark][ls-theme=dark], body:not([ls-theme]), [ls-theme=dark][ls-accent], [ls-theme=dark] [ls-accent] {
   --background: var(--base-10);
   --color: var(--accent-90);
   --surface-n3: var(--base-0);
@@ -59,12 +75,12 @@
   --ui-element: var(--base-20);
   --ui-border: var(--base-0);
 }
-[ls-theme=dark], [ls-theme=dark] [ls-accent], [ls-theme=dark] :disabled, body:not([ls-theme]), body:not([ls-theme]) [ls-accent], body:not([ls-theme]) :disabled, [ls-theme=dark][ls-accent], [ls-theme=dark][ls-accent] [ls-accent], [ls-theme=dark][ls-accent] :disabled, [ls-theme=dark] [ls-accent], [ls-theme=dark] [ls-accent] [ls-accent], [ls-theme=dark] [ls-accent] :disabled {
+[ls-theme=dark][ls-theme=dark][ls-theme=dark], [ls-theme=dark][ls-theme=dark][ls-theme=dark] [ls-accent], [ls-theme=dark][ls-theme=dark][ls-theme=dark] :disabled, body:not([ls-theme]), body:not([ls-theme]) [ls-accent], body:not([ls-theme]) :disabled, [ls-theme=dark][ls-accent], [ls-theme=dark][ls-accent] [ls-accent], [ls-theme=dark][ls-accent] :disabled, [ls-theme=dark] [ls-accent], [ls-theme=dark] [ls-accent] [ls-accent], [ls-theme=dark] [ls-accent] :disabled {
   --on-background: var(--accent-70);
   --on-transparent: var(--accent-80);
   --on-accent: var(--accent-95);
 }
-[ls-theme=dark] [ls-accent=auto], [ls-theme=dark][ls-accent=auto], body:not([ls-theme]) [ls-accent=auto], body:not([ls-theme])[ls-accent=auto], [ls-theme=dark][ls-accent] [ls-accent=auto], [ls-theme=dark][ls-accent][ls-accent=auto], [ls-theme=dark] [ls-accent] [ls-accent=auto], [ls-theme=dark] [ls-accent][ls-accent=auto] {
+[ls-theme=dark][ls-theme=dark][ls-theme=dark] [ls-accent=auto], [ls-theme=dark][ls-theme=dark][ls-theme=dark][ls-accent=auto], body:not([ls-theme]) [ls-accent=auto], body:not([ls-theme])[ls-accent=auto], [ls-theme=dark][ls-accent] [ls-accent=auto], [ls-theme=dark][ls-accent][ls-accent=auto], [ls-theme=dark] [ls-accent] [ls-accent=auto], [ls-theme=dark] [ls-accent][ls-accent=auto] {
   --accent: var(--accent-90);
   --on-accent: var(--accent-10);
 }
@@ -89,6 +105,13 @@
 }
 .ls-checkbox > input:checked ~ span::after, .ls-radio > input:checked ~ span::after {
   display: block;
+}
+
+:is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)) {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  gap: var(--control-content-gap, 8px);
 }
 
 :is(.ls-checkbox, .ls-radio, .ls-radio-button) > input {
@@ -2153,7 +2176,7 @@ template {
   display: none;
 }
 
-input:-webkit-autofill, [ls] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), input, textarea, :is(select, ls-select, .ls-select .ls-select-handle)), [ls] {
+input:-webkit-autofill, [ls] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), input, textarea, :is(select, ls-select, .ls-select .ls-select-handle)), [ls] {
   font-family: var(--font);
 }
 
@@ -2186,6 +2209,7 @@ body {
   --margin-control-h: 0;
   --margin-content-v: var(--space-medium);
   --margin-content-v-large: var(--space-large);
+  --control-content-gap: 8px;
   background: var(--background);
   color: var(--color);
   overflow-y: overlay;
@@ -2193,25 +2217,19 @@ body {
 [ls] * {
   box-sizing: border-box;
 }
-[ls] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), input, textarea, :is(select, ls-select, .ls-select .ls-select-handle)) {
+[ls] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), input, textarea, :is(select, ls-select, .ls-select .ls-select-handle)) {
   box-sizing: border-box;
   border: 0;
   outline: none;
   position: relative;
 }
-[ls] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), input, textarea, :is(select, ls-select, .ls-select .ls-select-handle)):not(textarea) {
+[ls] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), input, textarea, :is(select, ls-select, .ls-select .ls-select-handle)):not(textarea) {
   line-height: 1;
 }
-[ls] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), [ls] :is(select, ls-select, .ls-select .ls-select-handle) {
+[ls] :is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), [ls] :is(select, ls-select, .ls-select .ls-select-handle) {
   padding: var(--padding-control-v) var(--padding-control-h);
   margin: var(--margin-control-v) var(--margin-control-h);
   cursor: pointer;
-}
-[ls] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button) i, [ls] :is(select, ls-select, .ls-select .ls-select-handle) i {
-  margin: 0 4px 0 2px;
-}
-[ls] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button) i:only-child, [ls] :is(select, ls-select, .ls-select .ls-select-handle) i:only-child {
-  margin: 0;
 }
 [ls] input, [ls] textarea {
   height: calc(1em + var(--padding-control-v) * 2);
@@ -2222,12 +2240,12 @@ body {
 [ls] textarea {
   line-height: normal;
 }
-[ls] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):is(.square, .circle) {
+[ls] :is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):is(.square, .circle) {
   height: calc(1em + var(--padding-control-v) * 2);
   width: calc(1em + var(--padding-control-v) * 2);
   padding: 0;
 }
-[ls] :is(button, input[type=button], input[type=submit], input[type=reset], .ls-button):is(.square, .circle) > :first-child {
+[ls] :is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):is(.square, .circle) > :first-child {
   margin: 0;
   padding: 0;
 }

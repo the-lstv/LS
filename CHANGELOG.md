@@ -16,6 +16,10 @@
 - Removed v4compat layer as there is no need to support it anymore and maintenance would become impossible
 - Added (currently experimental) LS.CompileTemplate, with similar API to LS.Create, but compiles to an optimized function for better performance when creating many instances of the same structure.
 - Some components (Timeline, Toast, Modal) now use a precompiled template for better construction performance
+- Buttons now have a loading state
+- Added helpers & init options to remember and apply user color/theme preferences including preferred system scheme
+- LS.Color.setAccent now accepts any LS.Color input or instance, not only presets
+- Init options can now be set via a global variable `LS_INIT_OPTIONS`
 
 ### Version 5.2.8
 - Listeners can be removed by returning LS.REMOVE_LISTENER

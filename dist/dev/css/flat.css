@@ -1,3 +1,19 @@
+/*
+    Text inputs (input[type="text"], textarea, etc).
+    Yes, this is actually the shortest way to write this.
+*/
+/*
+    Buttons.
+*/
+/*
+    Things that are select-like (select, ls-select, etc).
+*/
+/*
+    Things that are interactive controls (buttons, inputs, textareas, selects, etc).
+*/
+/*
+    Things that look and behave like buttons.
+*/
 [ls-style=flat] {
   --border-radius-tiny: 2px;
   --border-radius-small: 4px;
@@ -9,95 +25,105 @@
   --border-radius-full: 100px;
   --border-radius-circle: 50%;
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), input, textarea, :is(select, ls-select, .ls-select .ls-select-handle)) {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), input, textarea, :is(select, ls-select, .ls-select .ls-select-handle)) {
   border-radius: var(--border-radius);
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)) {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)) {
   background-color: var(--accent-35);
   color: var(--on-accent);
   transition: background-color 0.2s, color 0.2s, box-shadow 0.2s;
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)):not(:disabled, .no-effect):hover, [ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)):not(:disabled, .no-effect):focus {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)):not(:disabled, .no-effect):hover, [ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)):not(:disabled, .no-effect):focus {
   background-color: var(--accent-40);
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)):not(:disabled, .no-effect):active {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)):not(:disabled, .no-effect):active {
   background-color: var(--accent-30);
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)):not(:disabled, .no-effect):focus {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)):not(:disabled, .no-effect):focus {
   outline: 3px solid var(--accent-mix-10);
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)):not(:disabled, .no-effect):focus-visible {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)):not(:disabled, .no-effect):focus-visible {
   outline: 3px solid currentColor;
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)):disabled {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)):disabled {
   opacity: 0.8;
   filter: saturate(0.6);
   cursor: not-allowed;
   background: var(--elevate-2);
   color: var(--on-transparent);
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)):is(.clear, .outline) {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)):is(.clear, .outline) {
   background: none;
   color: var(--on-background);
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)).circle {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)).circle {
   border-radius: 50%;
+  align-items: center;
+  justify-content: center;
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)).square {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)).square {
   border-radius: var(--border-radius);
+  align-items: center;
+  justify-content: center;
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)):is(.clear, .outline, .elevated):not(:disabled):hover, [ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)):is(.clear, .outline, .elevated):not(:disabled):focus {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)):is(.clear, .outline, .elevated):not(:disabled):hover, [ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)):is(.clear, .outline, .elevated):not(:disabled):focus {
   background-color: var(--accent-mix-40);
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)):is(.clear, .outline, .elevated):not(:disabled):active {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)):is(.clear, .outline, .elevated):not(:disabled):active {
   background-color: var(--accent-mix-20);
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)).clear:hover, [ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)).clear:focus {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)).clear:hover, [ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)).clear:focus {
   color: var(--on-transparent);
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)).outline {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)).outline {
   border: 1px solid var(--accent-70);
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)).elevated {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)).elevated {
   background-color: var(--accent-mix-20);
   color: var(--on-transparent);
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)).elevated:focus-visible {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)).elevated:focus-visible {
   outline: 3px solid currentColor;
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)).elevated:disabled {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)).elevated:disabled {
   background: var(--accent-mix-10);
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)).pill {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)).pill {
   border-radius: var(--border-radius-full);
   padding: var(--padding-control-v) var(--padding-control-h-pill);
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)).small {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)).small {
   --padding-control-h: 10px;
   font-size: x-small;
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), :is(select, ls-select, .ls-select .ls-select-handle))[state=loading] {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle))[state=loading] {
   pointer-events: none;
-  opacity: 0.7;
-}
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), :is(select, ls-select, .ls-select .ls-select-handle))[state=loading]::after {
-  content: "";
-  border: 2px solid var(--on-accent);
-  border-top-color: transparent;
-  border-radius: 50%;
-  width: 12px;
-  height: 12px;
-  margin-left: auto;
-  animation: spin 1s linear infinite;
-  float: right;
   user-select: none;
+  opacity: 0.8;
+}
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle))[state=loading].loading-right::after, [ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle))[state=loading]:not(.loading-right)::before {
+  content: "";
+  --border-width: calc(1em / 8);
+  border: var(--border-width) solid currentColor;
+  border-top-color: transparent;
+  animation: spin 1s linear infinite;
+  display: inline-block;
+  border-radius: 50%;
+  width: calc(1em - var(--border-width) * 2);
+  height: calc(1em - var(--border-width) * 2);
+  top: calc(50% - 0.5em);
+}
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle))[state=loading]:not(.loading-right)::before {
+  margin-left: 0;
+  left: var(--padding-control-h);
+}
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle))[state=loading].loading-right::after {
+  float: right;
+  margin-left: auto;
   right: var(--padding-control-h);
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], .ls-button), :is(select, ls-select, .ls-select .ls-select-handle))[state=loading].loading-left::after {
-  float: left;
-  margin-left: 0;
-  margin-right: 8px;
-  left: var(--padding-control-h);
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle))[state=loading]:not(.loading-right) > i:first-child {
+  display: none;
 }
 @keyframes spin {
   from {

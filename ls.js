@@ -36,8 +36,10 @@
         if(!window.LS_DEFER_INIT){
             instance.init({
                 globalizeTiny: window.LS_DONT_GLOBALIZE_TINY !== true,
-                globalPrototype: window.ls_do_not_prototype !== true
+                globalPrototype: window.ls_do_not_prototype !== true,
+                ...(window.LS_INIT_OPTIONS || null)
             });
+            delete window.LS_INIT_OPTIONS;
         }
 
         function bodyAvailable(){
@@ -457,6 +459,7 @@
             if(options.theme) this.Color.setTheme(options.theme);
             if(options.accent) this.Color.setAccent(options.accent);
             if(options.autoScheme) this.Color.autoScheme(options.adaptiveTheme);
+            if(options.autoAccent) this.Color.autoAccent();
             if(options.globalizeTiny) {
                 /**
                  * @deprecated
@@ -3250,6 +3253,31 @@
             return LS.Select(div);
         }
 
+        /**
+         * Sets the sitewide accent from this color
+         */
+        applyAsAccent() {
+            if(!LS.isWeb) return;
+            LS.Color.setAccent(this);
+            return this;
+        }
+
+        /**
+         * Creates or updates a sitewide named accent
+         */
+        toAccent(name = "default") {
+            if(!LS.isWeb) return;
+            LS.Color.update(name, this);
+            return this;
+        }
+
+        /**
+         * Generates a CSS accent from this color
+         */
+        toAccentCSS() {
+            return LS.Color.generate(this);
+        }
+
         // --- Special methods for multiple pixels
 
         /**
@@ -3583,32 +3611,94 @@
             this.colors.delete(name);
         }
 
-        static setAccent(accent){
-            document.body.setAttribute("ls-accent", accent);
-            return this
+        static #settingAccent = null;
+        static setAccent(accent, store = true){
+            if(this.#settingAccent) {
+                this.#settingAccent = accent;
+                return this;
+            }
+
+            this.#settingAccent = accent;
+
+            // Changes are defered until the body is available and batched to the next animation frame
+            LS.once("body-available", () => {
+                requestAnimationFrame(() => {
+                    if(!this.#settingAccent) return;
+
+                    if(typeof this.#settingAccent !== "string" || (this.#settingAccent.startsWith("#") || this.#settingAccent.startsWith("rgb") || this.#settingAccent.startsWith("hsl"))) {
+                        const color = new LS.Color(this.#settingAccent);
+
+                        this.#settingAccent = color.hex;
+                        LS.Color.update('custom', color);
+                        document.body.setAttribute("ls-accent", "custom");
+                    } else {
+                        document.body.setAttribute("ls-accent", this.#settingAccent);
+                    }
+
+                    this.emit("accent-changed", [this.#settingAccent]);
+
+                    if(store) {
+                        if(accent === "white") {
+                            localStorage.removeItem("ls-accent");
+                        } else {
+                            localStorage.setItem("ls-accent", this.#settingAccent);
+                        }
+                    }
+
+                    this.#settingAccent = null;
+                });
+            });
+
+            return this;
         }
 
-        static setTheme(theme){
-            document.body.setAttribute("ls-theme", theme);
-            document.body.classList.add("no-transitions");
-            this.emit("theme-changed", [theme]);
-            setTimeout(() => {
-                document.body.classList.remove("no-transitions");
-            }, 0);
+        static #settingTheme = null;
+        static setTheme(theme, store = true){
+            if(this.#settingTheme) {
+                this.#settingTheme = theme;
+                return this;
+            }
+
+            this.#settingTheme = theme;
+
+            // Changes are defered until the body is available and batched to the next animation frame
+            LS.once("body-available", () => {
+                requestAnimationFrame(() => {
+                    if(!this.#settingTheme) return;
+                    document.body.setAttribute("ls-theme", this.#settingTheme);
+                    document.body.classList.add("no-transitions");
+                    this.emit("theme-changed", [this.#settingTheme]);
+
+                    if(store) localStorage.setItem("ls-theme", this.#settingTheme);
+
+                    this.#settingTheme = null;
+
+                    setTimeout(() => {
+                        if(this.#settingTheme) return;
+                        document.body.classList.remove("no-transitions");
+                    }, 0);
+                });
+            });
 
             return this;
         }
 
         static setAdaptiveTheme(amoled){
-            LS.Color.setTheme(localStorage.getItem("ls-theme") || (this.lightModePreffered? "light": amoled? "amoled" : "dark"));
+            LS.Color.setTheme(localStorage.getItem("ls-theme") || (this.lightModePreffered? "light": amoled? "amoled" : "dark"), false);
             return this;
         }
 
         static autoScheme(amoled){
-            LS.once("body-available", () => {
-                this.setAdaptiveTheme(amoled);
-                this.on("scheme-changed", () => this.setAdaptiveTheme());
-            })
+            this.setAdaptiveTheme(amoled);
+            this.on("scheme-changed", () => this.setAdaptiveTheme(amoled));
+            return this;
+        }
+
+        static autoAccent(){
+            if(localStorage.hasOwnProperty("ls-accent")){
+                const accent = localStorage.getItem("ls-accent");
+                LS.Color.setAccent(accent, false);
+            }
 
             return this;
         }

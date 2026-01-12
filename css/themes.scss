@@ -1,4 +1,4 @@
-[ls-theme="light"], [ls-theme="light"][ls-accent], [ls-theme="light"] [ls-accent] {
+#{priority('[ls-theme="light"]', 3)}, [ls-theme="light"][ls-accent], [ls-theme="light"] [ls-accent] {
     --background: var(--base-90);
     --color: var(--base-20);
 
@@ -34,7 +34,7 @@
     }
 }
 
-[ls-theme="dark"], body:not([ls-theme]), [ls-theme="dark"][ls-accent], [ls-theme="dark"] [ls-accent] {
+#{priority('[ls-theme="dark"]', 3)}, body:not([ls-theme]), [ls-theme="dark"][ls-accent], [ls-theme="dark"] [ls-accent] {
     --background: var(--base-10);
     --color: var(--accent-90);
 

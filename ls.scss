@@ -56,6 +56,8 @@ body {
     --margin-content-v: var(--space-medium);
     --margin-content-v-large: var(--space-large);
 
+    --control-content-gap: 8px;
+
     background: var(--background);
     color: var(--color);
     overflow-y: overlay;
@@ -82,14 +84,6 @@ body {
         margin: var(--margin-control-v) var(--margin-control-h);
 
         cursor: pointer;
-
-        i {
-            margin: 0 4px 0 2px;
-        }
-
-        i:only-child {
-            margin: 0;
-        }
     }
 
     input, textarea {

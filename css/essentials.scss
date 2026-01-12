@@ -22,6 +22,14 @@
     }
 }
 
+// Since 5.3.0, button-like containers (buttons, select, ...) are inline-flex by default, for consistency, proper centering, gap support, and to streamline layout and avoid annoying hacks.
+#{$buttonLike} {
+    display: inline-flex;
+    align-items: center;
+    vertical-align: middle;
+    gap: var(--control-content-gap, 8px);
+}
+
 :is(.ls-checkbox, .ls-radio, .ls-radio-button) > input {
     opacity: 0;
     width: 0;

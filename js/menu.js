@@ -1010,8 +1010,31 @@ customElements.define('ls-select', class LSSelect extends HTMLElement {
         }).addTo(this);
 
         if (!this._lsSelectOptions) {
+            if(this.hasAttribute('ls-options-values')) {
+                this.getAttribute('ls-options-values').split(',').forEach((value) => {
+                    let selected = false;
+                    value = value.trim();
+                    if(value.startsWith("[") && value.endsWith("]")) {
+                        value = value.substring(1, value.length - 1).trim();
+                        selected = true && !selectedOption;
+                    }
+
+                    const option = {
+                        value,
+                        text: value,
+                        selected
+                    }
+
+                    this.menu.add(option);
+
+                    if (selected) {
+                        selectedOption = option;
+                    }
+                });
+            }
+
             for (const optionElement of this.querySelectorAll('ls-option, option, optgroup')) {
-                const isSelected = optionElement.selected || optionElement.getAttribute("selected") !== null;
+                const isSelected = (optionElement.selected || optionElement.getAttribute("selected") !== null) && !selectedOption;
 
                 const option = optionElement.tagName.toLowerCase() === 'optgroup' ? {
                     type: "label",
@@ -1025,7 +1048,7 @@ customElements.define('ls-select', class LSSelect extends HTMLElement {
                 optionElement.remove();
                 this.menu.add(option);
 
-                if (isSelected && !selectedOption) {
+                if (isSelected) {
                     selectedOption = option;
                 }
             }

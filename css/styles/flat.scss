@@ -56,10 +56,14 @@
 
     #{$buttonLike}.circle {
         border-radius: 50%;
+        align-items: center;
+        justify-content: center;
     }
 
     #{$buttonLike}.square {
-        border-radius: var(--border-radius)
+        border-radius: var(--border-radius);
+        align-items: center;
+        justify-content: center;
     }
 
     #{$buttonLike}:is(.clear, .outline, .elevated):not(:disabled) {
@@ -107,31 +111,39 @@
 
     #{$buttonLike}[state="loading"] {
         pointer-events: none;
-        opacity: 0.7;
+        user-select: none;
+        opacity: 0.8;
     }
 
-    #{$buttonLike}[state="loading"]::after {
+    #{$buttonLike}[state="loading"].loading-right::after, #{$buttonLike}[state="loading"]:not(.loading-right)::before {
         content: "";
-        border: 2px solid var(--on-accent);
+        --border-width: calc(1em / 8);
+        border: var(--border-width) solid currentColor;
         border-top-color: transparent;
-        border-radius: 50%;
-        width: 12px;
-        height: 12px;
-        margin-left: auto;
         animation: spin 1s linear infinite;
-        float: right;
-        user-select: none;
+        display: inline-block;
+        border-radius: 50%;
+        width: calc(1em - var(--border-width) * 2);
+        height: calc(1em - var(--border-width) * 2);
 
-        // I guess this adds support for both absolute and relative positioning.
+        // This adds support for both absolute and relative positioning.
+        // Is that a good idea? Eh
+        top: calc(50% - (1em / 2));
+    }
+
+    #{$buttonLike}[state="loading"]:not(.loading-right)::before {
+        margin-left: 0;
+        left: var(--padding-control-h);
+    }
+
+    #{$buttonLike}[state="loading"].loading-right::after {
+        float: right;
+        margin-left: auto;
         right: var(--padding-control-h);
     }
 
-    #{$buttonLike}[state="loading"].loading-left::after {
-        float: left;
-        margin-left: 0;
-        margin-right: 8px;
-
-        left: var(--padding-control-h);
+    #{$buttonLike}[state="loading"]:not(.loading-right) > i:first-child {
+        display: none;
     }
 
     @keyframes spin {
