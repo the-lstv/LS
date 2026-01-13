@@ -52,11 +52,13 @@
     return instance;
 })(() => {
     class EventHandler {
+        static REMOVE_LISTENER = Symbol("event-remove");
+
         /**
          * @param {object} target Possibly deprecated; Binds the event handler methods to a target object.
          */
         constructor(target){
-            LS.EventHandler.prepareHandler(this);
+            EventHandler.prepareHandler(this);
             if(target){
                 target._events = this;
 
@@ -131,30 +133,31 @@
          * Emit an event with the given name and data.
          * @param {string|object} name Name of the event or an event object.
          * @param {Array} data Data to pass to the event listeners.
-         * @param {object} options Options for the event emission.
+         * @param {object} options Override options for the event emission.
          * @returns {Array|null} Returns an array of results or null.
          */
 
-        emit(name, data, options = {}){
-            if(!name || !this.events) return;
+        emit(name, data, options = null) {
+            if (!name || !this.events) return;
 
-            const event = name._isEvent? name: this.events.get(name);
+            const event = name._isEvent ? name : this.events.get(name);
+            if (!options) options = event;
 
-            const returnData = options.results? []: null;
-            if(!event) return returnData;
-
+            const returnData = options && options.results ? [] : null;
+            if (!event) return returnData;
+            
             const hasData = Array.isArray(data) && data.length > 0;
 
-            for(let listener of event.listeners){
-                if(!listener || typeof listener.callback !== "function") continue;
+            for (let listener of event.listeners) {
+                if (!listener || typeof listener.callback !== "function") continue;
 
                 try {
-                    const result = hasData? listener.callback(...data): listener.callback();
+                    const result = hasData ? listener.callback(...data) : listener.callback();
 
-                    if(options.break && result === false) break;
-                    if(options.results) returnData.push(result);
+                    if (options.break && result === false) break;
+                    if (options.results) returnData.push(result);
 
-                    if(result === LS.REMOVE_LISTENER) {
+                    if (result === EventHandler.REMOVE_LISTENER) {
                         event.empty.push(listener.index);
                         event.listeners[listener.index] = null;
                         listener = null;
@@ -164,11 +167,15 @@
                     console.error(`Error in listener for event '${name}':`, listener, error);
                 }
 
-                if(listener && listener.once) {
+                if (listener && listener.once) {
                     event.empty.push(listener.index);
                     event.listeners[listener.index] = null;
                     listener = null;
                 }
+            }
+
+            if (options.async && options.results) {
+                return Promise.all(returnData);
             }
 
             return returnData;
@@ -435,7 +442,7 @@
         version: "5.2.8-beta",
         v: 5,
 
-        REMOVE_LISTENER: Symbol("event-remove"),
+        REMOVE_LISTENER: EventHandler.REMOVE_LISTENER,
 
         init(options) {
             if(!this.isWeb) return;
@@ -538,7 +545,7 @@
                     LS.on("component-loaded", (component) => {
                         if (component.name.toLowerCase() === "reactive") {
                             LS.Reactive.bindElement(element, reactive);
-                            return LS.REMOVE_LISTENER;
+                            return LS.EventHandler.REMOVE_LISTENER;
                         }
                     });
                 } else {
