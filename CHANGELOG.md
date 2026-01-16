@@ -21,7 +21,7 @@
 - LS.Color.setAccent now accepts any LS.Color input or instance, not only presets
 - Init options can now be set via a global variable `LS_INIT_OPTIONS`
 
-### Version 5.2.8
+### Version 5.2.7
 - Listeners can be removed by returning LS.REMOVE_LISTENER
 - Data support for completed events
 - A global event for component registration
