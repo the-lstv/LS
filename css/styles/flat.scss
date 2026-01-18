@@ -109,13 +109,7 @@
         font-size: x-small;
     }
 
-    #{$buttonLike}[state="loading"] {
-        pointer-events: none;
-        user-select: none;
-        opacity: 0.8;
-    }
-
-    #{$buttonLike}[state="loading"].loading-right::after, #{$buttonLike}[state="loading"]:not(.loading-right)::before {
+    [state="loading"].loading-right::after, [state="loading"]:not(.loading-right)::before {
         content: "";
         --border-width: calc(1em / 8);
         border: var(--border-width) solid currentColor;
@@ -123,23 +117,40 @@
         animation: spin 1s linear infinite;
         display: inline-block;
         border-radius: 50%;
-        width: calc(1em - var(--border-width) * 2);
-        height: calc(1em - var(--border-width) * 2);
 
-        // This adds support for both absolute and relative positioning.
-        // Is that a good idea? Eh
-        top: calc(50% - (1em / 2));
+        --width: calc(1em - var(--border-width) * 2);
+        --height: calc(1em - var(--border-width) * 2);
+        width: var(--width);
+        height: var(--height);
+
+        // Absolute positioning
+        position: absolute;
+        top: calc(50% - (var(--height) / 2));
+        left: calc(50% - (var(--width) / 2));
     }
 
     #{$buttonLike}[state="loading"]:not(.loading-right)::before {
         margin-left: 0;
-        left: var(--padding-control-h);
+        position: static;
+
+        // In case of absolute positioning
+        // left: var(--padding-control-h);
+        // top: calc(50% - (1em / 2));
     }
 
     #{$buttonLike}[state="loading"].loading-right::after {
         float: right;
         margin-left: auto;
-        right: var(--padding-control-h);
+        position: static;
+
+        // In case of absolute positioning
+        // right: var(--padding-control-h);
+        // top: calc(50% - (1em / 2));
+    }
+
+    #{$buttonLike}[state="loading"] {
+        pointer-events: none;
+        user-select: none;
     }
 
     #{$buttonLike}[state="loading"]:not(.loading-right) > i:first-child {

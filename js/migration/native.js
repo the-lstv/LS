@@ -13,7 +13,7 @@
  * @license GPL-3.0
  */
 
-class DefaultHandler extends LS.EventHandler {
+class DefaultHandler extends LS.EventEmitter {
     constructor(type) {
         super();
         this.type = type || "web";

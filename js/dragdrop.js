@@ -103,16 +103,15 @@ LS.LoadComponent(class DragDrop extends LS.Component {
 
         this.frameScheduler = new LS.Util.FrameScheduler(() => this.#render());
 
-        // Top-layer drag area and preview box
-        LS.once("body-available", () => {
-            this.#state.dragArea = LS.Create({ class: "ls-drag-area", style: "position: fixed; pointer-events: none; display: none; top: 0; left: 0" });
-            LS._topLayer.appendChild(this.#state.dragArea);
+        this.#state.dragArea = LS.Create({ class: "ls-drag-area", style: "position: fixed; pointer-events: none; display: none; top: 0; left: 0" });
+        this.#state.snapLine = LS.Create({ class: "ls-drag-snap-line", style: "position: fixed; pointer-events: none; display: none; width: 1px; background: var(--accent-60); z-index: 10000; top: 0; left: 0" });
+        this.#state.previewBox = LS.Create({ class: "ls-drop-preview", style: "display: none" });
 
-            this.#state.snapLine = LS.Create({ class: "ls-drag-snap-line", style: "position: fixed; pointer-events: none; display: none; width: 1px; background: var(--accent-60); z-index: 10000; top: 0; left: 0" });
+        // Top-layer drag area and preview box
+        LS.once("ready", () => {
+            LS._topLayer.appendChild(this.#state.dragArea);
             LS._topLayer.appendChild(this.#state.snapLine);
         });
-
-        this.#state.previewBox = LS.Create({ class: "ls-drop-preview", style: "display: none" });
     }
 
     /**

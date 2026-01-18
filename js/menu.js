@@ -111,7 +111,7 @@ LS.LoadComponent(class Menu extends LS.Component {
         }
 
         if (this.options.topLayer) {
-            LS.once("body-available", () => {
+            LS.once("ready", () => {
                 this.container.addTo(LS._topLayer.querySelector('.ls-dropdown-layer') || N({
                     class: "ls-dropdown-layer"
                 }).addTo(LS._topLayer));

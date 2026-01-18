@@ -48,7 +48,7 @@ LS.LoadComponent(class Toast extends LS.DestroyableComponent {
             class: "ls-toast-layer"
         });
 
-        LS.once("body-available", () => {
+        LS.once("ready", () => {
             LS._topLayer.add(this.container);
         });
 

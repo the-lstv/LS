@@ -72,10 +72,6 @@ ls-box {
         margin-bottom: 0;
     }
     
-    &:not(.contained) {
-        display: block;
-    }
-    
     &:not(.inline) {
         border-radius: var(--border-radius);
         padding: var(--padding-content-v) var(--padding-content-h);

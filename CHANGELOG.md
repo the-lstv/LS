@@ -20,6 +20,11 @@
 - Added helpers & init options to remember and apply user color/theme preferences including preferred system scheme
 - LS.Color.setAccent now accepts any LS.Color input or instance, not only presets
 - Init options can now be set via a global variable `LS_INIT_OPTIONS`
+- Massively improved performance of LS.EventEmitter
+- Removed EventEmitter.invoke which has been deprecated for a long time
+- Added LS.Util.clone (deep clone utility)
+- Renamed "body-available" event to "ready" (backwards compatible)
+- 
 
 ### Version 5.2.7
 - Listeners can be removed by returning LS.REMOVE_LISTENER
@@ -81,7 +86,7 @@ V4 is a special one.
 ![Screenshot from 2024-08-22 22-47-28](https://github.com/user-attachments/assets/175c8ab3-d00f-4467-bb96-066df234c46b)<br>
 This new component allows you to easily include a beautiful and fully customizeable graph editor, primarily intended for automations (eg. gain on an audio oscillator), but is great for any other possible usage scenarios.<br>
 It uses SVG for rendering, offers an easy way to scale, has a simple API with efficient instancing etc.<br><br>
-In this update, LS.EventResolver (as component) was deprecated in favor of LS.EventHandler (as a standalone class) - compatibility is retained at this moment.
+In this update, LS.EventResolver (as component) was deprecated in favor of LS.EventEmitter (as a standalone class) - compatibility is retained at this moment.
 
 ## Version 3.4.5
 ### 1) Colors

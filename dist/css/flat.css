@@ -96,12 +96,7 @@
   --padding-control-h: 10px;
   font-size: x-small;
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle))[state=loading] {
-  pointer-events: none;
-  user-select: none;
-  opacity: 0.8;
-}
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle))[state=loading].loading-right::after, [ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle))[state=loading]:not(.loading-right)::before {
+[ls-style=flat] [state=loading].loading-right::after, [ls-style=flat] [state=loading]:not(.loading-right)::before {
   content: "";
   --border-width: calc(1em / 8);
   border: var(--border-width) solid currentColor;
@@ -109,18 +104,26 @@
   animation: spin 1s linear infinite;
   display: inline-block;
   border-radius: 50%;
-  width: calc(1em - var(--border-width) * 2);
-  height: calc(1em - var(--border-width) * 2);
-  top: calc(50% - 0.5em);
+  --width: calc(1em - var(--border-width) * 2);
+  --height: calc(1em - var(--border-width) * 2);
+  width: var(--width);
+  height: var(--height);
+  position: absolute;
+  top: calc(50% - var(--height) / 2);
+  left: calc(50% - var(--width) / 2);
 }
 [ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle))[state=loading]:not(.loading-right)::before {
   margin-left: 0;
-  left: var(--padding-control-h);
+  position: static;
 }
 [ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle))[state=loading].loading-right::after {
   float: right;
   margin-left: auto;
-  right: var(--padding-control-h);
+  position: static;
+}
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle))[state=loading] {
+  pointer-events: none;
+  user-select: none;
 }
 [ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle))[state=loading]:not(.loading-right) > i:first-child {
   display: none;

@@ -31,7 +31,7 @@ Don't believe me? [See it in action](https://lstv.space) - all of our platforms 
 <br>
 
 
-## LS v5.2.7
+## LS v5.2.8
 v5 is by far the largest update ever released to LS.<br>
 ### What's new?
 - ✨ New, modern API remade from scratch
@@ -59,8 +59,8 @@ v5 is faster and more memory efficient in various fields.
 |-------------------------|-----------------|-----------------------|-------------------|
 | **Event Handling**      |                 |                       |                   |
 | Event `emit`            | 1,011,971       | 120,960,480           | ~120x faster      |
-| Event `on`              | 666,207         | 4,310,638             | ~6x faster        |
-| Event `once`            | 295,046         | 4,418,975             | ~14x faster       |
+| Event `on`              | 666,207         | 8,338,876             | ~12x faster       |
+| Event `once`            | 295,046         | 8,139,852             | ~27x faster       |
 | **Elements selector**   |                 |                       |                   |
 | Simple selector         | --              | --                    | ~4.5x faster      |
 | Complex selector        | --              | --                    | ~2x faster        |

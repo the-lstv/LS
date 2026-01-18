@@ -8,7 +8,7 @@ const backend = require("akeno:backend");
 const cacheManager = new backend.helper.CacheManager({});
 
 const BASE_PATH = path.resolve(__dirname, ".."),
-      DIST_PATH = BASE_PATH + "/dist",
+      DIST_PATH = BASE_PATH + "/backend/versions/",
       CORE_MARKER = "\u0000"; // Special marker for the core component
 
 /*
@@ -44,13 +44,21 @@ const COMPONENTS = JSON.parse(fs.readFileSync(BASE_PATH + "/misc/components.json
 const VERSION_ALIAS = {
     "4.0.0": "4.0.1",
     "3.0_lts": "4.0.1",
-    "4.0_lts": "4.0.1",
+    "4.0_lts": "4.0.1", // Note: Support ended
 
-    // Ngl this is like my 5TH version messup, hope i get it right this time
-    "5.0.0": "5.2.0",
-    "5.0.1": "5.2.0",
-    "5.0.2": "5.2.0",
-    "5.1.0": "5.2.0",
+    // 5.x to 5.2.5
+    "5.0.0": "5.2.5",
+    "5.0.1": "5.2.5",
+    "5.0.2": "5.2.5",
+    "5.1.0": "5.2.5",
+    "5.2.0": "5.2.5",
+    "5.2.1": "5.2.5",
+    "5.2.2": "5.2.5",
+    "5.2.3": "5.2.5",
+    "5.2.4": "5.2.5",
+
+    // 5.2.6 to 5.2.7 (5.2.6 was only a small patch)
+    "5.2.6": "5.2.7",
 };
 
 // If true, the patch version will be ignored and only the minor/major version will be used for caching (patch will be used for client/CDN cache breaking).
@@ -209,6 +217,6 @@ function serveLegacy(req, res, segments) {
             legacy = require("./legacy");
         }
 
-        return legacy.Handle({ req, res, segments, backend })
+        return legacy.Handle({ req, res, segments, backend });
     }
 }

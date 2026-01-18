@@ -502,7 +502,7 @@
                         }
                     }
 
-                    this.emit("drag-start", [dragType]);
+                    this.quickEmit("drag-start", dragType);
                 },
 
                 onMove: (event) => {
@@ -543,7 +543,7 @@
                         // Track velocity
                         velocityX = event.dx;
 
-                        this.emit("drag-move", [dragType, event.dx, event.dy]);
+                        this.quickEmit("drag-move", dragType, event.dx, event.dy);
                     } else if (dragType === "zoom-v") {
                         const sensitivity = 0.5;
                         const oldHeight = this.rowHeight;
@@ -562,7 +562,7 @@
                             this.scrollContainer.scrollTop = (contentY * ratio) - mouseY;
                         }
 
-                        this.emit("drag-move", [dragType, 0, event.dy]);
+                        this.quickEmit("drag-move", dragType, 0, event.dy);
                     } else if (dragType === "seek" || dragType === "select") {
                         if (dragType === "seek") {
                             const worldX = cursorX + this.offset;
@@ -594,7 +594,7 @@
                             edgeScrollRaf = requestAnimationFrame(processEdgeScroll);
                         }
 
-                        this.emit("drag-move", [dragType, cursorX, cursorY]);
+                        this.quickEmit("drag-move", dragType, cursorX, cursorY);
                     } else if (dragType === "delete") {
                         // TODO: implement delete
                     }
@@ -652,7 +652,7 @@
                     stopEdgeScroll();
                     setTimeout(() => this.__isDragging = false, 10);
 
-                    this.emit("drag-end", [dragType]);
+                    this.quickEmit("drag-end", dragType);
                     dragType = null;
                 }
             });
@@ -818,7 +818,7 @@
                     }
                 }
 
-                this.emit(this.__fileProcessEventRef, [dt.files, rowIndex, timeOffset]);
+                this.quickEmit(this.__fileProcessEventRef, dt.files, rowIndex, timeOffset);
             });
 
             this.zoom = this.options.zoom;
@@ -966,8 +966,9 @@
         setSeek(value) {
             value = Math.max(0, value);
             if(this.#seek === value) return;
-            this.seek = value;
-            this.emit(this.__seekEventRef, [this.#seek]);
+            this.#seek = value;
+            this.quickEmit(this.__seekEventRef, value);
+            this.updateHeadPosition();
         }
 
         get duration() {
@@ -1017,10 +1018,10 @@
 
             this.__needsSort = false;
 
-            this.emit("sorted", [this.maxDuration]);
+            this.quickEmit("sorted", this.maxDuration);
             if (totalDuration !== this.#duration) {
                 this.#duration = totalDuration;
-                this.emit("duration-changed", [this.#duration]);
+                this.quickEmit("duration-changed", this.#duration);
             }
         }
 
@@ -1324,7 +1325,7 @@
             this.selectedItems.clear();
             this.selectedItems.add(item);
             this.focusedItem = item;
-            this.emit("item-select", [item]);
+            this.quickEmit("item-select", item);
             this.frameScheduler.schedule();
         }
 
@@ -1332,7 +1333,7 @@
             if (this.selectedItems.size > 0) {
                 this.selectedItems.clear();
                 this.frameScheduler.schedule();
-                this.emit("item-deselect");
+                this.quickEmit("item-deselect");
             }
             this.focusedItem = null;
         }
@@ -1369,10 +1370,11 @@
                 row: item.row || 0,
                 label: item.label || id,
                 color: item.color || null,
-                data: JSON.parse(JSON.stringify(item.data || {}, (key, value) => {
+                data: item.data && LS.Util.clone(item.data, (key, value) => {
+                    // Skip prefixed properties, DOM elements, and functions
                     if (key.startsWith("_") || (value instanceof Element) || typeof value === "function") return undefined;
-                    return value;
-                })),
+                    return true;
+                }),
                 type: item.type || null,
                 ...item.cover? { cover: item.cover }: null,
                 ...item.waveform? { waveform: item.waveform }: null,
@@ -1652,11 +1654,11 @@
                 item.timelineElement.remove();
             }
 
-            this.emit("item-removed", [item]);
+            this.quickEmit("item-removed", item);
 
             if(destroy) {
                 this.destroyTimelineElement(item);
-                this.emit("item-cleanup", [item]);
+                this.quickEmit("item-cleanup", item);
             }
         }
 
@@ -1789,7 +1791,7 @@
          */
         emitAction(action) {
             action.source = this;
-            this.emit(this.__actionEventRef, [action]);
+            this.quickEmit(this.__actionEventRef, action);
         }
 
         /**

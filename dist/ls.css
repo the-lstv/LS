@@ -153,9 +153,6 @@ ls-box :first-child {
 ls-box :last-child {
   margin-bottom: 0;
 }
-ls-box:not(.contained) {
-  display: block;
-}
 ls-box:not(.inline) {
   border-radius: var(--border-radius);
   padding: var(--padding-content-v) var(--padding-content-h);

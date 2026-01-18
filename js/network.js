@@ -1,4 +1,4 @@
-LS.WebSocket = class WebSocketWrapper extends LS.EventHandler {
+LS.WebSocket = class WebSocketWrapper extends LS.EventEmitter {
     #options;
     constructor(url, options = {}){
         super();

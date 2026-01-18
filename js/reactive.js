@@ -15,7 +15,7 @@
 (() => {
     let LSReactive;
 
-    class ReactiveBinding extends LS.EventHandler {
+    class ReactiveBinding extends LS.EventEmitter {
         constructor(object, prefix, options = {}) {
             super();
 

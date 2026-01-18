@@ -45,10 +45,10 @@ function Handle({ req, res, segments, backend }){
 
         //         fs.writeFileSync(compiled_path, JSON.stringify(code))
         //         lsCache.set(version + "." + compiled_path, code)
-        //     } else return error(43)
+        //     } else return backend.helper.error(req, res, `File "${file_name}" for version "${version}" was not found`, 404);
         // }
 
-        if (!fs.existsSync(compiled_path)) return error(43);
+        if (!fs.existsSync(compiled_path)) return backend.helper.error(req, res, `File "${file_name}" for version "${version}" was not found`, 404);
 
         if(!code) {
             code = JSON.parse(fs.readFileSync(compiled_path, "utf8"));

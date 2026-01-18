@@ -17,7 +17,7 @@ LS.LoadComponent(class Tooltips extends LS.DestroyableComponent {
 
         this.frameScheduler = this.addDestroyable(new LS.Util.FrameScheduler(() => this.#render()));
 
-        LS.once("body-available", () => {
+        LS.once("ready", () => {
             LS._topLayer.append(this.container);
             this.rescan();
         });

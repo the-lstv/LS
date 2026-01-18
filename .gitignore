@@ -9,5 +9,6 @@ ls.min.css
 .github
 
 examples/_
+backend/versions
 
 app.conf

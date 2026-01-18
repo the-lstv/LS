@@ -33,6 +33,9 @@
         const global = typeof window !== 'undefined'? window : globalThis;
         global.LS = instance;
 
+        instance._events.prepareEvent("ready", { deopt: true });
+        instance._events.alias("ready", "body-available"); // backward compatibility
+
         if(!window.LS_DEFER_INIT){
             instance.init({
                 globalizeTiny: window.LS_DONT_GLOBALIZE_TINY !== true,
@@ -41,28 +44,159 @@
             });
             delete window.LS_INIT_OPTIONS;
         }
+        delete window.LS_DEFER_INIT;
 
         function bodyAvailable(){
-            instance._events.completed("body-available", [document.body]);
+            instance._events.completed("ready", [document.body]);
         }
 
         if(document.body) bodyAvailable(); else window.addEventListener("DOMContentLoaded", bodyAvailable);
     }
 
+    // Ensure this event is deoptimized
+    instance._events.prepareEvent("component-loaded", { deopt: true });
+
     return instance;
 })(() => {
-    class EventHandler {
+
+    /**
+     * Event handling system with some advanced features used across LS.
+     * 
+     * Supports compiled mode for maximum performance (still experimental).
+     * It is one of the fastest JS event emitters according to my benchmarks;
+     * Only slightly behind Tseep (current fastest) in compiled mode, but faster than TseepSafe (2-3x) in loop mode.
+     * 
+     * When to use compiled mode (LS.EventEmitter.optimize = true, or deopt = false in per-event options):
+     * - When you need absolute performance (eg. hot loops), have lots of listeners, and emit often.
+     * 
+     * When NOT to use compiled mode:
+     * - If you expect listeners to be added/removed frequently, this will add recompilation overhead and may be even slower.
+     * - In environments where eval() is disabled or restricted
+     */
+    class EventEmitter {
         static REMOVE_LISTENER = Symbol("event-remove");
+        static optimize = true;
+
+        static EventObject = class EventObject {
+            compiled = null;
+            listeners = [];
+            free = [];
+            aliases = null;
+            completed = false;
+            warned = false;
+            data = null;
+
+            break = false;
+            results = false;
+            async = false;
+            await = false;
+            deopt = false;
+
+            _isEvent = true;
+
+            remove(index) {
+                const listeners = this.listeners;
+                if (listeners[index] == null) return;
+                this.compiled = null;
+
+                if(listeners.length === 1 || listeners.length === this.free.length + 1) { listeners.length = 0; this.free.length = 0; return; }
+
+                listeners[index] = null;
+                this.free.push(index);
+            }
+
+            emit(data) {
+                return EventEmitter.emit(this, data);
+            }
+
+            /**
+             * Recompile the event's internal emit function for performance.
+             * Compilation may get skipped in which case the normal emit loop is used.
+             */
+            recompile() {
+                const listeners = this.listeners;
+                const listenersCount = listeners.length;
+
+                // TODO: Unroll for large amounts of listeners
+                if (listenersCount < 2 || listenersCount >= 950 || EventEmitter.optimize === false || this.deopt === true) return;
+
+                const collectResults = this.results === true;
+                const breakOnFalse = this.break === true;
+
+                // if(this.last_compile_count === listenersCount && this.factory) {
+                //     this.compiled = this.factory(EventHandler.REMOVE_LISTENER, listeners, this);
+                //     return;
+                // }
+
+                const parts = [];
+                parts.push("(function(RL,listeners,event){var l=listeners;");
+                for (let i = 0; i < listenersCount; i++) {
+                    const li = listeners[i];
+                    if (li === null) continue;
+                    parts.push("var f", i, "=l[", i, "].callback;");
+                }
+
+                if(this.await === true) {
+                    parts.push("l=undefined;return(async function(a,b,c,d,e){var v");
+                } else {
+                    parts.push("l=undefined;return(function(a,b,c,d,e){var v");
+                }
+
+                if (collectResults) parts.push(",r=[]");
+                parts.push(";");
+
+                // Main call loop
+                for (let i = 0; i < listenersCount; i++) {
+                    const li = listeners[i];
+                    if (li === null) continue;
+
+                    parts.push("v=");
+
+                    if(this.await === true) {
+                        parts.push("await f");
+                    } else {
+                        parts.push("f");
+                    }
+
+                    parts.push(i, "(a,b,c,d,e);");
+
+                    // Optional break behavior
+                    if (breakOnFalse) {
+                        parts.push("if(v===false)return", collectResults ? " r" : "", ";");
+                    }
+
+                    if (li.once) {
+                        if (collectResults) {
+                            parts.push("if(v!==RL)r.push(v);");
+                        }
+                        parts.push("event.remove(", i, ");");
+                    } else {
+                        if (collectResults) {
+                            parts.push("if(v===RL){event.remove(", i, ")}else{r.push(v)};");
+                        } else {
+                            parts.push("if(v===RL){event.remove(", i, ")};");
+                        }
+                    }
+                }
+
+                if (collectResults) parts.push("return r;");
+                parts.push("})})");
+
+                const factory = eval(parts.join(""));
+                this.compiled = factory(EventEmitter.REMOVE_LISTENER, listeners, this);
+            }
+        }
 
         /**
          * @param {object} target Possibly deprecated; Binds the event handler methods to a target object.
+         * @param {object} options Event handler options.
          */
-        constructor(target){
-            EventHandler.prepareHandler(this);
+        constructor(target, options = undefined) {
+            EventEmitter.prepareHandler(this, options);
             if(target){
                 target._events = this;
 
-                ["emit", "on", "once", "off", "invoke"].forEach(method => {
+                ["emit", "quickEmit", "on", "once", "off"].forEach(method => {
                     if (!target.hasOwnProperty(method)) target[method] = this[method].bind(this);
                 });
 
@@ -70,136 +204,263 @@
             }
         }
 
-        static prepareHandler(target){
-            target.events = new Map;
+        static prepareHandler(target, options = undefined){
+            target.events = new Map();
+            if(typeof options === "object") target.eventOptions = options;
         }
 
-        prepareEvent(name, options){
-            if(options && options.completed === false) {
-                // Clear data once uncompleted
-                options.data = null;
+        /**
+         * Prepare or update an event object with given name and options.
+         * @param {string|symbol} name Name of the event.
+         * @param {object} options Event options.
+         * @returns {EventObject} Prepared event object.
+         * 
+         * @warning If you are going to use the event reference, remember to dispose of it properly to avoid memory leaks.
+         */
+        prepareEvent(name, options = undefined){
+            let event = this.events.get(name);
+
+            if(!event) {
+                event = new EventEmitter.EventObject();
+                this.events.set(name, event);
             }
 
-            let event = this.events.get(name);
-            if(!event) {
-                event = { listeners: [], empty: [], ...options, _isEvent: true };
-                this.events.set(name, event);
-            } else if(options){
-                Object.assign(event, options);
+            if(options){
+                if(options.completed !== undefined) {
+                    event.completed = options.completed;
+                    if(!event.completed) event.data = null;
+                }
+
+                if(options.break !== undefined) event.break = !!options.break;
+                if(options.results !== undefined) event.results = !!options.results;
+                if(options.async !== undefined) event.async = !!options.async;
+                if(options.await !== undefined) {
+                    event.await = !!options.await;
+                    this.compiled = null; // Need to recompile
+                }
+                if(options.deopt !== undefined) {
+                    event.deopt = !!options.deopt;
+                    this.compiled = null; // Remove compiled function
+                }
+
+                if(options.data !== undefined) event.data = options.data;
             }
 
             return event;
         }
 
         on(name, callback, options){
-            const event = (name._isEvent? name: this.events.get(name)) || this.prepareEvent(name);
+            const event = name._isEvent? name: (this.events.get(name) || this.prepareEvent(name));
             if(event.completed) {
-                if(event.data) callback(...event.data); else callback();
-                if(options && options.once) return this;
+                if(event.data) Array.isArray(event.data) ? callback.apply(null, event.data) : callback(event.data); else callback();
+                if(options && options.once) return;
             }
 
-            const index = event.empty.length > 0 ? event.empty.pop() : event.listeners.length;
+            options ||= {};
+            options.callback = callback;
 
-            const listener = event.listeners[index] = { callback, index, ...options };
-            return listener;
-        }
-
-        off(name, callback){
-            const event = name._isEvent? name: this.events.get(name);
-            if(!event) return;
-
-            for(let i = 0; i < event.listeners.length; i++){
-                if(event.listeners[i].callback === callback) {
-                    event.empty.push(i);
-                    event.listeners[i] = null;
+            const free = event.free;
+            if (free.length > 0) {
+                event.listeners[free.pop()] = options;
+            } else {
+                const amount = event.listeners.push(options);
+                if(amount > (this.eventOptions?.maxListeners || 1000) && !event.warned) {
+                    console.warn(`EventHandler: Possible memory leak detected. ${event.listeners.length} listeners added for event '${name.toString()}'.`);
+                    event.warned = true;
                 }
             }
 
-            return this;
+            event.compiled = null; // Invalidate compiled function
+        }
+
+        off(name, callback){
+            const event = (name._isEvent? name: this.events.get(name));
+            if(!event) return;
+
+            const listeners = event.listeners;
+
+            for(let i = 0; i < listeners.length; i++){
+                const listener = listeners[i];
+                if(!listener) continue;
+
+                if(listener.callback === callback){
+                    event.remove(i);
+                }
+            }
         }
 
         once(name, callback, options){
-            return this.on(name, callback, Object.assign(options || {}, { once: true }));
-        }
-
-        /**
-         * @deprecated To be removed in 5.3.0
-        */
-        invoke(name, ...data){
-            return this.emit(name, data, { results: true });
+            options ??= {};
+            options.once = true;
+            return this.on(name, callback, options);
         }
 
         /**
          * Emit an event with the given name and data.
-         * @param {string|object} name Name of the event or an event object.
-         * @param {Array} data Data to pass to the event listeners.
-         * @param {object} options Override options for the event emission.
-         * @returns {Array|null} Returns an array of results or null.
+         * @param {string|object} name Name of the event to emit or it's reference
+         * @param {Array} data Array of values to pass
+         * @param {object} event Optional emit options override
+         * @returns {null|Array|Promise<null|Array>} Array of results (if options.results is true) or null. If event.await is true, returns a Promise.
          */
-
-        emit(name, data, options = null) {
-            if (!name || !this.events) return;
-
+        emit(name, data) {
             const event = name._isEvent ? name : this.events.get(name);
-            if (!options) options = event;
+            if (!event || event.listeners.length === 0) return event && event.await ? Promise.resolve(null) : null;
 
-            const returnData = options && options.results ? [] : null;
-            if (!event) return returnData;
-            
-            const hasData = Array.isArray(data) && data.length > 0;
+            const listeners = event.listeners;
+            const listenerCount = listeners.length;
 
-            for (let listener of event.listeners) {
-                if (!listener || typeof listener.callback !== "function") continue;
+            const collectResults = event.results === true;
 
-                try {
-                    const result = hasData ? listener.callback(...data) : listener.callback();
+            const isArray = data && Array.isArray(data);
+            if(!isArray) data = [data];
+            const dataLen = isArray ? data.length : 0;
 
-                    if (options.break && result === false) break;
-                    if (options.results) returnData.push(result);
+            let a = undefined, b = undefined, c = undefined, d = undefined, e = undefined;
 
-                    if (result === EventHandler.REMOVE_LISTENER) {
-                        event.empty.push(listener.index);
-                        event.listeners[listener.index] = null;
-                        listener = null;
-                        continue;
+            if (dataLen > 0) a = data[0];
+            if (dataLen > 1) b = data[1];
+            if (dataLen > 2) c = data[2];
+            if (dataLen > 3) d = data[3];
+            if (dataLen > 4) e = data[4];
+
+            // Awaiting path
+            if (event.await === true) {
+                if(!event.compiled) {
+                    event.recompile();
+                }
+
+                if(event.compiled) {
+                    return event.compiled(a, b, c, d, e);
+                }
+
+                const breakOnFalse = event.break === true;
+                const returnData = collectResults ? [] : null;
+
+                return (async () => {
+                    for (let i = 0; i < listeners.length; i++) {
+                        const listener = listeners[i];
+                        if (listener === null) continue;
+
+                        let result = (dataLen < 6)? listener.callback(a, b, c, d, e): listener.callback.apply(null, data);
+                        if (result && typeof result.then === 'function') {
+                            result = await result;
+                        }
+
+                        if (collectResults) returnData.push(result);
+
+                        if (listener.once || result === EventEmitter.REMOVE_LISTENER) {
+                            event.remove(i);
+                        }
+
+                        if (breakOnFalse && result === false) break;
                     }
-                } catch (error) {
-                    console.error(`Error in listener for event '${name}':`, listener, error);
-                }
-
-                if (listener && listener.once) {
-                    event.empty.push(listener.index);
-                    event.listeners[listener.index] = null;
-                    listener = null;
-                }
+                    return returnData;
+                })();
             }
 
-            if (options.async && options.results) {
-                return Promise.all(returnData);
+            if(listenerCount === 1) {
+                const listener = listeners[0];
+                if (listener === null) return null;
+
+                let result = listener.callback(a, b, c, d, e);
+
+                if (listener.once || result === EventEmitter.REMOVE_LISTENER) {
+                    event.remove(0);
+                }
+
+                return collectResults? [result]: null;
+            }
+
+            if(!event.compiled) {
+                event.recompile();
+            }
+
+            if(event.compiled) {
+                return event.compiled(a, b, c, d, e);
+            }
+
+            const breakOnFalse = event.break === true;
+            const returnData = collectResults ? [] : null;
+
+            if(dataLen < 6){
+                for (let i = 0; i < listeners.length; i++) {
+                    const listener = listeners[i];
+                    if (listener === null) continue;
+
+                    let result = listener.callback(a, b, c, d, e);
+                    if (collectResults) returnData.push(result);
+
+                    if (listener.once || result === EventEmitter.REMOVE_LISTENER) {
+                        event.remove(i);
+                    }
+
+                    if (breakOnFalse && result === false) break;
+                }
+            } else {
+                for (let i = 0; i < listeners.length; i++) {
+                    const listener = listeners[i];
+                    if (listener === null) continue;
+
+                    let result = listener.callback.apply(null, data);
+                    if (collectResults) returnData.push(result);
+
+                    if (listener.once || result === EventEmitter.REMOVE_LISTENER) {
+                        event.remove(i);
+                    }
+
+                    if (breakOnFalse && result === false) break;
+                }
             }
 
             return returnData;
         }
 
         /**
-         * Quickly emit an event without checks - to be used only in specific scenarios.
-         * @param {*} event Event object.
-         * @param {*} data Data array.
+         * Faster emit, without checking or collecting return values. Limited to 5 arguments.
+         * @warning This does not guarantee EventHandler.REMOVE_LISTENER or any other return value functionality. Async events are not supported with quickEmit.
+         * @param {string|object} event Event name or reference.
+         * @param {*} a First argument.
+         * @param {*} b Second argument.
+         * @param {*} c Third argument.
+         * @param {*} d Fourth argument.
+         * @param {*} e Fifth argument.
          */
+        quickEmit(name, a, b, c, d, e){
+            const event = name._isEvent ? name : this.events.get(name);
+            if (!event || event.listeners.length === 0) return false;
 
-        quickEmit(event, data){
-            if(!event._isEvent) throw new Error("Event must be a valid event object when using quickEmit");
+            if(event.await === true) {
+                throw new Error("quickEmit cannot be used with async/await events.");
+            }
 
-            for(let i = 0, len = event.listeners.length; i < len; i++){
-                const listener = event.listeners[i];
-                if(!listener || typeof listener.callback !== "function") continue;
+            if(event.listeners.length === 1) {
+                const listener = event.listeners[0];
+                listener.callback(a, b, c, d, e);
+                if (listener.once) {
+                    event.remove(0);
+                }
+                return;
+            }
+
+            if(!event.compiled) {
+                event.recompile();
+            }
+
+            if(event.compiled) {
+                event.compiled(a, b, c, d, e);
+                return;
+            }
+
+            const listeners = event.listeners;
+            for(let i = 0, len = listeners.length; i < len; i++){
+                const listener = listeners[i];
+                if(listener === null) continue;
 
                 if(listener.once) {
-                    event.empty.push(listener.index);
-                    event.listeners[listener.index] = null;
+                    event.remove(i);
                 }
 
-                listener.callback(...data);
+                listener.callback(a, b, c, d, e);
             }
         }
 
@@ -221,26 +482,26 @@
             this.events.set(alias, event);
         }
 
-        completed(name, data = [], options = {}){
+        completed(name, data = undefined, options = null){
             this.emit(name, data);
 
-            this.prepareEvent(name, {
-                ...options,
-                completed: true,
-                data
-            })
+            options ??= {};
+            options.completed = true;
+            options.data = data;
+
+            this.prepareEvent(name, options);
         }
     }
 
     /**
      * @concept
-     * @experimental Direction undecided, so far an abstract concept
+     * @experimental Direction undecided, so far an abstract concept - don't use in production code.
      * 
-     * Best-effort based destroy container.
+     * "Best-effort" based destroy container.
      * It destroys explicitly added destroyables and tries to recursively destroy itself.
      * Supports various destroyable types, timers, and external events.
      */
-    class Context extends EventHandler {
+    class Context extends EventEmitter {
         #destroyables = new Set();
         #timers = new Set();
         #externalEvents = [];
@@ -354,7 +615,7 @@
                     return;
                 }
 
-                if(destroyable instanceof EventHandler) {
+                if(destroyable instanceof EventEmitter) {
                     destroyable.events?.clear?.();
                 }
 
@@ -442,7 +703,7 @@
         version: "5.2.8-beta",
         v: 5,
 
-        REMOVE_LISTENER: EventHandler.REMOVE_LISTENER,
+        REMOVE_LISTENER: EventEmitter.REMOVE_LISTENER,
 
         init(options) {
             if(!this.isWeb) return;
@@ -466,6 +727,10 @@
             if(options.theme) this.Color.setTheme(options.theme);
             if(options.accent) this.Color.setAccent(options.accent);
             if(options.autoScheme) this.Color.autoScheme(options.adaptiveTheme);
+
+            // Enable or disable event optimization (compiles events to a function to avoid loops)
+            if(options.optimizeEvents !== undefined) this.EventEmitter.optimize = !!options.optimizeEvents;
+
             if(options.autoAccent) this.Color.autoAccent();
             if(options.globalizeTiny) {
                 /**
@@ -476,18 +741,17 @@
                 }
             }
 
-            this._topLayer = this.Create({id: "ls-top-layer", style: {
-                position: "fixed"
-            }});
+            this._topLayer = this.Create({ id: "ls-top-layer", style: "position: fixed" });
 
-            LS.once("body-available", () => {
+            LS.once("ready", () => {
                 document.body.append(this._topLayer);
             });
 
-            LS._events.completed("init");
+            LS._events.quickEmit("init");
         },
 
-        EventHandler,
+        EventEmitter,
+        EventHandler: EventEmitter, // Backward compatibility
 
         Create(tagName = "div", content){
             if(typeof tagName !== "string"){
@@ -545,7 +809,7 @@
                     LS.on("component-loaded", (component) => {
                         if (component.name.toLowerCase() === "reactive") {
                             LS.Reactive.bindElement(element, reactive);
-                            return LS.EventHandler.REMOVE_LISTENER;
+                            return LS.EventEmitter.REMOVE_LISTENER;
                         }
                     });
                 } else {
@@ -1005,25 +1269,6 @@
         },
 
         Util: {
-            resolveElements(...array){
-                return array.flat().filter(Boolean).map(element => {
-                    return typeof element === "string" ? document.createTextNode(element) : typeof element === "object" && !(element instanceof Node) ? LS.Create(element) : element;
-                });
-            },
-
-            /**
-             * Iterates over an iterable object and builds an array with the results of the provided function.
-             * Equivalent to Array.prototype.map but works on anything that is iterable.
-             * @deprecated
-             */
-            map(it, fn){
-                const r = [];
-                for(let i = 0; i < it.length; i++) {
-                    r.push(fn(it[i], i));
-                }
-                return r;
-            },
-
             /**
              * https://stackoverflow.com/a/66120819/14541617
              */
@@ -1100,7 +1345,92 @@
                 return LS.Util.parseURLParams(baseUrl, get);
             },
 
-            TouchHandle: class TouchHandle extends EventHandler {
+            /**
+             * Iterates over an iterable object and builds an array with the results of the provided function.
+             * Equivalent to Array.prototype.map but works on anything that is iterable.
+             * @deprecated
+             */
+            map(it, fn){
+                const r = [];
+                for(let i = 0; i < it.length; i++) {
+                    r.push(fn(it[i], i));
+                }
+                return r;
+            },
+
+            resolveElements(...array){
+                return array.flat().filter(Boolean).map(element => {
+                    return typeof element === "string" ? document.createTextNode(element) : typeof element === "object" && !(element instanceof Node) ? LS.Create(element) : element;
+                });
+            },
+
+            /**
+             * Simply deep-clones an Object/Set/Map/Array with filtering support, faster than structuredClone and apparently even klona.
+             * Very experimental - may not always be reliable for complex objects and as of now ignores functions and prototypes (maybe I'll expand it later).
+             * Use only on relatively simple/predictable objects.
+             * https://jsbm.dev/wFkz6UCGJevxw
+             * @param {*} obj Object to clone
+             * @returns Cloned object
+             * @experimental
+             */
+            clone(obj, filter) {
+                // If item is a primitive, we don't need to clone
+                // TODO: Handle typeof function
+                if (typeof obj !== "object") return obj;
+
+                if (obj === null) return null;
+                if (obj === undefined) return undefined;
+
+                if (Array.isArray(obj)) {
+                    if (obj.length === 0) return [];
+                    if (obj.length === 1) return [clone(obj[0], filter)];
+                    const a = [];
+                    for (let i = 0; i < obj.length; i++) {
+                        a.push(clone(obj[i], filter));
+                    }
+                    return a;
+                }
+
+                if(obj.constructor === Map) {
+                    const m = new Map();
+                    for(const [key, value] of obj) {
+                        m.set(key, clone(value, filter));
+                    }
+                    return m;
+                }
+
+                if(obj.constructor === Set) {
+                    const s = new Set();
+                    for(const value of obj) {
+                        s.add(clone(value, filter));
+                    }
+                    return s;
+                }
+
+                if (obj.constructor === DataView) return new x.constructor(clone(obj.buffer, filter));
+                if (obj.constructor === ArrayBuffer) return obj.slice(0);
+                if (obj.constructor === Date) return new Date(obj);
+                if (obj.constructor === RegExp) return new RegExp(obj);
+
+                const c = {};
+                const keys = Object.getOwnPropertyNames(obj);
+                if(keys.length === 0) return c;
+ 
+                // Note: Filter is branched this way for performance reasons
+                if(typeof filter === "function") {
+                    for (const k of keys) {
+                        if(filter(k, obj[k]) === undefined) continue;
+                        c[k] = clone(obj[k], filter);
+                    }
+                } else {
+                    for (const k of keys) {
+                        c[k] = clone(obj[k], filter);
+                    }
+                }
+                return c;
+            },
+
+            TouchHandle: class TouchHandle extends EventEmitter {
                 constructor(element, options = {}) {
                     super();
 
@@ -1330,7 +1660,7 @@
 
                     if (this.options.legacyEvents) {
                         if (this.options.onMove) this.options.onMove(x, y, event, this.cancel);
-                        this.emit(this._moveEventRef, [x, y, event, this.cancel]);
+                        this.quickEmit(this._moveEventRef, x, y, event, this.cancel);
                     } else {
                         this._eventData.dx = x - prevX;
                         this._eventData.dy = y - prevY;
@@ -1341,7 +1671,7 @@
                         this._eventData.domEvent = event;
                         this._eventData.isTouch = isTouch;
                         if (this.options.onMove) this.options.onMove(this._eventData);
-                        this.emit(this._moveEventRef, [this._eventData]);
+                        this.quickEmit(this._moveEventRef, this._eventData);
                     }
                 }
 
@@ -1769,7 +2099,7 @@
                     }
                 });
 
-                LS.once("body-available", () => {
+                LS.once("ready", () => {
                     LS._topLayer.add(this.container);
                 });
             }
@@ -2461,7 +2791,7 @@
 
         components: new Map,
 
-        Component: class Component extends EventHandler {
+        Component: class Component extends EventEmitter {
             constructor(){
                 super();
                 this.__check();
@@ -2520,7 +2850,7 @@
                 componentClass._component = component;
 
                 if(component.hasEvents) {
-                    LS.EventHandler.prepareHandler(componentClass);
+                    LS.EventEmitter.prepareHandler(componentClass);
                 }
             } else {
                 componentClass.prototype._component = component;
@@ -2566,7 +2896,7 @@
          * Global shortcut manager API (not finalized)
          * @experimental May completely change in future versions, use carefully
          */
-        ShortcutManager: class ShortcutManager extends EventHandler {
+        ShortcutManager: class ShortcutManager extends EventEmitter {
             constructor({ target = document, signal = null, shortcuts = {} } = {}){
                 super();
 
@@ -2731,7 +3061,7 @@
         }
     }
 
-    new LS.EventHandler(LS);
+    new LS.EventEmitter(LS);
 
     LS.SelectAll = LS.Tiny.Q;
     LS.Select = LS.Tiny.O;
@@ -2763,7 +3093,7 @@
         }
 
         static {
-            this.events = new LS.EventHandler(this);
+            this.events = new LS.EventEmitter(this);
 
             this.colors = new Map;
             this.themes = new Set([ "light", "dark", "amoled" ]);
@@ -2772,7 +3102,7 @@
                 // Style tag to manage
                 this.style = LS.Create("style", { id: "ls-colors" });
 
-                LS.once("body-available", () => {
+                LS.once("ready", () => {
                     document.head.appendChild(this.style)
                 });
 
@@ -3628,7 +3958,7 @@
             this.#settingAccent = accent;
 
             // Changes are defered until the body is available and batched to the next animation frame
-            LS.once("body-available", () => {
+            LS.once("ready", () => {
                 requestAnimationFrame(() => {
                     if(!this.#settingAccent) return;
 
@@ -3669,7 +3999,7 @@
             this.#settingTheme = theme;
 
             // Changes are defered until the body is available and batched to the next animation frame
-            LS.once("body-available", () => {
+            LS.once("ready", () => {
                 requestAnimationFrame(() => {
                     if(!this.#settingTheme) return;
                     document.body.setAttribute("ls-theme", this.#settingTheme);

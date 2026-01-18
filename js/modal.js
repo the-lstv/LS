@@ -200,7 +200,7 @@
 
         static TEMPLATE(d){'use strict';var e0=document.createElement("div");e0.tabIndex="0";e0.className="ls-modal";if(!!(d.inner)){e0.appendChild(LS.__dynamicInnerToNode(d.inner));}else{if(!!(d.title)){var e1=document.createElement("h2");e1.className="ls-modal-title";e1.append(LS.__dynamicInnerToNode(d.title));e0.appendChild(e1);}if(!!(d.content)){var e2=document.createElement("div");e2.className="ls-modal-body";e2.append(LS.__dynamicInnerToNode(d.content));e0.appendChild(e2);}if(!!(d.buttons)){var e3=document.createElement("div");e3.className="ls-modal-footer";var a4=d.buttons||[];for(const i5 of a4){var e6=document.createElement("button");e6.textContent=(i5.label) || ("Button");e6.onclick=(i5.onClick) || (i5.onclick) || (d.closeModal);e6.setAttribute("ls-accent",(i5.accent) || (null));e6.className=["ls-modal-button",i5.class].filter(Boolean).join(" ");e3.appendChild(e6);}e0.appendChild(e3);}}var __rootValue=e0;return{root:__rootValue};}
 
-        // static TEMPLATE = LS.CompileTemplate((data, logic) => ({
+        // static TEMPLATE = /* @BUILD compile-template */ LS.CompileTemplate((data, logic) => ({
         //     class: "ls-modal",
         //     tabIndex: "0",
         //     inner: logic.if(data.inner, data.inner, [
