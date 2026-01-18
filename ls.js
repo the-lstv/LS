@@ -236,11 +236,11 @@
                 if(options.async !== undefined) event.async = !!options.async;
                 if(options.await !== undefined) {
                     event.await = !!options.await;
-                    this.compiled = null; // Need to recompile
+                    event.compiled = null; // Need to recompile
                 }
                 if(options.deopt !== undefined) {
                     event.deopt = !!options.deopt;
-                    this.compiled = null; // Remove compiled function
+                    event.compiled = null; // Remove compiled function
                 }
 
                 if(options.data !== undefined) event.data = options.data;
@@ -1383,10 +1383,10 @@
 
                 if (Array.isArray(obj)) {
                     if (obj.length === 0) return [];
-                    if (obj.length === 1) return [clone(obj[0], filter)];
+                    if (obj.length === 1) return [LS.Util.clone(obj[0], filter)];
                     const a = [];
                     for (let i = 0; i < obj.length; i++) {
-                        a.push(clone(obj[i], filter));
+                        a.push(LS.Util.clone(obj[i], filter));
                     }
                     return a;
                 }
@@ -1394,7 +1394,7 @@
                 if(obj.constructor === Map) {
                     const m = new Map();
                     for(const [key, value] of obj) {
-                        m.set(key, clone(value, filter));
+                        m.set(key, LS.Util.clone(value, filter));
                     }
                     return m;
                 }
@@ -1402,12 +1402,12 @@
                 if(obj.constructor === Set) {
                     const s = new Set();
                     for(const value of obj) {
-                        s.add(clone(value, filter));
+                        s.add(LS.Util.clone(value, filter));
                     }
                     return s;
                 }
 
-                if (obj.constructor === DataView) return new x.constructor(clone(obj.buffer, filter));
+                if (obj.constructor === DataView) return new obj.constructor(LS.Util.clone(obj.buffer, filter), obj.byteOffset, obj.byteLength);
                 if (obj.constructor === ArrayBuffer) return obj.slice(0);
                 if (obj.constructor === Date) return new Date(obj);
                 if (obj.constructor === RegExp) return new RegExp(obj);
@@ -1420,11 +1420,11 @@
                 if(typeof filter === "function") {
                     for (const k of keys) {
                         if(filter(k, obj[k]) === undefined) continue;
-                        c[k] = clone(obj[k], filter);
+                        c[k] = LS.Util.clone(obj[k], filter);
                     }
                 } else {
                     for (const k of keys) {
-                        c[k] = clone(obj[k], filter);
+                        c[k] = LS.Util.clone(obj[k], filter);
                     }
                 }
                 return c;
@@ -1502,9 +1502,9 @@
                     this.attached = true;
                 }
 
-                detach(destorying = false) {
+                detach(destroying = false) {
                     if (this.attached) {
-                        this.onRelease(destorying? { type: "destroy" } : {});
+                        this.onRelease(destroying? { type: "destroy" } : {});
 
                         if (this.element) {
                             this.element.removeEventListener("mousedown", this.onStart);
@@ -3072,6 +3072,7 @@
 
     /**
      * Extensive color library and theme utilities
+     * TODO: Split advanced color features into a separate module, this has grown too big
      */
     LS.Color = class Color {
         constructor(r, g, b, a) {
