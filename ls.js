@@ -3251,6 +3251,48 @@
             return this;
         }
 
+        /**
+         * Linear interpolation between current color and target color by a given ratio
+         * @param {LS.Color|array|number|string} target Target color
+         * @param {number} progress Interpolation factor (0-1)
+         * @param {LS.Color|array} source Optional source color (otherwise uses and mutates current color)
+         */
+        lerp(target, progress = 0.5, source = null) {
+            if(progress <= 0) {
+                return this;
+            } else if(progress >= 1) {
+                return this.set(target);
+            }
+
+            let r2, g2, b2, a2;
+            if (target instanceof LS.Color) {
+               r2 = target.r; g2 = target.g; b2 = target.b; a2 = target.a;
+            } else if (Array.isArray(target)) {
+               r2 = target[0]; g2 = target[1]; b2 = target[2]; a2 = target[3] !== undefined ? (target[3] > 1 ? target[3]/255 : target[3]) : 1;
+            } else {
+               const c = new LS.Color(target);
+               r2 = c.r; g2 = c.g; b2 = c.b; a2 = c.a;
+            }
+
+            const d = this.data, o = this.offset;
+            const p = Math.max(0, Math.min(1, progress));
+            const q = 1 - p;
+
+            const r = source ? source.data[o] : d[o];
+            const g = source ? source.data[o+1] : d[o+1];
+            const b = source ? source.data[o+2] : d[o+2];
+            const a = source ? source.data[o+3] : d[o+3];
+
+            d[o] = Math.round(r * q + r2 * p);
+            d[o+1] = Math.round(g * q + g2 * p);
+            d[o+2] = Math.round(b * q + b2 * p);
+
+            const currentA = d[o+3] / 255;
+            d[o+3] = Math.round((currentA * q + a2 * p) * 255);
+            
+            return this;
+        }
+
         saturation(percent) {
             let [h, s, l] = this.hsl;
             s = Math.max(Math.min(percent, 100), 0);

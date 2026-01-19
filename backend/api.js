@@ -114,7 +114,7 @@ module.exports = {
             // } catch (e) {
             //     // Ignore if not a symlink or path doesn't exist
             // }
-            VERSION_PATH = BASE_PATH + "/dist/dev";
+            VERSION_PATH = BASE_PATH + "/dist";
         } else {
             if(!VERSIONS.includes(version)) {
                 return backend.helper.error(req, res, `Version "${version}" was not found or is invalid`, 404);
@@ -167,9 +167,9 @@ module.exports = {
             for(let component of components) {
                 let component_path = component === CORE_MARKER? VERSION_PATH + "/ls." + type: VERSION_PATH  + "/" + type + "/" + component + "." + type;
 
-                if(isWindows && component_path.includes("dist/dev") && !component_path.includes("css")) {
+                if(isWindows && component_path.includes("dist") && !component_path.includes("css")) {
                     // Windows can't handle symlinks properly
-                    component_path = component_path.replace("dist/dev/", "");
+                    component_path = component_path.replace("dist/", "");
                 }
 
                 if(!fs.existsSync(component_path)) {
