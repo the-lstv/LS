@@ -113,6 +113,9 @@
   vertical-align: middle;
   gap: var(--control-content-gap, 8px);
 }
+:is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)):not(.uncentered, :has(i)) {
+  justify-content: center;
+}
 
 :is(.ls-checkbox, .ls-radio, .ls-radio-button) > input {
   opacity: 0;

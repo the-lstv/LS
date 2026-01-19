@@ -127,6 +127,7 @@
         position: absolute;
         top: calc(50% - (var(--height) / 2));
         left: calc(50% - (var(--width) / 2));
+        z-index: 500000;
     }
 
     #{$buttonLike}[state="loading"]:not(.loading-right)::before {
@@ -231,9 +232,9 @@
 
     .ls-modal-footer {
         background: var(--elevate-n1);
-        padding: 18px;
+        padding: var(--padding-content-h);
         display: flex;
-        gap: 4px;
+        gap: 10px;
     }
     
     .ls-modal-footer > button {

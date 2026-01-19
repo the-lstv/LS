@@ -28,6 +28,9 @@
     align-items: center;
     vertical-align: middle;
     gap: var(--control-content-gap, 8px);
+
+    // Price we pay for flex
+    &:not(.uncentered, :has(i)) { justify-content: center; }
 }
 
 :is(.ls-checkbox, .ls-radio, .ls-radio-button) > input {
