@@ -76,10 +76,10 @@ LS.LoadComponent(class Menu extends LS.Component {
         }
 
         this.container = (isElement ? element : N({
-            class: "ls-menu",
-            style: { display: "none" }
+            class: "ls-menu"
         }));
 
+        this.container.style.display = "none";
         this.container.classList.add("ls-menu-container");
         this.container.tabIndex = -1;
 
@@ -111,7 +111,7 @@ LS.LoadComponent(class Menu extends LS.Component {
         }
 
         if (this.options.topLayer) {
-            LS.once("body-available", () => {
+            LS.once("ready", () => {
                 this.container.addTo(LS._topLayer.querySelector('.ls-dropdown-layer') || N({
                     class: "ls-dropdown-layer"
                 }).addTo(LS._topLayer));
@@ -932,7 +932,7 @@ LS.LoadComponent(class Menu extends LS.Component {
         this.focusedItem = null;
         this.isOpen = false;
         this.__previousActiveElement = null;
-        this.__destroyed = true;
+        this.destroyed = true;
     }
 }, { global: true, name: "Menu" });
 
@@ -1010,8 +1010,31 @@ customElements.define('ls-select', class LSSelect extends HTMLElement {
         }).addTo(this);
 
         if (!this._lsSelectOptions) {
+            if(this.hasAttribute('ls-options-values')) {
+                this.getAttribute('ls-options-values').split(',').forEach((value) => {
+                    let selected = false;
+                    value = value.trim();
+                    if(value.startsWith("[") && value.endsWith("]")) {
+                        value = value.substring(1, value.length - 1).trim();
+                        selected = true && !selectedOption;
+                    }
+
+                    const option = {
+                        value,
+                        text: value,
+                        selected
+                    }
+
+                    this.menu.add(option);
+
+                    if (selected) {
+                        selectedOption = option;
+                    }
+                });
+            }
+
             for (const optionElement of this.querySelectorAll('ls-option, option, optgroup')) {
-                const isSelected = optionElement.selected || optionElement.getAttribute("selected") !== null;
+                const isSelected = (optionElement.selected || optionElement.getAttribute("selected") !== null) && !selectedOption;
 
                 const option = optionElement.tagName.toLowerCase() === 'optgroup' ? {
                     type: "label",
@@ -1025,7 +1048,7 @@ customElements.define('ls-select', class LSSelect extends HTMLElement {
                 optionElement.remove();
                 this.menu.add(option);
 
-                if (isSelected && !selectedOption) {
+                if (isSelected) {
                     selectedOption = option;
                 }
             }

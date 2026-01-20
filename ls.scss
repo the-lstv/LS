@@ -4,7 +4,7 @@
 
     Last modified: 2026
     License: GPL-3.0
-    Version: 5.2.7
+    Version: 5.2.8
     See: https://github.com/thelstv/LS
 */
 
@@ -56,6 +56,8 @@ body {
     --margin-content-v: var(--space-medium);
     --margin-content-v-large: var(--space-large);
 
+    --control-content-gap: 8px;
+
     background: var(--background);
     color: var(--color);
     overflow-y: overlay;
@@ -82,14 +84,6 @@ body {
         margin: var(--margin-control-v) var(--margin-control-h);
 
         cursor: pointer;
-
-        i {
-            margin: 0 4px 0 2px;
-        }
-
-        i:only-child {
-            margin: 0;
-        }
     }
 
     input, textarea {
@@ -123,11 +117,11 @@ body {
     }
 
     a:not(.ls-button, .ls-plain) {
-        color: var(--accent);
+        color: var(--accent-70);
 
         &:focus {
             box-shadow: 0 0 0 3px #0004;
-            outline: 3px solid var(--accent);
+            outline: 3px solid var(--accent-60);
             outline-offset: 3px;
             border-radius: 3px;
         }

@@ -227,9 +227,9 @@ LS.LoadComponent(class Tabs extends LS.Component {
                 });
 
                 if(this.options.closeable){
-                    tab.handle.add(N("button", {
+                    tab.handle.add(LS.Create("button", {
                         class: "clear circle ls-tab-close",
-                        inner: "&times;",
+                        innerHTML: "&times;",
 
                         onclick: () => {
                             const canceled = this.emit("close", [id], { results: true })[0] === false;

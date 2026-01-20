@@ -1,6 +1,7 @@
 /**
- * Animation utilities for LS
- * This is different to LS.GL animations and only applies to DOM elements
+ * Animation library for LS (legacy).
+ * An updated version is being worked at, but will be released later on as it needs a lot more time to mature.
+ * 
  * @version 1.0.0
  */
 

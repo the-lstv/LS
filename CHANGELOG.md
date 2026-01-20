@@ -1,12 +1,30 @@
 ## Planned
 - Documentation
-- Migrate LS.Select (soon)
 - Migrate the rest of components
-- Remove or update v4compat (too many changes in v5)
 - Improve accessibility & edge cases
 
 ### Version 5.2.8
-
+- LS.Reactive now supports recursive properties and has been upgraded all around
+- Significantly improved expression parsing performance of LS.Reactive
+- LS.Color internal data format changed from an {r,g,b,a} to [r,g,b,a] | Uint8Array
+- LS.Color defaults to black instead of white now
+- Added LS.ColorView, which allows you to use a single LS.Color instance on a large buffer of collors and move within it. This can have many neat usecases, whenever you need to process lots of colors with low/zero memory overhead.
+- Added extra methods to LS.Color like toTexture, toImageData and toDiv
+- LS now initiates from one proper init function
+- Breaking changes: Deprecated LS.Tiny and removed some very old and bad methods that somehow made it until now. Damage is essentially zero as nobody ever used those.
+- LS.Util.params has been replaced by a much more optimized parser
+- Removed v4compat layer as there is no need to support it anymore and maintenance would become impossible
+- Added (currently experimental) LS.CompileTemplate, with similar API to LS.Create, but compiles to an optimized function for better performance when creating many instances of the same structure.
+- Some components (Timeline, Toast, Modal) now use a precompiled template for better construction performance
+- Buttons now have a loading state
+- Added helpers & init options to remember and apply user color/theme preferences including preferred system scheme
+- LS.Color.setAccent now accepts any LS.Color input or instance, not only presets
+- Init options can now be set via a global variable `LS_INIT_OPTIONS`
+- Massively improved performance of LS.EventEmitter
+- Removed EventEmitter.invoke which has been deprecated for a long time
+- Added LS.Util.clone (deep clone utility)
+- Renamed "body-available" event to "ready" (backwards compatible)
+- 
 
 ### Version 5.2.7
 - Listeners can be removed by returning LS.REMOVE_LISTENER
@@ -24,7 +42,7 @@
 - LS.Create API ravamped, enhanced performance and security, and now accepts a DSL-like object structure
 - LS.Create now accepts tagName in options
 - LS.Color now supports conversion to primitives (string, number), is iterable, and JSON-serializable.
-- Added HSB support to LS.Color
+- Added HSB support to LS.Color, and named colors are now local.
 - Breaking change: LS.Color methods now mutate itself instead of always returning a clone. Added a clone() method for explicit cloning (eg. color.lighten() => color.clone().lighten()).
 - Various other smaller fixes and improvements
 
@@ -68,7 +86,7 @@ V4 is a special one.
 ![Screenshot from 2024-08-22 22-47-28](https://github.com/user-attachments/assets/175c8ab3-d00f-4467-bb96-066df234c46b)<br>
 This new component allows you to easily include a beautiful and fully customizeable graph editor, primarily intended for automations (eg. gain on an audio oscillator), but is great for any other possible usage scenarios.<br>
 It uses SVG for rendering, offers an easy way to scale, has a simple API with efficient instancing etc.<br><br>
-In this update, LS.EventResolver (as component) was deprecated in favor of LS.EventHandler (as a standalone class) - compatibility is retained at this moment.
+In this update, LS.EventResolver (as component) was deprecated in favor of LS.EventEmitter (as a standalone class) - compatibility is retained at this moment.
 
 ## Version 3.4.5
 ### 1) Colors

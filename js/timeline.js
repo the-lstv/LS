@@ -45,6 +45,47 @@
         framerateLimit: 90
     };
 
+    // const TEMPLATE = LS.CompileTemplate((data, logic) => ({
+    //     attributes: { tabindex: "0" },
+    //     inner: [
+    //         (logic.export("markerContainer", {
+    //             class: "ls-timeline-markers"
+    //         })),
+
+    //         (logic.export("playerHead", {
+    //             class: "ls-timeline-player-head"
+    //         })),
+
+    //         (logic.export("selectionRect", {
+    //             class: "ls-timeline-selection-rect",
+    //             style: "position: absolute; pointer-events: none; display: none; border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent) 50%, rgba(0, 0, 0, 0.2) 50%); z-index: 100;"
+    //         })),
+
+    //         (logic.export("snapLine", {
+    //             class: "ls-timeline-snap-line",
+    //             style: "position: fixed; top: 0; left: 0; width: 1px; background: var(--accent-60); z-index: 1000; pointer-events: none; display: none;"
+    //         })),
+
+    //         (logic.export("scrollContainer", {
+    //             class: "ls-timeline-scroll-container",
+    //             inner: [
+    //                 (logic.export("spacerElement", {
+    //                     class: "ls-timeline-spacer",
+    //                     style: "height: 1px; width: 0px;"
+    //                 })),
+
+    //                 (logic.export("rowContainer", {
+    //                     class: "ls-timeline-rows"
+    //                 }))
+    //             ]
+    //         }))
+    //     ]
+    // }));
+
+    // Until I have a server-side transpiler of LS.CompileTemplate, I will hard-code the output here to give the client some rest :P
+    const TEMPLATE = function(d){'use strict';var e0=document.createElement("div");e0.setAttribute("tabindex","0");var e1=document.createElement("div");e1.className="ls-timeline-markers";var e2=document.createElement("div");e2.className="ls-timeline-player-head";var e3=document.createElement("div");e3.className="ls-timeline-selection-rect";e3.style.cssText="position: absolute; pointer-events: none; display: none; border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent) 50%, rgba(0, 0, 0, 0.2) 50%); z-index: 100;";var e4=document.createElement("div");e4.className="ls-timeline-snap-line";e4.style.cssText="position: fixed; top: 0; left: 0; width: 1px; background: var(--accent-60); z-index: 1000; pointer-events: none; display: none;";var e5=document.createElement("div");e5.className="ls-timeline-scroll-container";var e6=document.createElement("div");e6.className="ls-timeline-spacer";e6.style.cssText="height: 1px; width: 0px;";var e7=document.createElement("div");e7.className="ls-timeline-rows";e5.append(e6,e7);e0.append(e1,e2,e3,e4,e5);var __rootValue=e0;return{"markerContainer":e1,"playerHead":e2,"selectionRect":e3,"snapLine":e4,"scrollContainer":e5,"spacerElement":e6,"rowContainer":e7,root:__rootValue};}
+
+
     // :shrug:
     // const computeZoomMultiplier = (zoom) => {
     //     return zoom < 0.005 ? 512
@@ -81,42 +122,16 @@
 
             this.options = LS.Util.defaults(DEFAULTS, options);
 
-            this.container = LS.Create({
-                attributes: { tabindex: "0" },
-                inner: [
-                    (this.markerContainer = LS.Create({
-                        class: "ls-timeline-markers"
-                    })),
+            const element = TEMPLATE();
 
-                    (this.playerHead = LS.Create({
-                        class: "ls-timeline-player-head"
-                    })),
-
-                    (this.selectionRect = LS.Create({
-                        class: "ls-timeline-selection-rect",
-                        style: "position: absolute; pointer-events: none; display: none; border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent) 50%, rgba(0, 0, 0, 0.2) 50%); z-index: 100;"
-                    })),
-
-                    (this.snapLine = LS.Create({
-                        class: "ls-timeline-snap-line",
-                        style: "position: fixed; top: 0; left: 0; width: 1px; background: var(--accent-60); z-index: 1000; pointer-events: none; display: none;"
-                    })),
-
-                    (this.scrollContainer = LS.Create({
-                        class: "ls-timeline-scroll-container",
-                        inner: [
-                            (this.spacerElement = LS.Create({
-                                class: "ls-timeline-spacer",
-                                style: "height: 1px; width: 0px;"
-                            })),
-
-                            (this.rowContainer = LS.Create({
-                                class: "ls-timeline-rows"
-                            }))
-                        ]
-                    }))
-                ]
-            });
+            this.container = element.root;
+            this.scrollContainer = element.scrollContainer;
+            this.rowContainer = element.rowContainer;
+            this.spacerElement = element.spacerElement;
+            this.markerContainer = element.markerContainer;
+            this.playerHead = element.playerHead;
+            this.selectionRect = element.selectionRect;
+            this.snapLine = element.snapLine;
 
             if (this.options.element) {
                 this.options.element.appendChild(this.container);
@@ -487,7 +502,7 @@
                         }
                     }
 
-                    this.emit("drag-start", [dragType]);
+                    this.quickEmit("drag-start", dragType);
                 },
 
                 onMove: (event) => {
@@ -528,7 +543,7 @@
                         // Track velocity
                         velocityX = event.dx;
 
-                        this.emit("drag-move", [dragType, event.dx, event.dy]);
+                        this.quickEmit("drag-move", dragType, event.dx, event.dy);
                     } else if (dragType === "zoom-v") {
                         const sensitivity = 0.5;
                         const oldHeight = this.rowHeight;
@@ -547,7 +562,7 @@
                             this.scrollContainer.scrollTop = (contentY * ratio) - mouseY;
                         }
 
-                        this.emit("drag-move", [dragType, 0, event.dy]);
+                        this.quickEmit("drag-move", dragType, 0, event.dy);
                     } else if (dragType === "seek" || dragType === "select") {
                         if (dragType === "seek") {
                             const worldX = cursorX + this.offset;
@@ -579,7 +594,7 @@
                             edgeScrollRaf = requestAnimationFrame(processEdgeScroll);
                         }
 
-                        this.emit("drag-move", [dragType, cursorX, cursorY]);
+                        this.quickEmit("drag-move", dragType, cursorX, cursorY);
                     } else if (dragType === "delete") {
                         // TODO: implement delete
                     }
@@ -637,7 +652,7 @@
                     stopEdgeScroll();
                     setTimeout(() => this.__isDragging = false, 10);
 
-                    this.emit("drag-end", [dragType]);
+                    this.quickEmit("drag-end", dragType);
                     dragType = null;
                 }
             });
@@ -803,7 +818,7 @@
                     }
                 }
 
-                this.emit(this.__fileProcessEventRef, [dt.files, rowIndex, timeOffset]);
+                this.quickEmit(this.__fileProcessEventRef, dt.files, rowIndex, timeOffset);
             });
 
             this.zoom = this.options.zoom;
@@ -951,8 +966,9 @@
         setSeek(value) {
             value = Math.max(0, value);
             if(this.#seek === value) return;
-            this.seek = value;
-            this.emit(this.__seekEventRef, [this.#seek]);
+            this.#seek = value;
+            this.quickEmit(this.__seekEventRef, value);
+            this.updateHeadPosition();
         }
 
         get duration() {
@@ -1002,10 +1018,10 @@
 
             this.__needsSort = false;
 
-            this.emit("sorted", [this.maxDuration]);
+            this.quickEmit("sorted", this.maxDuration);
             if (totalDuration !== this.#duration) {
                 this.#duration = totalDuration;
-                this.emit("duration-changed", [this.#duration]);
+                this.quickEmit("duration-changed", this.#duration);
             }
         }
 
@@ -1309,7 +1325,7 @@
             this.selectedItems.clear();
             this.selectedItems.add(item);
             this.focusedItem = item;
-            this.emit("item-select", [item]);
+            this.quickEmit("item-select", item);
             this.frameScheduler.schedule();
         }
 
@@ -1317,7 +1333,7 @@
             if (this.selectedItems.size > 0) {
                 this.selectedItems.clear();
                 this.frameScheduler.schedule();
-                this.emit("item-deselect");
+                this.quickEmit("item-deselect");
             }
             this.focusedItem = null;
         }
@@ -1354,10 +1370,11 @@
                 row: item.row || 0,
                 label: item.label || id,
                 color: item.color || null,
-                data: JSON.parse(JSON.stringify(item.data || {}, (key, value) => {
+                data: item.data && LS.Util.clone(item.data, (key, value) => {
+                    // Skip prefixed properties, DOM elements, and functions
                     if (key.startsWith("_") || (value instanceof Element) || typeof value === "function") return undefined;
-                    return value;
-                })),
+                    return true;
+                }),
                 type: item.type || null,
                 ...item.cover? { cover: item.cover }: null,
                 ...item.waveform? { waveform: item.waveform }: null,
@@ -1637,11 +1654,11 @@
                 item.timelineElement.remove();
             }
 
-            this.emit("item-removed", [item]);
+            this.quickEmit("item-removed", item);
 
             if(destroy) {
                 this.destroyTimelineElement(item);
-                this.emit("item-cleanup", [item]);
+                this.quickEmit("item-cleanup", item);
             }
         }
 
@@ -1699,7 +1716,7 @@
         }
 
         reset(destroyItems = true, replacingItems = null) {
-            if(this.__destroyed) return;
+            if(this.destroyed) return;
 
             for (let item of this.items) {
                 if (destroyItems) {
@@ -1774,7 +1791,7 @@
          */
         emitAction(action) {
             action.source = this;
-            this.emit(this.__actionEventRef, [action]);
+            this.quickEmit(this.__actionEventRef, action);
         }
 
         /**
@@ -1986,7 +2003,7 @@
             this.dragHandle.destroy();
             this.dragHandle = null;
 
-            this.__destroyed = true;
+            this.destroyed = true;
             this.emit("destroy");
             this.events.clear();
         }

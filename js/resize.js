@@ -480,8 +480,12 @@ LS.LoadComponent(class Resize extends LS.Component {
                         if (snappedCollapsed || target.classList.contains('ls-resize-collapsed')) currentState = 'collapsed';
                         else if (snappedExpanded || target.classList.contains('ls-resize-expanded')) currentState = 'expanded';
 
-                        self.emit('resize', [{target, handler, side}, newWidth, newHeight, currentState, newPosX, newPosY]);
-                        handler.emit('resize', [newWidth, newHeight, currentState, newPosX, newPosY]);
+                        const evtd = [newWidth, newHeight, currentState, newPosX, newPosY];
+                        handler.emit('resize', evtd);
+                        self.emit(target, evtd);
+                        evtd.unshift({target, handler, side});
+                        self.emit('resize', evtd);
+
                         endWidth = newWidth;
                         endHeight = newHeight;
 

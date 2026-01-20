@@ -1,13 +1,18 @@
-
-ls.css.map
-# ls.css
-ls.min.js
-ls.min.css
-
+# IDEs and editors
 .vscode
 .idea
 .github
 
-examples/_
 
+# Backend related
+versions/
+
+
+# Being worked on
+misc/demos
+*.test.html
+*.bench.html
+
+
+# ?
 app.conf

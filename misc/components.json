@@ -17,8 +17,7 @@
         "timeline",
         "toast",
         "tooltips",
-        "tree",
-        "v4compat"
+        "tree"
     ],
     "css": [
         "flat",

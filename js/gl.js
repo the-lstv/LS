@@ -733,7 +733,7 @@ try {
     /**
      * @experimental
      */
-    class Renderer extends LS.EventHandler {
+    class Renderer extends LS.EventEmitter {
         constructor(options = {}) {
             super();
 

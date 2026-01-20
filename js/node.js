@@ -2,7 +2,7 @@
  * Universal generioc I/O node for LS.
  * @version 1.0.0
  * 
- * How is this different from simple EventHandler?
+ * How is this different from simple EventEmitter?
  * Not much, but it allows for a consistent way to send data across unrelated nodes using custom protocols and connect in a tree structure.
  * Your main application can have a main input/output node, and then different components or even 3rd party plugins can interact with it using a standard protocol.
  * For example, a DAW could use this to allow plugins to communicate with each other.
@@ -50,7 +50,7 @@
  * audio_processor.send("start");
  */
 
-LS.LoadComponent(class Node extends LS.EventHandler {
+LS.LoadComponent(class Node extends LS.EventEmitter {
     constructor(options = {}) {
         super();
 

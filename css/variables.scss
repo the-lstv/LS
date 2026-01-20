@@ -1,15 +1,33 @@
 @use "sass:color";
 @use 'sass:math';
 
-
-// Yes, this is actually the shortest way to write this. F#cking CSS
+/*
+    Text inputs (input[type="text"], textarea, etc).
+    Yes, this is actually the shortest way to write this.
+*/
 $textInput: ':is(input:not([type]), input[type="text"], input[type="search"], input[type="email"], input[type="url"], input[type="tel"], input[type="password"], input[type="number"], textarea, .ls-text-input)';
 
-$button: ':is(button, input[type="button"], input[type="submit"], input[type="reset"], .ls-button)';
+/*
+    Buttons.
+*/
+$button: ':is(button, input[type="button"], input[type="submit"], input[type="reset"], ls-button, .ls-button)';
+
+/*
+    Things that are select-like (select, ls-select, etc).
+*/
 $select: ':is(select, ls-select, .ls-select .ls-select-handle)';
+
+/*
+    Things that are interactive controls (buttons, inputs, textareas, selects, etc).
+*/
 $control: ':is(#{$button}, input, textarea, #{$select})';
 
+/*
+    Things that look and behave like buttons.
+*/
 $buttonLike: ':is(#{$button}, #{$select})';
+
+
 
 @function priority($thing, $times) {
     $result: '';

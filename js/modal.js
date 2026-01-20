@@ -5,27 +5,11 @@
  */
 
 (() => {
-    const container = N({
-        class: "ls-modal-layer level-1"
-    });
-
-    LS.once("body-available", () => {
-        LS._topLayer.add(container);
-    });
-
-    window.addEventListener("keydown", (event) => {
-        if (event.key === "Escape") {
-            LS.Modal.closeTop();
+    function closeModal() {
+        if(this instanceof HTMLElement) this.closest(".ls-modal").lsComponent.close(); else {
+            LS.Stack.pop();
         }
-    });
-
-    container.addEventListener("click", (event) => {
-        if (event.target === container && LS.Modal.top && LS.Modal.top.options.canClickAway !== false) {
-            LS.Modal.closeTop();
-        }
-    });
-
-    LS._modalStack = LS._modalStack || [];
+    }
 
     LS.LoadComponent(class Modal extends LS.Component {
         static DEFAULTS = {
@@ -34,17 +18,34 @@
             fadeOutDuration: 300
         }
 
-        constructor(options = {}) {
+        constructor(options = {}, template = {}) {
             super();
 
             this.options = LS.Util.defaults(this.constructor.DEFAULTS, options);
             this.isOpen = false;
 
-            this.container = N({
-                class: "ls-modal",
+            this.container = this.constructor.TEMPLATE({
                 inner: this.options.content || null,
-                tabIndex: "0"
-            });
+
+                // Template
+                title: template.title || null,
+                content: template.content || null,
+                buttons: template.buttons || null,
+
+                closeModal
+            }).root;
+
+            this.container.lsComponent = this;
+
+            if(template.onOpen) {
+                this.on("open", template.onOpen);
+            }
+
+            if(template.onClose) {
+                this.on("close", template.onClose);
+            }
+
+            template = null;
 
             this.container.style.display = "none";
 
@@ -57,30 +58,40 @@
                 this.container.style.height = typeof this.options.height === "number" ? this.options.height + "px" : this.options.height;
             }
 
-            container.add(this.container);
+            LS.Stack.container.add(this.container);
 
             if (this.options.open) {
                 this.open();
             }
         }
 
+        get isCloseable() {
+            return this.options.closeable !== false;
+        }
+
+        get hasShade() {
+            return this.options.shade !== false;
+        }
+
         open() {
-            if (this.isOpen || this.__destroyed) return;
+            if (this.isOpen || this.destroyed) return;
             this.previousFocus = document.activeElement;
             this.isOpen = true;
 
-            if (LS._modalStack.length > 0) {
+            if (LS.Stack.length > 0) {
                 const topModal = LS.Modal.top;
                 if (topModal && topModal.container) {
                     topModal.container.classList.remove("ls-top-modal");
                 }
             }
 
-            LS._modalStack.push(this);
+            LS.Stack.push(this);
             this.container.classList.add("open");
             this.container.classList.add("ls-top-modal");
 
             setTimeout(() => {
+                if(!this.isOpen || this.destroyed) return;
+
                 const focusable = this.container.querySelector("input, button, select, textarea, [tabindex]:not([tabindex='-1'])");
                 if (focusable) {
                     focusable.focus();
@@ -89,8 +100,7 @@
                 }
             }, 0);
 
-            this.container.style.zIndex = LS._modalStack.length;
-            container.classList.add("is-open");
+            this.container.style.zIndex = LS.Stack.length;
 
             if (LS.Animation && this.options.animate !== false) {
                 LS.Animation.fadeIn(this.container, this.options.fadeInDuration || 300, this.options.fadeInDirection || 'forward');
@@ -100,27 +110,25 @@
             return this;
         }
 
-        close(focus = true) {
-            if (!this.isOpen || this.__destroyed) return;
+        close(refocus = true) {
+            if (!this.isOpen || this.destroyed) return;
 
             this.isOpen = false;
             this.container.classList.remove("open");
             this.container.classList.remove("ls-top-modal");
-            const index = LS._modalStack.indexOf(this);
-            if (index > -1) {
-                LS._modalStack.splice(index, 1);
-            }
+            LS.Stack.remove(this);
 
             setTimeout(() => {
-                if (LS._modalStack.length === 0) {
-                    container.classList.remove("is-open");
-                    if (focus) (this.previousFocus || document.body).focus();
+                if(this.isOpen || this.destroyed) return;
+
+                if (LS.Stack.length === 0) {
+                    if (refocus) (this.previousFocus || document.body).focus();
                 } else {
                     const top = LS.Modal.top;
                     if (top && top.container) {
-                        if (focus) top.container.classList.add("ls-top-modal");
+                        if (refocus) top.container.classList.add("ls-top-modal");
 
-                        if (focus && this.previousFocus) {
+                        if (refocus && this.previousFocus) {
                             this.previousFocus.focus();
                         } else {
                             top.container.focus();
@@ -142,16 +150,13 @@
         }
 
         destroy(delayed = false) {
-            if(this.__destroyed) return;
+            if(this.destroyed) return;
 
             if (this.isOpen) {
                 this.close(false);
             }
 
-            const index = LS._modalStack.indexOf(this);
-            if (index > -1) {
-                LS._modalStack.splice(index, 1);
-            }
+            LS.Stack.remove(this);
 
             if (delayed) {
                 setTimeout(() => {
@@ -167,30 +172,24 @@
             this.previousFocus = null;
             this.emit("destroy");
             this.events.clear();
-            this.__destroyed = true;
+            this.destroyed = true;
             return;
         }
 
         static get top() {
-            return LS._modalStack[LS._modalStack.length - 1] || null;
+            return LS.Stack.top;
         }
 
         static closeAll() {
-            for (const modal of LS._modalStack) {
-                modal.close(false);
+            for (const modal of LS.Stack.items) {
+                if(modal instanceof LS.Modal) modal.close(false);
             }
-            LS._modalStack = [];
-            container.classList.remove("is-open");
+
             document.body.focus();
         }
 
         static closeTop() {
-            if (LS._modalStack.length > 0) {
-                const topModal = LS.Modal.top;
-                if (topModal.isOpen && topModal.options.closeable !== false) {
-                    topModal.close();
-                }
-            }
+            return LS.Stack.pop();
         }
 
         static buildEphemeral(options = {}, modalOptions = {}) {
@@ -199,41 +198,32 @@
             return LS.Modal.build(options, modalOptions);
         }
 
-        static build(options = {}, modalOptions = {}) {
-            const content = [];
+        static TEMPLATE(d){'use strict';var e0=document.createElement("div");e0.tabIndex="0";e0.className="ls-modal";if(!!(d.inner)){e0.appendChild(LS.__dynamicInnerToNode(d.inner));}else{if(!!(d.title)){var e1=document.createElement("h2");e1.className="ls-modal-title";e1.append(LS.__dynamicInnerToNode(d.title));e0.appendChild(e1);}if(!!(d.content)){var e2=document.createElement("div");e2.className="ls-modal-body";e2.append(LS.__dynamicInnerToNode(d.content));e0.appendChild(e2);}if(!!(d.buttons)){var e3=document.createElement("div");e3.className="ls-modal-footer";var a4=d.buttons||[];for(const i5 of a4){var e6=document.createElement("button");e6.textContent=(i5.label) || ("Button");e6.onclick=(i5.onClick) || (i5.onclick) || (d.closeModal);e6.setAttribute("ls-accent",(i5.accent) || (null));e6.className=["ls-modal-button",i5.class].filter(Boolean).join(" ");e3.appendChild(e6);}e0.appendChild(e3);}}var __rootValue=e0;return{root:__rootValue};}
 
-            if (options.title) {
-                content.push(N("h2", { class: "ls-modal-title", inner: options.title }));
-            }
+        // static TEMPLATE = /* @BUILD compile-template */ LS.CompileTemplate((data, logic) => ({
+        //     class: "ls-modal",
+        //     tabIndex: "0",
+        //     inner: logic.if(data.inner, data.inner, [
+        //         logic.if(data.title, { tag: "h2", class: "ls-modal-title", inner: data.title }),
 
-            if (options.content) {
-                content.push(N("div", { class: "ls-modal-body", inner: options.content }));
-            }
+        //         logic.if(data.content, { tag: "div", class: "ls-modal-body", inner: data.content }),
 
-            if (options.buttons) {
-                content.push(N("div", { class: "ls-modal-footer", inner: options.buttons.map(button => {
-                    return N("button", {
-                        class: `ls-modal-button ${button.class || ''}`,
-                        inner: button.label || 'Button',
-                        accent: button.accent ? button.accent : null,
-                        onclick: button.onClick || button.onclick || (() => modal.close())
-                    });
-                })}));
-            }
+        //         logic.if(data.buttons, {
+        //             tag: "div",
+        //             class: "ls-modal-footer",
+        //             inner: logic.map(data.buttons, (button) => ({
+        //                 tag: "button",
+        //                 class: logic.join(" ", `ls-modal-button`, button.class),
+        //                 accent: logic.or(button.accent, null),
+        //                 textContent: logic.or(button.label, 'Button'),
+        //                 onclick: logic.or(button.onClick, button.onclick, data.closeModal)
+        //             }))
+        //         })
+        //     ])
+        // }));
 
-            modalOptions.content = content;
-            const modal = new LS.Modal(modalOptions);
-
-            if(options.onOpen) {
-                modal.on("open", options.onOpen);
-            }
-
-            if(options.onClose) {
-                modal.on("close", options.onClose);
-            }
-
-            options = null;
-            return modal;
+        static build(template = {}, modalOptions = {}) {
+            return new LS.Modal(modalOptions, template);
         }
     }, { name: "Modal", global: true })
 })();
