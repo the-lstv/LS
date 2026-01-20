@@ -1,0 +1,11 @@
+{
+    "name": "LS CDN API Addon",
+    "id": "akeno.ls.api",
+    "version": "1.2",
+
+    "description": "Responsible for serving the LS library and its components over a CDN.",
+
+    "akenoVersion": ">=1.5.9",
+
+    "main": "index.js"
+}

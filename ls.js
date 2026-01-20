@@ -78,19 +78,19 @@
         static optimize = true;
 
         static EventObject = class EventObject {
-            compiled = null;
             listeners = [];
-            free = [];
+            free = []; // Still keeping freelist because listener order needs to be preserved
+            compiled = null; // Compild function
             aliases = null;
             completed = false;
             warned = false;
-            data = null;
-
+            
             break = false;
             results = false;
             async = false;
             await = false;
             deopt = false;
+            data = null; // Data used for completed events
 
             _isEvent = true;
 
@@ -510,6 +510,10 @@
             super();
             this.destroyed = false;
 
+            // Prepare destroy event.
+            this.prepareEvent("destroy", { deopt: true });
+            this.alias("destroy", "destroyed");
+
             if(options.container) {
                 if(typeof options.container === "string") {
                     this.container = LS.Tiny.O(options.container);
@@ -646,7 +650,7 @@
             if (this.destroyed) return;
             this.destroyed = true;
 
-            this.emit("destroyed");
+            this.quickEmit("destroy");
             if (this.events) this.events.clear(); // It should never happen that this.events is null, yet it somehow did
 
             for(const timer of this.#timers) {
@@ -776,7 +780,7 @@
                 content.ns = "http://www.w3.org/2000/svg";
             }
 
-            const { class: className, tooltip, ns, html, accent, style, inner, content: innerContent, reactive, attr, options, attributes, ...rest } = content;
+            const { class: className, tooltip, ns, inner, content: innerContent, html, text, accent, style, reactive, attr, options, attributes, ...rest } = content;
 
             const element = Object.assign(
                 ns ? document.createElementNS(ns, tagName) : document.createElement(tagName),
@@ -831,9 +835,17 @@
 
             if (html) {
                 if(contentToAdd) {
-                    console.warn("LS.Create: 'html' is being overriden by inner content.");
+                    console.warn("LS.Create: 'html' is being overriden by inner content. Only use one of: inner, html, or text.");
                 } else {
                     element.innerHTML = html;
+                }
+            }
+
+            if (text) {
+                if(contentToAdd || html) {
+                    console.warn("LS.Create: 'text' is being overriden by inner content or html. Only use one of: inner, html, or text.");
+                } else {
+                    element.textContent = text;
                 }
             }
 

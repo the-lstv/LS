@@ -1,15 +1,8 @@
+const Units = require("akeno:units");
+const backend = require('akeno:backend');
+
 const fs = require("fs");
 const path = require("path");
-
-// const { xxh32 } = require("@node-rs/xxhash");
-
-const backend = require("akeno:backend");
-
-const cacheManager = new backend.helper.CacheManager({});
-
-const BASE_PATH = path.resolve(__dirname, ".."),
-      DIST_PATH = BASE_PATH + "/backend/versions/",
-      CORE_MARKER = "\u0000"; // Special marker for the core component
 
 /*
     The URL syntax is as follows:
@@ -23,28 +16,29 @@ const BASE_PATH = path.resolve(__dirname, ".."),
     /5.0.0/select.js -> Loads only the select component.
     /5.0.0/select,modal/index.js -> Loads the core and the select and modal components as a bundle.
     /5.0.0/select,modal/bundle.js -> Loads only the select and modal components as a bundle.
-
-    This is different from versions prior to v5, where the core was treated as an optional component.
-
-    All components may be automatically minified by appending ".min" to the file name.
-    This also differs from legacy versions where there were separate distribution files for minified code.
 */
+
+const cacheManager = new backend.helper.CacheManager({});
+
+const BASE_PATH = path.resolve(__dirname, "../../../"),
+      DIST_PATH = BASE_PATH + "/misc/backend/akeno-cdn-api-addon/versions/",
+      CORE_MARKER = "\u0000"; // Special marker for the core component, to ensure it is in the first position.
 
 const LATEST = fs.readFileSync(BASE_PATH + "/version", "utf8").trim();
 
-const VERSIONS = fs.readdirSync(DIST_PATH).filter(file => {
+let VERSIONS = new Set([...fs.readdirSync(DIST_PATH).filter(file => {
     return fs.statSync(DIST_PATH + "/" + file).isDirectory();
-})
+})]);
 
 const COMPONENTS = JSON.parse(fs.readFileSync(BASE_PATH + "/misc/components.json", "utf8"));
 
-// A map of cache maps, one per version
-// const cache = new Map;
 
+// Alias some versions
+// Note: This API no longer supports versions < 3.0.0, as they used a completely different format (pre-processed JSON).
 const VERSION_ALIAS = {
-    "4.0.0": "4.0.1",
-    "3.0_lts": "4.0.1",
-    "4.0_lts": "4.0.1", // Note: Support ended
+    "4.0.0": "4.0.2",
+    "3.0_lts": "4.0.2",
+    "4.0_lts": "4.0.2", // Note: Support for v4 ended
 
     // 5.x to 5.2.5
     "5.0.0": "5.2.5",
@@ -61,66 +55,68 @@ const VERSION_ALIAS = {
     "5.2.6": "5.2.7",
 };
 
+
 // If true, the patch version will be ignored and only the minor/major version will be used for caching (patch will be used for client/CDN cache breaking).
 // For this to work, patch versions must be compatible with the minor/major version, aka don't do anything breaking.
 // This may become an issue at some point, but the goal is to avoid storing every single patch separately.
+// The tragedy is that I have been historically pretty inconsistent in semantic versioning...
+// Use VERSION_ALIAS instead.
 let IGNORE_PATCH_VERSION = false;
 
 const LATEST_MAJOR = LATEST.split(".")[0] || "0";
 const LATEST_PATCH = LATEST.split(".")[2] || "0";
 
-function getEffectiveVersion(version) {
-    if (IGNORE_PATCH_VERSION && version.startsWith(LATEST_MAJOR + ".")) {
-        const last_index = version.lastIndexOf(".");
-        if (last_index !== -1) {
-            version = version.slice(0, last_index) + "." + LATEST_PATCH;
+const isWindows = process.platform === "win32";
+
+module.exports = new class LS_API extends Units.Addon {
+    constructor() {
+        super({
+            name: "LS CDN API Addon",
+        });
+
+        if(isWindows) {
+            this.warn("Warning: The LS backend is not supported on Windows and may break!");
         }
     }
-    return version;
-}
 
-const isWindows = process.platform === "win32";
-if(isWindows) {
-    if (Math.random() > .9) console.debug("(´∀｀*)☛ get a load of this guy");
-    console.warn("[LS API] Warning: The LS backend is not supported on Windows and may break. We will ignore issues from the Windows platform.");
-}
-
-module.exports = {
     reload() {
-        // Reload hook
+        // Reload hook, clear cache
         cacheManager.clear();
-    },
+
+        VERSIONS = new Set([...fs.readdirSync(DIST_PATH).filter(file => {
+            return fs.statSync(DIST_PATH + "/" + file).isDirectory();
+        })]);
+    }
 
     async onRequest(req, res) {
         const segments = backend.helper.getPathSegments({ path: req.path.slice(3).toLowerCase() });
         if (segments.length < 2) return backend.helper.error(req, res, 2);
 
-        // This will be removed at some point
-        if(segments[0] === "js" || segments[0] === "css" || segments[0] === "js.min" || segments[0] === "css.min") {
-            return serveLegacy(req, res, segments);
-        }
-
-        const version = segments[0] === "latest" ? LATEST : VERSION_ALIAS[segments[0]] || getEffectiveVersion(segments[0]);
+        const version = this.getEffectiveVersion(segments[0]);
 
         let VERSION_PATH = DIST_PATH + path.posix.resolve("/", version);
 
-        // Windows is stupid, so we need to resolve symlinks manually
         if (isWindows) {
-            // try {
-            //     if (fs.lstatSync(VERSION_PATH).isFile()) {
-            //         const link = fs.readFileSync(VERSION_PATH, "utf8");                    
-            //         VERSION_PATH = path.resolve(DIST_PATH, link);
-            //     }
-            // } catch (e) {
-            //     // Ignore if not a symlink or path doesn't exist
-            // }
+            // Windows is quite unreliable with symlinks (or does not provide them at all in some environments), so we skip them entirely and just use dist.
+            // This is incorrect, but you shouldn't use Windows for production servers anyway, this API does not support Windows, so functionality is not guaranteed either way.
             VERSION_PATH = BASE_PATH + "/dist";
         } else {
-            if(!VERSIONS.includes(version)) {
-                return backend.helper.error(req, res, `Version "${version}" was not found or is invalid`, 404);
+            if(!VERSIONS.has(version)) {
+                if(!Units.Version.isValid(version)) {
+                    return backend.helper.error(req, res, `Value "${version}" is not a valid semantic version`, 404);
+                }
+
+                if(Units.Version.matches(version, "4.0.0", "<")) {
+                    return backend.helper.error(req, res, `Versions older than 3.0.0, including "${version}" are no longer supported. Please use 4.0.2 or later.`, 410);
+                }
+
+                if(Units.Version.matches(version, LATEST, ">")) {
+                    return backend.helper.error(req, res, `Version "${version}" does not exist yet, are you from the future?`, 404);
+                }
+
+                return backend.helper.error(req, res, `Version "${version}" was not found`, 404);
             }
         }
-        
 
         let file = segments.length === 2? segments[1]: segments[2];
 
@@ -151,7 +147,7 @@ module.exports = {
                 let v = unsortedList[i];
                 if (!v) continue;
                 if (v !== last) {
-                    components.push(v); // Changed from list.push(v) to components.push(v)
+                    components.push(v);
                     last = v;
                 }
             }
@@ -161,19 +157,20 @@ module.exports = {
         const mimeType = type === "js"? "text/javascript": "text/css";
         const suggestedCompressionAlgorithm = backend.helper.getUsedCompression(req, mimeType); // uws aah
 
+        // Check cache
         if(!cacheManager.cache.has(CACHE_KEY)) {
-            let result = "";
+            let result = [];
 
             for(let component of components) {
                 let component_path = component === CORE_MARKER? VERSION_PATH + "/ls." + type: VERSION_PATH  + "/" + type + "/" + component + "." + type;
 
                 if(isWindows && component_path.includes("dist") && !component_path.includes("css")) {
-                    // Windows can't handle symlinks properly
+                    // Windows workaround
                     component_path = component_path.replace("dist/", "");
                 }
 
                 if(!fs.existsSync(component_path)) {
-                    if(version === "4.0.1"){
+                    if(version === "4.0.2"){
                         // Legacy or LTS releases had a less strict API.
                         continue;
                     }
@@ -181,42 +178,35 @@ module.exports = {
                     return backend.helper.error(req, res, `Component "${component}" was not found`, 404);
                 }
 
-                result += "\n" + fs.readFileSync(component_path, "utf8");
+                result.push("\n", fs.readFileSync(component_path, "utf8"));
             }
 
-            await cacheManager.refresh(CACHE_KEY, null, null, result, mimeType);
+            // We pass data as a string, because we do code processing with esbuild etc.
+            // It gets converted to a buffer internally later.
+            await cacheManager.refresh(CACHE_KEY, null, null, result.join(""), mimeType);
         }
 
         cacheManager.serve(req, res, CACHE_KEY, null, {
             codeCompression: do_compress
         }, suggestedCompressionAlgorithm);
     }
-}
 
-
-// The legacy.js file provides full backwards compatibility with the legacy URL syntax, both to provide access to old releases using the old system and to provide access to new releases using the old syntax.
-// Legacy mode had a terrible URL syntax and didn't respect versioning.
-// If you do not need to support the legacy system, simply remove the following code.
-let legacy = null;
-function serveLegacy(req, res, segments) {
-    const legacy_version = segments[2]? segments[1] : "4.0.1";
-    if (!segments[2]) {
-        segments[2] = segments[1] || "";
-    }
-
-    if(parseInt(legacy_version[0]) > 3) {
-        segments = [legacy_version, segments[2], "ls." + segments[0].split(".").reverse().join(".")];
-    } else {
-        if(!legacy) {
-            try {
-                require.resolve("./legacy");
-            } catch {
-                return backend.helper.error(req, res, `Legacy mode is not supported. Please upgrade to the new system`, 404);
-            }
-
-            legacy = require("./legacy");
+    getEffectiveVersion(version) {
+        if (version === "latest") {
+            return LATEST;
         }
 
-        return legacy.Handle({ req, res, segments, backend });
+        if (VERSION_ALIAS[version]) {
+            return VERSION_ALIAS[version];
+        }
+
+        if (IGNORE_PATCH_VERSION && version.startsWith(LATEST_MAJOR + ".")) {
+            const last_index = version.lastIndexOf(".");
+            if (last_index !== -1) {
+                version = version.slice(0, last_index) + "." + LATEST_PATCH;
+            }
+        }
+
+        return version;
     }
 }
