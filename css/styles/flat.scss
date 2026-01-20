@@ -222,6 +222,35 @@
         border: 2px solid var(--elevate-1);
         cursor: not-allowed;
     }
+
+    .ls-switch > span {
+        transition: background-color 0.2s;
+        border-radius: var(--border-radius-full);
+        border: 2px solid var(--elevate-2);
+        background: var(--elevate-1);
+    }
+
+    .ls-switch > span::after {
+        content: "";
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: calc(1em - 4px);
+        height: calc(1em - 4px);
+        background: var(--background);
+        border-radius: 50%;
+        transition: transform 0.2s, background-color 0.2s;
+    }
+
+    .ls-switch > input:checked ~ span {
+        border-color: var(--accent-50);
+        background-color: var(--accent-40);
+    }
+
+    .ls-switch > input:checked ~ span::after {
+        background-color: var(--accent-95);
+        transform: translateX(100%);
+    }
 }
 
 .ls-modal-styled {

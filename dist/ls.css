@@ -85,14 +85,14 @@
   --on-accent: var(--accent-10);
 }
 
-.ls-checkbox, .ls-radio {
+.ls-checkbox, .ls-radio, .ls-switch {
   padding-left: calc(1em + 10px);
   position: relative;
   display: inline-block;
   -webkit-user-select: none;
   user-select: none;
 }
-.ls-checkbox > span, .ls-radio > span {
+.ls-checkbox > span, .ls-radio > span, .ls-switch > span {
   width: calc(1em + 2px);
   height: calc(1em + 2px);
   position: absolute;
@@ -103,8 +103,16 @@
   left: 0;
   transform: translateY(-50%);
 }
-.ls-checkbox > input:checked ~ span::after, .ls-radio > input:checked ~ span::after {
+.ls-checkbox > input:checked ~ span::after, .ls-radio > input:checked ~ span::after, .ls-switch > input:checked ~ span::after {
   display: block;
+}
+
+.ls-switch {
+  padding-left: calc(2em + 10px);
+}
+.ls-switch > span {
+  width: calc(2em + 2px);
+  height: calc(1em + 4px);
 }
 
 :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)) {
@@ -117,7 +125,7 @@
   justify-content: center;
 }
 
-:is(.ls-checkbox, .ls-radio, .ls-radio-button) > input {
+:is(.ls-checkbox, .ls-switch, .ls-radio, .ls-radio-button) > input {
   opacity: 0;
   width: 0;
   height: 0;
@@ -664,23 +672,34 @@ button.ls-toast-close.ls-toast-close.ls-toast-close {
   left: 0;
 }
 
+.ls-topRight {
+  top: 0;
+  right: 0;
+}
+
 .ls-resize-handle.ls-topLeft {
   width: var(--ls-resize-corner-size, 12px);
   height: var(--ls-resize-corner-size, 12px);
   transform: translate(calc(var(--ls-resize-anchor, 0.5) * -100%), calc(var(--ls-resize-anchor, 0.5) * -100%));
   cursor: nwse-resize;
 }
-
-.ls-topRight {
-  top: 0;
-  right: 0;
-}
-
 .ls-resize-handle.ls-topRight {
   width: var(--ls-resize-corner-size, 12px);
   height: var(--ls-resize-corner-size, 12px);
   transform: translate(calc(var(--ls-resize-anchor, 0.5) * 100%), calc(var(--ls-resize-anchor, 0.5) * -100%));
   cursor: nesw-resize;
+}
+.ls-resize-handle.ls-bottomLeft {
+  width: var(--ls-resize-corner-size, 12px);
+  height: var(--ls-resize-corner-size, 12px);
+  transform: translate(calc(var(--ls-resize-anchor, 0.5) * -100%), calc(var(--ls-resize-anchor, 0.5) * 100%));
+  cursor: nesw-resize;
+}
+.ls-resize-handle.ls-bottomRight {
+  width: var(--ls-resize-corner-size, 12px);
+  height: var(--ls-resize-corner-size, 12px);
+  transform: translate(calc(var(--ls-resize-anchor, 0.5) * 100%), calc(var(--ls-resize-anchor, 0.5) * 100%));
+  cursor: nwse-resize;
 }
 
 .ls-bottomLeft {
@@ -688,23 +707,9 @@ button.ls-toast-close.ls-toast-close.ls-toast-close {
   left: 0;
 }
 
-.ls-resize-handle.ls-bottomLeft {
-  width: var(--ls-resize-corner-size, 12px);
-  height: var(--ls-resize-corner-size, 12px);
-  transform: translate(calc(var(--ls-resize-anchor, 0.5) * -100%), calc(var(--ls-resize-anchor, 0.5) * 100%));
-  cursor: nesw-resize;
-}
-
 .ls-bottomRight {
   bottom: 0;
   right: 0;
-}
-
-.ls-resize-handle.ls-bottomRight {
-  width: var(--ls-resize-corner-size, 12px);
-  height: var(--ls-resize-corner-size, 12px);
-  transform: translate(calc(var(--ls-resize-anchor, 0.5) * 100%), calc(var(--ls-resize-anchor, 0.5) * 100%));
-  cursor: nwse-resize;
 }
 
 .ls-dropdown-layer {
@@ -727,11 +732,9 @@ button.ls-toast-close.ls-toast-close.ls-toast-close {
 .ls-menu-item {
   margin: 0 4px;
 }
-
 .ls-menu-item:last-child {
   margin-bottom: 4px;
 }
-
 .ls-menu-item:first-child {
   margin-top: 4px;
 }
@@ -781,11 +784,10 @@ button.ls-toast-close.ls-toast-close.ls-toast-close {
   padding: 6px 10px;
 }
 
-.ls-checkbox.ls-menu-item, .ls-radio.ls-menu-item {
+.ls-menu-item.ls-checkbox, .ls-menu-item.ls-radio, .ls-menu-item.ls-switch {
   padding-left: calc(1em + 15px);
 }
-
-.ls-checkbox.ls-menu-item > span, .ls-radio.ls-menu-item > span {
+.ls-menu-item.ls-checkbox > span, .ls-menu-item.ls-radio > span, .ls-menu-item.ls-switch > span {
   left: 5px;
 }
 
@@ -2256,11 +2258,11 @@ body {
   color: inherit;
 }
 [ls] a:not(.ls-button, .ls-plain) {
-  color: var(--accent);
+  color: var(--accent-70);
 }
 [ls] a:not(.ls-button, .ls-plain):focus {
   box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.2666666667);
-  outline: 3px solid var(--accent);
+  outline: 3px solid var(--accent-60);
   outline-offset: 3px;
   border-radius: 3px;
 }

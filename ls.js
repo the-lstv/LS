@@ -767,7 +767,7 @@
 
             content =
                 typeof content === "string"
-                    ? { innerHTML: content }
+                    ? { html: content }
                     : Array.isArray(content)
                         ? { inner: content }
                         : content || {};
@@ -776,7 +776,7 @@
                 content.ns = "http://www.w3.org/2000/svg";
             }
 
-            const { class: className, tooltip, ns, accent, style, inner, content: innerContent, reactive, attr, options, attributes, ...rest } = content;
+            const { class: className, tooltip, ns, html, accent, style, inner, content: innerContent, reactive, attr, options, attributes, ...rest } = content;
 
             const element = Object.assign(
                 ns ? document.createElementNS(ns, tagName) : document.createElement(tagName),
@@ -825,7 +825,17 @@
 
             // Append children or content
             const contentToAdd = inner || innerContent;
-            if (contentToAdd) element.append(...LS.Util.resolveElements(contentToAdd));
+            if (contentToAdd) {
+                element.append(...LS.Util.resolveElements(contentToAdd));
+            }
+
+            if (html) {
+                if(contentToAdd) {
+                    console.warn("LS.Create: 'html' is being overriden by inner content.");
+                } else {
+                    element.innerHTML = html;
+                }
+            }
 
             return element;
         },
