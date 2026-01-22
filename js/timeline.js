@@ -250,7 +250,7 @@
                         const rect = this.container.getBoundingClientRect();
                         updateDragItemPosition(lastCursorX + rect.left, lastCursorY + rect.top);
                     }
-                    edgeScrollRaf = requestAnimationFrame(processEdgeScroll);
+                    edgeScrollRaf = this.ctx.requestAnimationFrame(processEdgeScroll);
                 } else {
                     stopEdgeScroll();
                 }
@@ -260,7 +260,7 @@
                 if (Math.abs(velocityX) > 0.5) {
                     this.offset -= velocityX;
                     velocityX *= 0.92; // Friction
-                    inertiaRaf = requestAnimationFrame(processInertia);
+                    inertiaRaf = this.ctx.requestAnimationFrame(processInertia);
                 } else {
                     stopInertia();
                 }
@@ -526,7 +526,7 @@
                         else if (cursorY > rect.height - threshold) edgeScrollSpeedY = maxSpeed * ((cursorY - (rect.height - threshold)) / threshold);
 
                         if ((edgeScrollSpeedX !== 0 || edgeScrollSpeedY !== 0) && !edgeScrollRaf) {
-                            edgeScrollRaf = requestAnimationFrame(processEdgeScroll);
+                            edgeScrollRaf = this.ctx.requestAnimationFrame(processEdgeScroll);
                         }
 
                         updateDragItemPosition(event.x, event.y);
@@ -591,7 +591,7 @@
                         }
                         
                         if ((edgeScrollSpeedX !== 0 || edgeScrollSpeedY !== 0) && !edgeScrollRaf) {
-                            edgeScrollRaf = requestAnimationFrame(processEdgeScroll);
+                            edgeScrollRaf = this.ctx.requestAnimationFrame(processEdgeScroll);
                         }
 
                         this.quickEmit("drag-move", dragType, cursorX, cursorY);
@@ -650,7 +650,7 @@
                     if (this.snapLine) this.snapLine.style.display = "none";
 
                     stopEdgeScroll();
-                    setTimeout(() => this.__isDragging = false, 10);
+                    this.ctx.setTimeout(() => this.__isDragging = false, 10);
 
                     this.quickEmit("drag-end", dragType);
                     dragType = null;
@@ -1295,7 +1295,7 @@
         updateHeadPosition() {
             if (this.__headPositionQueued) return;
             this.__headPositionQueued = true;
-            requestAnimationFrame(() => this.#updateHeadPosition());
+            this.ctx.requestAnimationFrame(() => this.#updateHeadPosition());
         }
 
         formatMarker(time, step) {

@@ -87,10 +87,10 @@ try {
 
                 const frame = (time) => {
                     if(!startTime) startTime = time;
-                    if(this.active && fn(resetTimer? time - startTime: time)) requestAnimationFrame(frame); else resolve();
+                    if(this.active && fn(resetTimer? time - startTime: time)) LS.Context.requestAnimationFrame(frame); else resolve();
                 }
 
-                requestAnimationFrame(frame)
+                LS.Context.requestAnimationFrame(frame)
             });
         }
     }
@@ -865,7 +865,7 @@ try {
          * @returns {Promise} A promise that resolves after the specified time.
          */
         sleep(ms) {
-            return new Promise(resolve => setTimeout(resolve, ms));
+            return new Promise(resolve => this.ctx.setTimeout(resolve, ms));
         }
 
         createElement(type, options = {}) {

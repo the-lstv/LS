@@ -2,7 +2,7 @@ LS.LoadComponent(class Toast extends LS.DestroyableComponent {
     constructor(content, options = {}){
         super();
 
-        this.element = this.constructor.template({
+        this.element = this.constructor.TEMPLATE({
             content,
             accent: options.accent,
             icon: options.icon,
@@ -52,7 +52,7 @@ LS.LoadComponent(class Toast extends LS.DestroyableComponent {
             LS._topLayer.add(this.container);
         });
 
-        // this.template = LS.CompileTemplate((data, logic) => ({
+        // this.TEMPLATE = LS.CompileTemplate((data, logic) => ({
         //     class: "ls-toast level-n2",
         //     accent: data.accent || null,
         //     inner: [
@@ -65,7 +65,7 @@ LS.LoadComponent(class Toast extends LS.DestroyableComponent {
         // }));
 
         // Precompiled template function
-        this.template = function(d){'use strict';var e0=document.createElement("div");e0.setAttribute("ls-accent",d.accent);e0.className="ls-toast level-n2";if(!!(d.icon)){var e1=document.createElement("i");e1.className=d.icon;e0.appendChild(e1);}var e2=document.createElement("div");e2.className="ls-toast-content";e2.textContent=d.content;e0.appendChild(e2);if(!!(d.uncancellable)){}else{var e3=document.createElement("button");e3.innerHTML="&times;";e3.onclick=d.closeClicked;e3.className="elevated circle ls-toast-close";e0.appendChild(e3);}var __rootValue=e0;return{root:__rootValue};}
+        this.TEMPLATE = function(d){'use strict';var e0=document.createElement("div");e0.setAttribute("ls-accent",d.accent);e0.className="ls-toast level-n2";if(!!(d.icon)){var e1=document.createElement("i");e1.className=d.icon;e0.appendChild(e1);}var e2=document.createElement("div");e2.className="ls-toast-content";e2.textContent=d.content;e0.appendChild(e2);if(!!(d.uncancellable)){}else{var e3=document.createElement("button");e3.innerHTML="&times;";e3.onclick=d.closeClicked;e3.className="elevated circle ls-toast-close";e0.appendChild(e3);}var __rootValue=e0;return{root:__rootValue};}
         this.openToasts = new Set();
     }
 

@@ -4,7 +4,7 @@
 
     Last modified: 2026
     License: GPL-3.0
-    Version: 5.2.8
+    Version: 5.2.9
     See: https://github.com/thelstv/LS
 */
 
@@ -158,7 +158,7 @@ body {
         color: var(--surface-8);
     }
 
-    table {
+    table:not(.clear) {
         background-color: var(--elevate-0);
         border-radius: var(--border-radius);
         border-collapse: collapse;

@@ -21,7 +21,7 @@
             ...finalStyles
         });
         // Force style flush, then allow future transitions
-        requestAnimationFrame(() => { el.style.transition = ''; });
+        LS.Context.requestAnimationFrame(() => { el.style.transition = ''; });
     }
 
     function _isObject(object) {
@@ -47,13 +47,13 @@
         },
         
         nextFrame() {
-            return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+            return new Promise(r => LS.Context.requestAnimationFrame(() => LS.Context.requestAnimationFrame(r)));
         },
 
         clearTimers(element) {
             if (element && element._animationTimeouts) {
                 for(let timeout of element._animationTimeouts) {
-                    clearTimeout(timeout);
+                    LS.Context.clearTimeout(timeout);
                 }
                 element._animationTimeouts.length = 0;
             }
@@ -61,7 +61,7 @@
 
         clearTimer(element, timeout) {
             if (element && element._animationTimeouts) {
-                clearTimeout(timeout);
+                LS.Context.clearTimeout(timeout);
                 element._animationTimeouts.splice(element._animationTimeouts.indexOf(timeout), 1);
             }
         },
@@ -70,7 +70,7 @@
             if (!element) return;
             if (!element._animationTimeouts) element._animationTimeouts = [];
 
-            const timeout = setTimeout(() => {
+            const timeout = this.ctx.setTimeout(() => {
                 callback();
                 LS.Animation.clearTimer(element, timeout);
             }, delay);
@@ -177,22 +177,22 @@
                 oldElement.classList.remove('visible');
                 oldElement.classList.add('leaving');
 
-                if (oldElement._leavingTimeout) clearTimeout(oldElement._leavingTimeout);
-                if (newElement._enteringTimeout) clearTimeout(newElement._enteringTimeout);
-                oldElement._leavingTimeout = setTimeout(() => {
+                if (oldElement._leavingTimeout) LS.Context.clearTimeout(oldElement._leavingTimeout);
+                if (newElement._enteringTimeout) LS.Context.clearTimeout(newElement._enteringTimeout);
+                oldElement._leavingTimeout = this.ctx.setTimeout(() => {
                     oldElement.classList.remove('leaving');
                 }, duration);
             }
 
-            if (newElement._leavingTimeout) clearTimeout(newElement._leavingTimeout);
-            if (newElement._enteringTimeout) clearTimeout(newElement._enteringTimeout);
+            if (newElement._leavingTimeout) LS.Context.clearTimeout(newElement._leavingTimeout);
+            if (newElement._enteringTimeout) LS.Context.clearTimeout(newElement._enteringTimeout);
 
             newElement.classList.add("entering");
-            requestAnimationFrame(() => {
+            LS.Context.requestAnimationFrame(() => {
                 newElement.classList.remove('leaving');
                 newElement.classList.add("visible");
 
-                newElement._enteringTimeout = setTimeout(() => {
+                newElement._enteringTimeout = this.ctx.setTimeout(() => {
                     newElement.classList.remove("entering");
                 }, duration);
             });

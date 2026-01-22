@@ -20,6 +20,13 @@ const path = require("path");
 
 const cacheManager = new backend.helper.CacheManager({});
 
+const ESBUILD_MODERN = ["chrome108", "firefox102", "safari16"];           // Baseline
+const ESBUILD_LEGACY = ["chrome61", "firefox60", "safari11", "edge79"];   // Oldest still supported versions
+
+// Use modern JS features
+cacheManager.esbuildTargets = ESBUILD_MODERN;
+// TODO: Compatibility mode for old browsers
+
 const BASE_PATH = path.resolve(__dirname, "../../../"),
       DIST_PATH = BASE_PATH + "/misc/backend/akeno-cdn-api-addon/versions/",
       CORE_MARKER = "\u0000"; // Special marker for the core component, to ensure it is in the first position.

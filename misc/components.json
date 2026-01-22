@@ -2,6 +2,8 @@
     "js": [
         "animation",
         "automationgraph",
+        "color",
+        "compiletemplate",
         "dragdrop",
         "gl",
         "imagecropper",
@@ -13,6 +15,7 @@
         "patcher",
         "reactive",
         "resize",
+        "shortcutmanager",
         "tabs",
         "timeline",
         "toast",
@@ -21,6 +24,7 @@
     ],
     "css": [
         "flat",
-        "knob"
+        "knob",
+        "timeline"
     ]
 }

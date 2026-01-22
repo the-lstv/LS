@@ -89,7 +89,7 @@
             this.container.classList.add("open");
             this.container.classList.add("ls-top-modal");
 
-            setTimeout(() => {
+            LS.Context.setTimeout(() => {
                 if(!this.isOpen || this.destroyed) return;
 
                 const focusable = this.container.querySelector("input, button, select, textarea, [tabindex]:not([tabindex='-1'])");
@@ -118,7 +118,7 @@
             this.container.classList.remove("ls-top-modal");
             LS.Stack.remove(this);
 
-            setTimeout(() => {
+            this.ctx.setTimeout(() => {
                 if(this.isOpen || this.destroyed) return;
 
                 if (LS.Stack.length === 0) {
@@ -159,7 +159,7 @@
             LS.Stack.remove(this);
 
             if (delayed) {
-                setTimeout(() => {
+                LS.Context.setTimeout(() => {
                     this.container.remove();
                     this.container = null;
                 }, this.options.fadeOutDuration || 300);

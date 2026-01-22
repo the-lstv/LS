@@ -4,7 +4,7 @@
 
     Last modified: 2026
     License: GPL-3.0
-    Version: 5.2.8
+    Version: 5.2.9
     See: https://github.com/thelstv/LS
 */
 /*
@@ -2289,7 +2289,7 @@ body {
 [ls] h3, [ls] h4 {
   color: var(--surface-8);
 }
-[ls] table {
+[ls] table:not(.clear) {
   background-color: var(--elevate-0);
   border-radius: var(--border-radius);
   border-collapse: collapse;
@@ -2297,19 +2297,19 @@ body {
   outline: 1px solid var(--elevate-1);
   box-shadow: 0 10px 20px 0 rgba(0, 0, 0, 0.1333333333);
 }
-[ls] table thead, [ls] table tfoot {
+[ls] table:not(.clear) thead, [ls] table:not(.clear) tfoot {
   background: var(--elevate);
 }
-[ls] table th {
+[ls] table:not(.clear) th {
   font-weight: 600;
 }
-[ls] table :is(th, td) {
+[ls] table:not(.clear) :is(th, td) {
   padding: var(--space-tiny) var(--space-medium);
 }
-[ls] table :is(th, td):not(:last-child) {
+[ls] table:not(.clear) :is(th, td):not(:last-child) {
   border-right: 1px solid var(--elevate-1);
 }
-[ls] table :is(tr, thead, tbody):not(:last-child) {
+[ls] table:not(.clear) :is(tr, thead, tbody):not(:last-child) {
   border-bottom: 1px solid var(--elevate-1);
 }
 

@@ -128,7 +128,7 @@ class AndroidHandler extends DefaultHandler {
                 }
             }
 
-            const connecting = setInterval(check, 50);
+            const connecting = Context.setInterval(check, 50);
             check();
         }));
     }

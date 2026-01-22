@@ -3,6 +3,14 @@
 - Migrate the rest of components
 - Improve accessibility & edge cases
 
+### Version 5.2.9
+- Breaking: LS.ShortcutManager and LS.CompileTemplate are now separate components, don't forget to include them! (this is to reduce core size)
+- Breaking: Removed the deprecated M.LoadStyle, M.LoadScript and M.LoadDocument methods, removed the global "C" (use LS.Color instead)
+- Optimized LS.Color.update and HSL operations
+- Components can now be scoped under contexts and will respect context destruction for easier memory management
+- Added an "enforceContextSafety" init option that disables global access to certain features without a scope. Use with extreme caution.
+I am sorry for the quite aggresive and fragile implemented memory safety features - I will try to solidify them in the future. The current main objective is to make it work.
+
 ### Version 5.2.8
 - LS.Reactive now supports recursive properties and has been upgraded all around
 - Significantly improved expression parsing performance of LS.Reactive
@@ -24,7 +32,6 @@
 - Removed EventEmitter.invoke which has been deprecated for a long time
 - Added LS.Util.clone (deep clone utility)
 - Renamed "body-available" event to "ready" (backwards compatible)
-- 
 
 ### Version 5.2.7
 - Listeners can be removed by returning LS.REMOVE_LISTENER

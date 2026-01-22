@@ -142,7 +142,10 @@
         DEFAULT_EASING = 'ease'
 
         constructor() {
-            super();
+            super({
+                dependencies: ["Color"]
+            });
+
             this.scheduler = new LS.Util.FrameScheduler(this.render.bind(this), { deltaTime: true });
             this.activeProps = new WeakMap(); // target -> Map(prop -> AnimationInstance)
         }
