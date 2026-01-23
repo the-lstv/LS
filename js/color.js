@@ -1296,4 +1296,4 @@ LS.Color = class Color {
         ["yellowgreen", [154, 205, 50]],
         ["transparent", [0, 0, 0, 0]]
     ]);
-}
+};

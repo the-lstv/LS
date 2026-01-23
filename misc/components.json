@@ -1,6 +1,7 @@
 {
     "js": [
         "animation",
+        "animation2",
         "automationgraph",
         "color",
         "compiletemplate",

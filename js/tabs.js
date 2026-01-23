@@ -17,9 +17,9 @@ LS.LoadComponent(class Tabs extends LS.Component {
             slideAnimation: false
         }, options);
 
-        if(options.slideAnimation) {
-            this.container.classList.add("ls-slide-animation");
-        }
+        // if(options.slideAnimation) {
+        //     this.container.classList.add("ls-slide-animation");
+        // }
         
         if(options.styled) {
             this.container.classList.add("ls-tabs-styled");

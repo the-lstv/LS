@@ -44,7 +44,7 @@
 
     return instance;
 })(() => {
-    const CONTEXT_FIELDS = ["setTimeout", "setInterval", "fetch", "XMLHttpRequest", "requestAnimationFrame", "EventSource", "WebSocket", "queueMicrotask", "EventTarget", "MessageChannel", "MessagePort", "Worker"];
+    const CONTEXT_FIELDS = ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "fetch", "XMLHttpRequest", "requestAnimationFrame", "EventSource", "WebSocket", "queueMicrotask", "EventTarget", "MessageChannel", "MessagePort", "Worker"];
 
     /**
      * Event handling system with some advanced features used across LS.
@@ -186,8 +186,6 @@
                 ["emit", "quickEmit", "on", "once", "off"].forEach(method => {
                     if (!target.hasOwnProperty(method)) target[method] = this[method].bind(this);
                 });
-
-                this.target = target;
             }
         }
 
@@ -290,7 +288,7 @@
          * @returns {null|Array|Promise<null|Array>} Array of results (if options.results is true) or null. If event.await is true, returns a Promise.
          */
         emit(name, data) {
-            const event = name._isEvent ? name : this.events.get(name);
+            const event = name._isEvent ? name : this.events?.get(name);
             if (!event || event.listeners.length === 0) return event && event.await ? Promise.resolve(null) : null;
 
             const listeners = event.listeners;
@@ -455,6 +453,12 @@
             this.events.clear();
         }
 
+        destroy(){
+            this.events.clear();
+            this.eventOptions = null;
+            this.events = null;
+        }
+
         /**
          * Create an alias for an existing event.
          * They will become identical and share listeners.
@@ -554,7 +558,7 @@
             for(const timer of this.#timers) {
                 const [id, type] = timer;
                 if(type === 0 && id === timeout) {
-                    clearTimeout(id);
+                    Context.clearTimeout(id);
                     this.#timers.delete(timer);
                     return;
                 }
@@ -565,7 +569,7 @@
             for(const timer of this.#timers) {
                 const [id, type] = timer;
                 if(type === 1 && id === interval) {
-                    clearInterval(id);
+                    Context.clearInterval(id);
                     this.#timers.delete(timer);
                     return;
                 }
@@ -576,7 +580,7 @@
             for(const timer of this.#timers) {
                 const [id, type] = timer;
                 if(type === 1) {
-                    clearInterval(id);
+                    Context.clearInterval(id);
                     this.#timers.delete(timer);
                 }
             }
@@ -586,15 +590,15 @@
             for(const timer of this.#timers) {
                 const [id, type] = timer;
                 if(type === 0) {
-                    clearTimeout(id);
+                    Context.clearTimeout(id);
                     this.#timers.delete(timer);
                 }
             }
         }
 
         clearRAF() {
-            for(const callback of this.#rAF) {
-                cancelAnimationFrame(callback);
+            for(const id of this.#rAF) {
+                cancelAnimationFrame(id);
             }
             this.#rAF.length = 0;
         }
@@ -609,8 +613,9 @@
 
         requestAnimationFrame(callback) {
             if (this.destroyed) return null;
-            this.#rAF.push(callback);
-            return LS.Context.requestAnimationFrame(callback);
+            const id = LS.Context.requestAnimationFrame(callback);
+            this.#rAF.push(id);
+            return id;
         }
 
         destroyOne(destroyable, _remove = true, _explicit = true) {
@@ -636,6 +641,7 @@
 
                 if(typeof NodeList !== "undefined" && (destroyable instanceof NodeList || Array.isArray(destroyable))) {
                     destroyable.forEach(item => this.destroyOne(item, false, _explicit));
+                    destroyable.length = 0;
                     return;
                 }
                 
@@ -680,8 +686,14 @@
 
             for(const timer of this.#timers) {
                 const [id, type] = timer;
-                if(type === 0) clearTimeout(id); else clearInterval(id);
+                if(type === 0) Context.clearTimeout(id); else Context.clearInterval(id);
             }
+
+            this.#timers.clear();
+            this.#timers = null;
+
+            this.clearRAF();
+            this.#rAF = null;
 
             for(const [target, event, callback, options] of this.#externalEvents) {
                 const removeListener = (target.removeEventListener || target.off);
@@ -689,7 +701,7 @@
             }
 
             this.#externalEvents = null;
-            this.events = null;
+            super.destroy(); // Clear events
 
             if(this.ctx) {
                 this.ctx = null;
@@ -732,11 +744,6 @@
         static bind(item, context) {
             this.#ctxBinds.set(item, context);
         }
-    }
-
-    for(const field of CONTEXT_FIELDS) {
-        const ref = window[field];
-        Context[field] =  function() { return ref.apply(null, arguments) };
     }
 
     let initialized = false;
@@ -1081,9 +1088,6 @@
                 constructor(element, options = {}) {
                     super();
 
-                    this.element = LS.Tiny.O(element);
-                    if (!this.element) throw "Invalid handle!";
-
                     this.options = {
                         buttons: [0, 1, 2],
                         disablePointerEvents: true,
@@ -1092,17 +1096,29 @@
                         ...options
                     };
 
+                    this.targets = new Set();
+                    this.activeTarget = null;
+
+                    if(element) this.addTarget(element && LS.Tiny.O(element));
+                    if (Array.isArray(this.options.targets)) {
+                        for (const t of this.options.targets) this.addTarget(t);
+                    }
+
                     this._cursor = this.options.cursor || null;
                     this.seeking = false;
                     this.attached = false;
+                    this.pointerLockSet = false;
                     this.pointerLockActive = false;
                     this.pointerLockPreviousX = 0;
                     this.pointerLockPreviousY = 0;
                     this.dragTarget = null;
                     this.frameQueued = false;
                     this.latestMoveEvent = null;
+                    this.activePointerId = null;
 
                     this._moveEventRef = this.prepareEvent("move");
+                    this.prepareEvent("start", { deopt: true });
+                    this.prepareEvent("end", { deopt: true });
 
                     this.onStart = this.onStart.bind(this);
                     this.onMove = this.onMove.bind(this);
@@ -1129,21 +1145,53 @@
                     this.attach();
                 }
 
+                addTarget(target) {
+                    if (!target || this.targets.has(target)) return;
+                    this.targets.add(target);
+                    if (this.attached) this.#attachTargetListeners(target);
+                }
+
+                removeTarget(target) {
+                    if (!target || !this.targets.has(target)) return;
+                    this.targets.delete(target);
+                    this.#detachTargetListeners(target);
+                    if (this.activeTarget === target) this.activeTarget = null;
+                }
+
+                clearTargets() {
+                    for (const el of this.targets) this.#detachTargetListeners(el);
+                    this.targets.clear();
+                    this.activeTarget = null;
+                }
+
+                #attachTargetListeners(target) {
+                    target.addEventListener("pointerdown", this.onStart, { passive: false });
+                    if (this.options.startEvents) {
+                        for (const evt of this.options.startEvents) {
+                            target.addEventListener(evt, this.onStart);
+                        }
+                    }
+                }
+
+                #detachTargetListeners(target) {
+                    target.removeEventListener("pointerdown", this.onStart);
+                    if (this.options.startEvents) {
+                        for (const evt of this.options.startEvents) {
+                            target.removeEventListener(evt, this.onStart);
+                        }
+                    }
+                }
+
                 attach() {
                     if(this.attached) return;
 
                     // Attach initial listeners
-                    this.element.addEventListener("mousedown", this.onStart);
-                    this.element.addEventListener("touchstart", this.onStart, { passive: false });
-                    
-                    if (this.options.startEvents) {
-                        for (const evt of this.options.startEvents) {
-                            this.element.addEventListener(evt, this.onStart);
-                        }
-                    }
+                    for (const target of this.targets) this.#attachTargetListeners(target);
+                    document.addEventListener("pointercancel", this.onRelease);
 
                     if (this.options.pointerLock) {
                         document.addEventListener('pointerlockchange', this.onPointerLockChange);
+                        this.pointerLockSet = true;
                     }
 
                     this.attached = true;
@@ -1152,15 +1200,10 @@
                 detach(destroying = false) {
                     if (this.attached) {
                         this.onRelease(destroying? { type: "destroy" } : {});
+                        document.removeEventListener("pointercancel", this.onRelease);
 
-                        if (this.element) {
-                            this.element.removeEventListener("mousedown", this.onStart);
-                            this.element.removeEventListener("touchstart", this.onStart);
-                            if (this.options.startEvents) {
-                                for (const evt of this.options.startEvents) {
-                                    this.element.removeEventListener(evt, this.onStart);
-                                }
-                            }
+                        for (const target of this.targets) {
+                            this.#detachTargetListeners(target);
                         }
 
                         if (this.options.pointerLock) {
@@ -1186,19 +1229,24 @@
                     if (this.options.exclude) {
                         if (typeof this.options.exclude === "string") {
                             if (event.target.matches(this.options.exclude)) return;
-                        } else if (event.target !== this.element) {
+                        } else if (event.target !== event.currentTarget) {
                             return;
                         }
                     }
 
-                    if (event.type === "mousedown" && !this.options.buttons.includes(event.button)) return;
+                    if (event.pointerType === 'mouse' && !this.options.buttons.includes(event.button)) return;
+
+                    const target = event.currentTarget;
+                    this.activeTarget = target;
 
                     this.seeking = true;
                     this._eventData.cancelled = false;
 
-                    const isTouch = event.type === "touchstart";
-                    const x = isTouch ? event.touches[0].clientX : event.clientX;
-                    const y = isTouch ? event.touches[0].clientY : event.clientY;
+                    const isTouch = event.pointerType === "touch";
+                    const x = event.clientX;
+                    const y = event.clientY;
+
+                    this.activePointerId = event.pointerId;
 
                     if (this.options.legacyEvents) {
                         this.emit("start", [event, this.cancel, x, y]);
@@ -1224,7 +1272,7 @@
                     }
 
                     // Prevent default to stop text selection, etc.
-                    if (event.cancelable && event.type !== "touchstart") event.preventDefault();
+                    if (event.cancelable) event.preventDefault();
 
                     if (this.options.pointerLock) {
                         if(!this.pointerLockSet) {
@@ -1235,13 +1283,19 @@
                         if(!isTouch) {
                             this.pointerLockPreviousX = event.clientX;
                             this.pointerLockPreviousY = event.clientY;
-                            this.element.requestPointerLock();
+                            target.requestPointerLock();
                         }
+                    } else if (this.pointerLockSet) {
+                        document.removeEventListener('pointerlockchange', this.onPointerLockChange);
+                        this.pointerLockSet = false;
                     }
 
-                    this.dragTarget = LS.Tiny.O(event.target);
+                    this.dragTarget = event.target;
                     this.dragTarget.classList.add("ls-drag-target");
-                    this.element.classList.add("is-dragging");
+
+                    target.classList.add("is-dragging");
+
+                    target.setPointerCapture(event.pointerId);
 
                     const docEl = document.documentElement;
                     docEl.classList.add("ls-dragging");
@@ -1250,14 +1304,12 @@
                     if (!docEl.style.cursor) docEl.style.cursor = this._cursor || "grab";
 
                     // Attach move/up listeners to document
-                    document.addEventListener("mousemove", this.onMove);
-                    document.addEventListener("mouseup", this.onRelease);
-                    document.addEventListener("touchmove", this.onMove, { passive: false });
-                    document.addEventListener("touchend", this.onRelease);
+                    document.addEventListener("pointermove", this.onMove);
+                    document.addEventListener("pointerup", this.onRelease);
                 }
 
                 onMove(event) {
-                    if (this._eventData.cancelled) return;
+                    if (this._eventData.cancelled || event.pointerId !== this.activePointerId) return;
 
                     if (this.options.frameTimed) {
                         this.latestMoveEvent = event;
@@ -1280,7 +1332,7 @@
                 }
 
                 processMove(event) {
-                    const isTouch = event.type === "touchmove";
+                    const isTouch = event.pointerType === "touch";
                     if (!isTouch && event.cancelable) event.preventDefault();
 
                     let x, y;
@@ -1288,8 +1340,8 @@
                     const prevY = this._eventData.y;
 
                     if (!this.pointerLockActive) {
-                        x = isTouch ? event.touches[0].clientX : event.clientX;
-                        y = isTouch ? event.touches[0].clientY : event.clientY;
+                        x = event.clientX;
+                        y = event.clientY;
                     }
 
                     if (this.options.pointerLock) {
@@ -1354,15 +1406,20 @@
                         }
                     }
 
+                    const captureTarget = this.activeTarget;
+                    if (captureTarget && typeof event.pointerId === "number" && captureTarget.hasPointerCapture(event.pointerId)) {
+                        captureTarget.releasePointerCapture(event.pointerId);
+                    }
                     this._eventData.domEvent = null;
+                }
+
+                onPointerLockChange() {
+                    const lockEl = document.pointerLockElement;
+                    this.pointerLockActive = !!lockEl && lockEl === this.activeTarget;
                 }
 
                 cancel() {
                     this._eventData.cancelled = true;
-                }
-
-                onPointerLockChange() {
-                    this.pointerLockActive = document.pointerLockElement === this.element;
                 }
 
                 cleanupDragState() {
@@ -1371,7 +1428,7 @@
                     this.frameQueued = false;
                     this.latestMoveEvent = null;
 
-                    if (this.element) this.element.classList.remove("is-dragging");
+                    if (this.activeTarget) this.activeTarget.classList.remove("is-dragging");
                     if (this.dragTarget) {
                         this.dragTarget.classList.remove("ls-drag-target");
                         this.dragTarget = null;
@@ -1381,20 +1438,19 @@
                     docEl.classList.remove("ls-dragging");
                     docEl.style.pointerEvents = "";
                     docEl.style.cursor = "";
+                    this.activeTarget = null;
 
-                    document.removeEventListener("mousemove", this.onMove);
-                    document.removeEventListener("mouseup", this.onRelease);
-                    document.removeEventListener("touchmove", this.onMove);
-                    document.removeEventListener("touchend", this.onRelease);
+                    document.removeEventListener("pointermove", this.onMove);
+                    document.removeEventListener("pointerup", this.onRelease);
                 }
 
                 destroy() {
                     if (this.destroyed) return false;
 
                     this.detach(true);
+                    this.clearTargets();
                     this._moveEventRef = null;
-                    this.events.clear();
-                    this.element = null;
+                    super.destroy();
                     this.options = null;
                     this._eventData = null;
                     this.destroyed = true;
@@ -2327,6 +2383,15 @@
     });
 
     if(LS.isWeb){
+        for(const field of CONTEXT_FIELDS) {
+            const ref = window[field];
+            if(LS.Util.isClass(ref)) {
+                Context[field] = function() { return new ref(...arguments) };
+            } else {
+                Context[field] = function() { return ref(...arguments) };
+            }
+        }
+
         LS.SelectAll = LS.Tiny.Q;
         LS.Select = LS.Tiny.O;
         LS.Misc = LS.Tiny.M;
@@ -2338,7 +2403,7 @@
 
         // Deprecated!
         window.addEventListener("keydown", event => {
-            M.lastKey = event.key;
+            LS.Tiny.M.lastKey = event.key;
             if(event.key == "Shift") LS.Tiny.M.ShiftDown = true;
             if(event.key == "Control") LS.Tiny.M.ControlDown = true;
         });

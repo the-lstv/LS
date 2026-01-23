@@ -1558,7 +1558,7 @@
             item.timelineElement.__timelineItem = item;
 
             if (LS.Resize && this.options.resizable) {
-                const { left, right } = LS.Resize.set(item.timelineElement, {
+                const entry = LS.Resize.set(item.timelineElement, {
                     left: true,
                     right: true,
                     translate: true,
@@ -1600,21 +1600,11 @@
                     this.frameScheduler.schedule();
                 }
 
-                left.handler.on("resize", (width) => {
-                    resizeHandler(width, 'left');
+                entry.handler.on("resize", (side, width) => {
+                    resizeHandler(width, side);
                 });
 
-                right.handler.on("resize", (width) => {
-                    resizeHandler(width, 'right');
-                });
-
-                left.handler.on("resize-end", () => {
-                    this.__needsSort = true;
-                    LS.Tooltips.hide();
-                    this.frameScheduler.schedule();
-                });
-
-                right.handler.on("resize-end", (width) => {
+                entry.handler.on("resize-end", () => {
                     this.__needsSort = true;
                     LS.Tooltips.hide();
                     this.frameScheduler.schedule();

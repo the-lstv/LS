@@ -3,20 +3,23 @@
 - Migrate the rest of components
 - Improve accessibility & edge cases
 
-### Version 5.2.9
+### Version 5.2.9 (memory safety update)
 - Breaking: LS.ShortcutManager and LS.CompileTemplate are now separate components, don't forget to include them! (this is to reduce core size)
 - Breaking: Removed the deprecated M.LoadStyle, M.LoadScript and M.LoadDocument methods, removed the global "C" (use LS.Color instead)
 - Optimized LS.Color.update and HSL operations
 - Components can now be scoped under contexts and will respect context destruction for easier memory management
+- TouchHandle can now set multiple targets
 - Added an "enforceContextSafety" init option that disables global access to certain features without a scope. Use with extreme caution.
-I am sorry for the quite aggresive and fragile implemented memory safety features - I will try to solidify them in the future. The current main objective is to make it work.
+- Fixed some potential memory leaks and made LS.Resize a bit more efficient and easier to use by sharing one handle.
+- Other minor fixes, optimizations and improvements
+I am sorry for the quite aggressively implemented memory safety features - I will try to solidify and remove them again in the future. The current main objective is to ensure stricter memory safety standards across the whole framework.
 
-### Version 5.2.8
+### Version 5.2.8 (feature update)
 - LS.Reactive now supports recursive properties and has been upgraded all around
 - Significantly improved expression parsing performance of LS.Reactive
 - LS.Color internal data format changed from an {r,g,b,a} to [r,g,b,a] | Uint8Array
 - LS.Color defaults to black instead of white now
-- Added LS.ColorView, which allows you to use a single LS.Color instance on a large buffer of collors and move within it. This can have many neat usecases, whenever you need to process lots of colors with low/zero memory overhead.
+- Added LS.ColorView, which allows you to use a single LS.Color instance on a large buffer of colors and move within it. This can have many neat usecases, whenever you need to process lots of colors with low/zero memory overhead.
 - Added extra methods to LS.Color like toTexture, toImageData and toDiv
 - LS now initiates from one proper init function
 - Breaking changes: Deprecated LS.Tiny and removed some very old and bad methods that somehow made it until now. Damage is essentially zero as nobody ever used those.
@@ -33,7 +36,7 @@ I am sorry for the quite aggresive and fragile implemented memory safety feature
 - Added LS.Util.clone (deep clone utility)
 - Renamed "body-available" event to "ready" (backwards compatible)
 
-### Version 5.2.7
+### Version 5.2.7 (feature update)
 - Listeners can be removed by returning LS.REMOVE_LISTENER
 - Data support for completed events
 - A global event for component registration

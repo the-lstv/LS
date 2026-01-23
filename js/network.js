@@ -52,7 +52,7 @@ LS.WebSocket = class WebSocketWrapper extends LS.EventEmitter {
             this.socket = null;
         }
 
-        this.socket = new WebSocket(this.url, this.#options.protocols || null);
+        this.socket = new LS.Context.WebSocket(this.url, this.#options.protocols || null);
 
         this.socket.addEventListener("open", event => {
             if(this.#options.initialPayload) {
@@ -72,6 +72,7 @@ LS.WebSocket = class WebSocketWrapper extends LS.EventEmitter {
         });
 
         this.socket.addEventListener("close", async event => {
+            if(this.destroyed) return;
             let prevent = false;
 
             this.emit("close", [event, () => {

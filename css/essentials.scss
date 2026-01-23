@@ -402,37 +402,6 @@ button#{priority(".ls-toast-close", 3)} {
     }
 }
 
-.ls-slide-animation > * {
-    transform: translateX(20px);
-    will-change: transform;
-    pointer-events: none;
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    opacity: 0;
-    z-index: 1;
-}
-
-.ls-slide-animation > *.entering, .ls-slide-animation > *.leaving {
-    position: absolute;
-}
-
-.ls-slide-animation > *.visible {
-    pointer-events: auto;
-    transform: translateX(0);
-    opacity: 1;
-    z-index: 2;
-}
-
-.ls-slide-animation > *.leaving {
-    pointer-events: none;
-    transform: translateX(-20px);
-    opacity: 0;
-    z-index: 1;
-}
-
-.ls-slide-animation > *:not(.visible):not(.leaving):not(.entering) {
-    display: none !important;
-}
-
 .ls-modal-layer.ls-modal-layer {
     pointer-events: none;
     position: fixed;

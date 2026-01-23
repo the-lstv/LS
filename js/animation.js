@@ -15,27 +15,22 @@
         backward: 'scale(0.9)',
     };
 
-    function _applyImmediate(el, finalStyles = {}) {
-        Object.assign(el.style, {
-            transition: 'none',
-            ...finalStyles
-        });
-        // Force style flush, then allow future transitions
-        LS.Context.requestAnimationFrame(() => { el.style.transition = ''; });
-    }
-
-    function _isObject(object) {
-        return object !== null && typeof object === 'object';
-    }
+    const activeAnimations = new WeakMap();
 
     LS.LoadComponent({
-        DEFAULT_DURATION: 300,
-        DEFAULT_EASING: 'ease',
+        DEFAULT_DURATION: 400,
+        DEFAULT_EASING: 'cubic-bezier(0.33, 1, 0.68, 1)',
 
         // Users should have the choice to turn this setting on/off per-site.
         get prefersReducedMotion() {
             const saved = localStorage.getItem('ls-reduced-motion');
             return saved === 'true' ? true : saved === 'false' ? false : window.matchMedia? window.matchMedia('(prefers-reduced-motion: reduce)').matches: false;
+        },
+
+        isRendered(element) {
+            if (!element || !element.isConnected) return false;
+            if (getComputedStyle(element).display === 'none') return false;
+            return element.getClientRects().length > 0;
         },
 
         set prefersReducedMotion(value) {
@@ -45,157 +40,189 @@
                 localStorage.setItem('ls-reduced-motion', String(!!value));
             }
         },
-        
-        nextFrame() {
-            return new Promise(r => LS.Context.requestAnimationFrame(() => LS.Context.requestAnimationFrame(r)));
+
+        _cancelAll(element) {
+            if (!element) return;
+            element?.getAnimations?.().forEach(anim => anim.cancel());
+            const pending = activeAnimations.get(element);
+            if (pending) {
+                pending.cancelled = true;
+                activeAnimations.delete(element);
+            }
         },
 
-        clearTimers(element) {
-            if (element && element._animationTimeouts) {
-                for(let timeout of element._animationTimeouts) {
-                    LS.Context.clearTimeout(timeout);
+        async fadeOut(element, duration = LS.Animation.DEFAULT_DURATION, direction = null) {
+            if (!element) return Promise.resolve();
+            const options = typeof duration === 'object' && duration !== null ? duration : { duration, direction };
+
+            this._cancelAll(element);
+
+            const tracker = { cancelled: false };
+            activeAnimations.set(element, tracker);
+
+            element.classList.add('animating');
+
+            const animation = element.animate([
+                { opacity: 1, transform: 'translateY(0) translateX(0) scale(1)' },
+                { opacity: 0, transform: direction ? (transforms[direction] || direction) : '' }
+            ], {
+                duration: options.duration ?? LS.Animation.DEFAULT_DURATION,
+                easing: options.easing ?? LS.Animation.DEFAULT_EASING,
+                fill: 'forwards'
+            });
+
+            try {
+                await animation.finished;
+                if (!tracker.cancelled && element.isConnected && this.isRendered(element)) {
+                    animation.commitStyles();
                 }
-                element._animationTimeouts.length = 0;
+            } catch (e) {
+                if (e.name !== 'AbortError') throw e;
+            } finally {
+                animation.cancel();
+                element.classList.remove('animating');
+                if (activeAnimations.get(element) === tracker) {
+                    activeAnimations.delete(element);
+                    if (!tracker.cancelled && element.isConnected) {
+                        element.style.display = 'none';
+                    }
+                }
             }
         },
 
-        clearTimer(element, timeout) {
-            if (element && element._animationTimeouts) {
-                LS.Context.clearTimeout(timeout);
-                element._animationTimeouts.splice(element._animationTimeouts.indexOf(timeout), 1);
+        async fadeIn(element, duration = LS.Animation.DEFAULT_DURATION, direction = null) {
+            if (!element) return Promise.resolve();
+            const options = typeof duration === 'object' && duration !== null ? duration : { duration, direction };
+
+            this._cancelAll(element);
+
+            const tracker = { cancelled: false };
+            activeAnimations.set(element, tracker);
+
+            element.style.display = '';
+            element.classList.add('animating');
+
+            const animation = element.animate([
+                { opacity: 0, transform: direction ? (transforms[direction] || direction) : '' },
+                { opacity: 1, transform: 'translateY(0) translateX(0) scale(1)' }
+            ], {
+                duration: options.duration ?? LS.Animation.DEFAULT_DURATION,
+                easing: options.easing ?? LS.Animation.DEFAULT_EASING,
+                fill: 'forwards'
+            });
+
+            try {
+                await animation.finished;
+                if (!tracker.cancelled && this.isRendered(element)) animation.commitStyles();
+            } catch (e) {
+                if (e.name !== 'AbortError') throw e;
+            } finally {
+                animation.cancel();
+                element.classList.remove('animating');
+                if (activeAnimations.get(element) === tracker) {
+                    activeAnimations.delete(element);
+                }
             }
         },
 
-        addTimer(element, callback, delay) {
-            if (!element) return;
-            if (!element._animationTimeouts) element._animationTimeouts = [];
-
-            const timeout = this.ctx.setTimeout(() => {
-                callback();
-                LS.Animation.clearTimer(element, timeout);
-            }, delay);
-
-            element._animationTimeouts.push(timeout);
-
-            return timeout;
-        },
-
-        async transition(element, {
-            from = {},
-            to = {},
-            duration = LS.Animation.DEFAULT_DURATION,
-            easing = LS.Animation.DEFAULT_EASING,
-            cleanup = null
-        } = {}) {
-            if (!element) return;
-            LS.Animation.clearTimers(element);
-
-            const animationId = Symbol();
-            element._currentAnimationId = animationId;
-
-            if (LS.Animation.prefersReducedMotion || duration === 0) {
-                _applyImmediate(element, to);
-                if (cleanup) cleanup();
+        async slideInToggle(newElement, oldElement = null, duration = LS.Animation.DEFAULT_DURATION) {
+            if (!newElement) return;
+            
+            if (newElement === oldElement) {
+                this._cancelAll(newElement);
+                const tracker = { cancelled: false };
+                activeAnimations.set(newElement, tracker);
+                
+                newElement.style.display = '';
+                newElement.classList.add('animating');
+                const animation = newElement.animate([
+                    { opacity: 0 },
+                    { opacity: 1 }
+                ], {
+                    duration,
+                    easing: LS.Animation.DEFAULT_EASING,
+                    fill: 'forwards'
+                });
+                
+                try {
+                    await animation.finished;
+                    if (!tracker.cancelled && this.isRendered(newElement)) animation.commitStyles();
+                } catch (e) {
+                    if (e.name !== 'AbortError') throw e;
+                } finally {
+                    animation.cancel();
+                    newElement.classList.remove('animating');
+                    if (activeAnimations.get(newElement) === tracker) {
+                        activeAnimations.delete(newElement);
+                    }
+                }
                 return;
             }
+            
+            this._cancelAll(newElement);
+            this._cancelAll(oldElement);
 
-            // Apply start styles if any
-            if(from) {
-                element.style.transition = 'none';
-                Object.assign(element.style, from);
-                await LS.Animation.nextFrame();
-                if (element._currentAnimationId !== animationId) return;
+            const newTracker = { cancelled: false };
+            const oldTracker = oldElement ? { cancelled: false } : null;
+            
+            activeAnimations.set(newElement, newTracker);
+            if (oldElement) activeAnimations.set(oldElement, oldTracker);
+
+            let oldAnimation;
+
+            if (oldElement && oldElement.isConnected) {
+                oldElement.classList.add('animating');
+                oldAnimation = oldElement.animate([
+                    { transform: 'translateX(0)', opacity: 1 },
+                    { transform: 'translateX(-20px)', opacity: 0 }
+                ], {
+                    duration,
+                    easing: LS.Animation.DEFAULT_EASING,
+                    fill: 'forwards'
+                });
             }
 
-            // Apply transition
-            element.style.transition = Object.keys(to).map(prop => `${prop} ${duration}ms ${easing}`).join(', ');
-
-            // Apply end styles
-            Object.assign(element.style, to);
-
-            return new Promise(resolve => {
-                LS.Animation.addTimer(element, () => {
-                    // Double check if we are still the active animation
-                    if (element._currentAnimationId !== animationId) return;
-
-                    if (cleanup) cleanup();
-                    resolve();
-                }, duration);
+            newElement.style.display = '';
+            newElement.classList.add('animating');
+            const newAnimation = newElement.animate([
+                { transform: 'translateX(20px)', opacity: 0 },
+                { transform: 'translateX(0)',  opacity: 1 }
+            ], {
+                duration,
+                easing: LS.Animation.DEFAULT_EASING,
+                fill: 'forwards'
             });
-        },
 
-        fadeOut(element, duration = LS.Animation.DEFAULT_DURATION, direction = null) {
-            if (!element) return Promise.resolve();
+            try {
+                await Promise.all([
+                    newAnimation.finished.catch(e => { if (e.name !== 'AbortError') throw e; }),
+                    oldAnimation ? oldAnimation.finished.catch(e => { if (e.name !== 'AbortError') throw e; }) : Promise.resolve()
+                ]);
 
-            const options = _isObject(duration) ? duration : { duration, direction };
-
-            const from = { pointerEvents: 'none' };
-            const to = { opacity: "0" };
-
-            if (options.direction) {
-                from.transform = 'translateY(0) translateX(0) scale(1)';
-                to.transform = transforms[options.direction] || options.direction;
-            }
-
-            return LS.Animation.transition(element, {
-                from, to,
-                duration: options.duration ?? LS.Animation.DEFAULT_DURATION,
-                easing: options.easing ?? LS.Animation.DEFAULT_EASING,
-                cleanup(){
-                    element.style.display = 'none';
+                if (oldElement && oldElement.isConnected && !oldTracker.cancelled) {
+                    if (this.isRendered(oldElement)) oldAnimation.commitStyles();
+                    oldElement.style.display = 'none';
                 }
-            });
-        },
 
-        fadeIn(element, duration = LS.Animation.DEFAULT_DURATION, direction = null) {
-            if (!element) return Promise.resolve();
-
-            const options = _isObject(duration) ? duration : { duration, direction };
-
-            const from = { display: '', transform: '' };
-            const to = { opacity: "1" };
-
-            if (options.direction) {
-                from.transform = transforms[options.direction] || options.direction;
-                to.transform = 'translateY(0) translateX(0) scale(1)';
-            }
-
-            return LS.Animation.transition(element, {
-                from, to,
-                duration: options.duration ?? LS.Animation.DEFAULT_DURATION,
-                easing: options.easing ?? LS.Animation.DEFAULT_EASING,
-                cleanup() {
-                    element.style.pointerEvents = 'auto';
+                if (newElement.isConnected && !newTracker.cancelled && this.isRendered(newElement)) {
+                    newAnimation.commitStyles();
                 }
-            });
-        },
-
-        slideInToggle(newElement, oldElement = null, duration = LS.Animation.DEFAULT_DURATION) {
-            if (!newElement) return;
-
-            if (oldElement) {
-                oldElement.classList.remove('visible');
-                oldElement.classList.add('leaving');
-
-                if (oldElement._leavingTimeout) LS.Context.clearTimeout(oldElement._leavingTimeout);
-                if (newElement._enteringTimeout) LS.Context.clearTimeout(newElement._enteringTimeout);
-                oldElement._leavingTimeout = this.ctx.setTimeout(() => {
-                    oldElement.classList.remove('leaving');
-                }, duration);
+            } catch (e) {
+                if (e.name !== 'AbortError') throw e;
+            } finally {
+                oldAnimation?.cancel();
+                newAnimation.cancel();
+                
+                oldElement?.classList.remove('animating');
+                newElement.classList.remove('animating');
+                
+                if (activeAnimations.get(newElement) === newTracker) {
+                    activeAnimations.delete(newElement);
+                }
+                if (oldElement && activeAnimations.get(oldElement) === oldTracker) {
+                    activeAnimations.delete(oldElement);
+                }
             }
-
-            if (newElement._leavingTimeout) LS.Context.clearTimeout(newElement._leavingTimeout);
-            if (newElement._enteringTimeout) LS.Context.clearTimeout(newElement._enteringTimeout);
-
-            newElement.classList.add("entering");
-            LS.Context.requestAnimationFrame(() => {
-                newElement.classList.remove('leaving');
-                newElement.classList.add("visible");
-
-                newElement._enteringTimeout = this.ctx.setTimeout(() => {
-                    newElement.classList.remove("entering");
-                }, duration);
-            });
         },
 
         transforms
