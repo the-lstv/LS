@@ -192,7 +192,9 @@ module.exports = new class LS_API extends Units.Addon {
             // We pass data as a string, because we do code processing with esbuild etc.
             // It gets converted to a buffer internally later.
             await cacheManager.refresh(CACHE_KEY, isBeta? {
-                'Cache-Control': 'public, max-age=30, s-maxage=30' // Short cache for beta
+                'Cache-Control': 'no-cache, no-store',
+                'Pragma': 'no-cache',
+                'Expires': '0'
             }: null, null, result.join(""), mimeType);
         }
 
