@@ -2552,4 +2552,8 @@ input:-webkit-autofill {
   caret-color: var(--color) !important;
 }
 
+body::selection, [ls-accent]::selection {
+  background: var(--accent-mix-40, rgba(0, 109, 255, 0.3607843137));
+}
+
 /*# sourceMappingURL=ls.css.map */

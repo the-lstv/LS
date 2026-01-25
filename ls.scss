@@ -271,3 +271,7 @@ input:-webkit-autofill {
     -webkit-text-fill-color: var(--color) !important;
     caret-color: var(--color) !important;
 }
+
+body::selection, [ls-accent]::selection {
+    background: var(--accent-mix-40, #006dff5c);
+}

@@ -644,10 +644,17 @@
                     destroyable.length = 0;
                     return;
                 }
-                
+
                 if(typeof AbortController !== "undefined" && destroyable instanceof AbortController) {
                     destroyable.abort();
                     return;
+                }
+
+                if(LS.isWeb) {
+                    if(destroyable instanceof ResizeObserver || destroyable instanceof MutationObserver || destroyable instanceof IntersectionObserver || destroyable instanceof AudioContext) {
+                        destroyable.disconnect();
+                        return;
+                    }
                 }
 
                 if(destroyable instanceof EventEmitter) {
@@ -703,8 +710,8 @@
             this.#externalEvents = null;
             super.destroy(); // Clear events
 
-            if(this.ctx) {
-                this.ctx = null;
+            if(this.ctx && this.hasOwnProperty("ctx")) {
+                try { this.ctx = null; } catch {}
             }
 
             /**
@@ -778,6 +785,7 @@
                 LS.__colorInitOptions = {
                     theme: options.theme,
                     accent: options.accent,
+                    autoAccent: options.autoAccent,
                     autoScheme: options.autoScheme,
                     adaptiveTheme: options.adaptiveTheme
                 };
@@ -1166,6 +1174,10 @@
 
                 #attachTargetListeners(target) {
                     target.addEventListener("pointerdown", this.onStart, { passive: false });
+                    target.style.touchAction = "none";
+                    target.style.userSelect = "none";
+                    target.classList.add("ls-draggable");
+
                     if (this.options.startEvents) {
                         for (const evt of this.options.startEvents) {
                             target.addEventListener(evt, this.onStart);
@@ -1175,6 +1187,10 @@
 
                 #detachTargetListeners(target) {
                     target.removeEventListener("pointerdown", this.onStart);
+                    target.style.touchAction = "";
+                    target.style.userSelect = "";
+                    target.classList.remove("ls-draggable");
+
                     if (this.options.startEvents) {
                         for (const evt of this.options.startEvents) {
                             target.removeEventListener(evt, this.onStart);
@@ -1274,6 +1290,9 @@
                     // Prevent default to stop text selection, etc.
                     if (event.cancelable) event.preventDefault();
 
+                    target.classList.add("is-dragging");
+                    target.setPointerCapture(event.pointerId);
+
                     if (this.options.pointerLock) {
                         if(!this.pointerLockSet) {
                             document.addEventListener('pointerlockchange', this.onPointerLockChange);
@@ -1292,10 +1311,6 @@
 
                     this.dragTarget = event.target;
                     this.dragTarget.classList.add("ls-drag-target");
-
-                    target.classList.add("is-dragging");
-
-                    target.setPointerCapture(event.pointerId);
 
                     const docEl = document.documentElement;
                     docEl.classList.add("ls-dragging");
@@ -1428,7 +1443,10 @@
                     this.frameQueued = false;
                     this.latestMoveEvent = null;
 
-                    if (this.activeTarget) this.activeTarget.classList.remove("is-dragging");
+                    if (this.activeTarget) {
+                        this.activeTarget.classList.remove("is-dragging");
+                    }
+
                     if (this.dragTarget) {
                         this.dragTarget.classList.remove("ls-drag-target");
                         this.dragTarget = null;

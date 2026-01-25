@@ -17,9 +17,12 @@
 
     const activeAnimations = new WeakMap();
 
+    // --spring-easing: ;
+    // --spring-duration: 0.578s;
+
     LS.LoadComponent({
-        DEFAULT_DURATION: 400,
-        DEFAULT_EASING: 'cubic-bezier(0.33, 1, 0.68, 1)',
+        DEFAULT_DURATION: 450,
+        DEFAULT_EASING: 'linear(0, 0.0018, 0.007 1.17%, 0.0334, 0.0758, 0.1306 5.54%, 0.2505 8.16%, 0.6477 16.03%, 0.7622 18.65%, 0.8498, 0.9229 23.32%, 0.9878 25.94%, 1.0308 28.27%, 1.0643 30.9%, 1.0791, 1.0886 34.39%, 1.094, 1.0944 38.48%, 1.0903 40.81%, 1.0814 43.43%, 1.0362 53.05%, 1.0184 57.42%, 1.0059, 0.9976 65.58%, 0.9925 70.25%, 0.991 75.79%, 0.9996 99.98%)',
 
         // Users should have the choice to turn this setting on/off per-site.
         get prefersReducedMotion() {
@@ -51,9 +54,9 @@
             }
         },
 
-        async fadeOut(element, duration = LS.Animation.DEFAULT_DURATION, direction = null) {
+        async fadeOut(element, duration = LS.Animation.DEFAULT_DURATION, direction = null, preserveTransform = false) {
             if (!element) return Promise.resolve();
-            const options = typeof duration === 'object' && duration !== null ? duration : { duration, direction };
+            const options = typeof duration === 'object' && duration !== null ? duration : { duration, direction, preserveTransform };
 
             this._cancelAll(element);
 
@@ -62,9 +65,14 @@
 
             element.classList.add('animating');
 
+            const currentTransform = options.preserveTransform ? getComputedStyle(element).transform : 'none';
+            const baseTransform = currentTransform === 'none' ? '' : currentTransform;
+            const directionTransform = options.direction ? (transforms[options.direction] || options.direction) : '';
+            const combinedEndTransform = directionTransform && baseTransform ? `${baseTransform} ${directionTransform}` : (directionTransform || baseTransform);
+
             const animation = element.animate([
-                { opacity: 1, transform: 'translateY(0) translateX(0) scale(1)' },
-                { opacity: 0, transform: direction ? (transforms[direction] || direction) : '' }
+                { opacity: 1, ...(options.preserveTransform || options.direction) ? { transform: baseTransform || 'none' } : null },
+                { opacity: 0, ...(options.preserveTransform || options.direction) ? { transform: combinedEndTransform || 'none' } : null }
             ], {
                 duration: options.duration ?? LS.Animation.DEFAULT_DURATION,
                 easing: options.easing ?? LS.Animation.DEFAULT_EASING,
@@ -90,9 +98,9 @@
             }
         },
 
-        async fadeIn(element, duration = LS.Animation.DEFAULT_DURATION, direction = null) {
+        async fadeIn(element, duration = LS.Animation.DEFAULT_DURATION, direction = null, preserveTransform = false) {
             if (!element) return Promise.resolve();
-            const options = typeof duration === 'object' && duration !== null ? duration : { duration, direction };
+            const options = typeof duration === 'object' && duration !== null ? duration : { duration, direction, preserveTransform };
 
             this._cancelAll(element);
 
@@ -102,9 +110,14 @@
             element.style.display = '';
             element.classList.add('animating');
 
+            const currentTransform = options.preserveTransform ? getComputedStyle(element).transform : 'none';
+            const baseTransform = currentTransform === 'none' ? '' : currentTransform;
+            const directionTransform = options.direction ? (transforms[options.direction] || options.direction) : '';
+            const combinedStartTransform = directionTransform && baseTransform ? `${baseTransform} ${directionTransform}` : (directionTransform || baseTransform);
+
             const animation = element.animate([
-                { opacity: 0, transform: direction ? (transforms[direction] || direction) : '' },
-                { opacity: 1, transform: 'translateY(0) translateX(0) scale(1)' }
+                { opacity: 0, ...(options.preserveTransform || options.direction) ? { transform: combinedStartTransform || 'none' } : null },
+                { opacity: 1, ...(options.preserveTransform || options.direction) ? { transform: baseTransform || 'none' } : null }
             ], {
                 duration: options.duration ?? LS.Animation.DEFAULT_DURATION,
                 easing: options.easing ?? LS.Animation.DEFAULT_EASING,
