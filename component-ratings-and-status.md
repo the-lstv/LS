@@ -16,7 +16,7 @@ The goal is to have all built-in components reach the highest quality rating so 
 
 | Component  | Quality Rating | Notes |
 |----------------|-----------------|----------------|
-| LS.Color/ColorView (builtin) | ★★★★★ (5/5)
+| LS.Color/ColorView | ★★★★★ (5/5)
 | LS.EventEmitter (builtin) | ★★★★★ (5/5)
 | LS.Modal | ★★★★☆ (4/5) | Solid, fast, simple. May need some small tweaks.
 | LS.Reactive | ★★★★☆ (4/5) | Solid code, but needs design rework
