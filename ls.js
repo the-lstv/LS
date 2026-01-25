@@ -15,6 +15,8 @@
         module.exports = instance
     }
 
+    console.log("Hi, this is a test (don't forget to remove this)!");
+
     if(instance.isWeb){
         const global = typeof window !== 'undefined'? window : globalThis;
         global.LS = instance;
