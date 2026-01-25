@@ -100,10 +100,11 @@ module.exports = new class LS_API extends Units.Addon {
         if (segments.length < 2) return backend.helper.error(req, res, 2);
 
         const version = this.getEffectiveVersion(segments[0]);
+        const isBeta = version === "beta";
 
         let VERSION_PATH = DIST_PATH + path.posix.resolve("/", version);
 
-        if (isWindows) {
+        if (isWindows || isBeta) {
             // Windows is quite unreliable with symlinks (or does not provide them at all in some environments), so we skip them entirely and just use dist.
             // This is incorrect, but you shouldn't use Windows for production servers anyway, this API does not support Windows, so functionality is not guaranteed either way.
             VERSION_PATH = BASE_PATH + "/dist";
@@ -165,13 +166,13 @@ module.exports = new class LS_API extends Units.Addon {
         const suggestedCompressionAlgorithm = backend.helper.getUsedCompression(req, mimeType); // uws aah
 
         // Check cache
-        if(!cacheManager.cache.has(CACHE_KEY)) {
+        if(isBeta || !cacheManager.cache.has(CACHE_KEY)) {
             let result = [];
 
             for(let component of components) {
                 let component_path = component === CORE_MARKER? VERSION_PATH + "/ls." + type: VERSION_PATH  + "/" + type + "/" + component + "." + type;
 
-                if(isWindows && component_path.includes("dist") && !component_path.includes("css")) {
+                if((isWindows || isBeta) && component_path.includes("dist") && !component_path.includes("css")) {
                     // Windows workaround
                     component_path = component_path.replace("dist/", "");
                 }
@@ -190,7 +191,9 @@ module.exports = new class LS_API extends Units.Addon {
 
             // We pass data as a string, because we do code processing with esbuild etc.
             // It gets converted to a buffer internally later.
-            await cacheManager.refresh(CACHE_KEY, null, null, result.join(""), mimeType);
+            await cacheManager.refresh(CACHE_KEY, isBeta? {
+                'Cache-Control': 'public, max-age=30, s-maxage=30' // Short cache for beta
+            }: null, null, result.join(""), mimeType);
         }
 
         cacheManager.serve(req, res, CACHE_KEY, null, {
