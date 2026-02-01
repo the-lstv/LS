@@ -5,8 +5,10 @@ LS.LoadComponent(class Tabs extends LS.Component {
         this.order = [];
         this.tabs = new Map;
         this.activeTab = null;
-        this.element = element? O(element) : N("div");
-        this.container = element? O(element) : N("div");
+        this.element = element? LS.Select(element) : LS.Create("div");
+        this.container = element? LS.Select(element) : LS.Create("div");
+
+        this.firstRender = true;
 
         options = LS.Util.defaults({
             styled: options.unstyled? false: true,
@@ -140,9 +142,10 @@ LS.LoadComponent(class Tabs extends LS.Component {
         if(tab.element) {
             tab.element.classList.add("tab-active");
 
-            if(this.options.slideAnimation && LS.Animation) {
+            if(this.options.slideAnimation && LS.Animation && !this.firstRender) {
                 LS.Animation.slideInToggle(tab.element, oldTab?.element || null);
             }
+            this.firstRender = false;
         }
 
         this.activeTab = id;
