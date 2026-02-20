@@ -2,10 +2,19 @@
  * Extensive color library and theme utilities
  * TODO: Split advanced color features into a separate module, this has grown too big
  */
+
+const fast = LS.Util.fast;
+
 LS.Color = class Color {
     constructor(r, g, b, a) {
         if (r && (r instanceof Uint8Array || r instanceof Uint8ClampedArray || r instanceof ArrayBuffer)) {
             this.data = (r instanceof ArrayBuffer) ? new Uint8Array(r) : r;
+            this.offset = (typeof g === "number") ? g : 0;
+            return;
+        }
+
+        if (Array.isArray(r) && r.length >= 3) {
+            this.data = r;
             this.offset = (typeof g === "number") ? g : 0;
             return;
         }
@@ -431,10 +440,18 @@ LS.Color = class Color {
     }
 
     /**
-     * Creates a copy of this color
+     * Sets the color from a hex string, faster for hex inputs than the generic set() method
      */
-    clone() {
-        const c = new Color();
+    setHex(hex) {
+        Color.parseHex(hex, this.data, this.offset);
+        return this;
+    }
+
+    /**
+     * Creates a copy of this color, optionally into a provided target and offset
+     */
+    clone(target = undefined, offset = 0) {
+        const c = new Color(target, offset);
         const d = this.data, o = this.offset;
         c.data[0] = d[o];
         c.data[1] = d[o+1];
@@ -614,6 +631,8 @@ LS.Color = class Color {
         return this;
     }
 
+    // --- Special methods for theme management
+
     static #settingAccent = null;
     static #settingTheme = null;
     static {
@@ -646,8 +665,42 @@ LS.Color = class Color {
         }
     }
 
+    /**
+     * Parses a color from various input formats and writes it into the target array at the given offset. Strings are case-insensitive and trimmed.
+     * Supports:
+     * - Hex strings (#RGB, #RGBA, #RRGGBB, #RRGGBBAA)
+     * - Integer RGB/RGBA (0xRRGGBB, 0xRRGGBBAA)
+     * - RGB/RGBA strings (rgb(255, 0, 0), rgba(255, 0, 0, 0.5))
+     * - HSL/HSLA strings (hsl(120, 100%, 50%), hsla(120, 100%, 50%, 0.5))
+     * - HSB/HSBA strings (hsb(120, 100%, 100%), hsba(120, 100%, 100%, 0.5))
+     * - Named CSS colors
+     * - Arrays [r, g, b], [r, g, b, a]
+     * - Objects { r, g, b }, { r, g, b, a }
+     * - Another Color instance
+     * - Integer values for r, g, b, a (0-255 for r, g, b and 0-1 for a)
+     * - Any valid CSS color string (as a fallback, using the browser's parser)
+     * 
+     * @param {*} r
+     * @param {number} g
+     * @param {number} b
+     * @param {number} a
+     * @param {Array} target
+     * @param {number} offset
+     * @returns {Array} Target array with parsed color
+     * @example
+     * Color.parse("#ff0000"); // Note: if you only need to parse hex colors, use Color.parseHex for better performance
+     * Color.parse("rgba(255, 0, 0, 0.5)");
+     * Color.parse("hsl(120, 100%, 50%)");
+     * Color.parse("hsb(120, 100%, 100%)");
+     * Color.parse("red");
+     * Color.parse([255, 0, 0]);
+     * Color.parse({ r: 255, g: 0, b: 0 });
+     * Color.parse(new Color());
+     * Color.parse(255, 0, 0, 0.5);
+     */
+
     static parse(r, g, b, a, target, offset = 0) {
-        if(!target) target = [0, 0, 0, 1];
+        target ??= [0, 0, 0, 1];
 
         if (typeof r === "string") {
             r = r.trim().toLowerCase();
@@ -659,10 +712,11 @@ LS.Color = class Color {
 
             // Hex
             if(r.charCodeAt(0) === 35) {
-                [r, g, b, a] = Color.parseHex(r);
+                return Color.parseHex(r, target, offset);
             }
 
             // RGB
+            // Parsing this is currently quite slow and should be avoided if another format can be used
             else if(r.startsWith("rgb(") || r.startsWith("rgba(")) {
                 let match = r.match(/rgba?\(\s*(\d{1,3})\s*[, ]\s*(\d{1,3})\s*[, ]\s*(\d{1,3})\s*(?:[,/]\s*([0-9.]+%?))?\s*\)/);
 
@@ -675,7 +729,7 @@ LS.Color = class Color {
                         a = 1;
                     }
                 } else {
-                    throw new Error("Colour " + r + " could not be parsed.");
+                    throw new Error("Color " + r + " could not be parsed.");
                 }
             }
 
@@ -694,7 +748,7 @@ LS.Color = class Color {
                     target[offset + 3] = temp.data[3];
                     return target;
                 } else {
-                    throw new Error("Colour " + r + " could not be parsed.");
+                    throw new Error("Color " + r + " could not be parsed.");
                 }
             }
 
@@ -714,7 +768,7 @@ LS.Color = class Color {
                     target[offset + 3] = temp.data[3];
                     return target;
                 } else {
-                    throw new Error("Colour " + r + " could not be parsed.");
+                    throw new Error("Color " + r + " could not be parsed.");
                 }
             }
 
@@ -733,9 +787,9 @@ LS.Color = class Color {
                     Color._createProcessingCanvas();
                 }
 
-                Color.context.fillStyle = "#000000";
+                Color.context.fillStyle = "#000000"; // If the following fails, this ensures we don't fallback to the last successful color
                 Color.context.fillStyle = r;
-                [r, g, b, a] = Color.parseHex(Color.context.fillStyle);
+                return Color.parseHex(Color.context.fillStyle, target, offset);
             }
         } else if (r instanceof Color) {
             const d = r.data, o = r.offset;
@@ -776,16 +830,60 @@ LS.Color = class Color {
         return target;
     }
 
-    static parseHex(hex) {
-        if(hex.length < 4 || hex.length > 9) {
-            throw new Error("Invalid hex string: " + hex.slice(0, 10) + (hex.length > 10 ? "..." : ""));
+    /**
+     * Fast hex code parsing. Uses fast.twoh2i, which is zero-allocation and more than 15x faster than parseInt.
+     * Pretty much as fast as JavaScript can realistically get.
+     * 
+     * Note: invalid hex characters result in -1. To validate, check if the result array doesn't contain -1 in any channel.
+     * This library will automatically treat such as 0 after clamping; you may or may not want that behavior (eg. #ggg => #000, and the opposite for typed arrays!).
+     * https://jsbm.dev/YUQagaiMDfxOv
+     * 
+     * Note: This does not check the first character for '#', it assumes it's already checked
+     * 
+     * @param {string} hex Hex string in the format #RGB, #RGBA, #RRGGBB or #RRGGBBAA
+     * @param {Array|Uint8Array} target Optional target array to write the result to (default: [0, 0, 0, 255])
+     * @param {number} offset Optional offset in the target array to write to (default: 0)
+     * @returns {Array} [r, g, b, a] with r, g, b in 0-255 and a in 0-255
+     */
+    static parseHex(hex, target, offset = 0) {
+        const len = hex.length;
+        if(len < 4 || len > 9) {
+            throw new Error("Invalid hex string: " + hex.slice(0, 10) + (len > 10 ? "..." : ""));
         }
 
-        if (hex.length <= 5) {
-            return [ parseInt(hex[1] + hex[1], 16), parseInt(hex[2] + hex[2], 16), parseInt(hex[3] + hex[3], 16), hex.length === 5? parseInt(hex[4] + hex[4], 16) / 255: 1 ];
+        target ??= [0, 0, 0, 255];
+
+        if (len <= 5) {
+            const fasth2i = fast.h2i; // Single hex digit
+            target[offset] = fasth2i(hex.charCodeAt(1)) * 0x11;
+            target[offset + 1] = fasth2i(hex.charCodeAt(2)) * 0x11;
+            target[offset + 2] = fasth2i(hex.charCodeAt(3)) * 0x11;
+            if(len === 5) target[offset + 3] = fasth2i(hex.charCodeAt(4)) * 0x11;
         } else {
-            return [ parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16), hex.length === 9? parseInt(hex.slice(7, 9), 16) / 255: 1 ];
+            const fasth2i = fast.twoh2i; // Two hex digits
+            target[offset] = fasth2i(hex.charCodeAt(1), hex.charCodeAt(2));
+            target[offset + 1] = fasth2i(hex.charCodeAt(3), hex.charCodeAt(4));
+            target[offset + 2] = fasth2i(hex.charCodeAt(5), hex.charCodeAt(6));
+            if(len === 9) target[offset + 3] = fasth2i(hex.charCodeAt(7), hex.charCodeAt(8));
         }
+        return target;
+    }
+
+    static validateHex(hex) {
+        const len = hex.length;
+        if(hex.charCodeAt(0) !== 35 || (len !== 4 && len !== 5 && len !== 7 && len !== 9)) {
+            return false;
+        }
+
+        for(let i = 1; i < len; i++) {
+            const c = hex.charCodeAt(i);
+            if(!(c >= 48 && c <= 57) || // 0-9
+                (c >= 65 && c <= 70) || // A-F
+                (c >= 97 && c <= 102))  // a-f
+            return false;
+        }
+
+        return true;
     }
 
     static fromHSL(h, s, l) {
@@ -797,8 +895,7 @@ LS.Color = class Color {
     }
 
     static fromHex(hex) {
-        let [r, g, b, a] = Color.parseHex(hex);
-        return new Color(r, g, b, a);
+        return new Color(Color.parseHex(hex));
     }
 
     static fromInt(int) {
@@ -822,11 +919,6 @@ LS.Color = class Color {
 
     static fromArray(arr) {
         return new Color(arr[0], arr[1], arr[2], arr[3]);
-    }
-
-    static fromBuffer(buffer, offset = 0, alpha = true) {
-        const view = new Uint8Array(buffer, offset, alpha ? 4 : 3);
-        return Object.setPrototypeOf(view, Color.prototype);
     }
 
     static fromNamed(name) {
@@ -1083,7 +1175,7 @@ LS.Color = class Color {
     }
 
     static fromBuffer(buffer, offset = 0) {
-        return new ColorView(buffer, offset);
+        return new Color(buffer, offset);
     }
 
     static fromImage(image, sampleGap = 16, maxResolution = 200){

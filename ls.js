@@ -1794,6 +1794,44 @@
                 bind(context) {
                     return this.run.bind(context || this);
                 }
+            },
+
+            validateUUID(uuid) {
+                // Fast uuidv4 validation, roughly 3.5x faster than uuid.validate
+                if(typeof uuid !== 'string' || uuid.length !== 36) return false;
+
+                // Fixed length loop
+                for (let i = 0; i < 36; i++) {
+                    const c = uuid.charCodeAt(i);
+                    if(i === 14) {
+                        // Version check
+                        if(c >= 48 && c <= 53) continue; // 0-5
+                    } else if(i === 19) {
+                        // Variant check
+                        if(c === 56 || c === 57 || c === 97 || c === 98 || c === 65 || c === 66) continue; // 8, 9, a, b, A, B
+                    } else if ((i === 8 || i === 13 || i === 18 || i === 23) ? c === 45 : ((c >= 48 && c <= 57) || // 0-9
+                        (c >= 97 && c <= 102) || // a-f
+                        (c >= 65 && c <= 70))) { // A-F
+                        continue;
+                    }
+                    return false;
+                }
+                return true;
+            },
+
+            /**
+             * Fast utilities for optimization
+             * They must remain simple & best-case as much as possible as to be safely relied on
+             */
+            fast: {
+                /**
+                 * Convert a hexadecimal character to its integer value (0-15), or -1 if it's not a valid hex character.
+                 * @param {*} h ASCII code of the character (e.g. from charCodeAt)
+                 * @returns {number} Integer value of the hex character, or -1 if invalid
+                 */
+                // "(c > 57? c + 9: c) & 15" is technically faster (~20%) but doesn't handle invalid characters; it's not worth the tradeoff
+                h2i: (c) => (c >= 48 && c <= 57)? c - 48: (c >= 97 && c <= 102)? c - 87: (c >= 65 && c <= 70)? c - 55: -1,
+                twoh2i: (high, low) => (LS.Util.fast.h2i(high) << 4) | LS.Util.fast.h2i(low)
             }
         },
 
