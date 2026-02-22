@@ -145,6 +145,14 @@ LS.Color = class Color {
         return [this.data[this.offset], this.data[this.offset + 1], this.data[this.offset + 2], this.data[this.offset + 3]];
     }
 
+    get floatPixel() {
+        return [this.data[this.offset] / 255, this.data[this.offset + 1] / 255, this.data[this.offset + 2] / 255, this.data[this.offset + 3] / 255];
+    }
+
+    get luma() {
+        return 0.2126 * this.data[this.offset] + 0.7152 * this.data[this.offset + 1] + 0.0722 * this.data[this.offset + 2];
+    }
+
     get brightness() {
         return Math.sqrt(
             0.299 * (this.data[this.offset] * this.data[this.offset]) +
