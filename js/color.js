@@ -145,8 +145,20 @@ LS.Color = class Color {
         return [this.data[this.offset], this.data[this.offset + 1], this.data[this.offset + 2], this.data[this.offset + 3]];
     }
 
+    browse(channel = 0) {
+        return this.data[this.offset + channel];
+    }
+
+    copyTo(target, offset = 0) {
+        target[offset] = this.data[this.offset];
+        target[offset + 1] = this.data[this.offset + 1];
+        target[offset + 2] = this.data[this.offset + 2];
+        target[offset + 3] = this.data[this.offset + 3];
+        return target;
+    }
+
     get floatPixel() {
-        return [this.data[this.offset] / 255, this.data[this.offset + 1] / 255, this.data[this.offset + 2] / 255, this.data[this.offset + 3] / 255];
+        return [Math.fround(this.data[this.offset] / 255), Math.fround(this.data[this.offset + 1] / 255), Math.fround(this.data[this.offset + 2] / 255), Math.fround(this.data[this.offset + 3] / 255)];
     }
 
     get luma() {
@@ -159,6 +171,10 @@ LS.Color = class Color {
             0.587 * (this.data[this.offset + 1] * this.data[this.offset + 1]) +
             0.114 * (this.data[this.offset + 2] * this.data[this.offset + 2])
         );
+    }
+
+    get bit() {
+        return this.brightness >= 127.5 ? 1 : 0;
     }
 
     get isDark() {
@@ -460,11 +476,7 @@ LS.Color = class Color {
      */
     clone(target = undefined, offset = 0) {
         const c = new Color(target, offset);
-        const d = this.data, o = this.offset;
-        c.data[0] = d[o];
-        c.data[1] = d[o+1];
-        c.data[2] = d[o+2];
-        c.data[3] = d[o+3];
+        c.copyTo(c.data, c.offset);
         return c;
     }
 
@@ -473,23 +485,23 @@ LS.Color = class Color {
     }
 
     toArray() {
-        return [this.data[this.offset], this.data[this.offset+1], this.data[this.offset+2], this.data[this.offset+3] / 255];
+        return [this.data[this.offset], this.data[this.offset+1], this.data[this.offset+2], this.data[this.offset+3]];
     }
 
     toJSON() {
         return {
             r: this.data[this.offset],
-            g: this.data[this.offset+1],
-            b: this.data[this.offset+2],
-            a: this.data[this.offset+3] / 255
+            g: this.data[this.offset + 1],
+            b: this.data[this.offset + 2],
+            a: this.data[this.offset + 3]
         };
     }
 
     *[Symbol.iterator]() {
         yield this.data[this.offset];
-        yield this.data[this.offset+1];
-        yield this.data[this.offset+2];
-        yield this.data[this.offset+3] / 255;
+        yield this.data[this.offset + 1];
+        yield this.data[this.offset + 2];
+        yield this.data[this.offset + 3];
     }
 
     [Symbol.toPrimitive](hint) {
@@ -549,10 +561,7 @@ LS.Color = class Color {
     toImageData() {
         if(!Color.context) Color._createProcessingCanvas();
         const imageData = Color.context.createImageData(1, 1);
-        imageData.data[0] = this.data[this.offset];
-        imageData.data[1] = this.data[this.offset+1];
-        imageData.data[2] = this.data[this.offset+2];
-        imageData.data[3] = this.data[this.offset+3];
+        this.copyTo(imageData.data);
         return imageData;
     }
 
@@ -626,15 +635,30 @@ LS.Color = class Color {
         return this.offset +4 >= this.data.length;
     }
 
-    fill(r, g, b, a, offset = 0, limit = 0) {
+    /**
+     * Fills the color data with the given color starting from the current offset. If limit is provided, fills up to that many pixels, otherwise fills to the end of the array.
+     * @param {*} r
+     * @param {number} g
+     * @param {number} b
+     * @param {number} a
+     * @param {number} offset Optional offset in pixels
+     * @param {number} limit Optional maximum number of pixels to fill
+    */
+    fill(r, g, b, a, offset = 0, limit = -1) {
         Color.parse(r, g, b, a, this.data, offset);
 
+        const sub = Array.isArray(this.data)? null: this.data.subarray(offset, offset + 4);
         const length = this.data.length;
-        for (let i = offset + 4; i < (Math.min(limit * 4 || length, length)); i += 4) {
-            this.data[i] = this.data[offset];
-            this.data[i + 1] = this.data[offset + 1];
-            this.data[i + 2] = this.data[offset + 2];
-            this.data[i + 3] = this.data[offset + 3];
+
+        for (let i = offset + 4; i < (limit === -1? length: Math.min(limit * 4 || length, length)); i += 4) {
+            if(sub) {
+                this.data.set(sub, i);
+            } else {
+                this.data[i] = this.data[offset];
+                this.data[i + 1] = this.data[offset + 1];
+                this.data[i + 2] = this.data[offset + 2];
+                this.data[i + 3] = this.data[offset + 3];
+            }
         }
         return this;
     }
