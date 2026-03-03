@@ -227,7 +227,7 @@ module.exports = new class LS_API extends Units.Addon {
  * TODO: Make a standalone version that doesn't require the full server & source
  */
 if(backend.TEMP_USING_AKENO_UWS) {
-    const EXTRAGON_CDN = backend.config.getBlock("web").get("extragon_cdn_url", String) || backend.mode === backend.modes.DEVELOPMENT ? `https://cdn.extragon.localhost` : `https://cdn.extragon.cloud`;
+    const EXTRAGON_CDN = backend.config.getBlock("web").get("extragon_cdn_url", String) || process.env.AKENO_CDN_LOCALHOST ? `https://cdn.extragon.localhost` : `https://cdn.extragon.cloud`;
 
     const PARSER_FLAGS = {
         USING_LS_CSS: 1,
