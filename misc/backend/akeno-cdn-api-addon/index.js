@@ -44,6 +44,7 @@ const COMPONENTS = JSON.parse(fs.readFileSync(BASE_PATH + "/misc/components.json
 // Note: This API no longer supports versions < 3.0.0, as they used a completely different format (pre-processed JSON).
 const VERSION_ALIAS = {
     "4.0.0": "4.0.2",
+    "4.0.1": "4.0.2",
     "3.0_lts": "4.0.2",
     "4.0_lts": "4.0.2", // Note: Support for v4 ended
 
