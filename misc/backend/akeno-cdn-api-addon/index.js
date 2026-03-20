@@ -255,75 +255,73 @@ module.exports = new class LS_API extends Units.Addon {
  * Module provider addon for Akeno (so it can be loaded as @use("ls")).
  * TODO: Make a standalone version that doesn't require the full server & source
  */
-if(backend.TEMP_USING_AKENO_UWS) {
-    const EXTRAGON_CDN = backend.config.getBlock("web").get("extragon_cdn_url", String) || process.env.AKENO_CDN_LOCALHOST ? `https://cdn.extragon.localhost` : `https://cdn.extragon.cloud`;
+const EXTRAGON_CDN = backend.config.getBlock("web").get("extragon_cdn_url", String) || (backend.config.getBlock("web").get("extragon_cdn_use_localhost", Boolean) || process.env.AKENO_CDN_LOCALHOST) ? `https://cdn.extragon.localhost` : `https://cdn.extragon.cloud`;
 
-    const PARSER_FLAGS = {
-        USING_LS_CSS: 1,
-        USING_LS_JS: 2,
-        USING_LS: 3,
-        GOOGLE_FONTS_PRECONNECT: 4,
-        SET_DEFAULT_CHARSET: 5,
-        SET_DEFAULT_VIEWPORT: 6
-    };
+const PARSER_FLAGS = {
+    USING_LS_CSS: 1,
+    USING_LS_JS: 2,
+    USING_LS: 3,
+    GOOGLE_FONTS_PRECONNECT: 4,
+    SET_DEFAULT_CHARSET: 5,
+    SET_DEFAULT_VIEWPORT: 6
+};
 
-    const blockProcessor = ({ attrib, version, components, scriptAttributes, context, block }) => {
-        if (!version) {
-            if (context.data.app && context.data.app.lsVersion) {
-                version = context.data.app.lsVersion;
-            } else if (context.data.ls_version) {
-                version = context.data.ls_version; // Use previously specified version (outdated fallback)
-            } else {
-                console.error(`Error in app "${context.data.path}": No version was specified for LS in your app. context is no longer supported - you need to specify a version, for example ${attrib}:${LATEST}. To get the latest version, use ${attrib}:latest, but context is not recommended for production environments.`);
-                return;
-            }
+const blockProcessor = ({ attrib, version, components, scriptAttributes, context, block }) => {
+    if (!version) {
+        if (context.data.app && context.data.app.lsVersion) {
+            version = context.data.app.lsVersion;
+        } else if (context.data.ls_version) {
+            version = context.data.ls_version; // Use previously specified version (outdated fallback)
+        } else {
+            console.error(`Error in app "${context.data.path}": No version was specified for LS in your app. context is no longer supported - you need to specify a version, for example ${attrib}:${LATEST}. To get the latest version, use ${attrib}:latest, but context is not recommended for production environments.`);
+            return;
         }
+    }
 
-        if (version === "latest") version = LATEST;
+    if (version === "latest") version = LATEST;
 
-        context.data.ls_version = version;
+    context.data.ls_version = version;
 
-        const is_merged = attrib === "ls";
+    const is_merged = attrib === "ls";
 
-        let components_string;
+    let components_string;
 
-        const singularCSSComponent = attrib.startsWith("ls.css.") ? attrib.substring(8).toLowerCase() : null;
-        if (singularCSSComponent && COMPONENTS.css.includes(singularCSSComponent)) {
-            components = [singularCSSComponent];
+    const singularCSSComponent = attrib.startsWith("ls.css.") ? attrib.substring(8).toLowerCase() : null;
+    if (singularCSSComponent && COMPONENTS.css.includes(singularCSSComponent)) {
+        components = [singularCSSComponent];
+    }
+
+    const singularJSComponent = attrib.startsWith("ls.js.") ? attrib.substring(6).toLowerCase() : null;
+    if (singularJSComponent && COMPONENTS.js.includes(singularJSComponent)) {
+        components = [singularJSComponent];
+    }
+
+    // Bypass CDN for beta versions
+    const CDN_ORIGIN = version === "beta" ? EXTRAGON_CDN.replace("cdn.", "cdn-origin.") : EXTRAGON_CDN;
+
+    if (is_merged || attrib === "ls.css" || singularCSSComponent) {
+        const cssComponents = is_merged ? components.filter(value => COMPONENTS.css.includes(value)) : components;
+        const useSingular = cssComponents.length === 1 && ((context.data.flags.has(PARSER_FLAGS.USING_LS_CSS)) || singularCSSComponent);
+        components_string = cssComponents.join();
+
+        if (components_string.length !== 0) {
+            context.write(`<link rel=stylesheet href="${CDN_ORIGIN}/ls/${version}/${(components_string && !useSingular) ? components_string + "/" : ""}${useSingular ? components_string : (context.data.flags.has(PARSER_FLAGS.USING_LS_CSS)) ? "bundle" : "ls"}.${context.data.compress ? "min." : ""}css">`);
+            context.data.flags.set(PARSER_FLAGS.USING_LS_CSS);
         }
+    }
 
-        const singularJSComponent = attrib.startsWith("ls.js.") ? attrib.substring(6).toLowerCase() : null;
-        if (singularJSComponent && COMPONENTS.js.includes(singularJSComponent)) {
-            components = [singularJSComponent];
+    if (is_merged || attrib === "ls.js" || singularJSComponent) {
+        const jsComponents = is_merged ? components.filter(value => COMPONENTS.js.includes(value)) : components;
+        const useSingular = jsComponents.length === 1 && ((context.data.flags.has(PARSER_FLAGS.USING_LS_JS)) || singularJSComponent);
+        components_string = jsComponents.join();
+
+        if (components_string.length !== 0) {
+            context.write(`<script src="${CDN_ORIGIN}/ls/${version}/${(components_string && !useSingular) ? components_string + "/" : ""}${useSingular ? components_string : (context.data.flags.has(PARSER_FLAGS.USING_LS_JS)) ? "bundle" : "ls"}.${context.data.compress ? "min." : ""}js"${scriptAttributes}></script>`);
+            context.data.flags.set(PARSER_FLAGS.USING_LS_JS);
         }
+    }
 
-        // Bypass CDN for beta versions
-        const CDN_ORIGIN = version === "beta" ? EXTRAGON_CDN.replace("cdn.", "cdn-origin.") : EXTRAGON_CDN;
+    context.data.flags.set(PARSER_FLAGS.USING_LS);
+};
 
-        if (is_merged || attrib === "ls.css" || singularCSSComponent) {
-            const cssComponents = is_merged ? components.filter(value => COMPONENTS.css.includes(value)) : components;
-            const useSingular = cssComponents.length === 1 && ((context.data.flags.has(PARSER_FLAGS.USING_LS_CSS)) || singularCSSComponent);
-            components_string = cssComponents.join();
-
-            if (components_string.length !== 0) {
-                context.write(`<link rel=stylesheet href="${CDN_ORIGIN}/ls/${version}/${(components_string && !useSingular) ? components_string + "/" : ""}${useSingular ? components_string : (context.data.flags.has(PARSER_FLAGS.USING_LS_CSS)) ? "bundle" : "ls"}.${context.data.compress ? "min." : ""}css">`);
-                context.data.flags.set(PARSER_FLAGS.USING_LS_CSS);
-            }
-        }
-
-        if (is_merged || attrib === "ls.js" || singularJSComponent) {
-            const jsComponents = is_merged ? components.filter(value => COMPONENTS.js.includes(value)) : components;
-            const useSingular = jsComponents.length === 1 && ((context.data.flags.has(PARSER_FLAGS.USING_LS_JS)) || singularJSComponent);
-            components_string = jsComponents.join();
-
-            if (components_string.length !== 0) {
-                context.write(`<script src="${CDN_ORIGIN}/ls/${version}/${(components_string && !useSingular) ? components_string + "/" : ""}${useSingular ? components_string : (context.data.flags.has(PARSER_FLAGS.USING_LS_JS)) ? "bundle" : "ls"}.${context.data.compress ? "min." : ""}js"${scriptAttributes}></script>`);
-                context.data.flags.set(PARSER_FLAGS.USING_LS_JS);
-            }
-        }
-
-        context.data.flags.set(PARSER_FLAGS.USING_LS);
-    };
-
-    webserver.registerModuleProvider("ls", blockProcessor); // Catches ls**:version[components]
-}
+webserver.registerModuleProvider("ls", blockProcessor); // Catches ls**:version[components]

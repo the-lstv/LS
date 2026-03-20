@@ -368,35 +368,71 @@ customElements.define('ls-range', class LSRange extends HTMLElement {
     }
 
     set value(val) {
-        this.lsRange.value = val;
+        if(this.lsRange) {
+            this.lsRange.value = val;
+            return;
+        }
+
+        this.setAttribute("value", val);
     }
 
     get value() {
-        return this.lsRange.value;
+        if(this.lsRange) {
+            return this.lsRange.value;
+        }
+
+        return this.getAttribute("value");
     }
 
     set min(val) {
-        this.lsRange.min = val;
+        if(this.lsRange) {
+            this.lsRange.min = val;
+            return;
+        }
+
+        this.setAttribute("min", val);
     }
 
     get min() {
-        return this.lsRange.min;
+        if(this.lsRange) {
+            return this.lsRange.min;
+        }
+
+        return this.getAttribute("min");
     }
     
     set max(val) {
-        this.lsRange.max = val;
+        if(this.lsRange) {
+            this.lsRange.max = val;
+            return;
+        }
+
+        this.setAttribute("max", val);
     }
 
     get max() {
-        return this.lsRange.max;
+        if(this.lsRange) {
+            return this.lsRange.max;
+        }
+
+        return this.getAttribute("max");
     }
 
     set step(val) {
-        this.lsRange.step = val;
+        if(this.lsRange) {
+            this.lsRange.step = val;
+            return;
+        }
+
+        this.setAttribute("step", val);
     }
 
     get step() {
-        return this.lsRange.step;
+        if(this.lsRange) {
+            return this.lsRange.step;
+        }
+
+        return this.getAttribute("step");
     }
 
     set vertical(val) {
