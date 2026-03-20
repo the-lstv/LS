@@ -14,6 +14,7 @@
 - Added fast utilities (LS.Util.fast)
 - Heavily optimized LS.Color.parseHex (now the fastest implementation!)
 - Other minor fixes, optimizations and improvements
+- Added LS.Range (Slider component) (also works as LS.Progress)
 I am sorry for the quite aggressively implemented memory safety features - I will try to solidify and remove them again in the future. The current main objective is to ensure stricter memory safety standards across the whole framework.
 
 ### Version 5.2.8 (feature update)

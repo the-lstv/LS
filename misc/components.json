@@ -21,7 +21,8 @@
         "timeline",
         "toast",
         "tooltips",
-        "tree"
+        "tree",
+        "range"
     ],
     "css": [
         "flat",

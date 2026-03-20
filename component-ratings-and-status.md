@@ -5,6 +5,8 @@ This file documents the current and past components and rates their code quality
 Since each component in LS is like a full library on its own, we track their quality rating, since they may vary.
 The goal is to have all built-in components reach the highest quality rating so that they are up to our standards.
 
+#### TIP: v6 is comming sometime soon (sometime in 2026)! This will feature a huge refactor of the whole codebase, a rethink of the structure, and many optimizations/features, new UI system & cleaner code.
+
 ## Rating meaning
 - **★★★★★ (5/5)** — Robust, clean, tested, and efficient. Suitable for production.
 - **★★★★☆ (4/5)** — Solid and usable. Minor missing features, optimization work remaining, or API still settling.
@@ -30,12 +32,14 @@ The goal is to have all built-in components reach the highest quality rating so 
 | LS.Timeline | ★★★★☆ (4/5) | Recently migrated and stable, bugs may still show up
 | LS.Tiny | ★★★★☆ (4/5) | Deprecated remenant of older LS versions, but in parts still used widely
 | LS.AutomationGraph | ★★★☆☆ (3/5) | Recently migrated, possibly unstable
-| LS.GL | ★★★☆☆ (3/5) | Highly experimental
+| LS.GL | ★★★☆☆ (3/5) | Highly experimental, will be rewritten to WebGL/GPU later
 | LS.Context (builtin) | ★★★☆☆ (3/5) | Experimental/too opinionated
 | LS.CompileTemplate (builtin) | ★★★☆☆ (3/5) | Experimental
 | LS.GLMultiShader | ★★★☆☆ (3/5) | Incomplete
-| LS.ImageCropper | ★★★☆☆ (3/5) | Slightly spaghetti/rushed though functional
+| LS.Range | ★★★☆☆ (3/5) | Functional, but code review needed
+| LS.ImageCropper | ★★★☆☆ (3/5) | Spaghetti/rushed but functional
 | LS.Animation | ★★★☆☆ (3/5) | Incomplete (being rewritten)
+| LS.Animation2 | ☆☆☆☆☆ (-/5) | Incomplete
 | LS.Menu | ★★★☆☆ (3/5) | In early development, messy code
 | LS.DragDrop | ★★☆☆☆ (2/5) | Recently migrated from v3, needs refactoration
 | LS.Network | ★★☆☆☆ (2/5) | Just a WebSocket wrapper as of now
@@ -49,7 +53,6 @@ Components marked **Not Started** are not available yet and may be rejected.
 
 | Component | Progress |
 |---|---|
-| LS.Progress | In *Progress*
 | LS.AutomationGraph | In Progress
 | LS.Patchbay | In Progress
 | LS.List | Not Started

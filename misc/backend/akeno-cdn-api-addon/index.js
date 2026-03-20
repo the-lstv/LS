@@ -20,6 +20,7 @@ const path = require("path");
 */
 
 const cacheManager = new backend.helper.CacheManager({});
+const betaFileMtimeCache = new Map();
 
 const ESBUILD_MODERN = ["chrome108", "firefox102", "safari16"];           // Baseline
 const ESBUILD_LEGACY = ["chrome61", "firefox60", "safari11", "edge79"];   // Oldest still supported versions
@@ -89,6 +90,7 @@ module.exports = new class LS_API extends Units.Addon {
     reload() {
         // Reload hook, clear cache
         cacheManager.clear();
+        betaFileMtimeCache.clear();
 
         VERSIONS = new Set([...fs.readdirSync(DIST_PATH).filter(file => {
             return fs.statSync(DIST_PATH + "/" + file).isDirectory();
@@ -163,39 +165,65 @@ module.exports = new class LS_API extends Units.Addon {
 
         const CACHE_KEY = `${version}:${type}:${components.join(",")}`;
         const mimeType = type === "js"? "text/javascript": "text/css";
-        const suggestedCompressionAlgorithm = backend.helper.getUsedCompression(req, mimeType); // uws aah
+        const suggestedCompressionAlgorithm = isBeta? backend.compression.format.NONE: backend.helper.getUsedCompression(req, mimeType); // uws aah
+        const currentFileMtimes = new Map();
+        const componentPaths = [];
+
+        for(let component of components) {
+            let component_path = component === CORE_MARKER? VERSION_PATH + "/ls." + type: VERSION_PATH  + "/" + type + "/" + component + "." + type;
+
+            if((isWindows || isBeta) && component_path.includes("dist") && !component_path.includes("css")) {
+                // Windows workaround
+                component_path = component_path.replace("dist/", "");
+            }
+
+            if(!fs.existsSync(component_path)) {
+                if(version === "4.0.2"){
+                    // Legacy or LTS releases had a less strict API.
+                    continue;
+                }
+
+                return backend.helper.error(req, res, `Component "${component}" was not found`, 404);
+            }
+
+            componentPaths.push(component_path);
+
+            if(isBeta) {
+                currentFileMtimes.set(component_path, fs.statSync(component_path).mtimeMs);
+            }
+        }
+
+        let shouldRefresh = !cacheManager.cache.has(CACHE_KEY);
+
+        if(isBeta && !shouldRefresh) {
+            const cachedFileMtimes = betaFileMtimeCache.get(CACHE_KEY);
+            const isBetaCacheValid = !!cachedFileMtimes
+                && cachedFileMtimes.size === currentFileMtimes.size
+                && [...currentFileMtimes.entries()].every(([filePath, mtime]) => cachedFileMtimes.get(filePath) === mtime);
+
+            shouldRefresh = !isBetaCacheValid;
+        }
 
         // Check cache
-        if(isBeta || !cacheManager.cache.has(CACHE_KEY)) {
+        if(shouldRefresh) {
             let result = [];
 
-            for(let component of components) {
-                let component_path = component === CORE_MARKER? VERSION_PATH + "/ls." + type: VERSION_PATH  + "/" + type + "/" + component + "." + type;
-
-                if((isWindows || isBeta) && component_path.includes("dist") && !component_path.includes("css")) {
-                    // Windows workaround
-                    component_path = component_path.replace("dist/", "");
-                }
-
-                if(!fs.existsSync(component_path)) {
-                    if(version === "4.0.2"){
-                        // Legacy or LTS releases had a less strict API.
-                        continue;
-                    }
-
-                    return backend.helper.error(req, res, `Component "${component}" was not found`, 404);
-                }
-
+            for(let component_path of componentPaths) {
                 result.push("\n", fs.readFileSync(component_path, "utf8"));
             }
 
             // We pass data as a string, because we do code processing with esbuild etc.
             // It gets converted to a buffer internally later.
             await cacheManager.refresh(CACHE_KEY, isBeta? {
-                'Cache-Control': 'no-cache, no-store',
-                'Pragma': 'no-cache',
-                'Expires': '0'
+                // 'Cache-Control': 'no-cache, no-store',
+                // 'Pragma': 'no-cache',
+                // 'Expires': '0'
+                'Cache-Control': 'public, max-age=5, stale-while-revalidate=10' // Short cache duration
             }: null, null, result.join(""), mimeType);
+
+            if(isBeta) {
+                betaFileMtimeCache.set(CACHE_KEY, currentFileMtimes);
+            }
         }
 
         cacheManager.serve(req, res, CACHE_KEY, null, {
