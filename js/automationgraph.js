@@ -132,7 +132,7 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
     }
 
     setElement(target) {
-        if(target === this.options.element) return;
+        if(target === this.options.element && this.element) return;
 
         if (!target) {
             if(!this.options.render) return;

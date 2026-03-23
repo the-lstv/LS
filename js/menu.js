@@ -691,6 +691,15 @@ LS.LoadComponent(class Menu extends LS.Component {
         this.render();
     }
 
+    /**
+     * Replaces menu items
+     * @param {Array} items Array of items.
+     */
+    replaceItems(items) {
+        this.items = items;
+        this.render();
+    }
+
     remove(item) {
         const index = this.items.indexOf(item);
         if (index === -1) return;

@@ -219,7 +219,7 @@ ls-box:not(.contained, .color, .inline) {
 ls-box :first-child {
   margin-top: 0;
 }
-ls-box :last-child {
+ls-box > :last-child {
   margin-bottom: 0;
 }
 ls-box:not(.inline) {
@@ -1633,7 +1633,7 @@ ls-select ls-option, ls-select option, ls-select optgroup {
   --accent-95: rgb(230, 233, 253);
 }
 
-[ls-accent=white], [ls-accent=auto], [ls-accent].ls-static {
+[ls-accent=white], [ls-accent=auto], [ls-accent].ls-accent-static {
   --base-6: rgb(15, 15, 15);
   --base-8: rgb(20, 20, 20);
   --base-10: rgb(25, 25, 25);
