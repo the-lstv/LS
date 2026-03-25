@@ -31,12 +31,14 @@
             arc: false,
             arcBackground: false,
             pointer: "none",
+            showTooltip: false,
             digit: true
         },
         numericPlain: {
             arc: false,
             arcBackground: false,
             pointer: "none",
+            showTooltip: false,
             digit: true
         }
     };
@@ -373,11 +375,11 @@
                 }
 
                 if (this.style.arcFill) {
-                    this.arc.setAttribute("fill", "var(--accent)");
+                    this.arc.setAttribute("fill", "var(--accent-60)");
                     this.arc.removeAttribute("stroke");
                 } else {
                     this.arc.setAttribute("fill", "transparent");
-                    this.arc.setAttribute("stroke", "var(--accent)");
+                    this.arc.setAttribute("stroke", "var(--accent-60)");
                     this.arc.setAttribute("stroke-linecap", this.style.arcRounded ? "round" : "butt");
                     this.arc.setAttribute("stroke-width", this.style.arcWidth + "%");
 
@@ -578,7 +580,7 @@
         }
 
         #showTooltip() {
-            if (!this.options.showTooltip || !LS.Tooltips) return;
+            if (!this.options.showTooltip || !LS.Tooltips || this.style.showTooltip === false) return;
             const displayValue = this.#formatValue(this.#value);
             LS.Tooltips.position(this.element).show(displayValue);
         }

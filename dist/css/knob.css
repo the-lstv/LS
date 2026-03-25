@@ -62,7 +62,7 @@ ls-knob * {
   top: var(--pointer-offset);
   left: 50%;
   transform: translateX(-50%);
-  background: var(--accent);
+  background: var(--accent-60);
 }
 
 .ls-knob-glow .ls-knob-rotor::after {
