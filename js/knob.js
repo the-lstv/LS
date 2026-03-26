@@ -114,8 +114,10 @@
         constructor(element, options = {}) {
             super();
 
-            this.element = element instanceof HTMLElement ? element : O(element);
+            this.element = element instanceof HTMLElement ? element : typeof element === "string" ? LS.Select(element) : document.createElement("ls-knob");
             if (!this.element) throw new Error("Knob: No valid element provided");
+
+            this.element.knob = this;
 
             this.options = LS.Util.defaults(DEFAULTS, options);
             this.style = { ...DEFAULT_STYLE };
@@ -542,12 +544,12 @@
         }
 
         #emitInput() {
-            this.emit("input", [this.#value]);
+            this.quickEmit("input", this.#value);
             this.element.dispatchEvent(new Event("input", { bubbles: true }));
         }
 
         #emitChange() {
-            this.emit("change", [this.#value]);
+            this.quickEmit("change", this.#value);
             this.element.dispatchEvent(new Event("change", { bubbles: true }));
         }
 
