@@ -537,6 +537,15 @@
         #updateDigitDisplay() {
             if (!this.style.digit || !this.digitElement) return;
             const text = this.#formatValue(this.#value);
+            if(text instanceof HTMLElement) {
+                if (this.digitElement.firstChild !== text) {
+                    this.digitElement.textContent = "";
+                    this.digitElement.appendChild(text);
+                    this.#lastRenderedDigit = text;
+                }
+                return;
+            }
+
             if (text !== this.#lastRenderedDigit) {
                 this.digitElement.textContent = text;
                 this.#lastRenderedDigit = text;
@@ -596,6 +605,7 @@
             if (typeof this.options.valueDisplayFormatter === "function") {
                 return this.options.valueDisplayFormatter(value);
             }
+
             // Default: show up to 2 decimal places, trim trailing zeros
             return Number(value.toFixed(2)).toString();
         }
@@ -606,7 +616,14 @@
                     this.labelElement = LS.Create({ class: "ls-knob-label" });
                     this.element.appendChild(this.labelElement);
                 }
-                this.labelElement.textContent = this.options.label;
+
+                if(typeof this.options.label === "string") {
+                    this.labelElement.textContent = this.options.label;
+                } else if (this.options.label instanceof HTMLElement) {
+                    this.labelElement.textContent = "";
+                    this.labelElement.appendChild(this.options.label);
+                }
+
                 this.labelElement.style.display = "";
             } else if (this.labelElement) {
                 this.labelElement.style.display = "none";

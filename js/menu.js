@@ -9,36 +9,94 @@
 LS.LoadComponent(class Menu extends LS.Component {
     static index = 0;
     static groups = {};
+    static contextMenuBindings = new WeakMap();
+    static contextMenus = new Set();
+    static openMenus = new Set();
+    static globalClickListenerBound = false;
+    static zIndexCounter = 10000;
 
     static addContextMenu(element, itemsProvider, options = {}) {
-        if (Array.isArray(itemsProvider)) {
-            // Create a persistent menu
+        if (!(element instanceof HTMLElement)) return null;
+        if (!Array.isArray(itemsProvider) && typeof itemsProvider !== 'function') return null;
 
-            if (element.__menu) {
-                element.__menu.destroy();
+        let binding = this.contextMenuBindings.get(element);
+
+        if (!binding || !binding.menu || binding.menu.destroyed) {
+            if (binding && binding.handler) {
+                element.removeEventListener('contextmenu', binding.handler);
             }
 
-            new LS.Menu(options, {
+            const menu = new LS.Menu({
                 adjacentElement: element,
                 adjacentMode: 'context',
-                items: itemsProvider,
+                openOnAdjacentClick: false,
+                items: Array.isArray(itemsProvider) ? itemsProvider : [],
                 ...options
             });
-        } else if (typeof itemsProvider === 'function') {
-            // This method is experimental
-            element.addEventListener('contextmenu', (e) => {
+            this.contextMenus.add(menu);
+
+            binding = {
+                menu,
+                itemsProvider,
+                options,
+                handler: null
+            };
+
+            binding.handler = (e) => {
                 e.preventDefault();
                 e.stopPropagation();
 
-                const menu = new LS.Menu({
-                    ...options,
-                    ephemeral: true,
-                    items: (typeof itemsProvider === 'function') ? itemsProvider() : itemsProvider,
-                });
+                for (const contextMenu of Array.from(this.contextMenus)) {
+                    if (!contextMenu || contextMenu.destroyed) {
+                        this.contextMenus.delete(contextMenu);
+                        continue;
+                    }
+
+                    if (contextMenu !== menu && contextMenu.isOpen) {
+                        contextMenu.close();
+                    }
+                }
+
+                const sourceItems = (typeof binding.itemsProvider === 'function')
+                    ? binding.itemsProvider(e, menu)
+                    : binding.itemsProvider;
+                const nextItems = Array.isArray(sourceItems) ? sourceItems : [];
+
+                if (menu.items !== nextItems) {
+                    menu.replaceItems(nextItems);
+                } else {
+                    menu.render();
+                }
 
                 menu.open(e.clientX, e.clientY);
-            });
+            };
+
+            element.addEventListener('contextmenu', binding.handler);
+            this.contextMenuBindings.set(element, binding);
+            return menu;
         }
+
+        binding.itemsProvider = itemsProvider;
+        binding.options = options || {};
+        this.contextMenus.add(binding.menu);
+
+        if ('closeOnSelect' in binding.options) binding.menu.options.closeOnSelect = binding.options.closeOnSelect;
+        if ('closeable' in binding.options) binding.menu.options.closeable = binding.options.closeable;
+        if ('selectable' in binding.options) binding.menu.options.selectable = binding.options.selectable;
+        if ('fixed' in binding.options) binding.menu.options.fixed = binding.options.fixed;
+        if ('inheritAdjacentWidth' in binding.options) binding.menu.options.inheritAdjacentWidth = binding.options.inheritAdjacentWidth;
+
+        if (Array.isArray(binding.itemsProvider)) {
+            if (binding.menu.items !== binding.itemsProvider) {
+                binding.menu.replaceItems(binding.itemsProvider);
+            } else {
+                binding.menu.render();
+            }
+        } else {
+            binding.menu.render();
+        }
+
+        return binding.menu;
     }
 
     /**
@@ -75,6 +133,8 @@ LS.LoadComponent(class Menu extends LS.Component {
             options = options || element;
         }
 
+        options = options || {};
+
         this.container = (isElement ? element : N({
             class: "ls-menu"
         }));
@@ -82,6 +142,18 @@ LS.LoadComponent(class Menu extends LS.Component {
         this.container.style.display = "none";
         this.container.classList.add("ls-menu-container");
         this.container.tabIndex = -1;
+
+        if (!this.constructor.globalClickListenerBound) {
+            const MenuClass = this.constructor;
+            document.addEventListener('click', MenuClass.__globalClickHandler = (e) => {
+                if (!MenuClass.openMenus.size) return;
+
+                for (const menu of Array.from(MenuClass.openMenus)) {
+                    menu.#handleDocumentClick(e.target);
+                }
+            });
+            this.constructor.globalClickListenerBound = true;
+        }
 
         if (options.items) {
             this.items = options.items;
@@ -211,20 +283,6 @@ LS.LoadComponent(class Menu extends LS.Component {
             }
         }
 
-        document.addEventListener('click', this.__documentClickHandler = (e) => {
-            if (!this.isOpen) return;
-            if (this.container.contains(e.target)) return;
-            if (this.options.adjacentElement && this.options.adjacentElement.contains(e.target)) return;
-
-            let parent = this.parentMenu;
-            while (parent) {
-                if (parent.container.contains(e.target)) return;
-                parent = parent.parentMenu;
-            }
-
-            this.close();
-        });
-
         if (this.options.ephemeral) {
             this.on('close', () => {
                 this.destroy();
@@ -243,45 +301,49 @@ LS.LoadComponent(class Menu extends LS.Component {
         this.container.classList.toggle('ls-menu-has-icons', hasIcons);
         this.container.classList.toggle('ls-menu-no-icons', !hasIcons);
 
-        // Build set of elements that should remain
-        const currentItems = [], currentElementsSet = new Set();
+        const currentItems = [];
         for (const item of this.items) {
             if (!item.hidden) {
                 currentItems.push(item);
-                currentElementsSet.add(item.element);
             }
         }
 
-        while(currentItems[0]?.element?.tagName === 'HR') {
-            currentElementsSet.delete(currentItems.shift().element);
+        while (currentItems[0] && (currentItems[0].type === 'separator' || currentItems[0].element?.tagName === 'HR')) {
+            currentItems.shift();
         }
 
-        while(currentItems[currentItems.length - 1]?.element?.tagName === 'HR') {
-            currentElementsSet.delete(currentItems.pop().element);
+        while (currentItems[currentItems.length - 1] && (currentItems[currentItems.length - 1].type === 'separator' || currentItems[currentItems.length - 1].element?.tagName === 'HR')) {
+            currentItems.pop();
         }
 
-        // Remove elements
-        for (const child of Array.from(this.container.children)) {
-            // if (!currentElementsSet.has(child)) {
-                this.container.removeChild(child);
-            // }
+        const nextChildren = [];
+        if (this.searchContainer) {
+            nextChildren.push(this.searchContainer);
         }
 
-        if (this.searchContainer?.parentNode === this.container && this.container.firstChild !== this.searchContainer) {
-            this.container.prepend(this.searchContainer);
-        }
-
-        // Create/update/append items
         for (const item of currentItems) {
             if (!item.element) {
                 this.#createItemElement(item);
             }
 
             this.#updateItemElement(item);
+            nextChildren.push(item.element);
+        }
 
-            if (item.element.parentNode !== this.container) {
-                this.container.appendChild(item.element);
+        const existingChildren = this.container.children;
+        let changed = existingChildren.length !== nextChildren.length;
+
+        if (!changed) {
+            for (let i = 0; i < nextChildren.length; i++) {
+                if (existingChildren[i] !== nextChildren[i]) {
+                    changed = true;
+                    break;
+                }
             }
+        }
+
+        if (changed) {
+            this.container.replaceChildren(...nextChildren);
         }
     }
 
@@ -558,6 +620,20 @@ LS.LoadComponent(class Menu extends LS.Component {
         this.activeSubmenu = item.submenu;
     }
 
+    #handleDocumentClick(target) {
+        if (!this.isOpen || !this.container) return;
+        if (this.container.contains(target)) return;
+        if (this.options.adjacentElement && this.options.adjacentElement.contains(target)) return;
+
+        let parent = this.parentMenu;
+        while (parent) {
+            if (parent.container && parent.container.contains(target)) return;
+            parent = parent.parentMenu;
+        }
+
+        this.close();
+    }
+
     #handleKeyDown(event) {
         const key = event.key;
 
@@ -696,7 +772,23 @@ LS.LoadComponent(class Menu extends LS.Component {
      * @param {Array} items Array of items.
      */
     replaceItems(items) {
-        this.items = items;
+        const nextItems = Array.isArray(items) ? items : [];
+
+        if (this.items === nextItems) {
+            this.render();
+            return;
+        }
+
+        this.items = nextItems;
+
+        if (this.selectedItem && !this.items.includes(this.selectedItem)) {
+            this.selectedItem = null;
+        }
+
+        if (this.focusedItem && !this.items.includes(this.focusedItem)) {
+            this.focusedItem = null;
+        }
+
         this.render();
     }
 
@@ -712,9 +804,8 @@ LS.LoadComponent(class Menu extends LS.Component {
     }
 
     addItems(items) {
-        for (const item of items) {
-            this.items.push(item);
-        }
+        if (!items || items.length === 0) return;
+        this.items.push(...items);
         this.render();
     }
 
@@ -736,6 +827,7 @@ LS.LoadComponent(class Menu extends LS.Component {
         }
 
         this.render();
+        this.container.style.zIndex = ++this.constructor.zIndexCounter;
 
         if (this.options.fixed) {
             let posX = x;
@@ -759,7 +851,6 @@ LS.LoadComponent(class Menu extends LS.Component {
             this.container.style.position = 'absolute';
             this.container.style.left = posX + 'px';
             this.container.style.top = posY + 'px';
-            this.container.style.zIndex = 10000;
 
             // Temporarily show to measure size :(
             const prevVisibility = this.container.style.visibility;
@@ -819,6 +910,7 @@ LS.LoadComponent(class Menu extends LS.Component {
 
         if (this.isOpen) return;
         this.isOpen = true;
+        this.constructor.openMenus.add(this);
         this.emit("open");
     }
 
@@ -836,6 +928,7 @@ LS.LoadComponent(class Menu extends LS.Component {
         }
 
         this.isOpen = false;
+        this.constructor.openMenus.delete(this);
         this.emit("close");
 
         if (LS.Animation) {
@@ -895,16 +988,24 @@ LS.LoadComponent(class Menu extends LS.Component {
         this.frameScheduler.destroy();
         this.container.remove();
         this.events.clear();
+        this.constructor.contextMenus.delete(this);
+        this.constructor.openMenus.delete(this);
 
         if (this.options.group && this.constructor.groups[this.options.group]) {
             this.constructor.groups[this.options.group].delete(this);
         }
 
         if (this.options.adjacentElement) {
+            const contextBinding = this.constructor.contextMenuBindings.get(this.options.adjacentElement);
+            if (contextBinding && contextBinding.menu === this) {
+                this.options.adjacentElement.removeEventListener('contextmenu', contextBinding.handler);
+                this.constructor.contextMenuBindings.delete(this.options.adjacentElement);
+            }
+
             this.options.adjacentElement.__menu = null;
 
             if (this.__adjacentClickHandler) {
-                this.options.adjacentElement.removeEventListener('click', this.__adjacentClickHandler);
+                this.options.adjacentElement.removeEventListener('pointerdown', this.__adjacentClickHandler);
                 this.options.adjacentElement.removeEventListener('contextmenu', this.__adjacentClickHandler);
             }
 
@@ -915,10 +1016,6 @@ LS.LoadComponent(class Menu extends LS.Component {
             if (this.__adjacentHoverHandler) {
                 this.options.adjacentElement.removeEventListener('mouseenter', this.__adjacentHoverHandler);
             }
-        }
-
-        if (this.__documentClickHandler) {
-            document.removeEventListener('click', this.__documentClickHandler);
         }
 
         this.items.forEach(item => {
