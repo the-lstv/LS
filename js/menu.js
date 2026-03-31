@@ -606,7 +606,7 @@ LS.LoadComponent(class Menu extends LS.Component {
     }
 
     #openSubmenu(item) {
-        if (!item.submenu) return;
+        if (!item.submenu || this.parentMenu && !this.parentMenu.isOpen) return;
 
         const rect = item.element.getBoundingClientRect();
         let x = rect.right;
