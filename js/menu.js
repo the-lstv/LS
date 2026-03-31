@@ -15,6 +15,21 @@ LS.LoadComponent(class Menu extends LS.Component {
     static globalClickListenerBound = false;
     static zIndexCounter = 10000;
 
+    static DEFAULTS = {
+        topLayer: true,
+        fixed: true,
+        selectable: false,
+        closeOnSelect: true,
+        closeable: true,
+        adjacentElement: null,
+        openOnAdjacentClick: true,
+        adjacentMode: "click",
+        ephemeral: false,
+        searchable: false,
+        inheritAdjacentWidth: false,
+        group: null
+    };
+
     static addContextMenu(element, itemsProvider, options = {}) {
         if (!(element instanceof HTMLElement)) return null;
         if (!Array.isArray(itemsProvider) && typeof itemsProvider !== 'function') return null;
@@ -46,7 +61,7 @@ LS.LoadComponent(class Menu extends LS.Component {
                 e.preventDefault();
                 e.stopPropagation();
 
-                for (const contextMenu of Array.from(this.contextMenus)) {
+                for (const contextMenu of this.contextMenus) {
                     if (!contextMenu || contextMenu.destroyed) {
                         this.contextMenus.delete(contextMenu);
                         continue;
@@ -145,13 +160,13 @@ LS.LoadComponent(class Menu extends LS.Component {
 
         if (!this.constructor.globalClickListenerBound) {
             const MenuClass = this.constructor;
-            document.addEventListener('click', MenuClass.__globalClickHandler = (e) => {
+            document.addEventListener('pointerdown', MenuClass.__globalPointerHandler = (e) => {
                 if (!MenuClass.openMenus.size) return;
 
-                for (const menu of Array.from(MenuClass.openMenus)) {
+                for (const menu of MenuClass.openMenus) {
                     menu.#handleDocumentClick(e.target);
                 }
-            });
+            }, true);
             this.constructor.globalClickListenerBound = true;
         }
 
@@ -160,20 +175,7 @@ LS.LoadComponent(class Menu extends LS.Component {
             delete options.items;
         }
 
-        this.options = LS.Util.defaults({
-            topLayer: true,
-            fixed: true,
-            selectable: false,
-            closeOnSelect: true,
-            closeable: true,
-            adjacentElement: null,
-            openOnAdjacentClick: true,
-            adjacentMode: "click",
-            ephemeral: false,
-            searchable: false,
-            inheritAdjacentWidth: false,
-            group: null
-        }, options || {});
+        this.options = LS.Util.defaults(this.constructor.DEFAULTS, options || {});
 
         if (this.options.group) {
             if (!this.constructor.groups[this.options.group]) {
@@ -190,39 +192,8 @@ LS.LoadComponent(class Menu extends LS.Component {
             });
         }
 
-        if (this.options.searchable) {
-            this.searchInput = LS.Create("input", {
-                type: "text",
-                class: "ls-menu-search",
-                placeholder: "Search...",
-                attributes: {
-                    autocomplete: "off"
-                }
-            });
-
-            this.searchContainer = LS.Create("div", {
-                class: "ls-menu-search-container",
-                inner: this.searchInput
-            });
-
-            this.container.appendChild(this.searchContainer);
-
-            this.searchInput.addEventListener('input', () => {
-                this.#filterItems(this.searchInput.value);
-            });
-
-            this.searchInput.addEventListener('keydown', (e) => {
-                if (e.key === 'ArrowDown') {
-                    e.preventDefault();
-                    this.navigate(1);
-                } else if (e.key === 'Enter') {
-                    e.preventDefault();
-                    if (this.focusedItem) {
-                        this.#handleItemClick(this.focusedItem);
-                    }
-                }
-            });
-        }
+        this.searchInput = null;
+        this.searchContainer = null;
 
         if (this.options.adjacentElement) {
             this.options.adjacentElement.__menu = this;
@@ -289,11 +260,44 @@ LS.LoadComponent(class Menu extends LS.Component {
             });
         }
 
-        // Limits updates to animation frames
-        this.frameScheduler = new LS.Util.FrameScheduler(() => this.#render());
+        // Lazy-initialized on first scheduled render to keep instances lightweight.
+        this.frameScheduler = null;
 
         this.container.addEventListener('keydown', (e) => this.#handleKeyDown(e));
-        this.render();
+    }
+
+    #ensureSearchElements() {
+        if (!this.options.searchable || this.searchInput) return;
+
+        this.searchInput = LS.Create("input", {
+            type: "text",
+            class: "ls-menu-search",
+            placeholder: "Search...",
+            attributes: {
+                autocomplete: "off"
+            }
+        });
+
+        this.searchContainer = LS.Create("div", {
+            class: "ls-menu-search-container",
+            inner: this.searchInput
+        });
+
+        this.searchInput.addEventListener('input', () => {
+            this.#filterItems(this.searchInput.value);
+        });
+
+        this.searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                this.navigate(1);
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (this.focusedItem) {
+                    this.#handleItemClick(this.focusedItem);
+                }
+            }
+        });
     }
 
     #render() {
@@ -481,7 +485,16 @@ LS.LoadComponent(class Menu extends LS.Component {
             this.#handleItemHover(item);
         });
 
-        if (item.items) {
+        if (!item.items && item.submenu) {
+            item.submenu.destroy();
+            item.submenu = null;
+        }
+    }
+
+    #ensureSubmenu(item) {
+        if (!item || !item.items) return null;
+
+        if (!item.submenu || item.submenu.destroyed) {
             item.submenu = new LS.Menu(null, {
                 fixed: true,
                 selectable: this.options.selectable,
@@ -489,12 +502,17 @@ LS.LoadComponent(class Menu extends LS.Component {
             });
 
             item.submenu.parentMenu = this;
-            item.submenu.addItems(item.items);
 
             // Bubble events
             item.submenu.on('select', (data) => this.emit('select', [data]));
             item.submenu.on('check', (data) => this.emit('check', [data]));
         }
+
+        if (item.submenu.items !== item.items) {
+            item.submenu.replaceItems(item.items);
+        }
+
+        return item.submenu;
     }
 
     #updateItemElement(item) {
@@ -593,6 +611,8 @@ LS.LoadComponent(class Menu extends LS.Component {
     }
 
     #handleItemHover(item) {
+        if (!this.isOpen) return;
+
         if (this.activeSubmenu && this.activeSubmenu !== item.submenu) {
             this.activeSubmenu.close();
             this.activeSubmenu = null;
@@ -600,30 +620,56 @@ LS.LoadComponent(class Menu extends LS.Component {
 
         this.focus(item);
 
-        if (item.submenu) {
+        if (item.items) {
             this.#openSubmenu(item);
         }
     }
 
     #openSubmenu(item) {
-        if (!item.submenu || this.parentMenu && !this.parentMenu.isOpen) return;
+        if (!this.isOpen) return;
+        if (!item || !item.items) return;
 
-        const rect = item.element.getBoundingClientRect();
-        let x = rect.right;
-        let y = rect.top;
-
-        if (x + 200 > window.innerWidth) {
-            x = rect.left - 200;
+        let menu = this;
+        while (menu) {
+            if (!menu.isOpen) return;
+            menu = menu.parentMenu;
         }
 
-        item.submenu.open(x, y);
-        this.activeSubmenu = item.submenu;
+        const submenu = this.#ensureSubmenu(item);
+        if (!submenu) return;
+
+        const rect = item.element.getBoundingClientRect();
+        submenu.open(rect.right, rect.top, {
+            anchorRect: rect
+        });
+        this.activeSubmenu = submenu;
+    }
+
+    #closeTree(restoreFocus = true) {
+        if (this.items) {
+            for (const item of this.items) {
+                if (!item.submenu) continue;
+
+                if (item.submenu.isOpen || item.submenu.activeSubmenu) {
+                    item.submenu.#closeTree(false);
+                }
+            }
+        }
+
+        this.activeSubmenu = null;
+
+        if (this.isOpen) {
+            this.close(restoreFocus);
+        }
     }
 
     #handleDocumentClick(target) {
         if (!this.isOpen || !this.container) return;
         if (this.container.contains(target)) return;
-        if (this.options.adjacentElement && this.options.adjacentElement.contains(target)) return;
+        if (this.options.adjacentElement && this.options.adjacentElement.contains(target)) {
+            // Context menus should still close when their target is clicked.
+            if (this.options.adjacentMode !== 'context') return;
+        }
 
         let parent = this.parentMenu;
         while (parent) {
@@ -645,9 +691,11 @@ LS.LoadComponent(class Menu extends LS.Component {
             this.navigate(-1);
         } else if (key === 'ArrowRight') {
             event.preventDefault();
-            if (this.focusedItem && this.focusedItem.submenu) {
+            if (this.focusedItem && this.focusedItem.items) {
                 this.#openSubmenu(this.focusedItem);
-                this.focusedItem.submenu.navigate(1);
+                if (this.focusedItem.submenu && this.focusedItem.submenu.isOpen) {
+                    this.focusedItem.submenu.navigate(1);
+                }
             } else if (this.options.group && this.options.adjacentMode !== 'context') {
                 this.#navigateGroup(1);
             }
@@ -706,7 +754,16 @@ LS.LoadComponent(class Menu extends LS.Component {
         nextMenu.navigate(1);
     }
 
-    render() {
+    render(force = false) {
+        if (force) {
+            this.#render();
+            return;
+        }
+
+        if (!this.isOpen) return;
+        if (!this.frameScheduler) {
+            this.frameScheduler = new LS.Util.FrameScheduler(() => this.#render());
+        }
         this.frameScheduler.schedule();
     }
 
@@ -779,6 +836,13 @@ LS.LoadComponent(class Menu extends LS.Component {
             return;
         }
 
+        for (const item of this.items) {
+            if (!item.submenu) continue;
+            if (nextItems.includes(item)) continue;
+            item.submenu.destroy();
+            item.submenu = null;
+        }
+
         this.items = nextItems;
 
         if (this.selectedItem && !this.items.includes(this.selectedItem)) {
@@ -796,6 +860,10 @@ LS.LoadComponent(class Menu extends LS.Component {
         const index = this.items.indexOf(item);
         if (index === -1) return;
         this.items.splice(index, 1);
+        if (item.submenu) {
+            item.submenu.destroy();
+            item.submenu = null;
+        }
         if (item.element) {
             item.element.remove();
             item.element = null;
@@ -817,25 +885,29 @@ LS.LoadComponent(class Menu extends LS.Component {
         }
     }
 
-    open(x, y) {
+    open(x, y, positionOptions = null) {
         if (this.options.group && this.constructor.groups[this.options.group]) {
             for (const menu of this.constructor.groups[this.options.group]) {
-                if (menu !== this && menu.isOpen) {
-                    menu.close();
+                if (menu !== this && (menu.isOpen || menu.activeSubmenu)) {
+                    menu.#closeTree(false);
                 }
             }
         }
 
-        this.render();
+        this.#ensureSearchElements();
+        this.render(true);
         this.container.style.zIndex = ++this.constructor.zIndexCounter;
 
         if (this.options.fixed) {
             let posX = x;
             let posY = y;
+            let anchorRect = positionOptions && positionOptions.anchorRect ? positionOptions.anchorRect : null;
+            const viewportPadding = 8;
 
             if (posX === undefined || posY === undefined) {
                 if (this.options.adjacentElement) {
                     const rect = this.options.adjacentElement.getBoundingClientRect();
+                    anchorRect = anchorRect || rect;
                     posX = rect.left;
                     posY = rect.bottom;
 
@@ -843,14 +915,28 @@ LS.LoadComponent(class Menu extends LS.Component {
                         this.container.style.minWidth = rect.width + 'px';
                     }
                 } else {
+                    if (!this.options.inheritAdjacentWidth) {
+                        this.container.style.minWidth = '';
+                    }
                     posX = 0;
                     posY = 0;
                 }
+            } else {
+                if (!this.options.inheritAdjacentWidth) {
+                    this.container.style.minWidth = '';
+                } else {
+                    const width = this.options.adjacentElement ? this.options.adjacentElement.getBoundingClientRect().width : null;
+                    if (width) {
+                        this.container.style.minWidth = width + 'px';
+                    }
+                }
             }
 
-            this.container.style.position = 'absolute';
+            this.container.style.position = 'fixed';
             this.container.style.left = posX + 'px';
             this.container.style.top = posY + 'px';
+            this.container.style.maxWidth = '';
+            this.container.style.maxHeight = '';
 
             // Temporarily show to measure size :(
             const prevVisibility = this.container.style.visibility;
@@ -860,30 +946,43 @@ LS.LoadComponent(class Menu extends LS.Component {
             const rect = this.container.getBoundingClientRect();
             const menuW = rect.width;
             const menuH = rect.height;
+            const maxX = Math.max(viewportPadding, window.innerWidth - menuW - viewportPadding);
+            const maxY = Math.max(viewportPadding, window.innerHeight - menuH - viewportPadding);
 
-            // Horizontal fit: try left side if overflow; else clamp to 0
-            if (posX + menuW > window.innerWidth) {
-                if (posX - menuW >= 0) {
-                    posX = posX - menuW;
+            if (posX + menuW > window.innerWidth - viewportPadding) {
+                if (anchorRect) {
+                    const leftCandidate = anchorRect.left - menuW;
+                    if (leftCandidate >= viewportPadding) {
+                        posX = leftCandidate;
+                    } else {
+                        posX = maxX;
+                    }
                 } else {
-                    posX = 0;
+                    posX = maxX;
                 }
             }
 
-            // Vertical fit: try top side if overflow; else clamp to 0
-            if (posY + menuH > window.innerHeight) {
-                if (posY - menuH >= 0) {
-                    posY = posY - menuH;
+            if (posY + menuH > window.innerHeight - viewportPadding) {
+                if (anchorRect) {
+                    const aboveCandidate = anchorRect.top - menuH;
+                    if (aboveCandidate >= viewportPadding) {
+                        posY = aboveCandidate;
+                    } else {
+                        posY = maxY;
+                    }
                 } else {
-                    posY = 0;
+                    posY = maxY;
                 }
             }
+
+            if (posX < viewportPadding) posX = viewportPadding;
+            if (posY < viewportPadding) posY = viewportPadding;
 
             // Apply final position and constraints
             this.container.style.left = posX + 'px';
             this.container.style.top = posY + 'px';
-            this.container.style.maxWidth = Math.max(0, window.innerWidth - posX) + 'px';
-            this.container.style.maxHeight = Math.max(0, window.innerHeight - posY) + 'px';
+            this.container.style.maxWidth = Math.max(0, window.innerWidth - posX - viewportPadding) + 'px';
+            this.container.style.maxHeight = Math.max(0, window.innerHeight - posY - viewportPadding) + 'px';
 
             // Restore visibility (keep display block for animation)
             this.container.style.visibility = prevVisibility || '';
@@ -914,16 +1013,16 @@ LS.LoadComponent(class Menu extends LS.Component {
         this.emit("open");
     }
 
-    close() {
+    close(restoreFocus = true) {
         if (!this.isOpen) return;
 
-        if (this.__previousActiveElement) {
+        if (restoreFocus && this.__previousActiveElement) {
             this.__previousActiveElement.focus();
-            this.__previousActiveElement = null;
         }
+        this.__previousActiveElement = null;
 
         if (this.activeSubmenu) {
-            this.activeSubmenu.close();
+            this.activeSubmenu.#closeTree(false);
             this.activeSubmenu = null;
         }
 
@@ -985,7 +1084,10 @@ LS.LoadComponent(class Menu extends LS.Component {
     }
 
     destroy() {
-        this.frameScheduler.destroy();
+        if (this.frameScheduler) {
+            this.frameScheduler.destroy();
+            this.frameScheduler = null;
+        }
         this.container.remove();
         this.events.clear();
         this.constructor.contextMenus.delete(this);
