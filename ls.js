@@ -111,7 +111,7 @@
                 const breakOnFalse = this.break === true;
 
                 // if(this.last_compile_count === listenersCount && this.factory) {
-                //     this.compiled = this.factory(EventHandler.REMOVE_LISTENER, listeners, this);
+                //     this.compiled = this.factory(EventEmitter.REMOVE_LISTENER, listeners, this);
                 //     return;
                 // }
 
@@ -250,7 +250,7 @@
             } else {
                 const amount = event.listeners.push(options);
                 if(amount > (this.eventOptions?.maxListeners || 1000) && !event.warned) {
-                    console.warn(`EventHandler: Possible memory leak detected. ${event.listeners.length} listeners added for event '${name.toString()}'.`);
+                    console.warn(`EventEmitter: Possible memory leak detected. ${event.listeners.length} listeners added for event '${name.toString()}'.`);
                     event.warned = true;
                 }
             }
@@ -402,7 +402,7 @@
 
         /**
          * Faster emit, without checking or collecting return values. Limited to 5 arguments.
-         * @warning This does not guarantee EventHandler.REMOVE_LISTENER or any other return value functionality. Async events are not supported with quickEmit.
+         * @warning This does not guarantee EventEmitter.REMOVE_LISTENER or any other return value functionality. Async events are not supported with quickEmit.
          * @param {string|object} event Event name or reference.
          * @param {*} a First argument.
          * @param {*} b Second argument.

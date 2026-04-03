@@ -48,6 +48,7 @@ LS.LoadComponent(class Menu extends LS.Component {
                 items: Array.isArray(itemsProvider) ? itemsProvider : [],
                 ...options
             });
+
             this.contextMenus.add(menu);
 
             binding = {

@@ -4,22 +4,6 @@
  * 
  * @author lstv.space
  * @license GPL-3.0
- * 
- * 
- * todo;
- * - add missing point types with improved quality and improve curve handling (like idk fl has better).
- * - allow limiting which point types are allowed.
- * - Allow dragging new point while right-click is still held
- * - Ctrl to multi-select; selected points can be moved (ensure to clamp) and deleted in bulk
- * - Copy value item in menu (LS.Util.copy())§§
- * - Add some buffer around center handles
- * .- uh better way to delete points
- * . . - also like faster and more light but robust type things
- *
- * fix pulsewave idfk what ahppened there
- * 
- * im fin TIRED dont wanna do this rn
- * btu i am nonot using ai, it sucks
  */
 
 
