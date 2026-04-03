@@ -93,7 +93,7 @@ $colors: (
     }
 
     @if $name == "white" {
-        #{$selector + ", [ls-accent].ls-static"} {
+        #{$selector + ", [ls-accent].ls-accent-static"} {
             @include base-colors($color);
         }
     }

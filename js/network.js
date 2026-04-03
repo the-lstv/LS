@@ -52,7 +52,7 @@ LS.WebSocket = class WebSocketWrapper extends LS.EventEmitter {
             this.socket = null;
         }
 
-        this.socket = new WebSocket(this.url, this.#options.protocols || null);
+        this.socket = new LS.Context.WebSocket(this.url, this.#options.protocols || null);
 
         this.socket.addEventListener("open", event => {
             if(this.#options.initialPayload) {
@@ -72,6 +72,7 @@ LS.WebSocket = class WebSocketWrapper extends LS.EventEmitter {
         });
 
         this.socket.addEventListener("close", async event => {
+            if(this.destroyed) return;
             let prevent = false;
 
             this.emit("close", [event, () => {
@@ -79,7 +80,7 @@ LS.WebSocket = class WebSocketWrapper extends LS.EventEmitter {
             }]);
 
             if(!prevent && this.#options.autoReconnect) {
-                this.reconnectTimeout = setTimeout(() => this.connect(), this.#options.reconnectInterval);
+                this.reconnectTimeout = (this.#options.context || LS.Context).setTimeout(() => this.connect(), this.#options.reconnectInterval);
             }
         });
 
@@ -111,7 +112,7 @@ LS.WebSocket = class WebSocketWrapper extends LS.EventEmitter {
 
     destroy(){
         this.close();
-        clearTimeout(this.reconnectTimeout);
+        ((this.#options.context && this.#options.context) || LS.Context).clearTimeout(this.reconnectTimeout);
         this.reconnectTimeout = null;
         this.emit("destroy");
         this.events.clear();

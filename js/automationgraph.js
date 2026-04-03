@@ -36,6 +36,7 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
     ];
 
     static contextMenu = null;
+    static gradientIndex = 0;
 
     /**
      * Constructor
@@ -61,6 +62,37 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
             value: 0, // Initial value
             rightClickToCreate: true
         }, options);
+
+        const minTime = Number.isFinite(this.options.minTime) ? this.options.minTime : 0;
+        const maxTime = Number.isFinite(this.options.maxTime) ? this.options.maxTime : minTime + 1;
+        this.options.minTime = Math.min(minTime, maxTime);
+        this.options.maxTime = Math.max(minTime, maxTime);
+        if (this.options.maxTime === this.options.minTime) {
+            this.options.maxTime = this.options.minTime + 1;
+        }
+
+        const minValue = Number.isFinite(this.options.minValue) ? this.options.minValue : 0;
+        const maxValue = Number.isFinite(this.options.maxValue) ? this.options.maxValue : minValue + 1;
+        this.options.minValue = Math.min(minValue, maxValue);
+        this.options.maxValue = Math.max(minValue, maxValue);
+        if (this.options.maxValue === this.options.minValue) {
+            this.options.maxValue = this.options.minValue + 1;
+        }
+
+        if (!Number.isFinite(this.options.width) || this.options.width <= 0) {
+            this.options.width = this.options.maxTime - this.options.minTime;
+        }
+
+        if (!Number.isFinite(this.options.height) || this.options.height <= 0) {
+            this.options.height = 100;
+        }
+
+        if (!Number.isFinite(this.options.value)) {
+            this.options.value = this.options.minValue;
+        }
+        this.options.value = Math.max(this.options.minValue, Math.min(this.options.maxValue, this.options.value));
+
+        this.gradientId = `ls-automation-gradient-${++this.constructor.gradientIndex}`;
 
         this.scale = 1;
         this.frameScheduler = new LS.Util.FrameScheduler(() => this.#render());
@@ -90,8 +122,6 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
             this.contextMenu.on('select', (item) => {
                 const focused = this.focusedItem;
                 if (!focused) return;
-
-                console.log(item);
 
                 switch(item.action) {
                     case 'delete_point':
@@ -123,7 +153,7 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
 
             this.contextMenu.on('check', (item) => {
                 const focused = this.focusedItem;
-                if (!focused) return;
+                if (!focused || focused === this.startPoint) return;
 
                 focused.type = item.value;
                 this.frameScheduler.schedule();
@@ -132,7 +162,7 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
     }
 
     setElement(target) {
-        if(target === this.options.element) return;
+        if(target === this.options.element && this.element) return;
 
         if (!target) {
             if(!this.options.render) return;
@@ -172,7 +202,7 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
 
         const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
         const gradient = document.createElementNS("http://www.w3.org/2000/svg", "linearGradient");
-        gradient.setAttribute("id", "ls-automation-gradient");
+        gradient.setAttribute("id", this.gradientId);
         gradient.setAttribute("x1", "0%");
         gradient.setAttribute("y1", "0%");
         gradient.setAttribute("x2", "0%");
@@ -208,7 +238,7 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
         this.pathGroup.appendChild(this.strokePath);
 
         this.fillPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
-        this.fillPath.setAttribute("fill", "url(#ls-automation-gradient)");
+        this.fillPath.setAttribute("fill", `url(#${this.gradientId})`);
         this.fillPath.setAttribute("stroke", "none");
         this.pathGroup.appendChild(this.fillPath);
 
@@ -242,7 +272,7 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
                 this.frameScheduler.schedule();
             },
 
-            onMove: (event) => this.#onMouseMove(event.x, event.y),
+            onMove: (event) => this.#onMouseMove(event),
             onEnd: () => this._dragState = null
         });
 
@@ -251,9 +281,18 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
             e.preventDefault();
             e.stopPropagation();
             if (e.target.__automationItem) {
-                // Context menu for item (TODO)
                 this.focusedItem = e.target.__automationItem;
-                this.contextMenu.open(e.clientX, e.clientY);
+                if (this.contextMenu) {
+                    for (const menuItem of this.contextMenu.items) {
+                        if (menuItem.type === "radio" && menuItem.group === "curve_type") {
+                            menuItem.checked = menuItem.value === this.focusedItem.type;
+                        }
+                    }
+
+                    this.contextMenu.render();
+                    this.contextMenu.open(e.clientX, e.clientY);
+                }
+                this.frameScheduler.schedule();
             } else if (this.options.rightClickToCreate) {
                 const rect = this.element.getBoundingClientRect();
                 const relX = e.clientX - rect.left;
@@ -266,9 +305,8 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
                 } else {
                     value = Math.max(this.options.minValue, Math.min(this.options.maxValue, this.y2v(relY)));
                 }
-                
-                const newItem = { time, value, type: this.constructor.POINT_TYPES.LINEAR };
-                this.add(newItem);
+
+                const newItem = this.add({ time, value, type: this.constructor.POINT_TYPES.LINEAR });
                 this.focusedItem = newItem;
             }
         });
@@ -283,8 +321,14 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
     }
 
     updateSize(width, height) {
-        this.options.width = width || this.options.width;
-        this.options.height = height || this.options.height;
+        if (Number.isFinite(width) && width > 0) {
+            this.options.width = width;
+        }
+
+        if (Number.isFinite(height) && height > 0) {
+            this.options.height = height;
+        }
+
         if (this.element) {
             this.element.setAttribute("width", this.options.width);
             this.element.setAttribute("height", this.options.height);
@@ -293,7 +337,7 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
     }
 
     updateScale(scale) {
-        if (scale <= 0 || scale === this.scale) return;
+        if (!Number.isFinite(scale) || scale <= 0 || scale === this.scale) return;
         this.scale = scale;
         this.frameScheduler.schedule();
     }
@@ -305,7 +349,7 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
 
     resizeToPX(width) {
         const currentDuration = this.options.maxTime - this.options.minTime;
-        if (currentDuration <= 0 || width <= 0) return;
+        if (!Number.isFinite(width) || currentDuration <= 0 || width <= 0) return;
 
         const ratio = width / currentDuration;
         
@@ -331,13 +375,19 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
      * @property {number} inHandle.dx - X position of the in handle
      * @property {number} inHandle.dy - Y position of the in handle
      */
-    add(item) {
+    add(item, scheduleRender = true) {
+        if (!this.#normalizeItem(item)) return null;
+
         this.items.push(item);
         this.__needsSort = true;
-        this.frameScheduler.schedule();
+        if (scheduleRender) {
+            this.frameScheduler.schedule();
+        }
+
+        return item;
     }
 
-    remove(item) {
+    remove(item, scheduleRender = true) {
         const index = this.items.indexOf(item);
         if(index !== -1) {
             this.items.splice(index, 1);
@@ -345,30 +395,103 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
             if (item._pathNode) { item._pathNode.remove(); item._pathNode = null; }
             if (item._handleNode) { item._handleNode.remove(); item._handleNode = null; }
             if (item._centerHandleNode) { item._centerHandleNode.remove(); item._centerHandleNode = null; }
+
+            if (this.focusedItem === item) {
+                this.focusedItem = null;
+            }
         }
-        this.frameScheduler.schedule();
+
+        if (scheduleRender) {
+            this.frameScheduler.schedule();
+        }
     }
 
     // time to x
     t2x(t) {
-        return (t - this.options.minTime) * this.scale;
+        const scale = this.scale > 0 ? this.scale : 1;
+        return (t - this.options.minTime) * scale;
     }
 
     // value to y
     v2y(v) {
         const height = this.options.height;
-        return height - ((v - this.options.minValue) / (this.options.maxValue - this.options.minValue)) * height;
+        const range = this.options.maxValue - this.options.minValue;
+
+        if (range <= 0) {
+            return height / 2;
+        }
+
+        return height - ((v - this.options.minValue) / range) * height;
     }
 
     // x to time
     x2t(x) {
-        return (x / this.scale) + this.options.minTime;
+        const scale = this.scale > 0 ? this.scale : 1;
+        return (x / scale) + this.options.minTime;
     }
 
     // y to value
     y2v(y) {
         const height = this.options.height;
-        return this.options.minValue + ((height - y) / height) * (this.options.maxValue - this.options.minValue);
+        const range = this.options.maxValue - this.options.minValue;
+
+        if (height <= 0 || range <= 0) {
+            return this.options.minValue;
+        }
+
+        return this.options.minValue + ((height - y) / height) * range;
+    }
+
+    #normalizeItem(item) {
+        if (!item || typeof item !== "object") return false;
+
+        if (!Number.isFinite(item.time)) {
+            item.time = this.options.minTime;
+        }
+        item.time = Math.max(this.options.minTime, Math.min(this.options.maxTime, item.time));
+
+        if (!Number.isFinite(item.value)) {
+            item.value = this.options.value;
+        }
+        item.value = Math.max(this.options.minValue, Math.min(this.options.maxValue, item.value));
+
+        if (!Number.isFinite(item.curvature)) {
+            item.curvature = 0;
+        }
+
+        switch(item.type) {
+            case this.constructor.POINT_TYPES.LINEAR:
+            case this.constructor.POINT_TYPES.HALF_SINE:
+            case this.constructor.POINT_TYPES.EXPONENTIAL:
+            case this.constructor.POINT_TYPES.STAIRS:
+            case this.constructor.POINT_TYPES.HOLD:
+            case this.constructor.POINT_TYPES.PULSE:
+            case this.constructor.POINT_TYPES.SINE:
+            case this.constructor.POINT_TYPES.BEZIER:
+                break;
+            default:
+                item.type = this.constructor.POINT_TYPES.LINEAR;
+        }
+
+        if (item.inHandle && typeof item.inHandle === "object") {
+            item.inHandle = {
+                dx: Number.isFinite(item.inHandle.dx) ? item.inHandle.dx : 0,
+                dy: Number.isFinite(item.inHandle.dy) ? item.inHandle.dy : 0
+            };
+        } else {
+            item.inHandle = null;
+        }
+
+        if (item.outHandle && typeof item.outHandle === "object") {
+            item.outHandle = {
+                dx: Number.isFinite(item.outHandle.dx) ? item.outHandle.dx : 0,
+                dy: Number.isFinite(item.outHandle.dy) ? item.outHandle.dy : 0
+            };
+        } else {
+            item.outHandle = null;
+        }
+
+        return true;
     }
 
     #createPointHandle(item) {
@@ -421,6 +544,8 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
         if (!this.startPoint._handleNode) {
             this.startPoint._handleNode = this.#createPointHandle(this.startPoint);
             this.handleGroup.appendChild(this.startPoint._handleNode);
+        } else if (this.startPoint._handleNode.parentNode !== this.handleGroup) {
+            this.handleGroup.appendChild(this.startPoint._handleNode);
         }
         this.startPoint._handleNode.setAttribute("cx", startX);
         this.startPoint._handleNode.setAttribute("cy", startY);
@@ -447,6 +572,8 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
             // 1. Render Handle (Point)
             if (!item._handleNode) {
                 item._handleNode = this.#createPointHandle(item);
+                this.handleGroup.appendChild(item._handleNode);
+            } else if (item._handleNode.parentNode !== this.handleGroup) {
                 this.handleGroup.appendChild(item._handleNode);
             }
 
@@ -476,6 +603,8 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
             if (item.type !== this.constructor.POINT_TYPES.HOLD) {
                 if (!item._centerHandleNode) {
                     item._centerHandleNode = this.#createCenterHandle(item);
+                    this.handleGroup.appendChild(item._centerHandleNode);
+                } else if (item._centerHandleNode.parentNode !== this.handleGroup) {
                     this.handleGroup.appendChild(item._centerHandleNode);
                 }
 
@@ -511,8 +640,8 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
 
         switch(item.type) {
             case this.constructor.POINT_TYPES.LINEAR:
-            case this.constructor.POINT_TYPES.EXPONENTIAL:
-                const curv = item.curvature || 0;
+            case this.constructor.POINT_TYPES.EXPONENTIAL: {
+                const curv = Number.isFinite(item.curvature) ? item.curvature : 0;
                 if (Math.abs(curv) < 0.001) {
                     d = `L ${x1} ${y1}`;
                     center = { x: (x0 + x1) / 2, y: (y0 + y1) / 2 };
@@ -535,11 +664,14 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
                     };
                 }
                 break;
+            }
+
             case this.constructor.POINT_TYPES.HOLD:
                 d = `H ${x1} V ${y1}`;
                 center = { x: (x0 + x1) / 2, y: y0 };
                 break;
-            case this.constructor.POINT_TYPES.STAIRS:
+
+            case this.constructor.POINT_TYPES.STAIRS: {
                 const steps = Math.max(1, Math.floor(Math.abs(item.curvature || 0) * 20) + 1);
                 const dx = (x1 - x0) / steps;
                 const dy = (y1 - y0) / steps;
@@ -549,36 +681,62 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
                 }
                 center = { x: (x0 + x1) / 2, y: (y0 + y1) / 2 };
                 break;
-            case this.constructor.POINT_TYPES.SINE:
-            case this.constructor.POINT_TYPES.HALF_SINE:
-                const freq = Math.max(0.5, Math.abs(item.curvature || 0) * 10);
-                const amp = (y1 - y0) / 2;
-                const midY = (y0 + y1) / 2;
+            }
+
+            case this.constructor.POINT_TYPES.HALF_SINE: {
                 const points = 50;
                 d = "";
                 for(let i = 1; i <= points; i++) {
                     const t = i / points;
                     const xx = x0 + t * (x1 - x0);
-                    const offset = amp * Math.sin(t * freq * Math.PI * 2);
-                    d += ` L ${xx} ${midY + offset}`;
+                    const yy = y0 + ((1 - Math.cos(Math.PI * t)) * 0.5) * (y1 - y0);
+                    d += ` L ${xx} ${yy}`;
                 }
-                center = { x: (x0 + x1) / 2, y: (y0 + y1) / 2 };
+                center = { x: (x0 + x1) / 2, y: y0 + (0.5 * (y1 - y0)) };
                 break;
-            case this.constructor.POINT_TYPES.PULSE:
+            }
+
+            case this.constructor.POINT_TYPES.SINE: {
+                const freq = Math.max(0.5, Math.abs(item.curvature || 0) * 10);
+                const omega = freq * Math.PI * 2;
+                const amp = (y1 - y0) / 2;
+                const points = 50;
+                d = "";
+                for(let i = 1; i <= points; i++) {
+                    const t = i / points;
+                    const xx = x0 + t * (x1 - x0);
+                    const wave = Math.sin(t * omega) - (t * Math.sin(omega));
+                    const yy = y0 + (t * (y1 - y0)) + (amp * wave);
+                    d += ` L ${xx} ${yy}`;
+                }
+
+                const centerT = 0.5;
+                const centerWave = Math.sin(centerT * omega) - (centerT * Math.sin(omega));
+                center = {
+                    x: (x0 + x1) / 2,
+                    y: y0 + (centerT * (y1 - y0)) + (amp * centerWave)
+                };
+                break;
+            }
+
+            case this.constructor.POINT_TYPES.PULSE: {
                 const pFreq = Math.max(1, Math.abs(item.curvature || 0) * 10);
-                const pAmp = (y1 - y0) / 2;
-                const pMidY = (y0 + y1) / 2;
+                const pAmp = Math.abs(y1 - y0) / 2;
                 d = "";
                 for(let i = 1; i <= 50; i++) {
                     const t = i / 50;
                     const xx = x0 + t * (x1 - x0);
                     const phase = (t * pFreq) % 1;
-                    const offset = (phase < 0.5 ? 1 : -1) * pAmp;
-                    d += ` L ${xx} ${pMidY + offset}`;
+                    const pulse = phase < 0.5 ? 1 : -1;
+                    const envelope = Math.sin(Math.PI * t);
+                    const yy = y0 + (t * (y1 - y0)) + (pulse * pAmp * envelope);
+                    d += ` L ${xx} ${yy}`;
                 }
-                center = { x: (x0 + x1) / 2, y: (y0 + y1) / 2 };
+                center = { x: (x0 + x1) / 2, y: y0 + (0.5 * (y1 - y0)) };
                 break;
-            case this.constructor.POINT_TYPES.BEZIER:
+            }
+
+            case this.constructor.POINT_TYPES.BEZIER: {
                 const cp1x = x0 + (item.outHandle ? item.outHandle.dx : (x1-x0)/3);
                 const cp1y = y0 + (item.outHandle ? item.outHandle.dy : 0);
                 const cp2x = x1 + (item.inHandle ? item.inHandle.dx : -(x1-x0)/3);
@@ -591,6 +749,8 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
                     y: 0.125 * y0 + 0.375 * cp1y + 0.375 * cp2y + 0.125 * y1
                 };
                 break;
+            }
+
             default:
                 d = `L ${x1} ${y1}`;
         }
@@ -612,14 +772,18 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
         return this._calculatePath(x0, y0, x1, y1, item).center;
     }
 
-    #onMouseMove(x, y) {
-        if (!this._dragState) return;
+    #onMouseMove(event) {
+        if (!this._dragState || !event) return;
+
+        const x = event.x;
+        const y = event.y;
         const { item, type } = this._dragState;
 
         if (type === 'point') {
             const rect = this.element.getBoundingClientRect();
             const relX = x - rect.left;
             const relY = y - rect.top;
+            const shiftDown = !!(event.domEvent && event.domEvent.shiftKey) || (window.M && window.M.ShiftDown);
             
             if (item === this.startPoint) {
                 // Start point only moves vertically
@@ -636,7 +800,7 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
                 item.time = Math.max(minT, Math.min(maxT, this.x2t(relX)));
                 
                 // Check for shift key to lock value
-                if (window.M && window.M.ShiftDown) {
+                if (shiftDown) {
                     item.value = this._dragState.startValue;
                 } else {
                     item.value = Math.max(this.options.minValue, Math.min(this.options.maxValue, this.y2v(relY)));
@@ -661,7 +825,8 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
             const midY = (y0 + y1) / 2;
             
             const diffY = mouseY - midY;
-            item.curvature = diffY / (this.options.height * 0.25);
+            const divisor = Math.max(1, this.options.height * 0.25);
+            item.curvature = diffY / divisor;
             
             this.frameScheduler.schedule();
         }
@@ -692,7 +857,7 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
     getValueAtTime(time) {
         if (this.__needsSort) this.sortItems();
 
-        if (this.items.length === 0 || time <= 0) return this.startPoint.value;
+        if (!Number.isFinite(time) || this.items.length === 0) return this.startPoint.value;
 
         // Check bounds
         if (time <= this.startPoint.time) return this.startPoint.value;
@@ -719,22 +884,23 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
 
         if (t1 === t0) return v1;
 
-        const ratio = (time - t0) / (t1 - t0);
+        const ratio = Math.max(0, Math.min(1, (time - t0) / (t1 - t0)));
 
         switch (nextItem.type) {
             case this.constructor.POINT_TYPES.HOLD:
                 return v0;
 
-            case this.constructor.POINT_TYPES.STAIRS:
+            case this.constructor.POINT_TYPES.STAIRS: {
                 const steps = Math.max(1, Math.floor(Math.abs(nextItem.curvature || 0) * 20) + 1);
-                const stepIndex = Math.floor(ratio * steps);
+                const stepIndex = Math.min(steps, Math.floor(ratio * steps));
                 const vStep = (v1 - v0) / steps;
                 return v0 + stepIndex * vStep;
+            }
 
             case this.constructor.POINT_TYPES.LINEAR:
-            case this.constructor.POINT_TYPES.EXPONENTIAL:
-                const curv = nextItem.curvature || 0;
-                if(curv === 0) {
+            case this.constructor.POINT_TYPES.EXPONENTIAL: {
+                const curv = Number.isFinite(nextItem.curvature) ? nextItem.curvature : 0;
+                if(Math.abs(curv) < 0.000001) {
                     // Linear
                     return v0 + (v1 - v0) * ratio;
                 }
@@ -750,22 +916,27 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
 
                 const t = ratio;
                 return (1-t)*(1-t)*v0 + 2*(1-t)*t*cpVal + t*t*v1;
+            }
 
-            case this.constructor.POINT_TYPES.SINE:
             case this.constructor.POINT_TYPES.HALF_SINE:
-                 const freq = Math.max(0.5, Math.abs(nextItem.curvature || 0) * 10);
-                 const amp = (v1 - v0) / 2;
-                 const midV = (v0 + v1) / 2;
-                 const offset = amp * Math.sin(ratio * freq * Math.PI * 2);
-                 return midV + offset;
+                return v0 + ((1 - Math.cos(Math.PI * ratio)) * 0.5) * (v1 - v0);
 
-            case this.constructor.POINT_TYPES.PULSE:
+            case this.constructor.POINT_TYPES.SINE: {
+                const freq = Math.max(0.5, Math.abs(nextItem.curvature || 0) * 10);
+                const omega = freq * Math.PI * 2;
+                const amp = (v1 - v0) / 2;
+                const wave = Math.sin(ratio * omega) - (ratio * Math.sin(omega));
+                return v0 + (ratio * (v1 - v0)) + (amp * wave);
+            }
+
+            case this.constructor.POINT_TYPES.PULSE: {
                  const pFreq = Math.max(1, Math.abs(nextItem.curvature || 0) * 10);
                  const pAmp = (v1 - v0) / 2;
                  const pMidV = (v0 + v1) / 2;
                  const phase = (ratio * pFreq) % 1;
                  const pOffset = (phase < 0.5 ? 1 : -1) * pAmp;
                  return pMidV + pOffset;
+            }
 
             case this.constructor.POINT_TYPES.BEZIER:
                  // Fallback to linear for now as Bezier math is complex without solving cubic equation for t
@@ -777,19 +948,43 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
     }
 
     sortItems() {
-        this.items.sort((a, b) => (a.time || (a.time = 0)) - (b.time || (b.time = 0)));
+        this.items = this.items.filter(item => this.#normalizeItem(item));
+        this.items.sort((a, b) => a.time - b.time);
+
+        let previousTime = this.options.minTime;
+        for (const item of this.items) {
+            if (item.time < previousTime) {
+                item.time = previousTime;
+            }
+
+            previousTime = item.time;
+        }
+
         this.__needsSort = false;
     }
 
     reset(replacingItems = null) {
-        for(let item of this.items) {
-            this.remove(item);
+        const nextItems = Array.isArray(replacingItems) ? replacingItems.slice() : [];
+
+        for (let i = this.items.length - 1; i >= 0; i--) {
+            this.remove(this.items[i], false);
         }
 
-        this.items = replacingItems || [];
-        if(replacingItems) {
-            this.sortItems();
+        this.items = [];
+        for (const item of nextItems) {
+            this.add(item, false);
         }
+
+        if (this.focusedItem !== this.startPoint && this.focusedItem && !this.items.includes(this.focusedItem)) {
+            this.focusedItem = null;
+        }
+
+        if (this.items.length > 1) {
+            this.sortItems();
+        } else {
+            this.__needsSort = false;
+        }
+
         this.frameScheduler.schedule();
     }
 
@@ -802,18 +997,18 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
 
     cloneItem(item) {
         return {
-            time: item.time || 0,
-            value: item.value || 0,
+            time: Number.isFinite(item.time) ? item.time : 0,
+            value: Number.isFinite(item.value) ? item.value : 0,
             type: item.type,
-            curvature: item.curvature || 0,
+            curvature: Number.isFinite(item.curvature) ? item.curvature : 0,
             inHandle: item.inHandle ? { dx: item.inHandle.dx, dy: item.inHandle.dy } : null,
             outHandle: item.outHandle ? { dx: item.outHandle.dx, dy: item.outHandle.dy } : null
         };
     }
 
     destroy() {
-        for(let item of this.items) {
-            this.remove(item);
+        for (let i = this.items.length - 1; i >= 0; i--) {
+            this.remove(this.items[i], false);
         }
 
         this.frameScheduler.destroy();
@@ -826,6 +1021,11 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
         if(this.handle) {
             this.handle.destroy();
             this.handle = null;
+        }
+
+        if (this.startPoint && this.startPoint._handleNode) {
+            this.startPoint._handleNode.remove();
+            this.startPoint._handleNode = null;
         }
 
         this.startPoint = null;

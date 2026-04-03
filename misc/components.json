@@ -1,7 +1,10 @@
 {
     "js": [
         "animation",
+        "animation2",
         "automationgraph",
+        "color",
+        "compiletemplate",
         "dragdrop",
         "gl",
         "imagecropper",
@@ -13,14 +16,17 @@
         "patcher",
         "reactive",
         "resize",
+        "shortcutmanager",
         "tabs",
         "timeline",
         "toast",
         "tooltips",
-        "tree"
+        "tree",
+        "range"
     ],
     "css": [
         "flat",
-        "knob"
+        "knob",
+        "timeline"
     ]
 }

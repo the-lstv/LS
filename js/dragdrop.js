@@ -455,7 +455,7 @@ LS.LoadComponent(class DragDrop extends LS.Component {
             }
         }
 
-        if(state.moving && state.dragArea) requestAnimationFrame(() => this.frameScheduler.schedule());
+        if(state.moving && state.dragArea) this.frameScheduler.schedule();
     }
 
     render(){

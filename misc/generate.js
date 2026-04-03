@@ -7,13 +7,13 @@ const ls_components = {
     css: []
 };
 
-for (const file of fs.readdirSync(path + "/dist/dev/js")) {
+for (const file of fs.readdirSync(path + "/dist/js")) {
     if (file.endsWith(".js")) {
         ls_components.js.push(nodePath.basename(file, ".js"));
     }
 }
 
-for (const file of fs.readdirSync(path + "/dist/dev/css")) {
+for (const file of fs.readdirSync(path + "/dist/css")) {
     if (file.endsWith(".css")) {
         ls_components.css.push(nodePath.basename(file, ".css"));
     }

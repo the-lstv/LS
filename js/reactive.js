@@ -254,8 +254,8 @@
             
             if (this._renderScheduled) return;
             this._renderScheduled = true;
-            
-            queueMicrotask(() => {
+
+            LS.Context.queueMicrotask(() => {
                 if (this.destroyed) return;
                 this._renderScheduled = false;
                 

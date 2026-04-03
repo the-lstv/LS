@@ -3,12 +3,30 @@
 - Migrate the rest of components
 - Improve accessibility & edge cases
 
-### Version 5.2.8
+Upcomming 6.0.0 (2026 major release)
+
+### Version 5.2.9 (polish update)
+- Breaking: LS.ShortcutManager and LS.CompileTemplate are now separate components, don't forget to include them! (this is to reduce core size)
+- Breaking: Removed the deprecated M.LoadStyle, M.LoadScript and M.LoadDocument methods, removed the deprecated "C" global (use LS.Color).
+- Optimized LS.Color.update and HSL operations
+- Components can now be scoped under contexts and will respect context destruction for easier memory management
+- TouchHandle can now set multiple targets
+- Added an "enforceContextSafety" init option that disables global access to certain features without a scope. Use with extreme caution.
+- Fixed some potential memory leaks and made LS.Resize a bit more efficient and easier to use by sharing one handle.
+- Added fast utilities (LS.Util.fast)
+- Heavily optimized LS.Color.parseHex (now the fastest implementation!)
+- Other minor fixes, optimizations and improvements
+- Added LS.Range (Slider component) (also works as LS.Progress)
+- Ability to reset a LS.Knob & added numeric type & enhanced the default style
+- Added replaceItems in LS.Menu
+Sorry for the aggressively implemented memory safety features, the current objective is to ensure stricter safety standards across the whole framework to make it production-ready, I will ease out later.
+
+### Version 5.2.8 (feature update)
 - LS.Reactive now supports recursive properties and has been upgraded all around
 - Significantly improved expression parsing performance of LS.Reactive
 - LS.Color internal data format changed from an {r,g,b,a} to [r,g,b,a] | Uint8Array
 - LS.Color defaults to black instead of white now
-- Added LS.ColorView, which allows you to use a single LS.Color instance on a large buffer of collors and move within it. This can have many neat usecases, whenever you need to process lots of colors with low/zero memory overhead.
+- Added LS.ColorView, which allows you to use a single LS.Color instance on a large buffer of colors and move within it. This can have many neat usecases, whenever you need to process lots of colors with low/zero memory overhead.
 - Added extra methods to LS.Color like toTexture, toImageData and toDiv
 - LS now initiates from one proper init function
 - Breaking changes: Deprecated LS.Tiny and removed some very old and bad methods that somehow made it until now. Damage is essentially zero as nobody ever used those.
@@ -24,9 +42,8 @@
 - Removed EventEmitter.invoke which has been deprecated for a long time
 - Added LS.Util.clone (deep clone utility)
 - Renamed "body-available" event to "ready" (backwards compatible)
-- 
 
-### Version 5.2.7
+### Version 5.2.7 (feature update)
 - Listeners can be removed by returning LS.REMOVE_LISTENER
 - Data support for completed events
 - A global event for component registration
@@ -53,7 +70,7 @@
 - API now supports esbuild transpilation when enabled to bring better support to old browsers
 
 ## Version 5.0.0
-Major update!
+Major update (2025 release)!
 - 🚀 Performance and resource efficiency enhancements
 - 🎨 New and better dynamic color system
 - A proper instance system for components with lifecycle methods
@@ -67,19 +84,26 @@ Major update!
 
 ---
 
-
-## Version 4.0.0
-V4 is a special one.
-> [!NOTE]
-> The story is that the v5 release should have actually been v4, but because I am a genius, I've released a small update to v3.6 as v4.0 on accident... <br>
-> This caused 4.0.0 to be cached on the CDN as 3.6.0, a still legacy version.
-> So instead, I have decided to make v4 the LTS version of v3, mainly intended as a compatibility layer to support older projects, while implementing slight fixes and enhancements. <br>
-> That is why new 4.x.x versions may still come out, but they are not really "new" and not recommended to be used.
+### Version 4.0.2
+- Selector fixes.
 
 ### Version 4.0.1
 - Added a console note to suggest upgrading to v5
 - Minor API bugfixes
 - Add version information to LS.version and LS.v
+
+## Version 4.0.0 (legacy)
+V4 is not a major release, but rather a "LTS" version of v3.6.5. It is now deprecated, but favored over the older 3.6.5 that it is based on.<br>
+It has also been upgraded to the new distribution format & file structure with latest API compatibility, moving from the old magical preprocessor, so it can be used reliably where needed.<br>
+> [!NOTE]
+> What is now v5 should have actually been v4, but because I am a genius, I've released a minor v3.6.5 update as the v4.0.0 on accident. <br>
+> So instead, I have decided to make v4 the "LTS" version of v3, mainly intended as a compatibility layer to support older projects, while implementing slight fixes and enhancements. <br>
+> That is why new 4.x.x versions may still come out, but they are not really "new" and not recommended to be used unless you know what you're doing. Things like fixes and optimizations may be released under v4 for legacy projects.
+
+<br>
+
+<details>
+<summary>View outdated content for legacy versions (< 3.6.5)</summary>
 
 ## Version 3.5
 ### Welcome a new component - AutomationGraphEditor!
@@ -158,9 +182,10 @@ Progress & range components.
     LS.Native is a bridge that makes the creation of native-like apps easy across platforms.
 	Currently Android is supported with a Java library that enables cross-events, and access to some system APIs from your JS frontend.
 	- You may historically remember it as aHTMLx.
+</details>
 
-# Following is old / outdated content (LS v1 and v2 and possibly pre-LS (Tiny));
-
+<details>
+<summary>View outdated content for legacy versions (< 2.1.0)</summary>
 
 ## Component system
 LS has a rich component system that allows you to create, manage and use components with ease.<br>
@@ -246,3 +271,4 @@ Result:<br>
 ![image](https://user-images.githubusercontent.com/62482747/225993488-c81a587c-d9af-415f-ad82-2331ecc8950f.png)<br>
 (Same applies to steps, but with `<steps>` and `<step>`, and you can also set an "if" attribute on a `<step>` element to add a condition under which it will be visible, like if="field=value" only displays that step if a field "field" is equal to "value")<br>
 Those are all designed to be as simple to use and use as little boilerplate as possible.
+</details>

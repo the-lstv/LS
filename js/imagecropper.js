@@ -284,12 +284,12 @@
                             this.processingOverlay.querySelector('.processing-progress').value = percent;
 
                             if (!media.paused && !media.ended) {
-                                requestAnimationFrame(draw);
+                                LS.Context.requestAnimationFrame(draw);
                             }
                         };
                         draw();
 
-                        setTimeout(() => {
+                        this.ctx.setTimeout(() => {
                             recorder.stop();
                             media.pause();
                         }, duration * 1000);
@@ -391,7 +391,7 @@
                             // Schedule next frame
                             frameIndex++;
                             if (frameIndex < reader.numFrames()) {
-                                setTimeout(drawFrame, info.delay * 10 || 100);
+                                this.ctx.setTimeout(drawFrame, info.delay * 10 || 100);
                             } else {
                                 recorder.stop();
                             }

@@ -43,48 +43,58 @@ LS.LoadComponent(class Tooltips extends LS.DestroyableComponent {
         if(this.__valueChanged) {
             this.__valueChanged = false;
 
-            // Create a temporary container
-            const temp = document.createElement('span');
-            temp.innerHTML = this.__value;
-            LS.Util.sanitize(temp);
-            this.contentElement.replaceChildren(...temp.childNodes);
+            let ltIndex = this.__value.indexOf("<");
+            if(ltIndex !== -1 && this.__value.indexOf(">", ltIndex) !== -1) {
+                // We are likely dealing with a HTML value
+                // Temporary container
+                const temp = document.createElement('span');
+                temp.innerHTML = this.__value;
+                // Sanitize
+                LS.Util.sanitize(temp);
+                // Render
+                this.contentElement.replaceChildren(...temp.childNodes);
+            } else {
+                // Plain text
+                this.contentElement.textContent = this.__value;
+            }
         }
 
         if(this.__positionChanged) {
             this.__positionChanged = false;
 
-            let box, element = null;
-
             let x = this.__x;
             let y = this.__y;
+            let box, element = null;
 
             if(x instanceof Element) {
                 element = x;
                 box = x.getBoundingClientRect();
             } else if(typeof x == "number") {
                 box = { x };
+            } else {
+                return; // Early exit if position cannot be determined
             }
 
-            let cbox = this.contentElement.getBoundingClientRect(),
-                pos_top = box.top - cbox.height,
-                pos_bottom = box.top + box.height;
+            let cbox = this.contentElement.getBoundingClientRect();
+            let isDetached = element?.hasAttribute?.("ls-tooltip-detached") && typeof y?.clientX === "number";
 
-            // If element has 'ls-tooltip-detached', follow the cursor instead
-            if (element && element.hasAttribute && element.hasAttribute("ls-tooltip-detached") && typeof y === "object" && y.clientX !== undefined && y.clientY !== undefined) {
-                // y is the mouse event
+            if(isDetached) {
+                // Follow cursor for detached tooltips
                 this.contentElement.style.left = Math.min(Math.max(y.clientX + 12, 4), innerWidth - cbox.width) + "px";
                 this.contentElement.style.top = Math.min(Math.max(y.clientY + 12, 4), innerHeight - cbox.height) + "px";
             } else {
+                // Position relative to element or coordinate
                 this.contentElement.style.left = (
                     box.width ? Math.min(Math.max(box.left + (box.width / 2) - (cbox.width / 2), 4), innerWidth - (cbox.width)) : box.x
                 ) + "px";
-
                 this.contentElement.style.maxWidth = (innerWidth - 8) + "px";
 
                 if(typeof y === "number") {
                     this.contentElement.style.top = y + "px";
                 } else {
-                    this.contentElement.style.top = `calc(${pos_top < 20 ? pos_bottom : pos_top}px ${pos_top < 0 ? "+" : "-"} var(--ui-tooltip-rise, 5px))`;
+                    let pos_top = box.top - cbox.height;
+                    let pos_above_fits = pos_top >= 20;
+                    this.contentElement.style.top = `calc(${pos_above_fits ? pos_top : box.top + box.height}px ${pos_above_fits ? "-" : "+"} var(--ui-tooltip-rise, 5px))`;
                 }
             }
         }

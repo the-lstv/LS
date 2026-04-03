@@ -54,7 +54,7 @@ Don't believe me? [See it in action](https://lstv.space) - all of our projects/p
 <br>
 
 
-## LS v5.2.8
+## LS v5.2.9
 ### What's new?
 - ✨ New, modern API remade from scratch
 - 📔 Better component system
@@ -79,7 +79,7 @@ But there isn't anything that wouldn't work without Akeno - it's not a requireme
 
 All you need to import LS in Akeno is to put this in your `<head>` (the numbers after ":" are the version):
 ```html
-@use (ls:5.2.8);
+@use (ls:5.2.9);
 ```
 Done - you are using LS! That easy. This imports only the LS core. No need to install anything, because "ls" is a built-in module source in Akeno and will automatically translate to an optimal CDN script/link tag.<br>
 
@@ -88,7 +88,7 @@ Akeno will handle optimizing the import, so you don't have to worry about it.<br
 ```html
 <head>
     <!-- Example of importing some LS components: -->
-    @use (ls:5.2.8[flat, tooltips, modal]);
+    @use (ls:5.2.9[flat, color, tooltips, modal]);
 
     <!-- If you plan to use the design language, don't forget to specify the style: -->
     @page { style: flat; accent: blue }
@@ -98,7 +98,7 @@ Akeno will handle optimizing the import, so you don't have to worry about it.<br
 You can also import a specific component separately, excluding the core:
 ```html
 <!-- Only imports ImageCropper, useful if you only need it sometimes and LS core is already loaded. -->
-@use (ls.js.ImageCropper:5.2.8);
+@use (ls.js.ImageCropper:5.2.9);
 ```
 
 <br>
@@ -117,10 +117,10 @@ In the future I plan to make an URL builder tool to make this cleaner.
 Example:
 ```html
 <!-- Imports ls.js core, no components -->
-<script src="https://cdn.extragon.cloud/ls/5.2.8/ls.min.js"></script>
+<script src="https://cdn.extragon.cloud/ls/5.2.9/ls.min.js"></script>
 
 <!-- Imports ls.css core and the flat style -->
-<link href="https://cdn.extragon.cloud/ls/5.2.8/flat/ls.min.css" rel="stylesheet">
+<link href="https://cdn.extragon.cloud/ls/5.2.9/flat/ls.min.css" rel="stylesheet">
 ```
 
 And you can start using LS right away!

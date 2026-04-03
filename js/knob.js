@@ -26,6 +26,20 @@
             arcGap: [180, 540],
             arcFill: false,
             pointer: "none"
+        },
+        numeric: {
+            arc: false,
+            arcBackground: false,
+            pointer: "none",
+            showTooltip: false,
+            digit: true
+        },
+        numericPlain: {
+            arc: false,
+            arcBackground: false,
+            pointer: "none",
+            showTooltip: false,
+            digit: true
         }
     };
 
@@ -38,6 +52,7 @@
         pointerGlow: false,
         arcBackground: false,
         arcFill: true,
+        digit: false,
         pointer: "none"
     };
 
@@ -50,6 +65,7 @@
         sensitivity: 0.5,
         disabled: false,
         showTooltip: true,
+        numeric: false,
         valueDisplayFormatter: null,
         label: null,
         bipolar: "auto" // "auto" = true when min < 0 < max, or explicit true/false
@@ -98,8 +114,10 @@
         constructor(element, options = {}) {
             super();
 
-            this.element = element instanceof HTMLElement ? element : O(element);
+            this.element = element instanceof HTMLElement ? element : typeof element === "string" ? LS.Select(element) : document.createElement("ls-knob");
             if (!this.element) throw new Error("Knob: No valid element provided");
+
+            this.element.knob = this;
 
             this.options = LS.Util.defaults(DEFAULTS, options);
             this.style = { ...DEFAULT_STYLE };
@@ -115,6 +133,7 @@
             this.back = null;
             this.rotor = null;
             this.stator = null;
+            this.digitElement = null;
             this.labelElement = null;
 
             // Frame scheduler for efficient rendering
@@ -135,6 +154,10 @@
         #initialized = false;
         #startValue = 0;
         #isDragging = false;
+        #lastRenderedDigit = null;
+        #lastPointerStartTime = 0;
+        #lastPointerStartX = 0;
+        #lastPointerStartY = 0;
 
         get value() {
             return this.#value;
@@ -237,7 +260,7 @@
             this.rotor = this.element.querySelector(".ls-knob-rotor");
 
             // Set preset from attribute or options
-            const preset = this.element.getAttribute("preset") || this.options.preset;
+            const preset = this.element.getAttribute("preset") || (this.options.numeric ? "numeric" : this.options.preset);
             this.setPreset(preset, true);
 
             // Setup touch/mouse interaction
@@ -251,6 +274,12 @@
 
             this.handle.on("start", (event) => {
                 if (!this.enabled) return event.cancel();
+
+                if (this.#shouldResetFromPointerStart(event.domEvent)) {
+                    event.cancel();
+                    this.reset();
+                    return;
+                }
 
                 this.#startValue = this.#value;
                 this.#rawValue = this.#value;
@@ -348,11 +377,11 @@
                 }
 
                 if (this.style.arcFill) {
-                    this.arc.setAttribute("fill", "var(--accent)");
+                    this.arc.setAttribute("fill", "var(--accent-60)");
                     this.arc.removeAttribute("stroke");
                 } else {
                     this.arc.setAttribute("fill", "transparent");
-                    this.arc.setAttribute("stroke", "var(--accent)");
+                    this.arc.setAttribute("stroke", "var(--accent-60)");
                     this.arc.setAttribute("stroke-linecap", this.style.arcRounded ? "round" : "butt");
                     this.arc.setAttribute("stroke-width", this.style.arcWidth + "%");
 
@@ -382,6 +411,9 @@
                     }
                 }
                 this.back.classList.add("ls-knob-arc-full");
+                this.back.setAttribute("stroke", "var(--accent-transparent)");
+                this.back.setAttribute("stroke-width", this.style.arcWidth + "%");
+                this.back.setAttribute("stroke-linecap", this.style.arcRounded ? "round" : "butt");
                 this.back.setAttribute("d", this.#computeArc(false, this.style.arcGap[1]));
                 this.back.style.display = "";
             } else if (this.back) {
@@ -397,6 +429,20 @@
                 this.rotor.style.display = "";
             } else if (this.rotor) {
                 this.rotor.style.display = "none";
+            }
+
+            // Create/update numeric value display
+            if (this.style.digit) {
+                if (!this.digitElement) {
+                    this.digitElement = LS.Create({ class: "ls-knob-digit" });
+                    this.stator.appendChild(this.digitElement);
+                }
+                this.digitElement.style.display = "";
+                this.#lastRenderedDigit = null;
+                this.#updateDigitDisplay();
+            } else if (this.digitElement) {
+                this.digitElement.style.display = "none";
+                this.#lastRenderedDigit = null;
             }
 
             // Update glow state
@@ -447,6 +493,8 @@
                     this.arc.setAttribute("d", this.#computeArc(this.style.arcFill, this.#arcAngle));
                 }
             }
+
+            this.#updateDigitDisplay();
         }
 
         #isBipolar() {
@@ -479,25 +527,71 @@
             return describeArc(
                 100, 100,
                 this.style.arcSpread,
-                100 - (this.style.arcFill ? 0 : this.style.arcWidth),
+                100 - (fill ? 0 : this.style.arcWidth),
                 adjustedStart,
                 adjustedEnd,
                 fill
             );
         }
 
+        #updateDigitDisplay() {
+            if (!this.style.digit || !this.digitElement) return;
+            const text = this.#formatValue(this.#value);
+            if(text instanceof HTMLElement) {
+                if (this.digitElement.firstChild !== text) {
+                    this.digitElement.textContent = "";
+                    this.digitElement.appendChild(text);
+                    this.#lastRenderedDigit = text;
+                }
+                return;
+            }
+
+            if (text !== this.#lastRenderedDigit) {
+                this.digitElement.textContent = text;
+                this.#lastRenderedDigit = text;
+            }
+        }
+
         #emitInput() {
-            this.emit("input", [this.#value]);
+            this.quickEmit("input", this.#value);
             this.element.dispatchEvent(new Event("input", { bubbles: true }));
         }
 
         #emitChange() {
-            this.emit("change", [this.#value]);
+            this.quickEmit("change", this.#value);
             this.element.dispatchEvent(new Event("change", { bubbles: true }));
         }
 
+        reset() {
+            const resetValue = this.options.defaultValue !== undefined ? this.options.defaultValue : this.#isBipolar() ? 0 : this.options.min;
+            if (this.#value === resetValue) return;
+            this.value = resetValue;
+            this.#emitChange();
+            this.#emitInput();
+        }
+
+        #shouldResetFromPointerStart(domEvent) {
+            if (!domEvent || domEvent.button !== 0) return false;
+
+            const now = performance.now();
+            const x = domEvent.clientX;
+            const y = domEvent.clientY;
+            const interval = now - this.#lastPointerStartTime;
+            const dx = x - this.#lastPointerStartX;
+            const dy = y - this.#lastPointerStartY;
+            const distanceSq = (dx * dx) + (dy * dy);
+
+            this.#lastPointerStartTime = now;
+            this.#lastPointerStartX = x;
+            this.#lastPointerStartY = y;
+
+            const DOUBLE_START_MS = 300;
+            const MAX_DISTANCE_PX = 12;
+            return interval > 0 && interval <= DOUBLE_START_MS && distanceSq <= (MAX_DISTANCE_PX * MAX_DISTANCE_PX);
+        }
+
         #showTooltip() {
-            if (!this.options.showTooltip || !LS.Tooltips) return;
+            if (!this.options.showTooltip || !LS.Tooltips || this.style.showTooltip === false) return;
             const displayValue = this.#formatValue(this.#value);
             LS.Tooltips.position(this.element).show(displayValue);
         }
@@ -511,6 +605,7 @@
             if (typeof this.options.valueDisplayFormatter === "function") {
                 return this.options.valueDisplayFormatter(value);
             }
+
             // Default: show up to 2 decimal places, trim trailing zeros
             return Number(value.toFixed(2)).toString();
         }
@@ -521,7 +616,14 @@
                     this.labelElement = LS.Create({ class: "ls-knob-label" });
                     this.element.appendChild(this.labelElement);
                 }
-                this.labelElement.textContent = this.options.label;
+
+                if(typeof this.options.label === "string") {
+                    this.labelElement.textContent = this.options.label;
+                } else if (this.options.label instanceof HTMLElement) {
+                    this.labelElement.textContent = "";
+                    this.labelElement.appendChild(this.options.label);
+                }
+
                 this.labelElement.style.display = "";
             } else if (this.labelElement) {
                 this.labelElement.style.display = "none";
@@ -551,6 +653,10 @@
             if (this.element.getAttribute("knob-pointer") !== this.style.pointer) {
                 this.element.setAttribute("knob-pointer", this.style.pointer);
             }
+            const digitAttribute = this.style.digit ? "true" : "false";
+            if (this.element.getAttribute("knob-digit") !== digitAttribute) {
+                this.element.setAttribute("knob-digit", digitAttribute);
+            }
 
             if (!quiet && this.#initialized) {
                 this.#initializeVisuals();
@@ -565,6 +671,7 @@
         updateStyle(styleOptions = {}) {
             Object.assign(this.style, styleOptions);
             this.element.setAttribute("knob-pointer", this.style.pointer);
+            this.element.setAttribute("knob-digit", this.style.digit ? "true" : "false");
             this.#initializeVisuals();
             this.frameScheduler.schedule();
         }
@@ -636,6 +743,7 @@
             this.element.removeAttribute("aria-valuemax");
             this.element.removeAttribute("preset");
             this.element.removeAttribute("knob-pointer");
+            this.element.removeAttribute("knob-digit");
 
             this.events.clear();
 
@@ -644,6 +752,7 @@
             this.back = null;
             this.rotor = null;
             this.stator = null;
+            this.digitElement = null;
             this.labelElement = null;
             this.element = null;
 
@@ -653,7 +762,7 @@
 
     // Custom Element: <ls-knob>
     customElements.define("ls-knob", class LSKnob extends HTMLElement {
-        static observedAttributes = ["value", "min", "max", "step", "preset", "disabled", "label", "show-tooltip", "bipolar"];
+        static observedAttributes = ["value", "min", "max", "step", "preset", "disabled", "label", "show-tooltip", "bipolar", "numeric"];
 
         constructor() {
             super();
@@ -682,6 +791,7 @@
                 disabled: this.hasAttribute("disabled"),
                 label: this.getAttribute("label") || null,
                 showTooltip: !this.hasAttribute("show-tooltip") || this.getAttribute("show-tooltip") !== "false",
+                numeric: this.hasAttribute("numeric") && this.getAttribute("numeric") !== "false",
                 bipolar: this.hasAttribute("bipolar") 
                     ? (this.getAttribute("bipolar") === "auto" ? "auto" : this.getAttribute("bipolar") !== "false")
                     : "auto"
@@ -750,6 +860,9 @@
                     break;
                 case "bipolar":
                     this.knob.bipolar = newValue === "auto" ? "auto" : newValue !== "false";
+                    break;
+                case "numeric":
+                    this.knob.setPreset(newValue === "false" ? "default" : "numeric");
                     break;
             }
         }
@@ -823,6 +936,17 @@
             this.setAttribute("show-tooltip", val ? "true" : "false");
         }
 
+        get numeric() {
+            if (this.knob) {
+                return this.knob.style.name === "numeric" || !!this.knob.style.digit;
+            }
+            return this.hasAttribute("numeric") && this.getAttribute("numeric") !== "false";
+        }
+
+        set numeric(val) {
+            this.setAttribute("numeric", val ? "true" : "false");
+        }
+
         get bipolar() {
             return this.knob?.bipolar ?? this.getAttribute("bipolar");
         }
@@ -832,6 +956,24 @@
                 this.setAttribute("bipolar", "auto");
             } else {
                 this.setAttribute("bipolar", val ? "true" : "false");
+            }
+        }
+
+        get defaultValue() {
+            return this.knob?.defaultValue ?? this.getAttribute("data-default");
+        }
+
+        set defaultValue(val) {
+            if (this.knob) {
+                this.knob.defaultValue = val;
+            } else {
+                this.setAttribute("data-default", val);
+            }
+        }
+
+        reset() {
+            if (this.knob) {
+                this.knob.reset();
             }
         }
 

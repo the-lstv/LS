@@ -9,11 +9,11 @@
 LS.LoadComponent(class Resize extends LS.Component {
     constructor(){
         super();
-        this.targets = new Map();
+        this.targets = new WeakMap();
     }
 
     /**
-     * Adds a resize handle to a target element. It can be called multiple times on the same element to change sides or options.
+     * Adds a resize handle to a target element. It can be called multiple times on the same element to change sides or options (upsert).
      *
      * Certain options (anchor, size) can also be set per specific handle with CSS (eg. element > .ls-resize-handle.ls-top { --ls-resize-handle-size: 8px; --ls-resize-anchor: 0.5 })
      * @param {*} target - The target element to resize.
@@ -69,16 +69,32 @@ LS.LoadComponent(class Resize extends LS.Component {
      */
     set(target, options) {
         let entry = this.targets.get(target);
+
+        if(!options) {
+            options = {
+                top: true,
+                right: true,
+                bottom: true,
+                left: true
+            };
+        }
+
+        // Create a new entry with a resize handler
         if(!entry) {
-            entry = { target, handles: {}, restored: false };
-            if(!options) {
-                options = {
-                    top: true,
-                    right: true,
-                    bottom: true,
-                    left: true
-                };
-            }
+            entry = {
+                target,
+                options: null,
+                handler: null,
+                states: {},
+                handles: {},
+                restored: false,
+                storage: null,
+                storageKey: null,
+            };
+
+            const handler = this.#createHandler(entry);
+            entry.handler = handler;
+
             this.targets.set(target, entry);
         }
 
@@ -101,7 +117,6 @@ LS.LoadComponent(class Resize extends LS.Component {
         }, options || {});
 
         entry.options = options;
-        
 
         if(options.sides === "all" || options.sides === true) {
             options.top = true;
@@ -146,6 +161,10 @@ LS.LoadComponent(class Resize extends LS.Component {
         // --- restore persisted state (once per target) ---
         const storeKey = typeof options?.store === 'string' ? options.store : options.store === true ? "ls-resize-" + target.id : null;
         const storage = options.storage || (typeof window !== 'undefined' ? window.localStorage : null);
+
+        entry.storeKey = storeKey;
+        entry.storage = storage;
+
         if(storeKey && !entry.restored && storage) {
             try {
                 const raw = storage.getItem(storeKey);
@@ -184,7 +203,6 @@ LS.LoadComponent(class Resize extends LS.Component {
             target.style.setProperty("--ls-resize-anchor", options.anchor);
         }
 
-        const self = this; // reference for event emitting inside closures
         let i = 0;
         for(let side of ["top", "right", "bottom", "left", "topLeft", "topRight", "bottomRight", "bottomLeft"]) {
             const isCorner = i >= 4;
@@ -193,387 +211,406 @@ LS.LoadComponent(class Resize extends LS.Component {
             if(options[side]) {
                 if(entry.handles.hasOwnProperty(side)) continue;
 
-                const element = N("div", { class: `ls-resize-handle ls-${side}` + (options.styled? " ls-resize-handle-styled": "") + (isCorner? " ls-resize-handle-corner": "") });
-
-                // Pre-calculate side flags
-                const isWest = side === 'left' || side === 'topLeft' || side === 'bottomLeft';
-                const isEast = side === 'right' || side === 'topRight' || side === 'bottomRight';
-                const isNorth = side === 'top' || side === 'topLeft' || side === 'topRight';
-                const isSouth = side === 'bottom' || side === 'bottomLeft' || side === 'bottomRight';
-
-                let startWidth = 0, startHeight = 0;
-                let endWidth = 0, endHeight = 0;
-                let currentState = null;
-
-                // Unified position variables (replaces startTopStyle, startLeftStyle, startTranslateX, startTranslateY)
-                let startPosX = 0, startPosY = 0;
-                let minWidth, minHeight, maxWidth, maxHeight;
-                let absolutePositioned = false; // detected at drag start
-                let boundaryRect = null; // computed boundary rect
-                let targetOffsetX = 0, targetOffsetY = 0; // offset from boundary origin to target's offset parent
-
-                const affectsWidth = isWest || isEast;
-                const affectsHeight = isNorth || isSouth;
-
-                const cursorMap = {
-                    top: 'ns-resize',
-                    bottom: 'ns-resize',
-                    left: 'ew-resize',
-                    right: 'ew-resize',
-                    topLeft: 'nwse-resize',
-                    bottomRight: 'nwse-resize',
-                    topRight: 'nesw-resize',
-                    bottomLeft: 'nesw-resize'
-                };
-
-                const handler = new LS.Util.TouchHandle(element, {
-                    frameTimed: true, // Limits move calls to the frame rate
-
-                    onStart(event) {
-                        self.emit('resize-start', [{target, handler, side}, event.cancel]);
-                        handler.emit('resize-start', [event.cancel]);
-
-                        if(event.cancelled) return;
-
-                        const rect = target.getBoundingClientRect();
-                        const style = window.getComputedStyle(target);
-                        if (options.cursors !== false) {
-                            const cur = cursorMap[side];
-                            if (cur) {
-                                handler.cursor = cur;
-                            }
-                        }
-
-                        minWidth = options.minWidth || parseFloat(style.minWidth) || 20;
-                        minHeight = options.minHeight || parseFloat(style.minHeight) || 20;
-                        maxWidth = options.maxWidth || parseFloat(style.maxWidth) || Infinity;
-                        maxHeight = options.maxHeight || parseFloat(style.maxHeight) || Infinity;
-                        startWidth = rect.width;
-                        startHeight = rect.height;
-                        
-                        // Use style / offsetParent coordinates for adjustments to avoid jump
-                        if (options.translate) {
-                            const transform = style.transform;
-                            let mat = transform.match(/^matrix3d\((.+)\)$/);
-                            if (mat) {
-                                startPosX = parseFloat(mat[1].split(', ')[12]);
-                                startPosY = parseFloat(mat[1].split(', ')[13]);
-                            } else {
-                                mat = transform.match(/^matrix\((.+)\)$/);
-                                if (mat) {
-                                    startPosX = parseFloat(mat[1].split(', ')[4]);
-                                    startPosY = parseFloat(mat[1].split(', ')[5]);
-                                } else {
-                                    startPosX = 0;
-                                    startPosY = 0;
-                                }
-                            }
-                        } else {
-                            startPosX = !isNaN(parseFloat(style.left)) ? parseFloat(style.left) : target.offsetLeft;
-                            startPosY = !isNaN(parseFloat(style.top)) ? parseFloat(style.top) : target.offsetTop;
-                        }
-
-                        absolutePositioned = style.position === 'absolute' || style.position === 'fixed';
-                        
-                        // Compute boundary rect
-                        if (options.boundary === 'viewport') {
-                            boundaryRect = { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight };
-                        } else if (options.boundary && typeof options.boundary === 'object') {
-                            boundaryRect = options.boundary;
-                        } else {
-                            boundaryRect = null;
-                        }
-                        
-                        // Calculate offset from boundary to target's positioning context
-                        if (boundaryRect && absolutePositioned) {
-                            if (style.position === 'fixed') {
-                                // Fixed position is relative to viewport
-                                targetOffsetX = 0;
-                                targetOffsetY = 0;
-                            } else {
-                                // Absolute position is relative to offsetParent
-                                const offsetParent = target.offsetParent || document.body;
-                                const parentRect = offsetParent.getBoundingClientRect();
-                                targetOffsetX = parentRect.left + window.scrollX - (boundaryRect.x || 0);
-                                targetOffsetY = parentRect.top + window.scrollY - (boundaryRect.y || 0);
-
-                                // If using translate, startPosX is just the transform part. 
-                                // We need to account for the static left/top offset in the boundary calculation.
-                                if (options.translate) {
-                                    targetOffsetX += target.offsetLeft;
-                                    targetOffsetY += target.offsetTop;
-                                }
-                            }
-                        }
-                    },
-
-                    onMove(event) {
-                        let newWidth = startWidth;
-                        let newHeight = startHeight;
-                        let newPosX = startPosX;
-                        let newPosY = startPosY;
-
-                        // Pre-calc raw candidates (before min/max) for snapping decisions
-                        let rawWidthCandidate = startWidth;
-                        let rawHeightCandidate = startHeight;
-                        if (isWest) rawWidthCandidate = startWidth - event.offsetX;
-                        else if (isEast) rawWidthCandidate = startWidth + event.offsetX;
-                        if (isNorth) rawHeightCandidate = startHeight - event.offsetY;
-                        else if (isSouth) rawHeightCandidate = startHeight + event.offsetY;
-
-                        if (isWest) {
-                            let candidate = startWidth - event.offsetX;
-                            if (candidate < minWidth) { candidate = minWidth; event.offsetX = startWidth - candidate; }
-                            else if (candidate > maxWidth) { candidate = maxWidth; event.offsetX = startWidth - candidate; }
-                            newWidth = candidate;
-                            newPosX = startPosX + event.offsetX;
-                        } else if (isEast) {
-                            let candidate = startWidth + event.offsetX;
-                            if (candidate < minWidth) candidate = minWidth;
-                            if (candidate > maxWidth) candidate = maxWidth;
-                            newWidth = candidate;
-                        }
-
-                        if (isNorth) {
-                            let candidate = startHeight - event.offsetY;
-                            if (candidate < minHeight) { candidate = minHeight; event.offsetY = startHeight - candidate; }
-                            else if (candidate > maxHeight) { candidate = maxHeight; event.offsetY = startHeight - candidate; }
-                            newHeight = candidate;
-                            newPosY = startPosY + event.offsetY;
-                        } else if (isSouth) {
-                            let candidate = startHeight + event.offsetY;
-                            if (candidate < minHeight) candidate = minHeight;
-                            if (candidate > maxHeight) candidate = maxHeight;
-                            newHeight = candidate;
-                        }
-
-                        // --- Snapping logic (track per-axis) ---
-                        let widthSnappedCollapsed = false, heightSnappedCollapsed = false;
-                        let widthSnappedExpanded = false, heightSnappedExpanded = false;
-
-                        const snapArea = options.snapArea || 40;
-
-                        if (options.snapHorizontal && affectsWidth) {
-                            if (options.snapCollapse && rawWidthCandidate < snapArea) {
-                                newWidth = 0;
-                                widthSnappedCollapsed = true;
-                            } else if (options.snapExpand && target.parentElement) {
-                                const pw = target.parentElement.getBoundingClientRect().width;
-                                if (rawWidthCandidate > (pw - snapArea)) {
-                                    newWidth = pw;
-                                    widthSnappedExpanded = true;
-                                }
-                            }
-                        }
-
-                        if (options.snapVertical && affectsHeight) {
-                            if (options.snapCollapse && rawHeightCandidate < snapArea) {
-                                newHeight = 0;
-                                heightSnappedCollapsed = true;
-                            } else if (options.snapExpand && target.parentElement) {
-                                const ph = target.parentElement.getBoundingClientRect().height;
-                                if (rawHeightCandidate > (ph - snapArea)) {
-                                    newHeight = ph;
-                                    heightSnappedExpanded = true;
-                                }
-                            }
-                        }
-
-                        const snappedCollapsed = widthSnappedCollapsed || heightSnappedCollapsed;
-                        const snappedExpanded = widthSnappedExpanded || heightSnappedExpanded;
-
-                        const horizExpanded = widthSnappedExpanded && options.snapExpand;
-                        const vertExpanded = heightSnappedExpanded && options.snapExpand;
-
-                        // Apply position only if axis affected & absolute
-                        if (absolutePositioned) {
-                            if (options.translate) {
-                                if (isWest || isNorth) {
-                                    target.style.transform = `translate3d(${newPosX}px, ${newPosY}px, 0)`;
-                                }
-                            } else {
-                                if (isWest) target.style.left = newPosX + 'px';
-                                if (isNorth) target.style.top = newPosY + 'px';
-                            }
-                        }
-
-                        // Apply dimensions only when that axis is being resized (prevents assigning fixed px values unintentionally)
-                        if (affectsWidth || widthSnappedCollapsed || widthSnappedExpanded) {
-                            if (horizExpanded) target.style.width = '100%';
-                            else target.style.width = newWidth + 'px';
-                        }
-                        if (affectsHeight || heightSnappedCollapsed || heightSnappedExpanded) {
-                            if (vertExpanded) target.style.height = '100%';
-                            else target.style.height = newHeight + 'px';
-                        }
-
-                        // Manage classes
-                        if (snappedCollapsed) {
-                            target.classList.add('ls-resize-collapsed');
-                            target.classList.remove('ls-resize-expanded');
-                        } else if (snappedExpanded) {
-                            target.classList.add('ls-resize-expanded');
-                            target.classList.remove('ls-resize-collapsed');
-                        } else {
-                            target.classList.remove('ls-resize-collapsed');
-                            target.classList.remove('ls-resize-expanded');
-                        }
-
-                        // --- Boundary constraints ---
-                        if (boundaryRect) {
-                            const bx = boundaryRect.x || 0;
-                            const by = boundaryRect.y || 0;
-                            const bw = boundaryRect.width;
-                            const bh = boundaryRect.height;
-
-                            if (absolutePositioned) {
-                                // Constrain left edge
-                                const leftInBoundary = newPosX + targetOffsetX;
-                                if (leftInBoundary < bx) {
-                                    const diff = bx - leftInBoundary;
-                                    newPosX += diff;
-                                    if (isWest) {
-                                        newWidth -= diff;
-                                    }
-                                }
-                                // Constrain top edge
-                                const topInBoundary = newPosY + targetOffsetY;
-                                if (topInBoundary < by) {
-                                    const diff = by - topInBoundary;
-                                    newPosY += diff;
-                                    if (isNorth) {
-                                        newHeight -= diff;
-                                    }
-                                }
-                                // Constrain right edge
-                                const rightInBoundary = newPosX + targetOffsetX + newWidth;
-                                if (rightInBoundary > bx + bw) {
-                                    const diff = rightInBoundary - (bx + bw);
-                                    if (isEast) {
-                                        newWidth -= diff;
-                                    } else if (isWest) {
-                                        newPosX -= diff;
-                                    }
-                                }
-                                // Constrain bottom edge
-                                const bottomInBoundary = newPosY + targetOffsetY + newHeight;
-                                if (bottomInBoundary > by + bh) {
-                                    const diff = bottomInBoundary - (by + bh);
-                                    if (isSouth) {
-                                        newHeight -= diff;
-                                    } else if (isNorth) {
-                                        newPosY -= diff;
-                                    }
-                                }
-                            } else {
-                                // For non-absolute elements, just constrain dimensions
-                                if (newWidth > bw) newWidth = bw;
-                                if (newHeight > bh) newHeight = bh;
-                            }
-
-                            // Re-apply min constraints after boundary clamping
-                            if (newWidth < minWidth) newWidth = minWidth;
-                            if (newHeight < minHeight) newHeight = minHeight;
-                        }
-
-                        currentState = 'normal';
-                        if (snappedCollapsed || target.classList.contains('ls-resize-collapsed')) currentState = 'collapsed';
-                        else if (snappedExpanded || target.classList.contains('ls-resize-expanded')) currentState = 'expanded';
-
-                        const evtd = [newWidth, newHeight, currentState, newPosX, newPosY];
-                        handler.emit('resize', evtd);
-                        self.emit(target, evtd);
-                        evtd.unshift({target, handler, side});
-                        self.emit('resize', evtd);
-
-                        endWidth = newWidth;
-                        endHeight = newHeight;
-
-                        if (options.cursors !== false && options.boundsCursors !== false) {
-                            const canExpandWidth = newWidth < maxWidth;
-                            const canShrinkWidth = newWidth > minWidth;
-                            const canExpandHeight = newHeight < maxHeight;
-                            const canShrinkHeight = newHeight > minHeight;
-                            let cur = handler.cursor;
-                            if (isWest || isEast) {
-                                if (canExpandWidth && canShrinkWidth) cur = 'ew-resize';
-                                else if (canExpandWidth && !canShrinkWidth) cur = isWest ? 'w-resize' : 'e-resize';
-                                else if (!canExpandWidth && canShrinkWidth) cur = isWest ? 'e-resize' : 'w-resize';
-                                else cur = 'not-allowed';
-                            } else if (isNorth || isSouth) {
-                                if (canExpandHeight && canShrinkHeight) cur = 'ns-resize';
-                                else if (canExpandHeight && !canShrinkHeight) cur = isNorth ? 'n-resize' : 's-resize';
-                                else if (!canExpandHeight && canShrinkHeight) cur = isNorth ? 's-resize' : 'n-resize';
-                                else cur = 'not-allowed';
-                            }
-                            handler.cursor = cur;
-                        }
-                    },
-
-                    onEnd() {
-                        try {
-                            const data = {
-                                width: target.style.width || null,
-                                height: target.style.height || null,
-                                state: target.classList.contains('ls-resize-collapsed') ? 'collapsed' : (target.classList.contains('ls-resize-expanded') ? 'expanded' : 'normal')
-                            };
-
-                            if (options.translate) {
-                                const transform = window.getComputedStyle(target).transform;
-                                let mat = transform.match(/^matrix3d\((.+)\)$/);
-                                if (mat) {
-                                    data.translateX = parseFloat(mat[1].split(', ')[12]);
-                                    data.translateY = parseFloat(mat[1].split(', ')[13]);
-                                } else {
-                                    mat = transform.match(/^matrix\((.+)\)$/);
-                                    if (mat) {
-                                        data.translateX = parseFloat(mat[1].split(', ')[4]);
-                                        data.translateY = parseFloat(mat[1].split(', ')[5]);
-                                    } else {
-                                        data.translateX = 0;
-                                        data.translateY = 0;
-                                    }
-                                }
-                            } else {
-                                data.left = target.style.left || null;
-                                data.top = target.style.top || null;
-                            }
-
-                            storage.setItem(storeKey, entry.options?.storeStringify !== false ? JSON.stringify(data) : data);
-                        } catch(e) { console.error(e) }
-
-                        self.emit('resize-end', [{target, handler, side}, endHeight, endWidth, currentState]);
-                        handler.emit('resize-end', [endHeight, endWidth, currentState]);
-                    }
-                });
-
-                entry.handles[side] = { element, handler };
-
+                const element = document.createElement("div");
+                element.className = `ls-resize-handle ls-${side}` + (options.styled? " ls-resize-handle-styled": "") + (isCorner? " ls-resize-handle-corner": "");
+                element.dataset.side = side;
+                entry.handles[side] = element;
+                entry.handler.addTarget(element);
                 target.appendChild(element);
+
             } else if (entry.handles.hasOwnProperty(side)) {
-                entry.handles[side].handler.destroy();
-                entry.handles[side].element.remove();
+                entry.handles[side].remove();
+                entry.handler.removeTarget(entry.handles[side]);
                 delete entry.handles[side];
             }
         }
 
         this.targets.set(target, entry);
+        return entry;
+    }
 
-        return entry.handles;
+    #createHandler(entry) {
+        let side;
+        let minWidth, minHeight, maxWidth, maxHeight;
+        let isWest, isEast, isNorth, isSouth;
+        let affectsWidth, affectsHeight;
+        let startWidth, startHeight;
+        let startPosX, startPosY;
+        let absolutePositioned = false;
+        let boundaryRect = null;
+        let targetOffsetX = 0;
+        let targetOffsetY = 0;
+        let endWidth, endHeight;
+
+        let handler = new LS.Util.TouchHandle(null, {
+            frameTimed: true,
+
+            onStart: (event) => {
+                targetOffsetX = 0;
+                targetOffsetY = 0;
+
+                side = event.domEvent.target?.dataset?.side;
+                if (!side) return event.cancel();
+
+                handler.emit('start', [ side, event.cancel ]);
+                if(event.cancelled) return;
+
+                this.emit('resize-start', [{ target: entry.target, side }]);
+
+                const rect = entry.target.getBoundingClientRect();
+                const style = window.getComputedStyle(entry.target);
+                if (entry.options.cursors !== false) {
+                    const cur = this.constructor.cursorMap[side];
+                    if (cur) {
+                        handler.cursor = cur;
+                    }
+                }
+
+                isWest = side === 'left' || side === 'topLeft' || side === 'bottomLeft';
+                isEast = side === 'right' || side === 'topRight' || side === 'bottomRight';
+                isNorth = side === 'top' || side === 'topLeft' || side === 'topRight';
+                isSouth = side === 'bottom' || side === 'bottomLeft' || side === 'bottomRight';
+                affectsWidth = isWest || isEast;
+                affectsHeight = isNorth || isSouth;
+
+                minWidth = entry.options.minWidth || parseFloat(style.minWidth) || 20;
+                minHeight = entry.options.minHeight || parseFloat(style.minHeight) || 20;
+                maxWidth = entry.options.maxWidth || parseFloat(style.maxWidth) || Infinity;
+                maxHeight = entry.options.maxHeight || parseFloat(style.maxHeight) || Infinity;
+                startWidth = rect.width;
+                startHeight = rect.height;
+
+                // Use style / offsetParent coordinates for adjustments to avoid jump
+                if (entry.options.translate) {
+                    const transform = style.transform;
+                    let mat = transform.match(/^matrix3d\((.+)\)$/);
+                    if (mat) {
+                        startPosX = parseFloat(mat[1].split(', ')[12]);
+                        startPosY = parseFloat(mat[1].split(', ')[13]);
+                    } else {
+                        mat = transform.match(/^matrix\((.+)\)$/);
+                        if (mat) {
+                            startPosX = parseFloat(mat[1].split(', ')[4]);
+                            startPosY = parseFloat(mat[1].split(', ')[5]);
+                        } else {
+                            startPosX = 0;
+                            startPosY = 0;
+                        }
+                    }
+                } else {
+                    startPosX = !isNaN(parseFloat(style.left)) ? parseFloat(style.left) : entry.target.offsetLeft;
+                    startPosY = !isNaN(parseFloat(style.top)) ? parseFloat(style.top) : entry.target.offsetTop;
+                }
+
+                absolutePositioned = style.position === 'absolute' || style.position === 'fixed';
+                
+                // Compute boundary rect
+                if (entry.options.boundary === 'viewport') {
+                    boundaryRect = { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight };
+                } else if (entry.options.boundary && typeof entry.options.boundary === 'object') {
+                    boundaryRect = entry.options.boundary;
+                } else {
+                    boundaryRect = null;
+                }
+                
+                // Calculate offset from boundary to target's positioning context
+                if (boundaryRect && absolutePositioned) {
+                    if (style.position === 'fixed') {
+                        // Fixed position is relative to viewport
+                        targetOffsetX = 0;
+                        targetOffsetY = 0;
+                    } else {
+                        // Absolute position is relative to offsetParent
+                        const offsetParent = entry.target.offsetParent || document.body;
+                        const parentRect = offsetParent.getBoundingClientRect();
+                        targetOffsetX = parentRect.left + window.scrollX - (boundaryRect.x || 0);
+                        targetOffsetY = parentRect.top + window.scrollY - (boundaryRect.y || 0);
+
+                        // If using translate, startPosX is just the transform part. 
+                        // We need to account for the static left/top offset in the boundary calculation.
+                        if (entry.options.translate) {
+                            targetOffsetX += entry.target.offsetLeft;
+                            targetOffsetY += entry.target.offsetTop;
+                        }
+                    }
+                }
+            },
+            onMove: (event) => {
+                let newWidth = startWidth;
+                let newHeight = startHeight;
+                let newPosX = startPosX;
+                let newPosY = startPosY;
+
+                // Pre-calc raw candidates (before min/max) for snapping decisions
+                let rawWidthCandidate = startWidth;
+                let rawHeightCandidate = startHeight;
+                if (isWest) rawWidthCandidate = startWidth - event.offsetX;
+                else if (isEast) rawWidthCandidate = startWidth + event.offsetX;
+                if (isNorth) rawHeightCandidate = startHeight - event.offsetY;
+                else if (isSouth) rawHeightCandidate = startHeight + event.offsetY;
+
+                if (isWest) {
+                    let candidate = startWidth - event.offsetX;
+                    if (candidate < minWidth) { candidate = minWidth; event.offsetX = startWidth - candidate; }
+                    else if (candidate > maxWidth) { candidate = maxWidth; event.offsetX = startWidth - candidate; }
+                    newWidth = candidate;
+                    newPosX = startPosX + event.offsetX;
+                } else if (isEast) {
+                    let candidate = startWidth + event.offsetX;
+                    if (candidate < minWidth) candidate = minWidth;
+                    if (candidate > maxWidth) candidate = maxWidth;
+                    newWidth = candidate;
+                }
+
+                if (isNorth) {
+                    let candidate = startHeight - event.offsetY;
+                    if (candidate < minHeight) { candidate = minHeight; event.offsetY = startHeight - candidate; }
+                    else if (candidate > maxHeight) { candidate = maxHeight; event.offsetY = startHeight - candidate; }
+                    newHeight = candidate;
+                    newPosY = startPosY + event.offsetY;
+                } else if (isSouth) {
+                    let candidate = startHeight + event.offsetY;
+                    if (candidate < minHeight) candidate = minHeight;
+                    if (candidate > maxHeight) candidate = maxHeight;
+                    newHeight = candidate;
+                }
+
+                // --- Snapping logic (track per-axis) ---
+                let widthSnappedCollapsed = false, heightSnappedCollapsed = false;
+                let widthSnappedExpanded = false, heightSnappedExpanded = false;
+
+                const snapArea = entry.options.snapArea || 40;
+
+                if (entry.options.snapHorizontal && affectsWidth) {
+                    if (entry.options.snapCollapse && rawWidthCandidate < snapArea) {
+                        newWidth = 0;
+                        widthSnappedCollapsed = true;
+                    } else if (entry.options.snapExpand && entry.target.parentElement) {
+                        const pw = entry.target.parentElement.getBoundingClientRect().width;
+                        if (rawWidthCandidate > (pw - snapArea)) {
+                            newWidth = pw;
+                            widthSnappedExpanded = true;
+                        }
+                    }
+                }
+
+                if (entry.options.snapVertical && affectsHeight) {
+                    if (entry.options.snapCollapse && rawHeightCandidate < snapArea) {
+                        newHeight = 0;
+                        heightSnappedCollapsed = true;
+                    } else if (entry.options.snapExpand && entry.target.parentElement) {
+                        const ph = entry.target.parentElement.getBoundingClientRect().height;
+                        if (rawHeightCandidate > (ph - snapArea)) {
+                            newHeight = ph;
+                            heightSnappedExpanded = true;
+                        }
+                    }
+                }
+
+                const snappedCollapsed = widthSnappedCollapsed || heightSnappedCollapsed;
+                const snappedExpanded = widthSnappedExpanded || heightSnappedExpanded;
+
+                const horizExpanded = widthSnappedExpanded && entry.options.snapExpand;
+                const vertExpanded = heightSnappedExpanded && entry.options.snapExpand;
+
+                // Apply position only if axis affected & absolute
+                if (absolutePositioned) {
+                    if (entry.options.translate) {
+                        if (isWest || isNorth) {
+                            entry.target.style.transform = `translate3d(${newPosX}px, ${newPosY}px, 0)`;
+                        }
+                    } else {
+                        if (isWest) entry.target.style.left = newPosX + 'px';
+                        if (isNorth) entry.target.style.top = newPosY + 'px';
+                    }
+                }
+
+                // Apply dimensions only when that axis is being resized (prevents assigning fixed px values unintentionally)
+                if (affectsWidth || widthSnappedCollapsed || widthSnappedExpanded) {
+                    if (horizExpanded) entry.target.style.width = '100%';
+                    else entry.target.style.width = newWidth + 'px';
+                }
+                if (affectsHeight || heightSnappedCollapsed || heightSnappedExpanded) {
+                    if (vertExpanded) entry.target.style.height = '100%';
+                    else entry.target.style.height = newHeight + 'px';
+                }
+
+                // Manage classes
+                if (snappedCollapsed) {
+                    entry.target.classList.add('ls-resize-collapsed');
+                    entry.target.classList.remove('ls-resize-expanded');
+                } else if (snappedExpanded) {
+                    entry.target.classList.add('ls-resize-expanded');
+                    entry.target.classList.remove('ls-resize-collapsed');
+                } else {
+                    entry.target.classList.remove('ls-resize-collapsed');
+                    entry.target.classList.remove('ls-resize-expanded');
+                }
+
+                // --- Boundary constraints ---
+                if (boundaryRect) {
+                    const bx = boundaryRect.x || 0;
+                    const by = boundaryRect.y || 0;
+                    const bw = boundaryRect.width;
+                    const bh = boundaryRect.height;
+
+                    if (absolutePositioned) {
+                        // Constrain left edge
+                        const leftInBoundary = newPosX + targetOffsetX;
+                        if (leftInBoundary < bx) {
+                            const diff = bx - leftInBoundary;
+                            newPosX += diff;
+                            if (isWest) {
+                                newWidth -= diff;
+                            }
+                        }
+                        // Constrain top edge
+                        const topInBoundary = newPosY + targetOffsetY;
+                        if (topInBoundary < by) {
+                            const diff = by - topInBoundary;
+                            newPosY += diff;
+                            if (isNorth) {
+                                newHeight -= diff;
+                            }
+                        }
+                        // Constrain right edge
+                        const rightInBoundary = newPosX + targetOffsetX + newWidth;
+                        if (rightInBoundary > bx + bw) {
+                            const diff = rightInBoundary - (bx + bw);
+                            if (isEast) {
+                                newWidth -= diff;
+                            } else if (isWest) {
+                                newPosX -= diff;
+                            }
+                        }
+                        // Constrain bottom edge
+                        const bottomInBoundary = newPosY + targetOffsetY + newHeight;
+                        if (bottomInBoundary > by + bh) {
+                            const diff = bottomInBoundary - (by + bh);
+                            if (isSouth) {
+                                newHeight -= diff;
+                            } else if (isNorth) {
+                                newPosY -= diff;
+                            }
+                        }
+                    } else {
+                        // For non-absolute elements, just constrain dimensions
+                        if (newWidth > bw) newWidth = bw;
+                        if (newHeight > bh) newHeight = bh;
+                    }
+
+                    // Re-apply min constraints after boundary clamping
+                    if (newWidth < minWidth) newWidth = minWidth;
+                    if (newHeight < minHeight) newHeight = minHeight;
+                }
+
+                entry.states[side] = 'normal';
+                if (snappedCollapsed || entry.target.classList.contains('ls-resize-collapsed')) entry.states[side] = 'collapsed';
+                else if (snappedExpanded || entry.target.classList.contains('ls-resize-expanded')) entry.states[side] = 'expanded';
+
+                const evtd = [side, newWidth, newHeight, newPosX, newPosY, entry.states[side]];
+                handler.emit('resize', evtd);
+                evtd.unshift({ target: entry.target, side, handler });
+                this.emit('resize', evtd);
+
+                endWidth = newWidth;
+                endHeight = newHeight;
+
+                if (entry.options.cursors !== false && entry.options.boundsCursors !== false) {
+                    const canExpandWidth = newWidth < maxWidth;
+                    const canShrinkWidth = newWidth > minWidth;
+                    const canExpandHeight = newHeight < maxHeight;
+                    const canShrinkHeight = newHeight > minHeight;
+                    let cur = handler.cursor;
+                    if (isWest || isEast) {
+                        if (canExpandWidth && canShrinkWidth) cur = 'ew-resize';
+                        else if (canExpandWidth && !canShrinkWidth) cur = isWest ? 'w-resize' : 'e-resize';
+                        else if (!canExpandWidth && canShrinkWidth) cur = isWest ? 'e-resize' : 'w-resize';
+                        else cur = 'not-allowed';
+                    } else if (isNorth || isSouth) {
+                        if (canExpandHeight && canShrinkHeight) cur = 'ns-resize';
+                        else if (canExpandHeight && !canShrinkHeight) cur = isNorth ? 'n-resize' : 's-resize';
+                        else if (!canExpandHeight && canShrinkHeight) cur = isNorth ? 's-resize' : 'n-resize';
+                        else cur = 'not-allowed';
+                    }
+                    handler.cursor = cur;
+                }
+            },
+            onEnd: (event) => {
+                try {
+                    const data = {
+                        width: entry.target.style.width || null,
+                        height: entry.target.style.height || null,
+                        state: entry.target.classList.contains('ls-resize-collapsed') ? 'collapsed' : (entry.target.classList.contains('ls-resize-expanded') ? 'expanded' : 'normal')
+                    };
+
+                    if (entry.options.translate) {
+                        const transform = window.getComputedStyle(entry.target).transform;
+                        let mat = transform.match(/^matrix3d\((.+)\)$/);
+                        if (mat) {
+                            data.translateX = parseFloat(mat[1].split(', ')[12]);
+                            data.translateY = parseFloat(mat[1].split(', ')[13]);
+                        } else {
+                            mat = transform.match(/^matrix\((.+)\)$/);
+                            if (mat) {
+                                data.translateX = parseFloat(mat[1].split(', ')[4]);
+                                data.translateY = parseFloat(mat[1].split(', ')[5]);
+                            } else {
+                                data.translateX = 0;
+                                data.translateY = 0;
+                            }
+                        }
+                    } else {
+                        data.left = entry.target.style.left || null;
+                        data.top = entry.target.style.top || null;
+                    }
+
+                    if(entry.storage) entry.storage.setItem(entry.storeKey, entry.options?.storeStringify !== false ? JSON.stringify(data) : data);
+                } catch(e) { console.error(e) }
+
+                this.emit('resize-end', [{ target: entry.target, handler, side }, endHeight, endWidth, entry.states[side]?.currentState || 'normal']);
+                handler.emit('resize-end', [side, endHeight, endWidth, entry.states[side]?.currentState || 'normal']);
+            },
+        });
+
+        return handler;
+    }
+
+    static cursorMap = {
+        top: 'ns-resize',
+        bottom: 'ns-resize',
+        left: 'ew-resize',
+        right: 'ew-resize',
+        topLeft: 'nwse-resize',
+        bottomRight: 'nwse-resize',
+        topRight: 'nesw-resize',
+        bottomLeft: 'nesw-resize'
     }
 
     remove(target) {
         const entry = this.targets.get(target);
         if (entry) {
+            entry.handler?.destroy();
+
+            for (const side in entry.handles) {
+                entry.handles[side].remove();
+            }
+
+            entry.target = null;
+            entry.options = null;
+            entry.handler = null;
+            entry.states = null;
+            entry.handles = null;
+            entry.restored = false;
+            entry.storage = null;
+            entry.storageKey = null;
+
+            this.targets.delete(target);
+
             if(entry._removalObserver) {
                 entry._removalObserver.disconnect();
                 delete entry._removalObserver;
             }
-            for (const side in entry.handles) {
-                entry.handles[side].handler.destroy();
-                entry.handles[side].element.remove();
-            }
-            this.targets.delete(target);
             return true;
         }
         return false;
