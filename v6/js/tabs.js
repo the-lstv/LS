@@ -24,9 +24,7 @@ LS.LoadComponent(class Tabs extends LS.Component {
         this.activeTab = null;
 
         this.element = this.container = element? LS.Select(element) : LS.Create("div");
-        this.options = options = this.constructor.defaults(options);
-        console.log(options);
-        
+        this.options = options = this.constructor.defaults(options);        
 
         this.element.classList.add("ls-tabs");
 
@@ -45,22 +43,25 @@ LS.LoadComponent(class Tabs extends LS.Component {
         }
 
         this.prepareEvent("close", { results: true });
+        this.aliasEvent("change", "changed");
 
         if(options.list) {
             this.frameScheduler = new LS.Util.FrameScheduler(() => this.#renderList());
 
-            this.element.classList.add("ls-tabs-has-list");
-
-            this.list = LS.Create({
+            this.list = options.listContainer || LS.Create({
                 class: "ls-tabs-list",
             });
 
-            this.container = LS.Create({
-                class: "ls-tabs-content",
-                inner: [...this.element.children]
-            });
+            if(!options.listContainer) {
+                // Wrap existing children in a container
+                this.container = LS.Create({
+                    class: "ls-tabs-content",
+                    inner: [...this.element.children]
+                });
 
-            this.element.add(this.list, this.container);
+                this.element.classList.add("ls-tabs-has-list");
+                this.element.append(this.list, this.container);
+            }
 
             this.frameScheduler.schedule();
         } else {
@@ -74,7 +75,7 @@ LS.LoadComponent(class Tabs extends LS.Component {
 
     add(id, content, options = {}) {
         if(id instanceof Element) {
-            options ??= content || {};
+            options = content || {};
             content = id;
             id = options.id || content.getAttribute("tab-id") || content.getAttribute("id") || content.getAttribute("tab-title");
         }
@@ -93,7 +94,11 @@ LS.LoadComponent(class Tabs extends LS.Component {
             });
         }
 
-        const tab = { id, element: content, title: options.title || content.getAttribute("tab-title") || content.getAttribute("title") };
+        if(typeof options.icon === "string") {
+            options.icon = LS.Create("i", { class: options.icon });
+        }
+
+        const tab = { id, element: content, title: options.title || options.label || content.getAttribute("tab-title") || content.getAttribute("title") || id, icon: options.icon || null, handle: null, reorderHandle: null };
 
         this.tabs.set(id, tab);
         this.order.push(id);
@@ -187,7 +192,7 @@ LS.LoadComponent(class Tabs extends LS.Component {
 
         this.activeTab = id;
 
-        this.emit("changed", [id, oldTab?.id || null]);
+        this.emit("change", [id, oldTab?.id || null]);
 
         if(tab.handle) {
             tab.handle.classList.add("active");
@@ -246,16 +251,14 @@ LS.LoadComponent(class Tabs extends LS.Component {
     #renderList(){
         if(!this.list || !this.options.list) return;
 
-        for(this.list.children.length; this.list.children.length > 0; this.list.children[0].remove());
-
-        this.order.forEach((id) => {
+        for (const id of this.order) {
             const tab = this.tabs.get(id);
-            if(!tab) return;
+            if(!tab) continue;
 
             if(!tab.handle) {
                 tab.handle = LS.Create({
                     class: "ls-tab-handle",
-                    inner: tab.title || id,
+                    inner: [tab.icon? tab.icon : null, tab.title || id],
 
                     onpointerdown: () => {
                         this.set(id);
@@ -387,7 +390,7 @@ LS.LoadComponent(class Tabs extends LS.Component {
                 }
 
                 if(this.options.closeable){
-                    tab.handle.add(LS.Create("button", {
+                    tab.handle.appendChild(LS.Create("button", {
                         class: "clear circle ls-tab-close",
                         innerHTML: "&times;",
 
@@ -410,8 +413,8 @@ LS.LoadComponent(class Tabs extends LS.Component {
 
             tab.handle.classList.toggle("active", this.activeTab === id);
             tab.handle.dataset.tabId = id;
-            this.list.add(tab.handle);
-        });
+            this.list.appendChild(tab.handle);
+        }
     }
 
     renderList() {

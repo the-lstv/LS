@@ -425,13 +425,20 @@
          * They will become identical and share listeners.
          * @param {*} name Original event name.
          * @param {*} alias Alias name.
+         * 
+         * TODO: There could be a way to do this without per-instance calls in extending classes
          */
-        alias(name, alias){
+        aliasEvent(name, alias){
             const event = (name._isEvent? name: this.events.get(name)) || this.prepareEvent(name);
             event.aliases ??= [];
 
             if(!event.aliases.includes(alias)) event.aliases.push(alias);
             this.events.set(alias, event);
+        }
+
+        alias(name, alias){
+            console.warn("EventEmitter.alias is deprecated, use EventEmitter.aliasEvent");
+            return this.aliasEvent(name, alias);
         }
 
         completed(name, data = undefined, options = null){
