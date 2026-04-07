@@ -3,17 +3,18 @@
 .idea
 .github
 
-
 # Backend related
 versions/
-
 
 # Being worked on
 misc/demos
 *.test.html
 *.bench.html
 
-
 # ?
 app.conf
 ls-reference.md
+
+# Hmmm, what could this be?
+# v6
+v6/dist

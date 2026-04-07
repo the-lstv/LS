@@ -12,18 +12,16 @@
     }
 
     LS.LoadComponent(class Modal extends LS.Component {
-        static DEFAULTS = {
+        static defaults = LS.Util.staticDefaults({
             styled: true,
             fadeInDuration: 300,
             fadeOutDuration: 300
-        }
+        });
 
         constructor(options = {}, template = {}) {
             super();
 
-            this.options = LS.Util.defaults(this.constructor.DEFAULTS, options);
-            this.isOpen = false;
-
+            this.options = this.constructor.defaults(options);
             this.container = this.constructor.TEMPLATE({
                 inner: this.options.content || null,
 
@@ -35,18 +33,8 @@
                 closeModal
             }).root;
 
+            this.isOpen = false;
             this.container.lsComponent = this;
-
-            if(template.onOpen) {
-                this.on("open", template.onOpen);
-            }
-
-            if(template.onClose) {
-                this.on("close", template.onClose);
-            }
-
-            template = null;
-
             this.container.style.display = "none";
 
             if (this.options.styled !== false) {
@@ -57,6 +45,16 @@
             if (this.options.height) {
                 this.container.style.height = typeof this.options.height === "number" ? this.options.height + "px" : this.options.height;
             }
+
+            if(template.onOpen) {
+                this.on("open", template.onOpen);
+            }
+
+            if(template.onClose) {
+                this.on("close", template.onClose);
+            }
+
+            template = null;
 
             LS.Stack.container.add(this.container);
 

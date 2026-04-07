@@ -96,7 +96,7 @@
   --padding-control-h: 10px;
   font-size: x-small;
 }
-[ls-style=flat] [state=loading].loading-right::after, [ls-style=flat] [state=loading]:not(.loading-right)::before {
+[ls-style=flat] [data-ls-state=loading].loading-right::after, [ls-style=flat] [data-ls-state=loading]:not(.loading-right)::before {
   content: "";
   --border-width: calc(1em / 8);
   border: var(--border-width) solid currentColor;
@@ -113,20 +113,20 @@
   left: calc(50% - var(--width) / 2);
   z-index: 500000;
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle))[state=loading]:not(.loading-right)::before {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle))[data-ls-state=loading]:not(.loading-right)::before {
   margin-left: 0;
   position: static;
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle))[state=loading].loading-right::after {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle))[data-ls-state=loading].loading-right::after {
   float: right;
   margin-left: auto;
   position: static;
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle))[state=loading] {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle))[data-ls-state=loading] {
   pointer-events: none;
   user-select: none;
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle))[state=loading]:not(.loading-right) > i:first-child {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle))[data-ls-state=loading]:not(.loading-right) > i:first-child {
   display: none;
 }
 @keyframes spin {

@@ -4,47 +4,12 @@
 
     Last modified: 2026
     License: GPL-3.0
-    Version: 5.2.9
+    Version: 6.0.0-alpha
     See: https://github.com/thelstv/LS
 */
 
-(exports => {
-    const instance = exports();
 
-    if(typeof module !== "undefined"){
-        module.exports = instance
-    }
-
-    if(instance.isWeb){
-        const global = typeof window !== 'undefined'? window : globalThis;
-        global.LS = instance;
-
-        instance._events.prepareEvent("ready", { deopt: true });
-        instance._events.alias("ready", "body-available"); // backward compatibility
-
-        if(!window.LS_DEFER_INIT){
-            instance.init({
-                globalizeTiny: window.LS_DONT_GLOBALIZE_TINY !== true,
-                globalPrototype: window.ls_do_not_prototype !== true,
-                ...(window.LS_INIT_OPTIONS || null)
-            });
-            delete window.LS_INIT_OPTIONS;
-        }
-        delete window.LS_DEFER_INIT;
-
-        function bodyAvailable(){
-            instance._events.completed("ready", [document.body]);
-        }
-
-        if(document.body) bodyAvailable(); else window.addEventListener("DOMContentLoaded", bodyAvailable);
-    }
-
-    // Ensure this event is deoptimized
-    instance._events.prepareEvent("component-loaded", { deopt: true });
-
-    return instance;
-})(() => {
-    const CONTEXT_FIELDS = ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "fetch", "XMLHttpRequest", "requestAnimationFrame", "EventSource", "WebSocket", "queueMicrotask", "EventTarget", "MessageChannel", "MessagePort", "Worker"];
+(() => {
 
     /**
      * Advanced & performant event handling system used across LS.
@@ -484,28 +449,28 @@
      * @concept
      * @experimental Direction undecided, so far an abstract concept - don't use in production code.
      * 
+     * FIXME: Too many exposed, vaguely-named methods.
+     * Sadly there are no proper "private" fields in JS so I am unsure how to do it cleanly.
+     *
      * "Best-effort" based destroy container.
      * It destroys explicitly added destroyables and tries to recursively destroy itself.
      * Supports various destroyable types, timers, and external events.
      */
     class Context extends EventEmitter {
-        #destroyables = new Set();
-        #timers = new Set();
-        #rAF = [];
-        #externalEvents = [];
-        #aggresiveCleanup = false;
+        #destroyables = null;
+        #timeouts = null;
+        #intervals = null;
+        #rAF = null;
+        #externalEvents = null;
+        #aggressiveCleanup = false;
         #deleteProperties = true;
 
         constructor(options = {}) {
             super();
             this.destroyed = false;
 
-            if(options.aggresiveCleanup) this.#aggresiveCleanup = true;
-            if(options.deleteProperties === false) this.#deleteProperties = false;
-
-            // Prepare destroy event.
-            this.prepareEvent("destroy", { deopt: true });
-            this.alias("destroy", "destroyed");
+            if (options.aggressiveCleanup) this.#aggressiveCleanup = true;
+            if (options.deleteProperties === false) this.#deleteProperties = false;
         }
 
         createElement(tagName, content) {
@@ -516,173 +481,228 @@
          * Element selector that searches within own container.
          */
         selectElement(selector, one = false) {
-            if(!this.container) return null;
-            return LS.Tiny.Q(this.container, selector, one);
+            return this.container ? LS.Select(this.container, selector, one) : null;
         }
 
         addDestroyable(...destroyables) {
-            for(const item of destroyables) {
-                if (!item || this.destroyed) continue;
-                if(item instanceof LS.Component) {
+            const single = destroyables.length === 1 ? destroyables[0] : undefined;
+            if (this.destroyed || destroyables.length === 0) return single;
+
+            let set = this.#destroyables;
+            if (!set) this.#destroyables = set = new Set();
+
+            for (const item of destroyables) {
+                if (!item) continue;
+
+                if (item instanceof Component) {
                     Context.bind(item, this);
                 }
 
-                this.#destroyables.add(item);
-                if(destroyables.length === 1) return item;
+                set.add(item);
             }
+
+            return single;
         }
 
         removeDestroyable(destroyable, destroy = false) {
-            this.#destroyables.delete(destroyable);
+            const set = this.#destroyables;
+            if (!set || !set.delete(destroyable)) return;
+
+            if (set.size === 0) this.#destroyables = null;
             if (destroy) this.destroyOne(destroyable, false);
         }
 
-        setTimeout(callback, delay, ...args) {
-            const timer = Context.setTimeout(() => {
-                this.#timers.delete(ref);
-                callback(...args);
+        setTimeout(callback, delay) {
+            if (this.destroyed) return null;
+
+            let set = this.#timeouts;
+            if (!set) this.#timeouts = set = new Set();
+
+            const id = setTimeout(() => {
+                set.delete(id);
+                callback.call(this);
             }, delay);
-            const ref = [timer, 0];
-            this.#timers.add(ref);
-            return timer;
+
+            set.add(id);
+            return id;
         }
 
-        setInterval(callback, interval, ...args) {
-            const timer = Context.setInterval(() => {
-                callback(...args);
-            }, interval);
-            this.#timers.add([timer, 1]);
-            return timer;
+        setInterval(callback, interval) {
+            if (this.destroyed) return null;
+
+            let set = this.#intervals;
+            if (!set) this.#intervals = set = new Set();
+
+            const id = setInterval(callback, interval);
+
+            set.add(id);
+            return id;
         }
 
         clearTimeout(timeout) {
-            for(const timer of this.#timers) {
-                const [id, type] = timer;
-                if(type === 0 && id === timeout) {
-                    Context.clearTimeout(id);
-                    this.#timers.delete(timer);
-                    return;
-                }
-            }
+            const set = this.#timeouts;
+            if (!set || !set.delete(timeout)) return;
+
+            clearTimeout(timeout);
+            if (set.size === 0) this.#timeouts = null;
         }
 
         clearInterval(interval) {
-            for(const timer of this.#timers) {
-                const [id, type] = timer;
-                if(type === 1 && id === interval) {
-                    Context.clearInterval(id);
-                    this.#timers.delete(timer);
-                    return;
-                }
-            }
-        }
+            const set = this.#intervals;
+            if (!set || !set.delete(interval)) return;
 
-        clearIntervals() {
-            for(const timer of this.#timers) {
-                const [id, type] = timer;
-                if(type === 1) {
-                    Context.clearInterval(id);
-                    this.#timers.delete(timer);
-                }
-            }
+            clearInterval(interval);
+            if (set.size === 0) this.#intervals = null;
         }
 
         clearTimeouts() {
-            for(const timer of this.#timers) {
-                const [id, type] = timer;
-                if(type === 0) {
-                    Context.clearTimeout(id);
-                    this.#timers.delete(timer);
-                }
+            const set = this.#timeouts;
+            if (!set) return;
+
+            for (const id of set) {
+                clearTimeout(id);
             }
+
+            set.clear();
+            this.#timeouts = null;
+        }
+
+        clearIntervals() {
+            const set = this.#intervals;
+            if (!set) return;
+
+            for (const id of set) {
+                clearInterval(id);
+            }
+
+            set.clear();
+            this.#intervals = null;
         }
 
         clearRAF() {
-            for(const id of this.#rAF) {
+            const raf = this.#rAF;
+            if (!raf) return;
+
+            for (const id of raf) {
                 cancelAnimationFrame(id);
             }
-            this.#rAF.length = 0;
+
+            this.#rAF = null;
         }
 
         createComponent(component, ...options) {
             if (this.destroyed) return null;
+
             const instance = new component(...options);
             this.addDestroyable(instance);
-            LS.Context.bind(instance, this);
+            Context.bind(instance, this);
+
             return instance;
         }
 
         requestAnimationFrame(callback) {
             if (this.destroyed) return null;
-            const id = LS.Context.requestAnimationFrame(callback);
-            this.#rAF.push(id);
+
+            let raf = this.#rAF;
+            if (!raf) this.#rAF = raf = [];
+
+            const id = Context.requestAnimationFrame(callback);
+            raf.push(id);
             return id;
         }
 
         destroyOne(destroyable, _remove = true, _explicit = true) {
             try {
-                if (_remove) this.#destroyables.delete(destroyable);
+                const destroyables = this.#destroyables;
+                if (_remove && destroyables) destroyables.delete(destroyable);
 
-                if(typeof destroyable === "function") {
-                    if(!_explicit) return;
-
-                    const isClass = LS.Util.isClass(destroyable);
-                    if(!isClass) {
-                        destroyable();
-                    }
+                if (typeof destroyable === "function") {
+                    if (!_explicit) return;
+                    if (!LS.Util.isClass(destroyable)) destroyable();
                     return;
                 }
 
                 if(destroyable === null || destroyable === undefined || (typeof destroyable !== "object" && typeof destroyable !== "function")) return;
 
-                if(typeof Element !== "undefined" && destroyable instanceof Element) {
+                if (typeof Element !== "undefined" && destroyable instanceof Element) {
                     destroyable.remove();
                     return;
                 }
 
-                if(typeof NodeList !== "undefined" && (destroyable instanceof NodeList || Array.isArray(destroyable))) {
-                    destroyable.forEach(item => this.destroyOne(item, false, _explicit));
+                if (Array.isArray(destroyable)) {
+                    for (const item of destroyable) {
+                        this.destroyOne(item, false, _explicit);
+                    }
                     destroyable.length = 0;
                     return;
                 }
 
-                if(typeof AbortController !== "undefined" && destroyable instanceof AbortController) {
+                if (typeof NodeList !== "undefined" && destroyable instanceof NodeList) {
+                    for (const item of destroyable) {
+                        this.destroyOne(item, false, _explicit);
+                    }
+                    return;
+                }
+
+                if (typeof AbortController !== "undefined" && destroyable instanceof AbortController) {
                     destroyable.abort();
                     return;
                 }
 
                 if(LS.isWeb) {
-                    if(destroyable instanceof ResizeObserver || destroyable instanceof MutationObserver || destroyable instanceof IntersectionObserver || destroyable instanceof AudioContext) {
+                    if(destroyable instanceof ResizeObserver || destroyable instanceof MutationObserver || destroyable instanceof IntersectionObserver || destroyable instanceof PerformanceObserver) {
                         destroyable.disconnect();
+                        return;
+                    }
+
+                    if (typeof AudioContext !== "undefined" && destroyable instanceof AudioContext) {
+                        if (typeof destroyable.close === "function") destroyable.close();
                         return;
                     }
                 }
 
-                if(destroyable instanceof EventEmitter) {
+                if (destroyable instanceof EventEmitter) {
                     destroyable.events?.clear?.();
                 }
 
-                if (typeof destroyable.destroy === "function") destroyable.destroy();
+                if (typeof destroyable.destroy === "function") {
+                    destroyable.destroy();
+                }
             } catch (error) {
                 console.error("Error destroying:", error);
             }
         }
 
         addExternalEventListener(target, event, callback, options) {
+            if (!target || this.destroyed) return;
+
             const cap = typeof options === "boolean" ? options : !!options?.capture;
-            const addListener = (target.addEventListener || target.on);
-            if (typeof addListener === "function") addListener.call(target, event, callback, cap);
-            this.#externalEvents.push([target, event, callback, cap]);
+            const addListener = target.addEventListener || target.on;
+            if (typeof addListener !== "function") return;
+
+            addListener.call(target, event, callback, cap);
+
+            let list = this.#externalEvents;
+            if (!list) this.#externalEvents = list = [];
+            list.push([target, event, callback, cap]);
         }
 
         removeExternalEventListener(target, event, callback, options) {
+            const list = this.#externalEvents;
+            if (!list) return;
+
             const cap = typeof options === "boolean" ? options : !!options?.capture;
-            const index = this.#externalEvents.findIndex(([t, e, c, o]) => t === target && e === event && c === callback && o === cap);
-            if (index !== -1) {
-                const removeListener = (target.removeEventListener || target.off);
-                if (typeof removeListener === "function") removeListener.call(target, event, callback, cap);
-                this.#externalEvents.splice(index, 1);
+            const index = list.findIndex(([t, e, c, o]) => t === target && e === event && c === callback && o === cap);
+
+            if (index === -1) return;
+
+            const removeListener = target.removeEventListener || target.off;
+            if (typeof removeListener === "function") {
+                removeListener.call(target, event, callback, cap);
             }
+
+            list.splice(index, 1);
+            if (list.length === 0) this.#externalEvents = null;
         }
 
         destroy() {
@@ -690,63 +710,88 @@
             this.destroyed = true;
 
             this.quickEmit("destroy");
-            if (this.events) this.events.clear(); // It should never happen that this.events is null, yet it somehow did
+            this.events?.clear?.();
 
-            for(const timer of this.#timers) {
-                const [id, type] = timer;
-                if(type === 0) Context.clearTimeout(id); else Context.clearInterval(id);
+            const timeouts = this.#timeouts;
+            if (timeouts) {
+                for (const id of timeouts) {
+                    clearTimeout(id);
+                }
+                timeouts.clear();
+                this.#timeouts = null;
             }
 
-            this.#timers.clear();
-            this.#timers = null;
+            const intervals = this.#intervals;
+            if (intervals) {
+                for (const id of intervals) {
+                    clearInterval(id);
+                }
+                intervals.clear();
+                this.#intervals = null;
+            }
 
             this.clearRAF();
-            this.#rAF = null;
 
-            for(const [target, event, callback, options] of this.#externalEvents) {
-                const removeListener = (target.removeEventListener || target.off);
-                if (typeof removeListener === "function") removeListener.call(target, event, callback, options);
+            const externalEvents = this.#externalEvents;
+            if (externalEvents) {
+                for (const [target, event, callback, options] of externalEvents) {
+                    const removeListener = target.removeEventListener || target.off;
+                    if (typeof removeListener === "function") {
+                        removeListener.call(target, event, callback, options);
+                    }
+                }
+
+                externalEvents.length = 0;
+                this.#externalEvents = null;
             }
 
-            this.#externalEvents = null;
             super.destroy(); // Clear events
 
-            if(this.ctx && this.hasOwnProperty("ctx")) {
+            if (Object.prototype.hasOwnProperty.call(this, "ctx")) {
                 try { this.ctx = null; } catch {}
             }
 
-            /**
-             * Clears up everything from the object, detaches any set elements etc.
-             * Warning: Do not rely on this. It is only to provide a best-effort cleanup, but you should still set destroyables explicitly.
-            */
-            if(this.#deleteProperties) {
-                for(const key of Object.keys(this)) {
-                    if(key === "destroyed") continue;
+            const destroyables = this.#destroyables;
+            const container = this.container;
+
+            if (destroyables) {
+                for (const destroyable of destroyables) {
+                    this.destroyOne(destroyable, false);
+                }
+            }
+
+            if (this.#deleteProperties) {
+                const aggressive = this.#aggressiveCleanup;
+
+                for (const key of Object.keys(this)) {
+                    if (key === "destroyed") continue;
 
                     const value = this[key];
-                    if(this.#destroyables.has(value)) {
-                        this.destroyOne(value, true);
-                    } else if(this.#aggresiveCleanup) {
+
+                    if (aggressive && (!destroyables || !destroyables.has(value))) {
                         this.destroyOne(value, false, false);
                     }
+
                     delete this[key];
                 }
             }
 
-            for(const destroyable of this.#destroyables) {
-                this.destroyOne(destroyable, false);
+            if (destroyables) {
+                destroyables.clear();
+                this.#destroyables = null;
             }
 
-            this.#destroyables.clear();
-            this.#destroyables = null;
+            if (typeof Element !== "undefined" && container instanceof Element) {
+                container.remove();
 
-            if(this.container && this.container instanceof Element) {
-                this.container.remove();
-                this.container = null;
+                if (!this.#deleteProperties && this.container === container) {
+                    this.container = null;
+                }
             }
         }
 
         static #ctxBinds = new WeakMap();
+
         static get(item) {
             return this.#ctxBinds.get(item) || null;
         }
@@ -754,36 +799,296 @@
         static bind(item, context) {
             this.#ctxBinds.set(item, context);
         }
+
+
+        // --- Legacy CONTEXT_FIELDS methods for memory safety. Should eventually be removed or redesigned.
+
+
+        static CONTEXT_FIELDS = ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "fetch", "XMLHttpRequest", "requestAnimationFrame", "EventSource", "WebSocket", "queueMicrotask", "EventTarget", "MessageChannel", "MessagePort", "Worker"];
+
+        /**
+         * @dangerous
+         * Enforce memory safety by preventing access to certain global fields that can cause leaks or unintended side effects if accessed directly.
+         * This is a best-effort feature that should ONLY be used during development and when you know what you are doing, avoid in production.
+         */
+        static debugEnforceContextSafety() {
+            const error = (field) => `[LS.Context Safety Violation] Global access to ${field} is disabled by the site settings. Use scoped "context.${field}" in contexts if available, remember to use addDestroyable, or use LS.Context.global for explicit global access!`;
+
+            const deny = (field) => ({
+                get() { throw new Error(error(field)); },
+                set() { throw new Error(error(field)); }
+            });
+
+            for(const field of Context.CONTEXT_FIELDS) {
+                if(window[field]) {
+                    try { Object.defineProperty(window, field, deny(field)); } catch(e) { console.warn(`LS.init: Could not enforce memory safety for ${field}:`, e); }
+                }
+            }
+        }
+
+        /**
+         * @dangerous
+         * Log warnings when accessing certain global fields that can cause leaks or unintended side effects if accessed directly.
+         * To be only used during development.
+         */
+        static debugWarnContextSafety() {
+            for(const field of Context.CONTEXT_FIELDS) {
+                if(window[field]) {
+                    const original = window[field];
+                    try { Object.defineProperty(window, field, { get() { console.warn(`[LS.Context Safety Warning] Global access to ${field} is discouraged by the site settings.`); return original; } }); } catch(e) { console.warn(`LS.init: Could not enforce memory safety for ${field}:`, e); }
+                }
+            }
+        }
+
+        static setTimeout(callback, delay) {
+            return setTimeout(callback, delay);
+        }
+
+        static setInterval(callback, interval) {
+            return setInterval(callback, interval);
+        }
+
+        static clearTimeout(timeout) {
+            clearTimeout(timeout);
+        }
+
+        static clearInterval(interval) {
+            clearInterval(interval);
+        }
+
+        static requestAnimationFrame(callback) {
+            if (typeof globalThis.requestAnimationFrame === "function") {
+                return globalThis.requestAnimationFrame(callback);
+            }
+            return globalThis.setTimeout(callback, 16);
+        }
+
+        static fetch(...args) {
+            if (typeof globalThis.fetch === "function") {
+                return globalThis.fetch(...args);
+            }
+            return Promise.reject(new Error("Fetch API is not supported in this environment."));
+        }
+        static queueMicrotask(callback) {
+            if (typeof globalThis.queueMicrotask === "function") {
+                return globalThis.queueMicrotask(callback);
+            }
+            throw new Error("queueMicrotask is not supported in this environment."); // Well, well.
+        }
+
+        static WebSocket = function(...args) {
+            if (typeof globalThis.WebSocket === "function") {
+                return new globalThis.WebSocket(...args);
+            }
+            throw new Error("WebSocket is not supported in this environment.");
+        }
+        
+        static EventSource = function(...args) {
+            if (typeof globalThis.EventSource === "function") {
+                return new globalThis.EventSource(...args);
+            }
+            throw new Error("EventSource is not supported in this environment.");
+        }
+
+        static MessageChannel = function(...args) {
+            if (typeof globalThis.MessageChannel === "function") {
+                return new globalThis.MessageChannel(...args);
+            }
+            throw new Error("MessageChannel is not supported in this environment.");
+        }
+
+        static MessagePort = function(...args) {
+            if (typeof globalThis.MessagePort === "function") {
+                return new globalThis.MessagePort(...args);
+            }
+            throw new Error("MessagePort is not supported in this environment.");
+        }
+        
+        static Worker = function(...args) {
+            if (typeof globalThis.Worker === "function") {
+                return new globalThis.Worker(...args);
+            }
+            throw new Error("Worker is not supported in this environment.");
+        }
     }
 
-    let initialized = false;
-    const LS = {
-        isWeb: typeof window !== 'undefined',
-        version: "5.2.9-beta",
-        v: 5,
+    /**
+     * To be refactored
+     */
+    class Component extends Context {
+        constructor(){
+            super();
+            if(this.init) this.init();
+        }
 
-        REMOVE_LISTENER: EventEmitter.REMOVE_LISTENER,
+        /**
+         * Memory safety feature;
+         * Allows components to be bound to a context
+         */
+        get ctx(){
+            return LS.Context.get(this) || LS.Context.global;
+        }
 
+        // Components should extend this method for cleanup
+        destroy(){
+            if(this.destroyed) return;
+            super.destroy();
+        }
+    }
+
+    /**
+     * A global modal escape stack.
+     * @experimental New
+     */
+    class Stack {
+        static {
+            this.items = [];
+        }
+
+        static _init() {
+            if(this.container) return;
+            window.addEventListener("keydown", (event) => {
+                if (event.key === "Escape") {
+                    this.pop();
+                }
+            });
+
+            this.container = document.createElement("div");
+            this.container.className = "ls-modal-layer level-1";
+
+            this.container.addEventListener("click", (event) => {
+                if (event.target === this.container && LS.Stack.length > 0 && LS.Stack.top.canClickAway !== false) {
+                    LS.Stack.pop();
+                }
+            });
+        }
+
+        static push(item) {
+            if(this.items.indexOf(item) !== -1) {
+                this.remove(item);
+            }
+
+            if(item.hasShade) {
+                this.container.classList.add("is-open");
+            }
+
+            this.items.push(item);
+            return item;
+        }
+
+        static pop() {
+            if(this.items.length === 0) return null;
+
+            const item = this.top;
+            if (item && item.isCloseable !== false) {
+                item.close?.();
+            }
+            return item;
+        }
+
+        static remove(item) {
+            const index = this.items.indexOf(item);
+            if (index > -1) {
+                this.items.splice(index, 1);
+            }
+
+            if(this.items.length === 0 || !this.items.some(i => i.hasShade)) {
+                this.container.classList.remove("is-open");
+            }
+        }
+
+        static indexOf(item) {
+            return this.items.indexOf(item);
+        }
+
+        static get length() {
+            return this.items.length;
+        }
+
+        static get top() {
+            return this.items[this.items.length - 1] || null;
+        }
+    }
+
+    class StackItem {
+        constructor(modal) {
+            this.ref = modal;
+        }
+
+        get zIndex() {
+            return LS.Stack.indexOf(this);
+        }
+
+        close() {
+            LS.Stack.remove(this);
+            if(this.ref && this.ref.close) {
+                this.ref.close();
+            }
+        }
+    }
+
+    let initialized = false, _prototyped = false;
+
+    const LS = new class LSMain extends EventEmitter {
+        // --- Metadata
+        isWeb = typeof window !== 'undefined';
+        version = "6.0.0-alpha";
+        v = 6;
+
+        components = new Map;
+
+        /**
+         * @concept
+         * @experimental
+         */
+        Context = Context;
+        EventEmitter = EventEmitter;
+        Stack = Stack;
+        StackItem = StackItem;
+
+        Component = Component;
+        get DestroyableComponent() {
+            console.warn("LS.DestroyableComponent is deprecated since v6, use LS.Component instead.");
+            return Component;
+        }
+
+        // --- Symbols
+        REMOVE_LISTENER = EventEmitter.REMOVE_LISTENER;
+
+        // --- Init
         init(options) {
             if(!this.isWeb) return;
+
             if(initialized) {
                 console.warn("LS has already been initialized, attempt has been ignored.");
                 return;
             }
 
             initialized = true;
-
+            
             options = LS.Util.defaults({
                 globalPrototype: true,
                 theme: null,
                 accent: null,
                 autoScheme: true,
                 adaptiveTheme: false,
-                globalizeTiny: false
+                optimizeEvents: true
             }, options);
 
-            if(options.globalPrototype) LS.prototypeTiny();
+            /**
+             * @deprecated
+             */
+            if(options.globalPrototype) {
+                if(_prototyped) return;
+                _prototyped = true;
 
+                console.debug("Warning: TinyFactory has been prototyped globally to all HTML elements. You can now use all featuers seamlessly. Beware that this may conflict with other libraries/future changes and cause confusion, please use with caution!");
+
+                // Evil design, but so effective
+                Object.assign(HTMLElement.prototype, LS.TinyFactory);
+            }
+
+            // TODO:
             if(options.theme || options.accent || options.autoScheme || options.autoAccent) {
                 const colorOptions = {
                     theme: options.theme,
@@ -797,48 +1102,114 @@
             }
 
             // Enable or disable event optimization (compiles events to a function to avoid loops)
-            if(options.optimizeEvents !== undefined) this.EventEmitter.optimize = !!options.optimizeEvents;
+            EventEmitter.optimize = !!options.optimizeEvents;
 
-            if(options.globalizeTiny) {
-                /**
-                 * @deprecated
-                 */
-                for (let key in this.Tiny){
-                    window[key] = this.Tiny[key];
+            if(options.enableV5Compat) {
+                console.warn("LS v5 compatibility mode is enabled, it is recommended to update your application to v6 soon.");
+
+                // Legacy TinyFramework aliases
+                window.N = LS.Create;
+                window.O = LS.SelectOne;
+                window.Q = LS.Select;
+                window.M = LS.Misc;
+                LS.Tiny = { N, O, Q, M };
+                LS.TinyWrap = (e) => e;
+                LS.Misc.on = (event, callback) => window.addEventListener(event, callback);
+            }
+
+            LS.quickEmit("init");
+        }
+
+        // --- Component management (may get changed as v6.0 progresses)
+
+        register(componentFactory, options = {}){
+            const name = (options.name || componentFactory.name).toLowerCase();
+
+            // Possible future behavior could be reloading supported components
+            if(LS.components.has(name)) {
+                console.warn(`[LS] Duplicate component name ${name}, ignored!`);
+                return;
+            }
+
+            const component = {
+                isConstructor: typeof componentFactory === "function",
+                class: componentFactory,
+                metadata: options.metadata,
+                global: !!options.global,
+                hasEvents: options.events !== false,
+                singular: !!options.singular,
+                name
+            }
+
+            if (!component.isConstructor) {
+                Object.setPrototypeOf(componentFactory, Component.prototype);
+                // componentClass.prototype.componentName = name; // (?)
+
+                if(component.hasEvents) {
+                    this.EventEmitter.prepareHandler(componentFactory);
+                }
+            } else {
+                componentFactory.prototype.componentName = name;
+            }
+
+            this.components.set(name, component);
+
+            // Meh API
+            if(component.global){
+                this[options.name] = options.singular && component.isConstructor? (component.instance = new componentFactory): componentFactory;
+            }
+
+            this.emit("component-loaded", [component]);
+            return component;
+        }
+
+        getComponentByName(name) {
+            return this.components.get(name.toLowerCase());
+        }
+
+        unregisterComponent(name) {
+            name = name.toLowerCase();
+            const component = this.components.get(name);
+            if(!component) return false;
+
+            if(component.instance && !component.instance.destroyed){
+                const destroyMethod = component.isConstructor ? component.instance.destroy : component.class.destroy;
+                if(typeof destroyMethod === "function"){
+                    destroyMethod.call(component.instance);
+                } else {
+                    console.warn(`[LS] Component ${name} does not implement destroy method!`);
                 }
             }
 
-            /**
-             * Advanced option to help memory safety by disabling access to certain global functions/constructors that could cause issues.
-             * It helps enforce that all such calls are made through a scoped context that is able to .destroy() them.
-             * This is useful to prevent accidental memory leaks, but you should not use it or rely on it if you don't fully understand it's implications.
-             */
-            if(options.enforceContextSafety === true) {
-                const er = (field) => `[Memory Safety Violation] Global access to ${field} is disabled by the site settings. Remember to only use scoped context.${field} in contexts (or LS.Context.global for global access)!`;
-
-                const deny = (field) => ({
-                    get() { throw new Error(er(field)); },
-                    set() { throw new Error(er(field)); }
-                });
-
-                for(const field of options.contextSafetyFields || CONTEXT_FIELDS) {
-                    if(window[field]) {
-                        try { Object.defineProperty(window, field, deny(field)); } catch(e) { console.warn(`LS.init: Could not enforce memory safety for ${field}:`, e); }
-                    }
-                }
+            if(component.global){
+                delete this[name];
             }
 
-            this._topLayer = this.Create({ id: "ls-top-layer", style: "position: fixed" });
+            this.components.delete(name);
+            this.emit("component-unloaded", [component]);
+            return true;
+        }
 
-            LS.once("ready", () => {
-                document.body.append(this._topLayer);
-            });
+        /**
+         * @deprecated In favor of register
+         */
+        LoadComponent(factory, options = {}) {
+            return this.register(factory, options);
+        }
 
-            LS._events.quickEmit("init");
-        },
+        /**
+         * @deprecated In favor of unregisterComponent
+         */
+        UnregisterComponent(name) {
+            return this.unregisterComponent(name);
+        }
 
-        EventEmitter,
-        EventHandler: EventEmitter, // Backward compatibility
+        /**
+         * @deprecated In favor of getComponentByName
+         */
+        GetComponent(name) {
+            return this.getComponentByName(name);
+        }
 
         /**
          * Dynamic utility for creating elements
@@ -870,7 +1241,7 @@
                 content.ns = "http://www.w3.org/2000/svg";
             }
 
-            const { class: className, tooltip, ns, inner, content: innerContent, html, text, accent, style, reactive, attr, options, attributes, sanitize, ...rest } = content;
+            const { class: className, tooltip, ns, inner, content: innerContent, html, text, accent, style, reactive, attr, options, attributes, sanitize, state, ...rest } = content;
 
             const element = Object.assign(
                 ns ? document.createElementNS(ns, tagName) : document.createElement(tagName),
@@ -917,18 +1288,14 @@
 
             if (typeof style === "string") element.style.cssText = style; else if (typeof style === "object") LS.TinyFactory.applyStyle.call(element, style);
 
+            if (state) {
+                element.setAttribute("data-ls-state", state);
+            }
+
             // Append children or content
             const contentToAdd = inner || innerContent;
             if (contentToAdd) {
                 element.append(...LS.Util.resolveElements(contentToAdd));
-            }
-
-            if (html) {
-                if(contentToAdd) {
-                    console.warn("LS.Create: 'html' is being overriden by inner content. Only use one of: inner, html, or text.");
-                } else {
-                    element.innerHTML = html;
-                }
             }
 
             if (text) {
@@ -936,6 +1303,12 @@
                     console.warn("LS.Create: 'text' is being overriden by inner content or html. Only use one of: inner, html, or text.");
                 } else {
                     element.textContent = text;
+                }
+            } else if (html) {
+                if(contentToAdd) {
+                    console.warn("LS.Create: 'html' is being overriden by inner content. Only use one of: inner, html, or text.");
+                } else {
+                    element.innerHTML = html;
                 }
             }
 
@@ -945,25 +1318,30 @@
             }
 
             return element;
-        },
+        }
 
-        Util: {
-            /**
-             * https://stackoverflow.com/a/66120819/14541617
-             */
-            isClass(func) {
-                // Class constructor is also a function
-                if (!(func && func.constructor === Function) || func.prototype === undefined)
-                    return false;
+        /**
+         * Element selector utility.
+         * The current implementation doesn't include wrapping as of now.
+         */
+        Select(selector, subSelector, one = false){
+            if(!selector) return one? null: [];
 
-                // This is a class that extends other class
-                if (Function.prototype !== Object.getPrototypeOf(func))
-                    return true;
+            const isElement = selector instanceof Element;
+            const target = (isElement? selector : document);
 
-                // Usually a function will only have 'constructor' in the prototype
-                return Object.getOwnPropertyNames(func.prototype).length > 1;
-            },
+            if(isElement && !subSelector) return one? selector: [selector];
 
+            const actualSelector = isElement? subSelector || "*" : selector || '*';
+            return one? target.querySelector(actualSelector): target.querySelectorAll(actualSelector);
+        }
+
+        SelectOne(selector, subSelector){
+            if(!selector) selector = document.body;
+            return LS.Select(selector, subSelector, true);
+        }
+
+        Util = {
             /**
              * Gets URL parameters as an object or a specific parameter by name.
              * From my testing, this is 8x faster than URLSearchParams for all parameters and 11x faster to get a single parameter.
@@ -1020,24 +1398,22 @@
             },
 
             /**
-             * The same as LS.Util.parseURLParams but with parameters reversed for backward compatibility.
-             * @deprecated
+             * Returns true if the provided value is likely a class and not a plain function.
+             * https://stackoverflow.com/a/66120819/14541617
+             * 
+             * @param {*} func Object to check.
              */
-            params(get = null, baseUrl = typeof location !== "undefined" ? location.search : ""){
-                return LS.Util.parseURLParams(baseUrl, get);
-            },
+            isClass(func) {
+                // Class constructor is also a function
+                if (!(func && func.constructor === Function) || func.prototype === undefined)
+                    return false;
 
-            /**
-             * Iterates over an iterable object and builds an array with the results of the provided function.
-             * Equivalent to Array.prototype.map but works on anything that is iterable.
-             * @deprecated
-             */
-            map(it, fn){
-                const r = [];
-                for(let i = 0; i < it.length; i++) {
-                    r.push(fn(it[i], i));
-                }
-                return r;
+                // This is a class that extends other class
+                if (Function.prototype !== Object.getPrototypeOf(func))
+                    return true;
+
+                // Usually a function will only have 'constructor' in the prototype
+                return Object.getOwnPropertyNames(func.prototype).length > 1;
             },
 
             resolveElements(...array){
@@ -1135,14 +1511,13 @@
                         buttons: [0, 1, 2],
                         disablePointerEvents: true,
                         frameTimed: false,
-                        legacyEvents: false,
                         ...options
                     };
 
                     this.targets = new Set();
                     this.activeTarget = null;
 
-                    if(element) this.addTarget(element && LS.Tiny.O(element));
+                    if(element) this.addTarget(element && LS.SelectOne(element));
                     if (Array.isArray(this.options.targets)) {
                         for (const t of this.options.targets) this.addTarget(t);
                     }
@@ -1299,23 +1674,18 @@
 
                     this.activePointerId = event.pointerId;
 
-                    if (this.options.legacyEvents) {
-                        this.emit("start", [event, this.cancel, x, y]);
-                        if (this.options.onStart) this.options.onStart(event, this.cancel, x, y);
-                    } else {
-                        this._eventData.x = x;
-                        this._eventData.y = y;
-                        this._eventData.dx = 0;
-                        this._eventData.dy = 0;
-                        this._eventData.offsetX = 0;
-                        this._eventData.offsetY = 0;
-                        this._eventData.startX = x;
-                        this._eventData.startY = y;
-                        this._eventData.domEvent = event;
-                        this._eventData.isTouch = isTouch;
-                        this.emit("start", [this._eventData]);
-                        if (this.options.onStart) this.options.onStart(this._eventData);
-                    }
+                    this._eventData.x = x;
+                    this._eventData.y = y;
+                    this._eventData.dx = 0;
+                    this._eventData.dy = 0;
+                    this._eventData.offsetX = 0;
+                    this._eventData.offsetY = 0;
+                    this._eventData.startX = x;
+                    this._eventData.startY = y;
+                    this._eventData.domEvent = event;
+                    this._eventData.isTouch = isTouch;
+                    this.emit("start", [this._eventData]);
+                    if (this.options.onStart) this.options.onStart(this._eventData);
 
                     if (this._eventData.cancelled) {
                         this.seeking = false;
@@ -1407,21 +1777,16 @@
                         }
                     }
 
-                    if (this.options.legacyEvents) {
-                        if (this.options.onMove) this.options.onMove(x, y, event, this.cancel);
-                        this.quickEmit(this._moveEventRef, x, y, event, this.cancel);
-                    } else {
-                        this._eventData.dx = x - prevX;
-                        this._eventData.dy = y - prevY;
-                        this._eventData.offsetX = x - this._eventData.startX;
-                        this._eventData.offsetY = y - this._eventData.startY;
-                        this._eventData.x = x;
-                        this._eventData.y = y;
-                        this._eventData.domEvent = event;
-                        this._eventData.isTouch = isTouch;
-                        if (this.options.onMove) this.options.onMove(this._eventData);
-                        this.quickEmit(this._moveEventRef, this._eventData);
-                    }
+                    this._eventData.dx = x - prevX;
+                    this._eventData.dy = y - prevY;
+                    this._eventData.offsetX = x - this._eventData.startX;
+                    this._eventData.offsetY = y - this._eventData.startY;
+                    this._eventData.x = x;
+                    this._eventData.y = y;
+                    this._eventData.domEvent = event;
+                    this._eventData.isTouch = isTouch;
+                    if (this.options.onMove) this.options.onMove(this._eventData);
+                    this.quickEmit(this._moveEventRef, this._eventData);
                 }
 
                 onRelease(event) {
@@ -1429,12 +1794,8 @@
 
                     const isDestroy = event.type === "destroy";
 
-                    if (this.options.legacyEvents) {
-                        this.emit(isDestroy ? "destroy" : "end", [event]);
-                    } else {
-                        this._eventData.domEvent = event;
-                        this.emit(isDestroy ? "destroy" : "end", [this._eventData]);
-                    }
+                    this._eventData.domEvent = event;
+                    this.emit(isDestroy ? "destroy" : "end", [this._eventData]);
 
                     if (this.pointerLockActive) {
                         document.exitPointerLock();
@@ -1442,18 +1803,10 @@
 
                     if (isDestroy) {
                         if (this.options.onDestroy) {
-                            if (this.options.legacyEvents) {
-                                this.options.onDestroy(event);
-                            } else {
-                                this.options.onDestroy(this._eventData);
-                            }
+                            this.options.onDestroy(this._eventData);
                         }
                     } else if (this.options.onEnd) {
-                        if (this.options.legacyEvents) {
-                            this.options.onEnd(event);
-                        } else {
-                            this.options.onEnd(this._eventData);
-                        }
+                        this.options.onEnd(this._eventData);
                     }
 
                     const captureTarget = this.activeTarget;
@@ -1620,6 +1973,11 @@
                 }
             },
 
+            /**
+             * Normalize a string
+             * @param {*} string String to normalize
+             * @returns Normalized string
+             */
             normalize(string, space = " ") {
                 return string.toLowerCase()
                     .normalize("NFD")
@@ -1627,116 +1985,6 @@
                     .replace(/[^a-z0-9\s]/g, "")
                     .replace(/\s+/g, space)
                     .trim();
-            },
-
-            /**
-             * A simple switch that triggers a callback when its value changes, but does nothing if it doesn't.
-             */
-            Switch: class Switch {
-                constructor(onSet) {
-                    this.value = false;
-                    this.onSet = onSet;
-                }
-
-                set(value) {
-                    if(this.value === value) return;
-                    this.value = value;
-                    this.onSet(this.value);
-                }
-
-                on() {
-                    this.set(true);
-                }
-
-                off() {
-                    this.set(false);
-                }
-
-                toggle() {
-                    this.set(!this.value);
-                }
-
-                destroy() {
-                    this.onSet = null;
-                    this.value = null;
-                }
-            },
-
-            /**
-             * A switch between two elements, showing one and hiding the other.
-             * Useful for loading indicators for example
-             */
-            ElementSwitch: class ElementSwitch {
-                constructor(element1 = null, element2 = null, options = null) {
-                    this.elements = Array.isArray(element1)? element1: (element1 instanceof NodeList) ? Array.from(element1) : [element1, element2];
-
-                    this.options = LS.Util.defaults({
-                        initial: 0,
-                        mode: "display",
-                        parent: null,
-                        onSet: null
-                    }, options || {});
-
-                    if(this.options.mode === "dom" && !this.options.parent) {
-                        throw new Error("ElementSwitch in 'dom' mode requires a parent element in options.parent");
-                    }
-
-                    this.value = -1;
-                    if(this.options.initial > -1) this.set(this.options.initial);
-                }
-
-                front() {
-                    this.set(this.elements.length - 1);
-                }
-
-                back() {
-                    this.set(0);
-                }
-
-                get frontElement() {
-                    return this.elements[this.elements.length - 1];
-                }
-
-                get backElement() {
-                    return this.elements[0];
-                }
-
-                toggle() {
-                    this.set(this.value === 0 ? 1 : 0);
-                }
-
-                set(index) {
-                    if(this.value === index) return;
-                    this.value = index;
-
-                    if(this.options.mode === "dom" && this.options.parent) {
-                        for(let i = 0; i < this.elements.length; i++) {
-                            if(!this.elements[i]) continue;
-
-                            if(i === index) {
-                                this.options.parent.appendChild(this.elements[i]);
-                            } else {
-                                this.elements[i].remove();
-                            }
-                        }
-                    } else {
-                        for(let i = 0; i < this.elements.length; i++) {
-                            if(this.elements[i]) this.elements[i].style[this.options.mode === "display"? "display" : "visibility"] = i === index ? "" : (this.options.mode === "display"? "none" : "hidden");
-                        }
-                    }
-
-                    if(this.options.onSet) this.options.onSet(this.value);
-                }
-
-                destroy() {
-                    for(let i = 0; i < this.elements.length; i++) {
-                        this.elements[i]?.remove();
-                        this.elements[i] = null;
-                    }
-                    this.elements = null;
-                    this.value = null;
-                    this.options = null;
-                }
             },
 
             /**
@@ -1840,6 +2088,117 @@
             },
 
             /**
+             * A simple switch that triggers a callback when its value changes, but does nothing if it doesn't.
+             */
+            Switch: class Switch {
+                constructor(onSet) {
+                    this.value = false;
+                    this.onSet = onSet;
+                }
+
+                set(value) {
+                    if(this.value === value) return;
+                    this.value = value;
+                    this.onSet(this.value);
+                }
+
+                on() {
+                    this.set(true);
+                }
+
+                off() {
+                    this.set(false);
+                }
+
+                toggle() {
+                    this.set(!this.value);
+                }
+
+                destroy() {
+                    this.onSet = null;
+                    this.value = null;
+                }
+            },
+
+            /**
+             * A switch between two elements, showing one and hiding the other.
+             * Useful for loading indicators for example
+             */
+            ElementSwitch: class ElementSwitch {
+                constructor(element1 = null, element2 = null, options = null) {
+                    this.elements = Array.isArray(element1)? element1: (element1 instanceof NodeList) ? Array.from(element1) : [element1, element2];
+
+                    this.options = {
+                        initial: 0,
+                        mode: "display",
+                        parent: null,
+                        onSet: null,
+                        ...options
+                    };
+
+                    if(this.options.mode === "dom" && !this.options.parent) {
+                        throw new Error("ElementSwitch in 'dom' mode requires a parent element in options.parent");
+                    }
+
+                    this.value = -1;
+                    if(this.options.initial > -1) this.set(this.options.initial);
+                }
+
+                front() {
+                    this.set(this.elements.length - 1);
+                }
+
+                back() {
+                    this.set(0);
+                }
+
+                get frontElement() {
+                    return this.elements[this.elements.length - 1];
+                }
+
+                get backElement() {
+                    return this.elements[0];
+                }
+
+                toggle() {
+                    this.set(this.value === 0 ? 1 : 0);
+                }
+
+                set(index) {
+                    if(this.value === index) return;
+                    this.value = index;
+
+                    if(this.options.mode === "dom" && this.options.parent) {
+                        for(let i = 0; i < this.elements.length; i++) {
+                            if(!this.elements[i]) continue;
+
+                            if(i === index) {
+                                this.options.parent.appendChild(this.elements[i]);
+                            } else {
+                                this.elements[i].remove();
+                            }
+                        }
+                    } else {
+                        for(let i = 0; i < this.elements.length; i++) {
+                            if(this.elements[i]) this.elements[i].style[this.options.mode === "display"? "display" : "visibility"] = i === index ? "" : (this.options.mode === "display"? "none" : "hidden");
+                        }
+                    }
+
+                    if(this.options.onSet) this.options.onSet(this.value);
+                }
+
+                destroy() {
+                    for(let i = 0; i < this.elements.length; i++) {
+                        this.elements[i]?.remove();
+                        this.elements[i] = null;
+                    }
+                    this.elements = null;
+                    this.value = null;
+                    this.options = null;
+                }
+            },
+
+            /**
              * Ensures a callback is only run once.
              * Top 5 useless abstractions
              */
@@ -1865,7 +2224,7 @@
             },
 
             validateUUID(uuid) {
-                // Fast uuidv4 validation, roughly 3.5x faster than uuid.validate
+                // Fast uuidv4 validation, roughly 3.5x faster than Node.JS uuid.validate
                 if(typeof uuid !== 'string' || uuid.length !== 36) return false;
 
                 // Fixed length loop
@@ -1901,139 +2260,49 @@
                 h2i: (c) => (c >= 48 && c <= 57)? c - 48: (c >= 97 && c <= 102)? c - 87: (c >= 65 && c <= 70)? c - 55: -1,
                 twoh2i: (high, low) => (LS.Util.fast.h2i(high) << 4) | LS.Util.fast.h2i(low)
             }
-        },
-
-        /**
-         * Note: Tiny is deprecated since 5.3.0
-         * It is not going to be removed as of now, but there are now more modern approaches in LS.
-         * @deprecated
-         */
-        Tiny: {
-            /**
-             * Element selector utility
-             */
-            Q(selector, subSelector, one = false) {
-                if(!selector) return LS.TinyWrap(one? null: []);
-
-                const isElement = selector instanceof Element;
-                const target = (isElement? selector : document);
-
-                if(isElement && !subSelector) return one? selector: [selector]; // LS.TinyWrap();
-
-                const actualSelector = isElement? subSelector || "*" : selector || '*';
-
-                let elements = one? target.querySelector(actualSelector): target.querySelectorAll(actualSelector);
-                return elements; // LS.Tiny._prototyped? elements: LS.TinyWrap(one? elements: [...elements]);
-            },
-
-            /**
-             * Single element selector
-             */
-            O(selector, subSelector){
-                if(!selector) selector = document.body;
-                return LS.Tiny.Q(selector, subSelector, true)
-            },
-
-            /**
-             * Element builder utility
-             * Replaced by LS.Create
-             */
-            N: null, // Defined later by LS.Create for backward compatibility
-
-            /**
-             * @deprecated
-             */
-            M: {
-                _GlobalID: {
-                    count: 0,
-                    prefix: Math.round(Math.random() * 1e3).toString(36) + Math.round(Math.random() * 1e3).toString(36)
-                },
-
-                ShiftDown: false,
-                ControlDown: false,
-                lastKey: null,
-
-                on(...events){
-                    let fn = events.find(event => typeof event === "function");
-
-                    for(const event of events){
-                        if(typeof event !== "string") continue;
-                        window.addEventListener(event, fn)
-                    }
-                    return LS.Tiny.M
-                },
-
-                get GlobalID(){
-                    // return M.GlobalIndex.toString(36)
-
-                    LS.Tiny.M._GlobalID.count++;
-
-                    return `${Date.now().toString(36)}-${(LS.Tiny.M._GlobalID.count).toString(36)}-${LS.Tiny.M._GlobalID.prefix}`
-                },
-
-                uid(){
-                    return LS.Tiny.M.GlobalID + "-" + crypto.getRandomValues(new Uint32Array(1))[0].toString(36)
-                }
-            },
-
-            _prototyped: false
-        },
+        }
 
         /**
          * @deprecated
          */
-        TinyWrap(elements){
-            if(!elements) return null;
+        Misc = {
+            _GlobalID: {
+                count: 0,
+                prefix: Math.round(Math.random() * 1e3).toString(36) + Math.round(Math.random() * 1e3).toString(36)
+            },
 
-            // No need to wrap anything, if prototypes are global
-            if(LS.Tiny._prototyped) return elements;
+            get GlobalID(){
+                LS.Misc._GlobalID.count++;
+                return `${Date.now().toString(36)}-${(LS.Misc._GlobalID.count).toString(36)}-${LS.Misc._GlobalID.prefix}`;
+            },
 
-            function wrap(element){
-                return element._lsWrapped || (element._lsWrapped = new Proxy(element, {
-                    get(target, key){
-                        return LS.TinyFactory[key] || target[key]
-                    },
+            uid(){
+                return LS.Misc.GlobalID + "-" + crypto.getRandomValues(new Uint32Array(1))[0].toString(36);
+            }
+        }
 
-                    set(target, key, value){
-                        return target[key] = value
-                    }
-                }))
+        toNode(expr) {
+            if (typeof expr === "string" || typeof expr === "number") {
+                return document.createTextNode(expr);
             }
 
-            return Array.isArray(elements)? elements.map(wrap): wrap(elements);
-        },
+            if (!expr) {
+                return null;
+            }
+
+            if(expr instanceof Node) {
+                return expr;
+            }
+
+            return LS.Create(expr);
+        }
 
         /**
          * TinyFactory (utilities for HTML elements)
          * @deprecated
          */
-        TinyFactory: {
+        TinyFactory = {
             isElement: true,
-
-            /**
-             * Get, set or get all attributes of the element.
-             * @param {*} get Attribute name to get
-             * @param {*} set Value to set
-             * @returns {string|Object|HTMLElement}
-             * @deprecated
-             */
-            attr(get = false, set = false) {
-                if (set) {
-                    this.setAttribute(get, set);
-                    return this;
-                }
-            
-                if (get) {
-                    return this.getAttribute(get);
-                }
-            
-                const attributes = {};
-                for (const { name, value } of this.attributes) {
-                    attributes[name] = value;
-                }
-            
-                return attributes;
-            },
 
             /**
              * Assign multiple attributes to the element.
@@ -2064,17 +2333,6 @@
             },
 
             /**
-             * Removes one or more attributes from the element.
-             * @deprecated
-             */
-            delAttr(...attributes){
-                attributes = attributes.flat(2);
-                attributes.forEach(attribute => this.removeAttribute(attribute))
-
-                return this
-            },
-
-            /**
              * Adds, removes or toggles class name/s on the element.
              * @param {string|string[]} names Class name/s to add, remove or toggle
              * @param {number|string} [action=1] Action to perform: 1 or "add" to add, 0 or "remove" to remove, 2 or "toggle" to toggle
@@ -2097,7 +2355,8 @@
             /**
              * Checks if the element has the specified class name/s.
              * @param  {...any} names Class names to check
-             * @returns 
+             * @returns
+             * @deprecated
              */
             hasClass(...names){
                 if(names.length === 0) return false;
@@ -2108,24 +2367,6 @@
                 }
 
                 return true;
-            },
-
-            /**
-             * Selects a single matching element within this element.
-             * @param {*} selector
-             * @deprecated
-             */
-            get(selector = '*'){
-                return LS.Tiny.O(this, selector)
-            },
-
-            /**
-             * Selects all matching elements within this element.
-             * @param {*} selector
-             * @deprecated
-             */
-            getAll(selector = '*'){
-                return LS.Tiny.Q(this, selector)
             },
 
             /**
@@ -2140,6 +2381,7 @@
 
             /**
              * Adds element(s) before this element and returns itself.
+             * @deprecated
              */
             addBefore(target){
                 LS.Util.resolveElements(target).forEach(element => this.parentNode.insertBefore(element, this))
@@ -2148,6 +2390,7 @@
 
             /**
              * Adds element(s) after this element and returns itself.
+             * @deprecated
              */
             addAfter(target){
                 LS.Util.resolveElements(target).forEach(element => this.parentNode.insertBefore(element, this.nextSibling))
@@ -2161,73 +2404,8 @@
              * @returns this
              */
             addTo(element){
-                LS.Tiny.O(element).add(this)
-                return this
-            },
-
-            /**
-             * Wraps this element inside another element and returns the wrapper.
-             * @deprecated
-             */
-            wrapIn(element){
-                this.addAfter(LS.Tiny.O(element));
-                element.appendChild(this);
-                return this
-            },
-
-            /**
-             * Checks if the element is currently in the viewport.
-             * @returns {boolean}
-             * @deprecated
-             */
-            isInView(){
-                var rect = this.getBoundingClientRect();
-                return rect.top < (window.innerHeight || document.documentElement.clientHeight) && rect.left < (window.innerWidth || document.documentElement.clientWidth) && rect.bottom > 0 && rect.right > 0
-            },
-
-            /**
-             * Checks if the entire element is currently in the viewport.
-             * @returns {boolean}
-             * @deprecated
-             */
-            isEntirelyInView(){
-                var rect = this.getBoundingClientRect();
-
-                return (
-                    rect.top >= 0 &&
-                    rect.left >= 0 &&
-                    rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
-                    rect.right <= (window.innerWidth || document.documentElement.clientWidth)
-                );
-            },
-
-            /**
-             * Adds any number of event listeners to the element.
-             * @param  {...any} events Event names followed by the callback function
-             * @deprecated
-             */
-            on(...events){
-                let func = events.find(e => typeof e == "function");
-                for (const evt of events) {
-                    if (typeof evt != "string") continue;
-                    this.addEventListener(evt, func);
-                }
-
-                return this
-            },
-
-            /**
-             * Removes event listeners from the element.
-             * @deprecated
-             */
-            off(...events){
-                let func = events.find(e => typeof e == "function");
-                for (const evt of events) {
-                    if (typeof evt != "string") continue;
-                    this.removeEventListener(evt, func);
-                }
-
-                return this
+                LS.SelectOne(element).append(this);
+                return this;
             },
 
             applyStyle(rules){
@@ -2235,317 +2413,54 @@
 
                 for(let rule in rules){
                     if(!rules.hasOwnProperty(rule)) continue;
-
                     let value = rules[rule];
-
                     if(!rule.startsWith("--")) rule = rule.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
-
                     this.style.setProperty(rule, value);
                 }
             },
-
-            /**
-             * @deprecated
-             */
-            clear(){
-                // Tracking usage before removal
-                console.error("Warning: TinyFactory.clear() is deprecated, please avoid it.");
-                this.innerHTML = '';
-                return this
-            }
-        },
-
-        prototypeTiny(){
-            if(LS.Tiny._prototyped) return;
-            LS.Tiny._prototyped = true;
-
-            console.debug("Warning: TinyFactory has been prototyped globally to all HTML elements. You can now use all its featuers seamlessly. Beware that this may conflict with other libraries or future changes or cause confusion, please use with caution!");
-            Object.assign(HTMLElement.prototype, LS.TinyFactory);
-        },
-
-        /**
-         * A global modal escape stack.
-         * @experimental New
-         */
-        Stack: class Stack {
-            static {
-                this.items = [];
-            }
-
-            static _init() {
-                if(this.container) return;
-                window.addEventListener("keydown", (event) => {
-                    if (event.key === "Escape") {
-                        this.pop();
-                    }
-                });
-
-                this.container = LS.Create({
-                    class: "ls-modal-layer level-1"
-                });
-
-                this.container.addEventListener("click", (event) => {
-                    if (event.target === this.container && LS.Stack.length > 0 && LS.Stack.top.canClickAway !== false) {
-                        LS.Stack.pop();
-                    }
-                });
-
-                LS.once("ready", () => {
-                    LS._topLayer.add(this.container);
-                });
-            }
-
-            static push(item) {
-                if(this.items.indexOf(item) !== -1) {
-                    this.remove(item);
-                }
-
-                if(item.hasShade) {
-                    this.container.classList.add("is-open");
-                }
-
-                this.items.push(item);
-                return item;
-            }
-
-            static pop() {
-                if(this.items.length === 0) return null;
-
-                const item = this.top;
-                if (item && item.isCloseable !== false) {
-                    item.close?.();
-                }
-                return item;
-            }
-
-            static remove(item) {
-                const index = this.items.indexOf(item);
-                if (index > -1) {
-                    this.items.splice(index, 1);
-                }
-
-                if(this.items.length === 0 || !this.items.some(i => i.hasShade)) {
-                    this.container.classList.remove("is-open");
-                }
-            }
-
-            static indexOf(item) {
-                return this.items.indexOf(item);
-            }
-
-            static get length() {
-                return this.items.length;
-            }
-
-            static get top() {
-                return this.items[this.items.length - 1] || null;
-            }
-        },
-
-        StackItem: class StackItem {
-            constructor(modal) {
-                this.ref = modal;
-            }
-
-            get zIndex() {
-                return LS.Stack.indexOf(this);
-            }
-
-            close() {
-                LS.Stack.remove(this);
-                if(this.ref && this.ref.close) {
-                    this.ref.close();
-                }
-            }
-        },
-
-        /**
-         * @concept
-         * @experimental Direction undecided, so far an abstract concept
-         */
-        Context,
-
-        toNode(expr) {
-            if (typeof expr === "string") {
-                return document.createTextNode(expr);
-            }
-
-            if (!expr) {
-                return null;
-            }
-
-            if(expr instanceof Node) {
-                return expr;
-            }
-
-            return LS.Create(expr);
-        },
-
-        // Legacy alias
-        __dynamicInnerToNode: function(expr) {
-            return this.toNode(expr);
-        },
-
-        components: new Map,
-
-        Component: class Component extends EventEmitter {
-            constructor(){
-                super();
-                this.__check();
-            }
-
-            /**
-             * Memory safety feature;
-             * Allows components to be bound to a context
-             */
-            get ctx(){
-                return LS.Context.get(this) || LS.Context.global;
-            }
-
-            __check(){
-                if(!this._component || !LS.components.has(this._component.name)){
-                    throw new Error("This class has to be extended and loaded as a component with LS.LoadComponent.");
-                }
-
-                if(this.init) this.init();
-            }
-
-            destroy(){
-                console.warn(`[LS] Component ${this._component.name} does not implement destroy method!`);
-                this.events.clear();
-                return false;
-            }
-        },
-
-        DestroyableComponent: class DestroyableComponent extends Context {
-            constructor(){
-                super();
-                LS.Component.prototype.__check.call(this);
-            }
-
-            get ctx(){
-                return this;
-            }
-
-            destroy() {
-                super.destroy();
-                if(this._component.singular){
-                    this._component.instance.destroyed = true;
-                    LS.UnregisterComponent(this._component.name);
-                }
-            }
-        },
-
-        LoadComponent(componentClass, options = {}){
-            const name = (options.name || componentClass.name).toLowerCase();
-
-            if(LS.components.has(name)) {
-                console.warn(`[LS] Duplicate component name ${name}, ignored!`);
-                return
-            }
-
-            const component = {
-                isConstructor: typeof componentClass === "function",
-                class: componentClass,
-                metadata: options.metadata,
-                global: !!options.global,
-                hasEvents: options.events !== false,
-                singular: !!options.singular,
-                name
-            }
-
-            if (!component.isConstructor) {
-                Object.setPrototypeOf(componentClass, LS.Component.prototype);
-                componentClass._component = component;
-
-                if(component.hasEvents) {
-                    LS.EventEmitter.prepareHandler(componentClass);
-                }
-            } else {
-                componentClass.prototype._component = component;
-            }
-
-            LS.components.set(name, component);
-
-            if(component.global){
-                LS[options.name] = options.singular && component.isConstructor? (component.instance = new componentClass): componentClass;
-            }
-
-            LS.emit("component-loaded", [component]);
-            return component;
-        },
-
-        GetComponent(name){
-            return LS.components.get(name.toLowerCase());
-        },
-
-        UnregisterComponent(name){
-            name = name.toLowerCase();
-            const component = LS.components.get(name);
-            if(!component) return false;
-
-            if(component.instance && !component.instance.destroyed){
-                const destroyMethod = component.isConstructor ? component.instance.destroy : component.class.destroy;
-                if(typeof destroyMethod === "function"){
-                    destroyMethod.call(component.instance);
-                } else {
-                    console.warn(`[LS] Component ${name} does not implement destroy method!`);
-                }
-            }
-
-            if(component.global){
-                delete LS[name];
-            }
-
-            LS.components.delete(name);
-            LS.emit("component-unloaded", [component]);
-            return true;
         }
     }
 
-    // Reuse global context for global events
-    LS.Context.global = new LS.Context();
-    LS._events = LS.Context.global;
+    // --- Export & init
 
-    ["emit", "quickEmit", "on", "once", "off"].forEach(method => {
-        LS[method] = LS.Context.global[method].bind(LS.Context.global);
-    });
-
-    if(LS.isWeb){
-        for(const field of CONTEXT_FIELDS) {
-            const ref = window[field];
-            if(LS.Util.isClass(ref)) {
-                Context[field] = function() { return new ref(...arguments) };
-            } else {
-                Context[field] = function() { return ref(...arguments) };
-            }
-        }
-
-        LS.SelectAll = LS.Tiny.Q;
-        LS.Select = LS.Tiny.O;
-        LS.Misc = LS.Tiny.M;
-
-        // Backward compatibility
-        LS.Tiny.N = LS.Create;
-
-        LS.Stack._init();
-
-        // Deprecated!
-        window.addEventListener("keydown", event => {
-            LS.Tiny.M.lastKey = event.key;
-            if(event.key == "Shift") LS.Tiny.M.ShiftDown = true;
-            if(event.key == "Control") LS.Tiny.M.ControlDown = true;
-        });
-
-        window.addEventListener("keyup", event => {
-            LS.Tiny.M.lastKey = event.key;
-            if(event.key == "Shift") LS.Tiny.M.ShiftDown = false;
-            if(event.key == "Control") LS.Tiny.M.ControlDown = false;
-        });
-
-        window.addEventListener("mousedown", () => LS.Tiny.M.mouseDown = true);
-        window.addEventListener("mouseup", () => LS.Tiny.M.mouseDown = false);
+    if(typeof module !== "undefined"){
+        module.exports = LS;
     }
 
-    return LS;
-});
+    // Ensure this event is deoptimized
+    LS.prepareEvent("component-loaded", { deopt: true });
+    LS.prepareEvent("ready", { deopt: true });
+
+    if(!LS.isWeb) {
+        LS.completed("ready");
+        return;
+    }
+
+    if(!window.LS_DEFER_INIT){
+        LS.init({
+            globalPrototype: window.ls_do_not_prototype !== true,
+            ...(window.LS_INIT_OPTIONS || null)
+        });
+
+        delete window.LS_INIT_OPTIONS;
+    }
+
+    LS._topLayer = document.createElement("div");
+    LS._topLayer.id = "ls-top-layer";
+    LS._topLayer.style.position = "fixed";
+    LS.Stack._init();
+    LS._topLayer.add(LS.Stack.container);
+
+    function onLoaded(){
+        LS.body = document.body; // It can be scoped to a different element
+        LS.ready = true;
+        LS.completed("ready", [LS.body]);
+        LS.body.append(LS._topLayer);
+    }
+
+    delete window.LS_DEFER_INIT;
+
+    (typeof window !== 'undefined'? window : globalThis).LS = LS;
+    if(document.body) onLoaded(); else window.addEventListener("DOMContentLoaded", onLoaded);
+
+})();

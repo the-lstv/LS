@@ -31,10 +31,6 @@
                 background-color: var(--accent-30);
             }
 
-            &:focus {
-                outline: 3px solid var(--accent-mix-10);
-            }
-
             &:focus-visible {
                 outline: 3px solid currentColor;
             }

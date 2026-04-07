@@ -1,0 +1,217 @@
+.ls-timeline {
+    -webkit-user-select: none;
+    user-select: none;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+}
+
+.ls-timeline:focus-visible {
+    outline: none;
+}
+
+.ls-timeline-pointer {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    outline: 1px solid var(--accent);
+    z-index: 10;
+}
+
+.ls-timeline-pointer::after {
+    content: "";
+    border-left: 12px solid transparent;
+    border-right: 12px solid transparent;
+    border-top: 10px solid var(--accent);
+    height: 0;
+    width: 0;
+    position: absolute;
+    transform: translateX(-50%);
+}
+
+.ls-timeline-row {
+    display: block;
+    min-height: var(--ls-timeline-row-height, 45px);
+    position: relative;
+    background: var(--background);
+}
+
+.ls-timeline-row:nth-child(odd) {
+    background: var(--elevate);
+}
+
+.ls-timeline-item {
+    display: inline-flex;
+    align-items: center;
+    position: absolute;
+    bottom: 0;
+    top: 0;
+    overflow: hidden;
+    min-width: 5px;
+    cursor: pointer;
+    border-radius: var(--timeline-item-radius, var(--border-radius-small));
+}
+
+.ls-timeline-item:not(.ls-timeline-item-automation), .ls-timeline-item-automation > span {
+    background: var(--accent);
+    color: var(--accent-90);
+    box-shadow: inset 0 1px 0 0 var(--accent-60), inset 0 -1px 0 0 var(--accent-35);
+}
+
+.ls-timeline-item-automation {
+    background: var(--surface-n1);
+    flex-direction: column;
+}
+
+.ls-timeline-item-automation > span, .ls-timeline-item-automation > .ls-resize-handle {
+    height: 20px;
+    min-height: 20px;
+    max-height: 20px;
+}
+
+.ls-timeline-item-automation > span {
+    pointer-events: none;
+    width: 100%;
+}
+
+.ls-timeline-item-automation > .ls-automation-graph {
+    flex: 1;
+    width: 100%;
+}
+
+.ls-timeline-item[ls-accent="yellow"], .ls-timeline-item[ls-accent="orange"] {
+    color: var(--accent-10);
+}
+
+.ls-timeline-item.selected {
+    background: var(--accent);
+    box-shadow: 4px 4px 0 0 #000;
+    outline: 2px solid black;
+    filter: brightness(1.2);
+    cursor: default;
+    z-index: 5;
+}
+
+.ls-timeline-item-automation.selected {
+    background: var(--surface-1);
+}
+
+.ls-timeline-item span {
+    padding: 0 10px;
+    width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    pointer-events: none;
+}
+
+.ls-timeline-item.ls-held {
+    opacity: .8;
+    transform: none !important;
+}
+
+.ls-timeline-scroll-container {
+    overflow: auto;
+    border-top: 1px solid var(--surface-4);
+    height: 100%;
+}
+
+.ls-timeline-rows {
+    position: sticky;
+    left: 0;
+    right: 0;
+}
+
+.ls-timeline-markers {
+    height: 25px;
+    min-height: 25px;
+    max-height: 35px;
+}
+
+.ls-timeline-markers {
+    width: 100%;
+    height: 24px;
+    pointer-events: none;
+    overflow: visible;
+}
+
+.ls-timeline-marker {
+    display: inline-block;
+    position: absolute;
+    text-align: center;
+    top: 0px;
+    bottom: 0;
+    white-space: nowrap;
+    transform: translateX(-50%);
+}
+
+.ls-timeline-marker::before,
+.ls-timeline-marker::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    border-top: 0;
+    border-bottom: 0;
+}
+
+/* .ls-timeline-marker::after {
+    border: 1px solid var(--accent-transparent);
+    top: calc(1em + 8px);
+    left: 100%;
+} */
+
+.ls-timeline-marker::before {
+    border: 1px solid var(--surface-3);
+    /* left: 50%; */
+    bottom: 0;
+    height: 4px;
+}
+
+.ls-timeline-player-head {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    outline: 1px solid var(--accent);
+    z-index: 10;
+}
+
+.ls-timeline-player-head::after {
+    content: "";
+    border-left: 12px solid transparent;
+    border-right: 12px solid transparent;
+    border-top: 10px solid var(--accent);
+    height: 0;
+    width: 0;
+    position: absolute;
+    transform: translateX(-50%);
+}
+
+.ls-drop-preview {
+    background: var(--surface-9);
+    opacity: 0.2;
+}
+
+.ls-timeline-snap-line {
+    left: 0px;
+}
+
+.ls-timeline-snap-line::before, .ls-timeline-snap-line::after {
+    content: "\00d7";
+    position: absolute;
+    transform: translateX(-50%);
+}
+
+.ls-timeline-snap-line::before {
+    top: 0;
+}
+
+.ls-timeline-snap-line::after {
+    bottom: 0;
+}
+
+.ls-automation-graph:not(:hover) :is(.ls-automation-point-handle, .ls-automation-center-handle) {
+    opacity: 0;
+}

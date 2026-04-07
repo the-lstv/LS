@@ -418,32 +418,38 @@ button.ls-toast-close.ls-toast-close.ls-toast-close {
   height: 20px;
   width: 20px;
   font-size: large;
-  margin-left: 10px;
   margin-right: -8px;
   z-index: 1;
 }
 .ls-tabs.ls-tabs-styled .ls-tab-handle {
-  cursor: pointer;
-  padding: 4px var(--padding-control-h);
-  border-radius: var(--border-radius) var(--border-radius) 0 0;
+  --background: none;
   position: relative;
   display: flex;
   align-items: center;
-  --background: none;
+  gap: 8px;
   background: var(--background);
   transition: background-color 0.1s;
   white-space: nowrap;
   user-select: none;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  padding: 2px calc(var(--padding-control-h) - 4px);
+  margin: 4px;
+  margin-top: 0;
 }
-.ls-tabs.ls-tabs-styled .ls-tab-handle:hover {
-  --background: var(--accent-mix-10);
+.ls-tabs.ls-tabs-styled .ls-tab-handle.ls-tab-handle:hover:not(.active) {
+  --background: var(--elevate);
 }
-.ls-tabs.ls-tabs-styled .ls-tab-handle.active {
+.ls-tabs.ls-tabs-styled .ls-tab-handle.active:not([data-ls-state=loading]) {
   --background: var(--ui-element);
   z-index: 1;
   box-shadow: 0 4px 12px 2px rgba(0, 0, 0, 0.1333333333);
+  border-radius: var(--border-radius) var(--border-radius) 0 0;
+  padding: 2px var(--padding-control-h);
+  padding-bottom: 6px;
+  margin: 0;
 }
-.ls-tabs.ls-tabs-styled .ls-tab-handle::after, .ls-tabs.ls-tabs-styled .ls-tab-handle::before {
+.ls-tabs.ls-tabs-styled .ls-tab-handle.active:not([data-ls-state=loading])::after, .ls-tabs.ls-tabs-styled .ls-tab-handle.active:not([data-ls-state=loading])::before {
   content: "";
   position: absolute;
   background-color: transparent;
@@ -454,6 +460,16 @@ button.ls-toast-close.ls-toast-close.ls-toast-close {
   pointer-events: none;
   transition: box-shadow 0.1s;
   z-index: 0;
+}
+.ls-tabs.ls-tabs-styled .ls-tab-handle[data-ls-state=loading] {
+  cursor: wait;
+}
+.ls-tabs.ls-tabs-styled .ls-tab-handle[data-ls-state=loading].active {
+  --background: var(--ui-element);
+}
+.ls-tabs.ls-tabs-styled .ls-tab-handle[data-ls-state=loading]::before {
+  margin-left: 0;
+  position: static;
 }
 .ls-tabs.ls-tabs-styled .ls-tab-handle::after {
   transform: rotate(-90deg);

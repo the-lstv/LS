@@ -1,9 +1,9 @@
-## Planned
-- Documentation
-- Migrate the rest of components
-- Improve accessibility & edge cases
+**Upcomming 6.0.0 (2026 major release) is in development!**
 
-Upcomming 6.0.0 (2026 major release)
+### Version 5.3.0 (farewell update, before v6)
+- Polishes, optimizations & bug fixes
+- Stable enhancements adapted from 6.0.0-beta without any breaking changes.
+- Fix LS.Color.copyTo not working (it was copying from the copy...)
 
 ### Version 5.2.9 (polish update)
 - Breaking: LS.ShortcutManager and LS.CompileTemplate are now separate components, don't forget to include them! (this is to reduce core size)
@@ -81,8 +81,10 @@ Major update (2025 release)!
 - Major changes to the event system and other APIs
 - Licence of the project changed to GPLv3
 
-
 ---
+
+### Version 4.1.0 (yearly LTS maintenance update)
+- Brought some small optimizations & fixes from v5 to v4.
 
 ### Version 4.0.2
 - Selector fixes.
@@ -93,7 +95,8 @@ Major update (2025 release)!
 - Add version information to LS.version and LS.v
 
 ## Version 4.0.0 (legacy)
-V4 is not a major release, but rather a "LTS" version of v3.6.5. It is now deprecated, but favored over the older 3.6.5 that it is based on.<br>
+V4 is not a major release, but rather a "LTS" version of v3.6.5.<br>
+It is deprecated but favored over the older 3.6.5 that it is based on, intended to keep old projects running.<br>
 It has also been upgraded to the new distribution format & file structure with latest API compatibility, moving from the old magical preprocessor, so it can be used reliably where needed.<br>
 > [!NOTE]
 > What is now v5 should have actually been v4, but because I am a genius, I've released a minor v3.6.5 update as the v4.0.0 on accident. <br>

@@ -1,7 +1,8 @@
 /**
- * Similar behavior as LS.Create, but compiles into a direct optimized function for repeated use.
- * Useful if you have a medium/large structure you expect to create many times and want direct access to its elements.
- * **Not** useful if you intend to do this once ever, it will be slower than LS.Create.
+ * Similar behavior as LS.Create, but compiles into a direct function for repeated use.
+ * 
+ * Useful if you have a medium/large structure you expect to create *many* times and want direct access to its elements.
+ * **Not** useful if you intend to do this once ever, it will always be slower than LS.Create.
  * @experimental Very experimental
  * 
  * @param {Function|Array|Object|string} templateBuilder A function that returns a template array/object/string or a template array/object/string directly.

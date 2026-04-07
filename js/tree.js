@@ -1,8 +1,8 @@
 LS.LoadComponent(class Tree extends LS.Component {
     static ROOT = Symbol('root');
-    static CARET_ICON = N("svg", {
+    static CARET_ICON = LS.Create("svg", {
         class: "ls-tree-caret-icon",
-        inner: N("path", { ns: 'http://www.w3.org/2000/svg', attr: { d: "M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6-1.41-1.41z", fill: "currentColor" }}),
+        inner: LS.Create("path", { ns: 'http://www.w3.org/2000/svg', attr: { d: "M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6-1.41-1.41z", fill: "currentColor" }}),
         attr: { viewBox: "0 0 24 24" }
     });
 
@@ -55,12 +55,12 @@ LS.LoadComponent(class Tree extends LS.Component {
         const indentSize = this.options.indent;
 
         for (const node of children) {
-            const element = node.element || (typeof this.options.createElement === "function"? this.options.createElement(node): N({
+            const element = node.element || (typeof this.options.createElement === "function"? this.options.createElement(node): LS.Create({
                 class: 'ls-tree-node' + (this.options.styled !== false ? ' ls-tree-node-styled' : '') + (this.options.itemClass ? ' ' + this.options.itemClass : ''),
-                inner: [ N({
+                inner: [ LS.Create({
                     class: "ls-tree-iconSlot",
                     inner: node.extensible? this.constructor.CARET_ICON.cloneNode(true) : node.icon
-                }), N("span", { textContent: node.label || node.name }) ],
+                }), LS.Create("span", { textContent: node.label || node.name }) ],
                 attr: { "role": "treeitem" },
                 tabIndex: "0"
             }));

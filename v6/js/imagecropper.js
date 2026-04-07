@@ -1,554 +1,1210 @@
 /**
  * ImageCropper Component for LS
  * Provides an interactive image/video cropping tool with support for animated sources.
- * @version 1.0.0
+ * @version 1.0.1
  */
 
 LS.LoadComponent(class ImageCropper extends LS.Component {
-    constructor(image, options = {}) {
+    constructor(source, options = {}) {
         super();
 
-        options = LS.Util.defaults({
+        this.options = LS.Util.defaults({
             width: 100,
             height: 100,
             styled: true,
-            inheritResolution: false
+            inheritResolution: false,
+            animated: false,
+
+            shape: "rect", // "rect" | "circle"
+            rotation: 0,
+
+            minScale: 1,
+            maxScale: 3,
+            initialScale: 1,
+
+            finalWidth: null,
+            finalHeight: null,
+
+            outputType: "image/webp",
+            outputQuality: 0.92,
+
+            animatedOutputType: null,
+            animatedFps: 30,
+            videoBitsPerSecond: 1_500_000,
+            maxAnimatedLength: 30,
+
+            background: null,
+            createURL: false,
+            crossOrigin: null,
+
+            // Prevent huge canvases from killing the tab
+            maxOutputPixels: 16_777_216 // 4096 * 4096
         }, options);
 
-        if (options.width <= 0 || options.height <= 0) {
-            throw new Error("Invalid dimensions for ImageCropper: width and height must be positive numbers.");
-        }
+        this._validateOptions();
 
-        // determine source type and create media element
-        let src = null;
-        if (image instanceof File) {
-            src = URL.createObjectURL(image);
-        } else if (typeof image === 'string') {
-            src = image;
-        } else if (image instanceof HTMLImageElement || image instanceof HTMLVideoElement) {
-            src = image.src;
-        }
+        this._cleanup = [];
+        this._ownedSourceURLs = new Set();
+        this._ownedResultURLs = new Set();
+        this._renderRAF = 0;
+        this._processToken = 0;
+        this._destroyed = false;
 
-        if (
-            (image instanceof File && /(webm|mp4|mkv)$/i.test(image.type)) ||
-            (typeof src === 'string' && /(webm|mp4|mkv)$/i.test(src)) ||
-            image instanceof HTMLVideoElement
-        ) {
-            if (!options.animated) {
-                throw new Error("Animated sources are not allowed unless 'animated' option is set to true.");
-            }
+        this.processing = false;
+        this.isReady = false;
 
-            if (image instanceof HTMLVideoElement) {
-                this.image = image;
-            } else {
-                this.image = document.createElement('video');
-                this.image.src = src;
-            }
+        this.rotation = this._normalizeRotation(this.options.rotation || 0);
+        this.translateX = 0;
+        this.translateY = 0;
+        this.scale = Number(this.options.initialScale || 1);
+
+        this._sourceInfo = this._normalizeSource(source);
+        this.originalFile = this._sourceInfo.file || null;
+        this.isAnimatedSource = !!(this._sourceInfo.isVideo || this._sourceInfo.isGif);
+
+        this.image = this._sourceInfo.element;
+        this.image.draggable = false;
+        this.image.classList.add("ls-image-cropper-image");
+        this.image.style.transformOrigin = "center center";
+        this.image.style.willChange = "transform";
+        this.image.style.userSelect = "none";
+        this.image.style.pointerEvents = "none";
+        this.image.style.minWidth = `${this.options.width}px`;
+        this.image.style.minHeight = `${this.options.height}px`;
+
+        if (this.image instanceof HTMLVideoElement) {
             this.image.muted = true;
             this.image.loop = true;
             this.image.playsInline = true;
-            this.image.onloadedmetadata = () => this.prepareImage();
-        } else {
-            if (image instanceof HTMLImageElement) {
-                this.image = image;
-            } else {
-                this.image = new Image();
-                this.image.src = src;
+        }
+
+        this.overlay = LS.Create({
+            class: "ls-image-cropper-overlay",
+            style: {
+                width: `${this.options.width}px`,
+                height: `${this.options.height}px`,
+                borderRadius: this.options.shape === "circle" ? "50%" : "0"
             }
-            this.image.onload = () => this.prepareImage();
-        }
-
-        this.image.draggable = false;
-        this.image.onerror = (e) => {
-            URL.revokeObjectURL(src);
-            if (typeof this.options.onError === 'function') this.options.onError(e);
-            else console.error(e);
-        };
-        if (image instanceof File) this.originalFile = image;
-
-        this.image.classList.add("ls-image-cropper-image");
-        this.image.style.minHeight = options.height + "px";
-        this.image.style.minWidth = options.width + "px";
-
-        this.image.addEventListener("load", () => this.prepareImage());
-        if (this.image.complete) {
-            this.prepareImage();
-        }
-
-        this.options = options;
+        });
 
         this.container = LS.Create({
             class: "ls-image-cropper",
-            inner: [
-                this.image,
-                LS.Create({
-                    class: "ls-image-cropper-overlay",
-                    style: {
-                        width: options.width + "px",
-                        height: options.height + "px",
-                        borderRadius: options.shape === "circle" ? "50%" : "0",
-                    }
-                }),
-            ]
+            inner: [this.image, this.overlay]
+        });
+
+        this.scaleInput = LS.Create("input", {
+            type: "range",
+            step: 0.01,
+            oninput: (e) => {
+                this.setScale(parseFloat(e.target.value));
+            }
+        });
+
+        this.rotateButton = LS.Create("button", {
+            class: "clear square",
+            inner: LS.Create("i", { class: "bi-arrow-clockwise" }),
+            onclick: () => this.changeRotation(90)
+        });
+
+        this.controls = LS.Create({
+            class: "ls-image-cropper-controls",
+            inner: [this.scaleInput, this.rotateButton]
         });
 
         this.wrapper = LS.Create({
             class: "ls-image-cropper-wrapper",
-            inner: [
-                this.container,
-                LS.Create({
-                    class: "ls-image-cropper-controls",
-                    inner: [
-                        LS.Create("input", {
-                            type: "range",
-                            min: this.options.minScale || 1,
-                            max: this.options.maxScale || 3,
-                            step: 0.01,
-                            value: this.options.initialScale || 1,
-                            oninput: (e) => {
-                                this.scale = parseFloat(e.target.value);
-                                this.applyTransform();
-                            }
-                        }),
-
-                        LS.Create("button", {
-                            class: "clear square",
-                            inner: LS.Create("i", { class: "bi-arrow-clockwise" }),
-                            onclick: () => this.changeRotation(90)
-                        })
-                    ]
-                })
-            ]
+            inner: [this.container, this.controls]
         });
 
-        this.wrapper.style.position = 'relative';
-        this.processingOverlay = LS.Create('div', {
-            class: 'ls-image-cropper-processing',
-            style: { display: 'none' },
-            inner: [
-                LS.Create('div', { class: 'processing-text', textContent: 'Processing, please wait...' }),
-                LS.Create('progress', { class: 'processing-progress', max: 100, value: 0 })
-            ]
+        this.wrapper.style.position = "relative";
+
+        this.processingText = LS.Create("div", {
+            class: "processing-text",
+            textContent: "Processing, please wait..."
+        });
+
+        this.processingProgress = LS.Create("progress", {
+            class: "processing-progress",
+            max: 100,
+            value: 0
+        });
+
+        this.processingOverlay = LS.Create("div", {
+            class: "ls-image-cropper-processing",
+            style: { display: "none" },
+            inner: [this.processingText, this.processingProgress]
         });
 
         this.wrapper.appendChild(this.processingOverlay);
-        this.processing = false;
 
-        if (options.styled !== false) {
+        if (this.options.styled !== false) {
             this.container.classList.add("ls-image-cropper-styled");
         }
 
-        this.rotation = this.options.rotation || 0;
-        this.scale = this.options.initialScale || 1;
-        const minScale = this.options.minScale || 1;
-        const maxScale = this.options.maxScale || 3;
-
-        let isDragging = false;
-        let startX, startY, startTranslateX, startTranslateY;
-
-        const onMouseMove = e => {
-            if (!isDragging) return;
-            const dx = e.clientX - startX;
-            const dy = e.clientY - startY;
-            this.translateX = startTranslateX + dx;
-            this.translateY = startTranslateY + dy;
-            this.applyTransform();
-        };
-
-        const onMouseUp = () => {
-            if (!isDragging) return;
-            isDragging = false;
-            document.removeEventListener('mousemove', onMouseMove);
-            document.removeEventListener('mouseup', onMouseUp);
-        };
-
-        this.container.addEventListener('mousedown', e => {
-            e.preventDefault();
-            isDragging = true;
-            startX = e.clientX;
-            startY = e.clientY;
-            startTranslateX = this.translateX;
-            startTranslateY = this.translateY;
-            document.addEventListener('mousemove', onMouseMove);
-            document.addEventListener('mouseup', onMouseUp);
-        });
-
-        this.container.addEventListener('wheel', e => {
-            e.preventDefault();
-            const zoomFactor = 1 - e.deltaY * 0.001;
-            this.scale = this.clamp(this.scale * zoomFactor, minScale, maxScale);
-            this.applyTransform();
-            
-            const input = this.wrapper.querySelector('input[type="range"]');
-            if (input) {
-                input.value = this.scale;
-            }
-        });
-
-        this.isAnimatedSource = options.animated && image instanceof File && /(gif|webm|mp4)$/i.test(image.type);
-        this.originalFile = image instanceof File ? image : null;
-
-        if(this.isAnimatedSource) {
+        if (this.isAnimatedSource) {
             this.wrapper.classList.add("ls-image-cropper-animated");
         }
+
+        this._bindMediaEvents();
+        this._bindInteraction();
+
+        this._updateScaleInput();
+    }
+
+    _validateOptions() {
+        if (this.options.width <= 0 || this.options.height <= 0) {
+            throw new Error("Invalid dimensions for ImageCropper: width and height must be positive numbers.");
+        }
+
+        if (this.options.minScale <= 0 || this.options.maxScale <= 0) {
+            throw new Error("minScale and maxScale must be positive.");
+        }
+
+        if (this.options.maxScale < this.options.minScale) {
+            this.options.maxScale = this.options.minScale;
+        }
+    }
+
+    _normalizeSource(source) {
+        const info = {
+            file: source instanceof File ? source : null,
+            url: "",
+            element: null,
+            isVideo: false,
+            isGif: false
+        };
+
+        if (source instanceof File) {
+            info.url = URL.createObjectURL(source);
+            this._ownedSourceURLs.add(info.url);
+        } else if (typeof source === "string") {
+            info.url = source;
+        } else if (source instanceof HTMLImageElement || source instanceof HTMLVideoElement) {
+            info.url = source.currentSrc || source.src || "";
+        } else {
+            throw new TypeError("ImageCropper source must be a File, URL string, HTMLImageElement, or HTMLVideoElement.");
+        }
+
+        const mime = (info.file?.type || "").toLowerCase();
+        const fileName = (info.file?.name || "").toLowerCase();
+        const sniff = `${String(info.url || "").toLowerCase()} ${fileName}`;
+
+        info.isVideo =
+            source instanceof HTMLVideoElement ||
+            mime.startsWith("video/") ||
+            /\.(mp4|webm|m4v|mov|ogv|ogg|mkv)(?=$|[?#\s])/i.test(sniff);
+
+        info.isGif =
+            !info.isVideo &&
+            (mime === "image/gif" || /\.gif(?=$|[?#\s])/i.test(sniff));
+
+        if (source instanceof HTMLImageElement || source instanceof HTMLVideoElement) {
+            info.element = source;
+        } else if (info.isVideo) {
+            const video = document.createElement("video");
+            if (this.options.crossOrigin) video.crossOrigin = this.options.crossOrigin;
+            video.preload = "metadata";
+            video.muted = true;
+            video.loop = true;
+            video.playsInline = true;
+            video.src = info.url;
+            info.element = video;
+        } else {
+            const img = new Image();
+            if (this.options.crossOrigin) img.crossOrigin = this.options.crossOrigin;
+            img.src = info.url;
+            info.element = img;
+        }
+
+        return info;
+    }
+
+    _bindMediaEvents() {
+        this._on(this.image, "error", (e) => this._emitError(e));
+
+        if (this.image instanceof HTMLVideoElement) {
+            if (this.image.readyState >= 1 && this.image.videoWidth > 0) {
+                this.prepareImage();
+            } else {
+                this._once(this.image, "loadedmetadata", () => this.prepareImage());
+            }
+
+            this._once(this.image, "loadeddata", () => this._tryAutoPlayPreview());
+            this._tryAutoPlayPreview();
+        } else {
+            if (this.image.complete && this.image.naturalWidth > 0) {
+                this.prepareImage();
+            } else {
+                this._once(this.image, "load", () => this.prepareImage());
+            }
+        }
+    }
+
+    _bindInteraction() {
+        this.container.style.touchAction = "none";
+
+        let drag = null;
+
+        this._on(this.container, "pointerdown", (e) => {
+            if (!this.isReady || this.processing) return;
+            if (e.button !== undefined && e.button !== 0) return;
+
+            e.preventDefault();
+
+            drag = {
+                id: e.pointerId,
+                startX: e.clientX,
+                startY: e.clientY,
+                startTX: this.translateX,
+                startTY: this.translateY
+            };
+
+            this.container.setPointerCapture?.(e.pointerId);
+        });
+
+        this._on(this.container, "pointermove", (e) => {
+            if (!drag || e.pointerId !== drag.id || !this.isReady) return;
+
+            const targetX = drag.startTX + (e.clientX - drag.startX);
+            const targetY = drag.startTY + (e.clientY - drag.startY);
+            const constrained = this._constrainTranslation(targetX, targetY, drag.startTX, drag.startTY);
+
+            this.translateX = constrained.x;
+            this.translateY = constrained.y;
+            this._scheduleRender();
+        });
+
+        const endDrag = (e) => {
+            if (!drag) return;
+            if (e.pointerId != null && e.pointerId !== drag.id) return;
+
+            try {
+                this.container.releasePointerCapture?.(drag.id);
+            } catch (_) {}
+
+            drag = null;
+        };
+
+        this._on(this.container, "pointerup", endDrag);
+        this._on(this.container, "pointercancel", endDrag);
+
+        this._on(this.container, "wheel", (e) => {
+            if (!this.isReady) return;
+
+            e.preventDefault();
+
+            const point = this._pointToCropSpace(e.clientX, e.clientY);
+            const factor = Math.exp(-e.deltaY * 0.0015);
+            this.setScale(this.scale * factor, point);
+        }, { passive: false });
     }
 
     prepareImage() {
-        const imgW = this.image.naturalWidth || this.image.videoWidth;
-        const imgH = this.image.naturalHeight || this.image.videoHeight;
-        const scale = Math.max(this.options.width / imgW, this.options.height / imgH);
-        this.image.style.width = imgW * scale + "px";
-        this.image.style.height = imgH * scale + "px";
+        const mediaW = this._mediaWidth(this.image);
+        const mediaH = this._mediaHeight(this.image);
 
-        // Store base dimensions after fitting
-        this.baseWidth = parseFloat(this.image.style.width);
-        this.baseHeight = parseFloat(this.image.style.height);
+        if (!mediaW || !mediaH) return;
 
-        // Center transforms on the element
-        this.image.style.transformOrigin = 'center center';
+        this.fitScale = Math.max(this.options.width / mediaW, this.options.height / mediaH);
+        this.baseWidth = mediaW * this.fitScale;
+        this.baseHeight = mediaH * this.fitScale;
 
-        // start centered
-        this.translateX = 0;
-        this.translateY = 0;
-        this.applyTransform();
+        this.image.style.width = `${this.baseWidth}px`;
+        this.image.style.height = `${this.baseHeight}px`;
+
+        this.isReady = true;
+        this.reset(false);
+
+        if (typeof this.options.onReady === "function") {
+            this.options.onReady(this);
+        }
     }
 
-    clamp(value, min, max) {
-        return Math.max(min, Math.min(max, value));
+    reset(includeRotation = true) {
+        if (!this.isReady) return;
+
+        if (includeRotation) {
+            this.rotation = this._normalizeRotation(this.options.rotation || 0);
+        }
+
+        this.translateX = 0;
+        this.translateY = 0;
+
+        const bounds = this._getScaleBounds();
+        this.scale = this._clamp(
+            Number(this.options.initialScale || 1),
+            bounds.min,
+            bounds.max
+        );
+
+        this._updateScaleInput();
+        this._scheduleRender();
+    }
+
+    setScale(value, anchorPoint = { x: 0, y: 0 }) {
+        if (!this.isReady) return;
+
+        const prevScale = this.scale;
+        const bounds = this._getScaleBounds();
+        const nextScale = this._clamp(Number(value), bounds.min, bounds.max);
+
+        if (!Number.isFinite(nextScale)) return;
+        if (Math.abs(nextScale - prevScale) < 0.0001) {
+            this._updateScaleInput();
+            return;
+        }
+
+        const local = this._inverseTransformPoint(
+            anchorPoint.x,
+            anchorPoint.y,
+            this.translateX,
+            this.translateY,
+            prevScale,
+            this.rotation
+        );
+
+        const anchored = this._forwardTransformPoint(
+            local.x,
+            local.y,
+            0,
+            0,
+            nextScale,
+            this.rotation
+        );
+
+        this.scale = nextScale;
+
+        let targetX = anchorPoint.x - anchored.x;
+        let targetY = anchorPoint.y - anchored.y;
+
+        const fallback = this._isCropCovered(this.translateX, this.translateY, this.scale, this.rotation)
+            ? { x: this.translateX, y: this.translateY }
+            : { x: 0, y: 0 };
+
+        const constrained = this._constrainTranslation(targetX, targetY, fallback.x, fallback.y);
+
+        this.translateX = constrained.x;
+        this.translateY = constrained.y;
+
+        this._updateScaleInput();
+        this._scheduleRender();
     }
 
     applyTransform() {
-        // compute current size
-        const currentWidth = this.baseWidth * this.scale;
-        const currentHeight = this.baseHeight * this.scale;
+        if (!this.isReady) return;
 
-        // compute rotated bounding box dimensions
-        const angleRad = (this.rotation || 0) * Math.PI / 180;
-        const cos = Math.abs(Math.cos(angleRad));
-        const sin = Math.abs(Math.sin(angleRad));
-        const rotWidth = currentWidth * cos + currentHeight * sin;
-        const rotHeight = currentWidth * sin + currentHeight * cos;
+        const bounds = this._getScaleBounds();
+        this.scale = this._clamp(this.scale, bounds.min, bounds.max);
 
-        // half-difference so that image always covers the centered crop area
-        const halfDiffX = (rotWidth - this.options.width) / 2;
-        const halfDiffY = (rotHeight - this.options.height) / 2;
+        const constrained = this._constrainTranslation(this.translateX, this.translateY, 0, 0);
+        this.translateX = constrained.x;
+        this.translateY = constrained.y;
 
-        // clamp translation within these rotated bounds
-        this.translateX = this.clamp(this.translateX, -halfDiffX, halfDiffX);
-        this.translateY = this.clamp(this.translateY, -halfDiffY, halfDiffY);
-
-        this.image.style.transform =
-            `translate3d(${this.translateX}px, ${this.translateY}px, 0) ` +
-            `rotate(${this.rotation}deg) scale(${this.scale})`;
-    }
-
-    async cropAnimated() {
-        if (this.processing) return;
-        this.processing = true;
-        this.processingOverlay.style.display = "flex";
-
-        try {
-            return await new Promise((resolve, reject) => {
-                const proceedVideo = (media, x, y, width, height, duration) => {
-                    const canvas = document.createElement("canvas");
-                    canvas.width = width;
-                    canvas.height = height;
-                    const ctx = canvas.getContext("2d");
-
-                    const stream = canvas.captureStream(30);
-                    const recorder = new MediaRecorder(stream, {
-                        mimeType: "video/webm; codecs=vp8",
-                        videoBitsPerSecond:
-                            this.options.videoBitsPerSecond || 500_000,
-                    });
-
-                    const chunks = [];
-                    recorder.ondataavailable = (e) => chunks.push(e.data);
-                    recorder.onstop = () => {
-                        const blob = new Blob(chunks, { type: "video/webm" });
-                        URL.revokeObjectURL(media.src);
-                        if (typeof this.options.onResult === "function") {
-                            this.options.onResult(this._getResult(blob));
-                        }
-                        resolve(blob);
-                    };
-
-                    recorder.start();
-
-                    media.play();
-                    const draw = () => {
-                        ctx.drawImage(media, x, y, width, height, 0, 0, width, height);
-                        const elapsed = media.currentTime;
-                        const percent = Math.min((elapsed / duration) * 100, 100);
-                        this.processingOverlay.querySelector('.processing-progress').value = percent;
-
-                        if (!media.paused && !media.ended) {
-                            LS.Context.requestAnimationFrame(draw);
-                        }
-                    };
-                    draw();
-
-                    this.ctx.setTimeout(() => {
-                        recorder.stop();
-                        media.pause();
-                    }, duration * 1000);
-                };
-
-                const proceedGif = (arrayBuffer, cropX, cropY, cropW, cropH) => {
-                    const { GifReader } = window.omggif;
-                    const bytes = new Uint8Array(arrayBuffer);
-                    const reader = new GifReader(bytes);
-
-                    const gifW = reader.width;
-                    const gifH = reader.height;
-
-                    // Full-size compositing canvas
-                    const fullCanvas = document.createElement("canvas");
-                    fullCanvas.width = gifW;
-                    fullCanvas.height = gifH;
-                    const fullCtx = fullCanvas.getContext("2d");
-
-                    // Persistent RGBA buffer for the whole GIF
-                    const fullImageData = fullCtx.createImageData(gifW, gifH);
-                    const prevImageData = fullCtx.createImageData(gifW, gifH);
-
-                    // Cropped output canvas
-                    const cropCanvas = document.createElement("canvas");
-                    cropCanvas.width = cropW;
-                    cropCanvas.height = cropH;
-                    const cropCtx = cropCanvas.getContext("2d");
-
-                    const stream = cropCanvas.captureStream(30);
-                    const recorder = new MediaRecorder(stream, {
-                        mimeType: "video/webm; codecs=vp8",
-                        videoBitsPerSecond: this.options.videoBitsPerSecond || 500_000,
-                    });
-
-                    const chunks = [];
-                    recorder.ondataavailable = (e) => chunks.push(e.data);
-                    recorder.onstop = () => {
-                        const blob = new Blob(chunks, { type: "video/webm" });
-                        if (typeof this.options.onResult === "function") {
-                            this.options.onResult(this._getResult(blob));
-                        }
-                        resolve(blob);
-                    };
-
-                    recorder.start();
-
-                    let frameIndex = 0;
-
-                    const drawFrame = () => {
-                        const info = reader.frameInfo(frameIndex);
-
-                        // Handle disposal BEFORE decoding the next frame
-                        if (info.disposal === 2) {
-                            // Clear to transparent in the frame's rectangle
-                            for (let y = 0; y < info.height; y++) {
-                                for (let x = 0; x < info.width; x++) {
-                                    const idx =
-                                        ((y + info.y) * gifW + (x + info.x)) * 4;
-                                    fullImageData.data[idx + 0] = 0;
-                                    fullImageData.data[idx + 1] = 0;
-                                    fullImageData.data[idx + 2] = 0;
-                                    fullImageData.data[idx + 3] = 0;
-                                }
-                            }
-                        } else if (info.disposal === 3) {
-                            // Restore to previous full frame
-                            fullImageData.data.set(prevImageData.data);
-                        }
-
-                        // Save current state for disposal=3
-                        prevImageData.data.set(fullImageData.data);
-
-                        // Decode directly into the persistent buffer
-                        reader.decodeAndBlitFrameRGBA(frameIndex, fullImageData.data);
-
-                        // Draw the full composited frame
-                        fullCtx.putImageData(fullImageData, 0, 0);
-
-                        // Crop from the composited frame
-                        cropCtx.clearRect(0, 0, cropW, cropH);
-                        cropCtx.drawImage(
-                            fullCanvas,
-                            cropX,
-                            cropY,
-                            cropW,
-                            cropH,
-                            0,
-                            0,
-                            cropW,
-                            cropH
-                        );
-
-                        // Update progress bar
-                        const totalFrames = reader.numFrames();
-                        const percentGif = ((frameIndex + 1) / totalFrames) * 100;
-                        this.processingOverlay.querySelector('.processing-progress').value = percentGif;
-
-                        // Schedule next frame
-                        frameIndex++;
-                        if (frameIndex < reader.numFrames()) {
-                            this.ctx.setTimeout(drawFrame, info.delay * 10 || 100);
-                        } else {
-                            recorder.stop();
-                        }
-                    };
-
-                    drawFrame();
-                };
-
-                // --- Common setup ---
-                const maxLen = this.options.maxAnimatedLength || 30;
-                const overlay = this.container.querySelector(
-                    ".ls-image-cropper-overlay"
-                );
-                const overlayRect = overlay.getBoundingClientRect();
-                const imgRect = this.image.getBoundingClientRect();
-
-                const isGif = this.originalFile.type === "image/gif";
-
-                if (isGif) {
-                    // For GIFs, we need to decode manually
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        // We still need to calculate crop scaling
-                        const mediaW = this.image.naturalWidth;
-                        const mediaH = this.image.naturalHeight;
-                        const scaleX = mediaW / imgRect.width;
-                        const scaleY = mediaH / imgRect.height;
-                        const x = (overlayRect.left - imgRect.left) * scaleX;
-                        const y = (overlayRect.top - imgRect.top) * scaleY;
-                        const width = overlayRect.width * scaleX;
-                        const height = overlayRect.height * scaleY;
-
-                        proceedGif(e.target.result, x, y, width, height);
-                    };
-                    reader.onerror = reject;
-                    reader.readAsArrayBuffer(this.originalFile);
-                } else {
-                    const media = document.createElement("video");
-                    media.src = URL.createObjectURL(this.originalFile);
-                    media.muted = true;
-                    media.playsInline = true;
-                    media.onloadedmetadata = () => {
-                        const mediaW = media.videoWidth;
-                        const mediaH = media.videoHeight;
-                        const scaleX = mediaW / imgRect.width;
-                        const scaleY = mediaH / imgRect.height;
-                        const x = (overlayRect.left - imgRect.left) * scaleX;
-                        const y = (overlayRect.top - imgRect.top) * scaleY;
-                        const width = overlayRect.width * scaleX;
-                        const height = overlayRect.height * scaleY;
-                        const duration = Math.min(
-                            maxLen,
-                            media.duration || maxLen
-                        );
-                        proceedVideo(media, x, y, width, height, duration);
-                    };
-                    media.onerror = reject;
-                }
-            });
-        } catch (e) {
-            if (typeof this.options.onError === "function") {
-                this.options.onError(e);
-            }
-            throw e;
-        } finally {
-            this.processingOverlay.style.display = "none";
-            this.processing = false;
-        }
-    }
-
-    crop() {
-        if (this.processing) return;
-
-        if (this.options.animated && this.isAnimatedSource) return this.cropAnimated();
-
-        const overlay = this.container.querySelector('.ls-image-cropper-overlay');
-        const overlayRect = overlay.getBoundingClientRect();
-        const imageRect = this.image.getBoundingClientRect();
-
-        const scaleX = this.image.naturalWidth / imageRect.width;
-        const scaleY = this.image.naturalHeight / imageRect.height;
-
-        const x = (overlayRect.left - imageRect.left) * scaleX;
-        const y = (overlayRect.top - imageRect.top) * scaleY;
-        const width = overlayRect.width * scaleX;
-        const height = overlayRect.height * scaleY;
-
-        // decide export size: original cropped resolution or target options width/height
-        const destWidth = this.options.inheritResolution ? width : this.options.finalWidth || this.options.width;
-        const destHeight = this.options.inheritResolution ? height : this.options.finalHeight || this.options.height;
-
-        // draw into canvas at desired resolution with rotation
-        const canvas = document.createElement('canvas');
-        canvas.width = destWidth;
-        canvas.height = destHeight;
-        const ctx = canvas.getContext('2d');
-
-        const angle = (this.rotation || 0) * Math.PI / 180;
-        ctx.save();
-        ctx.translate(destWidth / 2, destHeight / 2);
-        ctx.rotate(angle);
-        ctx.drawImage(
-            this.image,
-            x, y, width, height,
-            -destWidth / 2, -destHeight / 2, destWidth, destHeight
-        );
-        ctx.restore();
-
-        canvas.toBlob(blob => {
-            if (typeof this.options.onResult === 'function') {
-                this.options.onResult(this._getResult(blob));
-            }
-        }, 'image/webp');
+        this._updateScaleInput();
+        this._scheduleRender();
     }
 
     changeRotation(delta) {
-        this.rotation = (this.rotation + delta) % 360;
-        this.applyTransform();
+        if (!this.isReady) return;
+
+        this.rotation = this._normalizeRotation(this.rotation + delta);
+
+        const bounds = this._getScaleBounds();
+        this.scale = this._clamp(this.scale, bounds.min, bounds.max);
+
+        const constrained = this._constrainTranslation(this.translateX, this.translateY, 0, 0);
+        this.translateX = constrained.x;
+        this.translateY = constrained.y;
+
+        this._updateScaleInput();
+        this._scheduleRender();
     }
 
-    _getResult(blob){
-        const result = {
-            blob,
-            animated: this.isAnimatedSource,
-            width: this.options.finalWidth || this.options.width,
-            height: this.options.finalHeight || this.options.height
-        };
+    _scheduleRender() {
+        if (this._renderRAF) return;
 
-        if(this.options.createURL) {
-            result.url = URL.createObjectURL(blob);
+        this._renderRAF = requestAnimationFrame(() => {
+            this._renderRAF = 0;
+            if (!this.image) return;
+
+            this.image.style.transform =
+                `translate3d(${this.translateX}px, ${this.translateY}px, 0) ` +
+                `rotate(${this.rotation}deg) ` +
+                `scale(${this.scale})`;
+        });
+    }
+
+    _getScaleBounds(rotation = this.rotation) {
+        const min = this._getDynamicMinScale(rotation);
+        const max = Math.max(Number(this.options.maxScale || 3), min);
+        return { min, max };
+    }
+
+    _getDynamicMinScale(rotation = this.rotation) {
+        if (!this.baseWidth || !this.baseHeight) {
+            return Number(this.options.minScale || 1);
         }
 
-        if(this.image && this.image.src && this.image.src.startsWith('blob:')) {
-            URL.revokeObjectURL(this.image.src);
+        const angle = rotation * Math.PI / 180;
+        const cos = Math.abs(Math.cos(angle));
+        const sin = Math.abs(Math.sin(angle));
+
+        const requiredX = (this.options.width * cos + this.options.height * sin) / this.baseWidth;
+        const requiredY = (this.options.width * sin + this.options.height * cos) / this.baseHeight;
+
+        return Math.max(Number(this.options.minScale || 1), requiredX, requiredY);
+    }
+
+    _isCropCovered(tx, ty, scale = this.scale, rotation = this.rotation) {
+        if (!this.baseWidth || !this.baseHeight) return false;
+
+        const hw = this.options.width / 2;
+        const hh = this.options.height / 2;
+        const corners = [
+            [-hw, -hh],
+            [ hw, -hh],
+            [ hw,  hh],
+            [-hw,  hh]
+        ];
+
+        const halfW = this.baseWidth / 2;
+        const halfH = this.baseHeight / 2;
+
+        for (const [x, y] of corners) {
+            const local = this._inverseTransformPoint(x, y, tx, ty, scale, rotation);
+
+            if (Math.abs(local.x) > halfW + 0.01 || Math.abs(local.y) > halfH + 0.01) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    _constrainTranslation(targetX, targetY, fallbackX = 0, fallbackY = 0) {
+        if (this._isCropCovered(targetX, targetY, this.scale, this.rotation)) {
+            return { x: targetX, y: targetY };
+        }
+
+        if (!this._isCropCovered(fallbackX, fallbackY, this.scale, this.rotation)) {
+            fallbackX = 0;
+            fallbackY = 0;
+        }
+
+        let lo = 0;
+        let hi = 1;
+
+        for (let i = 0; i < 18; i++) {
+            const mid = (lo + hi) / 2;
+            const x = fallbackX + (targetX - fallbackX) * mid;
+            const y = fallbackY + (targetY - fallbackY) * mid;
+
+            if (this._isCropCovered(x, y, this.scale, this.rotation)) {
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+
+        return {
+            x: fallbackX + (targetX - fallbackX) * lo,
+            y: fallbackY + (targetY - fallbackY) * lo
+        };
+    }
+
+    _forwardTransformPoint(x, y, tx = 0, ty = 0, scale = this.scale, rotation = this.rotation) {
+        const angle = rotation * Math.PI / 180;
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
+
+        return {
+            x: tx + (x * cos - y * sin) * scale,
+            y: ty + (x * sin + y * cos) * scale
+        };
+    }
+
+    _inverseTransformPoint(x, y, tx = this.translateX, ty = this.translateY, scale = this.scale, rotation = this.rotation) {
+        const angle = rotation * Math.PI / 180;
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
+
+        const dx = x - tx;
+        const dy = y - ty;
+
+        return {
+            x: (dx * cos + dy * sin) / scale,
+            y: (-dx * sin + dy * cos) / scale
+        };
+    }
+
+    _pointToCropSpace(clientX, clientY) {
+        const rect = this.overlay.getBoundingClientRect();
+        return {
+            x: clientX - (rect.left + rect.width / 2),
+            y: clientY - (rect.top + rect.height / 2)
+        };
+    }
+
+    _mediaWidth(media = this.image) {
+        return media instanceof HTMLVideoElement ? media.videoWidth : media.naturalWidth;
+    }
+
+    _mediaHeight(media = this.image) {
+        return media instanceof HTMLVideoElement ? media.videoHeight : media.naturalHeight;
+    }
+
+    _renderCurrentFrameToCanvas(ctx, media, destWidth, destHeight) {
+        ctx.clearRect(0, 0, destWidth, destHeight);
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
+
+        ctx.save();
+
+        if (this.options.shape === "circle") {
+            ctx.beginPath();
+            ctx.ellipse(destWidth / 2, destHeight / 2, destWidth / 2, destHeight / 2, 0, 0, Math.PI * 2);
+            ctx.clip();
+        }
+
+        if (this.options.background) {
+            ctx.fillStyle = this.options.background;
+            ctx.fillRect(0, 0, destWidth, destHeight);
+        }
+
+        const scaleX = destWidth / this.options.width;
+        const scaleY = destHeight / this.options.height;
+        const drawW = this.baseWidth * scaleX;
+        const drawH = this.baseHeight * scaleY;
+
+        ctx.translate(
+            destWidth / 2 + this.translateX * scaleX,
+            destHeight / 2 + this.translateY * scaleY
+        );
+        ctx.rotate(this.rotation * Math.PI / 180);
+        ctx.scale(this.scale, this.scale);
+
+        ctx.drawImage(media, -drawW / 2, -drawH / 2, drawW, drawH);
+        ctx.restore();
+    }
+
+    _getOutputSize() {
+        let width;
+        let height;
+
+        if (this.options.inheritResolution) {
+            const effectiveScale = (this.fitScale || 1) * this.scale;
+            width = Math.max(1, Math.round(this.options.width / effectiveScale));
+            height = Math.max(1, Math.round(this.options.height / effectiveScale));
+        } else {
+            const aspect = this.options.height / this.options.width;
+
+            if (this.options.finalWidth && this.options.finalHeight) {
+                width = this.options.finalWidth;
+                height = this.options.finalHeight;
+            } else if (this.options.finalWidth) {
+                width = this.options.finalWidth;
+                height = Math.round(width * aspect);
+            } else if (this.options.finalHeight) {
+                height = this.options.finalHeight;
+                width = Math.round(height / aspect);
+            } else {
+                width = this.options.width;
+                height = this.options.height;
+            }
+        }
+
+        return this._limitOutputSize(width, height);
+    }
+
+    _limitOutputSize(width, height) {
+        width = Math.max(1, Math.round(width));
+        height = Math.max(1, Math.round(height));
+
+        const maxPixels = Number(this.options.maxOutputPixels || 0);
+        if (!maxPixels || width * height <= maxPixels) {
+            return { width, height };
+        }
+
+        const ratio = Math.sqrt(maxPixels / (width * height));
+        return {
+            width: Math.max(1, Math.floor(width * ratio)),
+            height: Math.max(1, Math.floor(height * ratio))
+        };
+    }
+
+    async crop() {
+        if (this.processing) return null;
+        if (!this.isReady) throw new Error("ImageCropper source is not ready yet.");
+
+        if (this.options.animated && this.isAnimatedSource) {
+            return this.cropAnimated();
+        }
+
+        try {
+            const { width, height } = this._getOutputSize();
+            const canvas = document.createElement("canvas");
+            canvas.width = width;
+            canvas.height = height;
+
+            const ctx = canvas.getContext("2d", {
+                alpha: true,
+                desynchronized: true
+            });
+
+            this._renderCurrentFrameToCanvas(ctx, this.image, width, height);
+
+            const blob = await this._canvasToBlob(
+                canvas,
+                this.options.outputType || "image/webp",
+                this.options.outputQuality
+            );
+
+            const result = this._getResult(blob, {
+                animated: false,
+                width,
+                height
+            });
+
+            if (typeof this.options.onResult === "function") {
+                this.options.onResult(result);
+            }
+
+            return result;
+        } catch (e) {
+            this._emitError(e);
+            throw e;
+        }
+    }
+
+    async cropAnimated() {
+        if (this.processing) return null;
+        if (!this.isReady) throw new Error("ImageCropper source is not ready yet.");
+        if (!this.isAnimatedSource) return this.crop();
+
+        const token = ++this._processToken;
+        this.processing = true;
+        this._setProcessing(true, "Processing, please wait...");
+
+        try {
+            let result;
+
+            if (this._sourceInfo.isGif) {
+                result = await this._cropAnimatedGif(token);
+            } else {
+                result = await this._cropAnimatedVideo(token);
+            }
+
+            if (typeof this.options.onResult === "function") {
+                this.options.onResult(result);
+            }
+
+            return result;
+        } catch (e) {
+            this._emitError(e);
+            throw e;
+        } finally {
+            if (token === this._processToken) {
+                this.processing = false;
+                this._setProcessing(false);
+            }
+        }
+    }
+
+    async _cropAnimatedVideo(token) {
+        if (!window.MediaRecorder) {
+            throw new Error("MediaRecorder is not supported in this browser.");
+        }
+
+        const { width, height } = this._getOutputSize();
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext("2d", {
+            alpha: true,
+            desynchronized: true
+        });
+
+        const mimeType = this._pickAnimatedMimeType();
+        const fps = Math.max(1, Math.min(60, Number(this.options.animatedFps || 30)));
+        const stream = canvas.captureStream(fps);
+
+        const recorder = new MediaRecorder(stream, {
+            mimeType,
+            videoBitsPerSecond: Number(this.options.videoBitsPerSecond || 1_500_000)
+        });
+
+        const chunks = [];
+        const blobPromise = new Promise((resolve, reject) => {
+            recorder.ondataavailable = (e) => {
+                if (e.data && e.data.size) chunks.push(e.data);
+            };
+            recorder.onerror = (e) => reject(e.error || e);
+            recorder.onstop = () => {
+                resolve(new Blob(chunks, { type: mimeType.split(";")[0] || "video/webm" }));
+            };
+        });
+
+        const media = await this._createExportVideoElement();
+        const duration = Math.min(
+            Number(this.options.maxAnimatedLength || 30),
+            Number.isFinite(media.duration) && media.duration > 0
+                ? media.duration
+                : Number(this.options.maxAnimatedLength || 30)
+        );
+
+        if (media.readyState < 2) {
+            await this._waitFor(media, "loadeddata");
+        }
+
+        if (media.currentTime !== 0) {
+            media.currentTime = 0;
+            try { await this._waitFor(media, "seeked"); } catch (_) {}
+        }
+
+        this._ensureToken(token);
+        this.processingProgress.value = 0;
+
+        this._renderCurrentFrameToCanvas(ctx, media, width, height);
+        recorder.start(250);
+
+        let raf = 0;
+        let stopped = false;
+
+        const stop = () => {
+            if (stopped) return;
+            stopped = true;
+            cancelAnimationFrame(raf);
+            try { media.pause(); } catch (_) {}
+            if (recorder.state !== "inactive") recorder.stop();
+        };
+
+        try {
+            await media.play().catch(() => {});
+
+            await new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => {
+                    stop();
+                    resolve();
+                }, duration * 1000 + 500);
+
+                const step = () => {
+                    try {
+                        this._ensureToken(token);
+
+                        this._renderCurrentFrameToCanvas(ctx, media, width, height);
+                        this.processingProgress.value = Math.min((media.currentTime / duration) * 100, 100);
+
+                        if (media.ended || media.currentTime >= duration) {
+                            clearTimeout(timeout);
+                            stop();
+                            resolve();
+                            return;
+                        }
+
+                        raf = requestAnimationFrame(step);
+                    } catch (e) {
+                        clearTimeout(timeout);
+                        stop();
+                        reject(e);
+                    }
+                };
+
+                raf = requestAnimationFrame(step);
+            });
+
+            const blob = await blobPromise;
+
+            return this._getResult(blob, {
+                animated: true,
+                width,
+                height
+            });
+        } finally {
+            try {
+                media.pause();
+                media.removeAttribute("src");
+                media.load();
+            } catch (_) {}
+        }
+    }
+
+    async _cropAnimatedGif(token) {
+        if (!window.omggif?.GifReader) {
+            throw new Error("Animated GIF cropping requires window.omggif.GifReader.");
+        }
+
+        if (!window.MediaRecorder) {
+            throw new Error("MediaRecorder is not supported in this browser.");
+        }
+
+        const arrayBuffer = await this._getGifArrayBuffer();
+        this._ensureToken(token);
+
+        const reader = new window.omggif.GifReader(new Uint8Array(arrayBuffer));
+        const totalFrames = reader.numFrames();
+        const maxMs = Number(this.options.maxAnimatedLength || 30) * 1000;
+
+        let framesToEncode = totalFrames;
+        let totalMs = 0;
+
+        for (let i = 0; i < totalFrames; i++) {
+            totalMs += this._gifDelayMs(reader.frameInfo(i));
+            if (totalMs >= maxMs) {
+                framesToEncode = i + 1;
+                totalMs = maxMs;
+                break;
+            }
+        }
+
+        totalMs = Math.max(totalMs, 1);
+
+        const fullCanvas = document.createElement("canvas");
+        fullCanvas.width = reader.width;
+        fullCanvas.height = reader.height;
+
+        const fullCtx = fullCanvas.getContext("2d", {
+            alpha: true,
+            willReadFrequently: true
+        });
+
+        const fullImageData = fullCtx.createImageData(reader.width, reader.height);
+        const composite = fullImageData.data;
+
+        const { width, height } = this._getOutputSize();
+
+        const outCanvas = document.createElement("canvas");
+        outCanvas.width = width;
+        outCanvas.height = height;
+
+        const outCtx = outCanvas.getContext("2d", {
+            alpha: true,
+            desynchronized: true
+        });
+
+        const mimeType = this._pickAnimatedMimeType();
+        const fps = Math.max(1, Math.min(60, Number(this.options.animatedFps || 30)));
+        const recorder = new MediaRecorder(outCanvas.captureStream(fps), {
+            mimeType,
+            videoBitsPerSecond: Number(this.options.videoBitsPerSecond || 1_500_000)
+        });
+
+        const chunks = [];
+        const blobPromise = new Promise((resolve, reject) => {
+            recorder.ondataavailable = (e) => {
+                if (e.data && e.data.size) chunks.push(e.data);
+            };
+            recorder.onerror = (e) => reject(e.error || e);
+            recorder.onstop = () => {
+                resolve(new Blob(chunks, { type: mimeType.split(";")[0] || "video/webm" }));
+            };
+        });
+
+        let prevInfo = null;
+        let restoreBuffer = null;
+        let elapsedMs = 0;
+
+        this.processingProgress.value = 0;
+        recorder.start(250);
+
+        for (let i = 0; i < framesToEncode; i++) {
+            this._ensureToken(token);
+
+            if (prevInfo) {
+                this._applyGifDisposal(composite, reader.width, prevInfo, restoreBuffer);
+                if (prevInfo.disposal === 3) {
+                    restoreBuffer = null;
+                }
+            }
+
+            const info = reader.frameInfo(i);
+
+            if (info.disposal === 3) {
+                if (!restoreBuffer || restoreBuffer.length !== composite.length) {
+                    restoreBuffer = new Uint8ClampedArray(composite.length);
+                }
+                restoreBuffer.set(composite);
+            }
+
+            reader.decodeAndBlitFrameRGBA(i, composite);
+            fullCtx.putImageData(fullImageData, 0, 0);
+            this._renderCurrentFrameToCanvas(outCtx, fullCanvas, width, height);
+
+            const delayMs = this._gifDelayMs(info);
+            elapsedMs = Math.min(totalMs, elapsedMs + delayMs);
+            this.processingProgress.value = (elapsedMs / totalMs) * 100;
+
+            prevInfo = info;
+
+            await this._delay(delayMs);
+            if ((i & 3) === 3) {
+                await this._yieldToUI();
+            }
+        }
+
+        if (recorder.state !== "inactive") {
+            recorder.stop();
+        }
+
+        const blob = await blobPromise;
+
+        return this._getResult(blob, {
+            animated: true,
+            width,
+            height
+        });
+    }
+
+    _applyGifDisposal(buffer, canvasWidth, info, restoreBuffer) {
+        if (!info) return;
+
+        if (info.disposal === 2) {
+            const startX = info.x;
+            const endX = info.x + info.width;
+
+            for (let y = info.y; y < info.y + info.height; y++) {
+                const start = (y * canvasWidth + startX) * 4;
+                const end = (y * canvasWidth + endX) * 4;
+                buffer.fill(0, start, end);
+            }
+        } else if (info.disposal === 3 && restoreBuffer) {
+            buffer.set(restoreBuffer);
+        }
+    }
+
+    _gifDelayMs(info) {
+        return Math.max(20, ((info?.delay || 10) * 10));
+    }
+
+    async _getGifArrayBuffer() {
+        if (this.originalFile instanceof File) {
+            return this.originalFile.arrayBuffer();
+        }
+
+        if (this._sourceInfo.url) {
+            const res = await fetch(this._sourceInfo.url, {
+                mode: this.options.crossOrigin ? "cors" : "same-origin"
+            });
+
+            if (!res.ok) {
+                throw new Error(`Failed to fetch GIF source: ${res.status} ${res.statusText}`);
+            }
+
+            return res.arrayBuffer();
+        }
+
+        throw new Error("GIF export requires a File or fetchable URL.");
+    }
+
+    async _createExportVideoElement() {
+        const video = document.createElement("video");
+        if (this.options.crossOrigin) video.crossOrigin = this.options.crossOrigin;
+        video.preload = "auto";
+        video.muted = true;
+        video.playsInline = true;
+        video.src = this._sourceInfo.url;
+
+        if (video.readyState >= 1 && video.videoWidth > 0) {
+            return video;
+        }
+
+        await this._waitFor(video, "loadedmetadata");
+        return video;
+    }
+
+    _pickAnimatedMimeType() {
+        const preferred = [
+            this.options.animatedOutputType,
+            "video/webm;codecs=vp9",
+            "video/webm;codecs=vp8",
+            "video/webm"
+        ].filter(Boolean);
+
+        for (const type of preferred) {
+            if (!window.MediaRecorder?.isTypeSupported || MediaRecorder.isTypeSupported(type)) {
+                return type;
+            }
+        }
+
+        return "video/webm";
+    }
+
+    _updateScaleInput() {
+        if (!this.scaleInput) return;
+        const bounds = this._getScaleBounds();
+        this.scaleInput.min = String(bounds.min);
+        this.scaleInput.max = String(bounds.max);
+        this.scaleInput.value = String(this._clamp(this.scale, bounds.min, bounds.max));
+    }
+
+    _normalizeRotation(value) {
+        return ((value % 360) + 360) % 360;
+    }
+
+    _clamp(value, min, max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    _setProcessing(active, text = "Processing, please wait...") {
+        if (!this.processingOverlay) return;
+        this.processingOverlay.style.display = active ? "flex" : "none";
+        this.processingText.textContent = text;
+        this.processingProgress.value = 0;
+    }
+
+    _ensureToken(token) {
+        if (this._destroyed || token !== this._processToken) {
+            throw new DOMException("Operation aborted", "AbortError");
+        }
+    }
+
+    _tryAutoPlayPreview() {
+        if (!(this.image instanceof HTMLVideoElement)) return;
+        const p = this.image.play?.();
+        if (p && typeof p.catch === "function") {
+            p.catch(() => {});
+        }
+    }
+
+    _canvasToBlob(canvas, type, quality) {
+        return new Promise((resolve, reject) => {
+            canvas.toBlob((blob) => {
+                if (!blob) {
+                    reject(new Error("Failed to export canvas. The canvas may be tainted or the format may be unsupported."));
+                    return;
+                }
+                resolve(blob);
+            }, type, quality);
+        });
+    }
+
+    _waitFor(target, eventName, errorName = "error") {
+        return new Promise((resolve, reject) => {
+            const onEvent = () => {
+                cleanup();
+                resolve();
+            };
+
+            const onError = (e) => {
+                cleanup();
+                reject(e?.error || e);
+            };
+
+            const cleanup = () => {
+                target.removeEventListener(eventName, onEvent);
+                target.removeEventListener(errorName, onError);
+            };
+
+            target.addEventListener(eventName, onEvent, { once: true });
+            target.addEventListener(errorName, onError, { once: true });
+        });
+    }
+
+    _delay(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    _yieldToUI() {
+        return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+    }
+
+    _getResult(blob, meta = {}) {
+        const result = {
+            blob,
+            type: blob.type,
+            animated: !!meta.animated,
+            width: meta.width,
+            height: meta.height
+        };
+
+        if (this.options.createURL) {
+            const url = URL.createObjectURL(blob);
+            this._ownedResultURLs.add(url);
+            result.url = url;
+            result.revoke = () => {
+                if (this._ownedResultURLs.delete(url)) {
+                    URL.revokeObjectURL(url);
+                }
+            };
         }
 
         return result;
     }
 
+    _emitError(error) {
+        if (typeof this.options.onError === "function") {
+            this.options.onError(error);
+        } else {
+            console.error(error);
+        }
+    }
+
+    _on(target, type, handler, options) {
+        target.addEventListener(type, handler, options);
+        this._cleanup.push(() => target.removeEventListener(type, handler, options));
+        return handler;
+    }
+
+    _once(target, type, handler, options) {
+        const wrapped = (...args) => {
+            target.removeEventListener(type, wrapped, options);
+            handler(...args);
+        };
+
+        target.addEventListener(type, wrapped, options);
+        this._cleanup.push(() => target.removeEventListener(type, wrapped, options));
+        return wrapped;
+    }
+
     destroy() {
-        if (this.image) {
-            this.image.onload = null;
-            this.image.onerror = null;
-            this.image = null;
+        this._destroyed = true;
+        this._processToken++;
+        this.processing = false;
+
+        this._setProcessing(false);
+
+        if (this._renderRAF) {
+            cancelAnimationFrame(this._renderRAF);
+            this._renderRAF = 0;
         }
 
-        if (this.container) {
-            this.container.remove();
-            this.container = null;
+        for (const dispose of this._cleanup.splice(0)) {
+            try { dispose(); } catch (_) {}
         }
 
-        if(this.image && this.image.src && this.image.src.startsWith('blob:')) {
-            URL.revokeObjectURL(this.image.src);
+        if (this.image instanceof HTMLVideoElement) {
+            try { this.image.pause(); } catch (_) {}
         }
+
+        if (this.wrapper) {
+            this.wrapper.remove();
+        }
+
+        for (const url of this._ownedResultURLs) {
+            try { URL.revokeObjectURL(url); } catch (_) {}
+        }
+        this._ownedResultURLs.clear();
+
+        for (const url of this._ownedSourceURLs) {
+            try { URL.revokeObjectURL(url); } catch (_) {}
+        }
+        this._ownedSourceURLs.clear();
+
+        this.image = null;
+        this.overlay = null;
+        this.container = null;
+        this.controls = null;
+        this.wrapper = null;
+        this.scaleInput = null;
+        this.rotateButton = null;
+        this.processingOverlay = null;
+        this.processingText = null;
+        this.processingProgress = null;
 
         this.flush();
     }
 }, { name: "ImageCropper", global: true });
+
 
 // GIF Encoder
 (() => {

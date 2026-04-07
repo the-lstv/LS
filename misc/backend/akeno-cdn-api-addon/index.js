@@ -6,28 +6,42 @@ const fs = require("fs");
 const path = require("path");
 
 /*
-    The URL syntax is as follows:
+    The base URL syntax is as follows:
     /version/[components]/file
 
-    Though for dynamic loading (or when loading just the core with no components), the components section can be omitted:
-    /version/file
-
     Eg.
-    /5.0.0/index.js -> Loads the core.
-    /5.0.0/select.js -> Loads only the select component.
-    /5.0.0/select,modal/index.js -> Loads the core and the select and modal components as a bundle.
-    /5.0.0/select,modal/bundle.js -> Loads only the select and modal components as a bundle.
+    /x.y.z/index.js
+        -> Loads the core.
+    /x.y.z/select.js
+        -> Loads only the select component (no core).
+    /x.y.z/select,modal/index.js
+        -> Loads the core and the select and modal components as a bundle.
+    /x.y.z/select,modal/bundle.js
+        -> Loads only the select and modal components as a bundle (no core).
 */
 
 const cacheManager = new backend.helper.CacheManager({});
 const betaFileMtimeCache = new Map();
 
-const ESBUILD_MODERN = ["chrome108", "firefox102", "safari16"];           // Baseline
-const ESBUILD_LEGACY = ["chrome61", "firefox60", "safari11", "edge79"];   // Oldest still supported versions
+// Modern browsers (Q2 2026)
+const ESBUILD_LATEST = ["chrome145", "firefox148"];
+// const ESBUILD_LATEST = ["ES2025"];
+
+// Baseline (default, good balance)
+const ESBUILD_MODERN = ["chrome108", "firefox102"];
+// I am guessing safari15 had problems with private fields as they get a polyfill despite having support, though safari is problematic all around, ill just skip it
+
+// Oldest still supported versions
+const ESBUILD_LEGACY = ["chrome61", "firefox60", "safari12", "edge79"];
+
+// Friendly reminder: LS does not support Internet Explorer.
+// Stop using browsers this old, it's simply dangerous and there is no good reason to, if someone upstream insists on it, tell them to stop and stay away form whatever they are doing.
+// Unless it's something that doesn't connect to the internet;
+// I do want to eventually support backporting to old devices whose had a hardcoded old browser or simply don't have the capability of running a modern one (Symbian, Tizen, old Androids, legacy Windows/OSX etc.).
+// Till then, there isn't an official support for this, and LS is primarily a modern-focused library.
 
 // Use modern JS features
 cacheManager.esbuildTargets = ESBUILD_MODERN;
-// TODO: Compatibility mode for old browsers
 
 const BASE_PATH = path.resolve(__dirname, "../../../"),
       DIST_PATH = BASE_PATH + "/misc/backend/akeno-cdn-api-addon/versions/",
@@ -41,15 +55,18 @@ let VERSIONS = new Set([...fs.readdirSync(DIST_PATH).filter(file => {
 
 const COMPONENTS = JSON.parse(fs.readFileSync(BASE_PATH + "/misc/components.json", "utf8"));
 
-// Alias some versions
-// Note: This API no longer supports versions < 3.0.0, as they used a completely different format (pre-processed JSON).
+// Alias some versions when necessary
+// Note: This API no longer supports versions < 3.0.0, as they used a completely different format.
 const VERSION_ALIAS = {
+    // LTS (at the end of each major version, this corresponds to the latest patch with compatible API, and may receive updates or backports)
+    "3.0_lts": "4.0.2",
+    "4.0_lts": "4.0.2",
+    // "5.0_lts": "5.3.0", // Upcomming
+
     "4.0.0": "4.0.2",
     "4.0.1": "4.0.2",
-    "3.0_lts": "4.0.2",
-    "4.0_lts": "4.0.2", // Note: Support for v4 ended
 
-    // 5.x to 5.2.5
+    // 5.0.0 to 5.2.4 -> 5.2.5
     "5.0.0": "5.2.5",
     "5.0.1": "5.2.5",
     "5.0.2": "5.2.5",
@@ -60,7 +77,7 @@ const VERSION_ALIAS = {
     "5.2.3": "5.2.5",
     "5.2.4": "5.2.5",
 
-    // 5.2.6 to 5.2.7 (5.2.6 was only a small patch)
+    // 5.2.6 -> 5.2.7 (5.2.6 was only a small patch)
     "5.2.6": "5.2.7",
 };
 
@@ -102,14 +119,14 @@ module.exports = new class LS_API extends Units.Addon {
         if (segments.length < 2) return backend.helper.error(req, res, 2);
 
         const version = this.getEffectiveVersion(segments[0]);
-        const isBeta = version === "beta";
+        const isBeta = version === "beta" || version === "alpha";
 
         let VERSION_PATH = DIST_PATH + path.posix.resolve("/", version);
 
         if (isWindows || isBeta) {
             // Windows is quite unreliable with symlinks (or does not provide them at all in some environments), so we skip them entirely and just use dist.
             // This is incorrect, but you shouldn't use Windows for production servers anyway, this API does not support Windows, so functionality is not guaranteed either way.
-            VERSION_PATH = BASE_PATH + "/dist";
+            VERSION_PATH = version === "alpha"? BASE_PATH + "/v6/dist": BASE_PATH + "/dist";
         } else {
             if(!VERSIONS.has(version)) {
                 if(!Units.Version.isValid(version)) {
@@ -137,11 +154,14 @@ module.exports = new class LS_API extends Units.Addon {
 
         const file_name = file.slice(0, first_index);
         const do_compress = file.indexOf(".min") !== -1;
-        const type = file.slice(last_index + 1);
 
+        const ext = file.slice(last_index + 1);
+
+        const type = (ext === "js" || ext === "mjs")? "js": ext;
         if(type !== "js" && type !== "css") return backend.helper.error(req, res, 43, null, "404");
 
-        const unsortedList = segments[1] === "*"? COMPONENTS[type] : segments.length === 2? []: segments[1].split(",");
+        const wildcard = segments[1] === "*";
+        const unsortedList = wildcard? COMPONENTS[type] : segments.length === 2? []: segments[1].split(",");
         let components = [];
 
         if (file_name === "index" || file_name === "core" || file_name === "ls") {
@@ -163,7 +183,11 @@ module.exports = new class LS_API extends Units.Addon {
             }
         }
 
-        const CACHE_KEY = `${version}:${type}:${components.join(",")}`;
+        const compatibilityQuery = req.getQuery("compat");
+        const useEsm = ext === "mjs" || req.getQuery("esm") !== undefined;
+        const compatibility = !compatibilityQuery? ESBUILD_MODERN: (compatibilityQuery === "latest"? ESBUILD_LATEST : compatibilityQuery === "legacy"? ESBUILD_LEGACY : compatibilityQuery === "ancient"? ESBUILD_ANCIENT : ESBUILD_MODERN);
+
+        const CACHE_KEY = `${version}:${type}:${components.join(",")}:${compatibility?.join(",")}${useEsm? ":esm": ""}`;
         const mimeType = type === "js"? "text/javascript": "text/css";
         const suggestedCompressionAlgorithm = isBeta? backend.compression.format.NONE: backend.helper.getUsedCompression(req, mimeType); // uws aah
         const currentFileMtimes = new Map();
@@ -178,8 +202,8 @@ module.exports = new class LS_API extends Units.Addon {
             }
 
             if(!fs.existsSync(component_path)) {
-                if(version === "4.0.2"){
-                    // Legacy or LTS releases had a less strict API.
+                if(version === "4.0.2" || wildcard){
+                    // Legacy or LTS releases had a less strict API, & when using wildcard we don't really care if some components are missing, as we are just trying to return all available.
                     continue;
                 }
 
@@ -207,10 +231,13 @@ module.exports = new class LS_API extends Units.Addon {
         // Check cache
         if(shouldRefresh) {
             let result = [];
-
             for(let component_path of componentPaths) {
                 result.push("\n", fs.readFileSync(component_path, "utf8"));
             }
+
+            // TODO: Always iife when targets are low to avoid esbuild polluting the global scope with variables
+            cacheManager.esbuildFormat = (version === "alpha" || version[0] === "6")? "cjs": "iife";
+            cacheManager.esbuildTargets = compatibility;
 
             // We pass data as a string, because we do code processing with esbuild etc.
             // It gets converted to a buffer internally later.
@@ -220,6 +247,12 @@ module.exports = new class LS_API extends Units.Addon {
                 // 'Expires': '0'
                 'Cache-Control': 'public, max-age=5, stale-while-revalidate=10' // Short cache duration
             }: null, null, result.join(""), mimeType);
+
+            if(useEsm && cacheManager.replaceContent) { // (replaceContent is new)
+                // ESBuild is being kind of terrible at ESM to CJS conversion, so we do it ourselves the other way around in a very ugly hacky way
+                // But yes the only difference is literally just two words (idk i'm not an ESM fan)
+                cacheManager.replaceContent(CACHE_KEY, "export default " + cacheManager.getContent(CACHE_KEY).toString());
+            }
 
             if(isBeta) {
                 betaFileMtimeCache.set(CACHE_KEY, currentFileMtimes);
@@ -265,6 +298,8 @@ const PARSER_FLAGS = {
     SET_DEFAULT_CHARSET: 5,
     SET_DEFAULT_VIEWPORT: 6
 };
+
+const LS_API_LATEST_SUPPORTED = "6.0.0";
 
 const blockProcessor = ({ attrib, version, components, scriptAttributes, context, block }) => {
     if (!version) {
