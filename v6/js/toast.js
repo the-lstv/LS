@@ -20,7 +20,7 @@ LS.LoadComponent(class Toast extends LS.Component {
             this.element.class("open");
         }, 1);
 
-        this.setTimeout(() => {
+        if(options.timeout > 0) this.setTimeout(() => {
             this.close();
         }, options.timeout || 5000);
     }

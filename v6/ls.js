@@ -10,9 +10,8 @@
 
 
 (() => {
-
     /**
-     * Advanced & performant event handling system used across LS.
+     * Advanced & performant (and low-overhead) event handling system used across LS.
      * A very commonly extended base class for objects that need events.
      * 
      * It's one of the fastest JS event emmiters available (benchmarked against ~10 popular implementations)!
@@ -20,6 +19,8 @@
     class EventEmitter {
         static REMOVE_LISTENER = Symbol("event-remove");
         static optimize = true;
+
+        events = new Map();
 
         static EventObject = class EventObject {
             listeners = [];
@@ -131,7 +132,7 @@
          * @param {object} options Event handler options.
          */
         constructor(target, options = undefined) {
-            EventEmitter.prepareHandler(this, options);
+            if(options && typeof options === "object") this.eventOptions = options;
 
             // Bad legacy behavior (exposes event methods on any target object)
             if(target){
@@ -142,6 +143,12 @@
             }
         }
 
+        /**
+         * Prepares a target object for event handling
+         * @param {*} target Target object to prepare
+         * @param {*} options Optional event options
+         * @deprecated
+         */
         static prepareHandler(target, options = undefined){
             target.events = new Map();
             if(typeof options === "object") target.eventOptions = options;
@@ -469,15 +476,19 @@
         #intervals = null;
         #rAF = null;
         #externalEvents = null;
+
         #aggressiveCleanup = false;
         #deleteProperties = true;
 
-        constructor(options = {}) {
-            super();
-            this.destroyed = false;
+        destroyed = false;
 
-            if (options.aggressiveCleanup) this.#aggressiveCleanup = true;
-            if (options.deleteProperties === false) this.#deleteProperties = false;
+        constructor(options) {
+            super();
+
+            if(options && typeof options === "object") {
+                if (options.aggressiveCleanup) this.#aggressiveCleanup = true;
+                if (options.deleteProperties === false) this.#deleteProperties = false;
+            }
         }
 
         createElement(tagName, content) {

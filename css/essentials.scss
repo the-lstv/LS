@@ -717,6 +717,7 @@ button#{priority(".ls-toast-close", 3)} {
     align-items: center;
     gap: 5px;
     overflow: hidden;
+    min-height: fit-content;
 }
 
 .ls-list-item:hover, .ls-list-item.selected {

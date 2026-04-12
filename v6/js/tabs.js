@@ -23,7 +23,7 @@ LS.LoadComponent(class Tabs extends LS.Component {
         this.tabs = new Map;
         this.activeTab = null;
 
-        this.element = this.container = element? LS.Select(element) : LS.Create("div");
+        this.element = this.container = element? LS.SelectOne(element) : LS.Create("div");
         this.options = options = this.constructor.defaults(options);        
 
         this.element.classList.add("ls-tabs");
