@@ -1,8 +1,8 @@
-#template /templates/docs.html
-#markdown
+---
+title: animation
+---
 
 ![Logo](/misc/banner.png)
-# Note: Documentation is currently work in progress, sorry about that! Stay tuned for updates.
 
 # What's LS?
 LS is a lightweight, dependency-free frontend framework for building fast, accessible interfaces in vanilla JS/CSS, from landing pages to full-featured complex applications.<br>

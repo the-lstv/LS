@@ -13,7 +13,7 @@
 - TouchHandle can now set multiple targets
 - Added an "enforceContextSafety" init option that disables global access to certain features without a scope. Use with extreme caution.
 - Fixed some potential memory leaks and made LS.Resize a bit more efficient and easier to use by sharing one handle.
-- Added fast utilities (LS.Util.fast)
+- Added special utilities (LS.Util.fast)
 - Heavily optimized LS.Color.parseHex (now the fastest implementation!)
 - Other minor fixes, optimizations and improvements
 - Added LS.Range (Slider component) (also works as LS.Progress)

@@ -13,6 +13,7 @@ Major update (2026 release)!
 - General improvements
 - LS.Tabs change event is now change instead of changed
 - EventEmitter.alias is now EventEmitter.aliasEvent for clarity
+- Multiple bugs fixed
 
 **Breaking changes:**
 - Removed legacy TinyFramework (LS.Tiny, Q, O, S, N, M). Now entirely under the LS namespace! (Temporarily, a "enableV5Compat" option exists that restores this.)
