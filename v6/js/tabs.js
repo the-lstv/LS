@@ -1,9 +1,15 @@
 LS.LoadComponent(class Tabs extends LS.Component {
     static defaults = LS.Util.staticDefaults({
+        // Styles
         styled: true,
+
+        // Tab management
         list: true,
         closeable: false,
-        reordableList: true,
+        reorderableList: true,
+        listButtons: null,
+
+        // Behavior
         selector: "ls-tab, .ls-tab",
         mode: "default",
         slideAnimation: false
@@ -16,6 +22,8 @@ LS.LoadComponent(class Tabs extends LS.Component {
         offsets: null
     }
 
+    #listButtons = []
+
     constructor(element, options = {}) {
         super();
 
@@ -24,7 +32,7 @@ LS.LoadComponent(class Tabs extends LS.Component {
         this.activeTab = null;
 
         this.element = this.container = element? LS.SelectOne(element) : LS.Create("div");
-        this.options = options = this.constructor.defaults(options);        
+        this.options = options = this.constructor.defaults(options);
 
         this.element.classList.add("ls-tabs");
 
@@ -43,6 +51,7 @@ LS.LoadComponent(class Tabs extends LS.Component {
         }
 
         this.prepareEvent("close", { results: true });
+        this.prepareEvent("button");
         this.aliasEvent("change", "changed");
 
         if(options.list) {
@@ -251,6 +260,33 @@ LS.LoadComponent(class Tabs extends LS.Component {
     #renderList(){
         if(!this.list || !this.options.list) return;
 
+        if(!this.#listButtons.length && this.options.listButtons) {
+            let listButtons = this.options.listButtons;
+
+            if(listButtons === true) {
+                listButtons = [LS.Create("button", {
+                    class: "small clear square ls-tab-handle ls-tab-list-button",
+                    inner: LS.Create("i", { class: "li-plus bi-plus-lg" }),
+                    title: "New tab"
+                })];
+            }
+
+            if(Array.isArray(listButtons)) {
+                for(const item of listButtons) {
+                    const button = item instanceof Element ? item : LS.toNode(item);
+
+                    if(!button) continue;
+
+                    const onClick = () => {
+                        this.emit("button", [button]);
+                    };
+
+                    button.addEventListener("click", onClick);
+                    this.#listButtons.push({ button, onClick });
+                }
+            }
+        }
+
         for (const id of this.order) {
             const tab = this.tabs.get(id);
             if(!tab) continue;
@@ -267,7 +303,7 @@ LS.LoadComponent(class Tabs extends LS.Component {
 
                 tab.handle.dataset.tabId = id;
 
-                if(this.options.reordableList) {
+                if(this.options.reorderableList) {
                     tab.reorderHandle ??= new LS.Util.TouchHandle(tab.handle, {
                         buttons: [0],
                         cursor: "grabbing",
@@ -415,6 +451,10 @@ LS.LoadComponent(class Tabs extends LS.Component {
             tab.handle.dataset.tabId = id;
             this.list.appendChild(tab.handle);
         }
+
+        for(const { button } of this.#listButtons) {
+            this.list.appendChild(button);
+        }
     }
 
     renderList() {
@@ -441,6 +481,13 @@ LS.LoadComponent(class Tabs extends LS.Component {
                 tab.reorderHandle = null;
             }
         }
+
+        for(const listButton of this.#listButtons) {
+            listButton.button.removeEventListener("click", listButton.onClick);
+            listButton.button.remove();
+        }
+
+        this.#listButtons.length = 0;
 
         this.tabs.clear();
         this.events.clear();
