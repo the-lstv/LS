@@ -1,3 +1,11 @@
 # multipane
+The LS.Multipane component allows you to create complex multipane layouts
+<!-- TODO -->
 
-Documentation for the multipane component.
+
+
+API:
+
+
+Examples:
+

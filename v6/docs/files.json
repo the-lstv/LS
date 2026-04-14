@@ -59,6 +59,11 @@
           },
           {
             "type": "file",
+            "name": "layout.md",
+            "meta": null
+          },
+          {
+            "type": "file",
             "name": "menu.md",
             "meta": null
           },
@@ -137,9 +142,7 @@
         "type": "file",
         "name": "index.md",
         "meta": {
-          "title": "animation",
-          "akeno-markdown": "combined",
-          "akeno-template": "/templates/docs.html"
+          "title": "animation"
         }
       }
     ]

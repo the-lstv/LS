@@ -23,6 +23,9 @@ const demo = {
 function render() {
     // Render the sidebar
 
+    const root = document.querySelector(".ls-sidebar-content");
+    const sidebar = document.querySelector(".ls-sidebar-items");
+
     
 }
 

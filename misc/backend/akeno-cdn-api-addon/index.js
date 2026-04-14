@@ -117,6 +117,10 @@ module.exports = new class LS_API extends Units.Addon {
     async onRequest(req, res) {
         const segments = backend.helper.getPathSegments({ path: req.path.slice(3).toLowerCase() });
         if (segments.length < 2) return backend.helper.error(req, res, 2);
+        
+        if(segments[0] === "icons") {
+            this.serveIcons(req, res, segments);
+        }
 
         const version = this.getEffectiveVersion(segments[0]);
         const isBeta = version === "beta" || version === "alpha";
@@ -264,6 +268,15 @@ module.exports = new class LS_API extends Units.Addon {
         }, suggestedCompressionAlgorithm);
     }
 
+    async serveIcons(req, res, segments) {
+        // Serving the iconfont is going to be simpler as it is a single static file
+        // We just need to decide where the dist files will go
+        const version = segments[0];
+        
+
+        // TODO
+    }
+
     getEffectiveVersion(version) {
         if (version === "latest") {
             return LATEST;
@@ -316,8 +329,16 @@ const blockProcessor = ({ attrib, version, components, scriptAttributes, context
     if (version === "latest") version = LATEST;
 
     context.data.ls_version = version;
-
+    
     const is_merged = attrib === "ls";
+
+    // Bypass CDN for beta versions
+    const CDN_ORIGIN = version === "beta" ? EXTRAGON_CDN.replace("cdn.", "cdn-origin.") : EXTRAGON_CDN;
+
+    if(attrib === "ls.icons") {
+        context.write(`<link rel=stylesheet href="${CDN_ORIGIN}/ls/icons/${version}/ls-icons.${context.data.compress ? "min." : ""}css">`);
+        return;
+    }
 
     let components_string;
 
@@ -330,9 +351,6 @@ const blockProcessor = ({ attrib, version, components, scriptAttributes, context
     if (singularJSComponent && COMPONENTS.js.includes(singularJSComponent)) {
         components = [singularJSComponent];
     }
-
-    // Bypass CDN for beta versions
-    const CDN_ORIGIN = version === "beta" ? EXTRAGON_CDN.replace("cdn.", "cdn-origin.") : EXTRAGON_CDN;
 
     if (is_merged || attrib === "ls.css" || singularCSSComponent) {
         const cssComponents = is_merged ? components.filter(value => COMPONENTS.css.includes(value)) : components;

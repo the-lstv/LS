@@ -7,9 +7,21 @@
 
 
     <script src="assets/udx.js"></script>
+
     <link rel="stylesheet" href="https://cdn.extragon.cloud/ls/icons/3.0.0-alpha.0/ls-icons.css">
+    <!-- @use(ls.icons:3.0.0-alpha.O) -->
 </head>
-<body>
-    
+
+<body ls ls-accent="aquamarine" ls-theme="dark" ls-style="flat" class="ls-sidebar-container level-0">
+    <div class="ls-sidebar level-1">
+        <div class="ls-sidebar-items"></div>
+
+        <div class="ls-sidebar-bottom">
+            Select LS version:
+            <ls-select></ls-select>
+        </div>
+    </div>
+
+    <div class="ls-sidebar-content"></div>
 </body>
 </html>
