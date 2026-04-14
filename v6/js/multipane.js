@@ -1,6 +1,6 @@
 /**
  * Component for managing complex multipane layouts.
- * Originally developed for my Video Editor, but it's so useful I made it into a standalone component.
+ * Originally developed for my Video Editor, but it's quite useful I made it into a standalone component.
  * @author Lukas
  */
 
@@ -19,15 +19,15 @@ LS.LoadComponent(class Multipane extends LS.Component {
                     inner: {
                         direction: 'column',
                         inner: [
-                            { type: 'slot', view: 'EditorView', resize: { height: "70%" } },
-                            { type: 'slot', view: 'TerminalView' }
+                            { type: 'slot', resize: { height: "70%" } },
+                            { type: 'slot' }
                         ]
                     }
                 },
                 {
                     inner: {
                         direction: 'column',
-                        inner: [{ direction: "row", inner: [{ type: 'slot', view: 'OutputView' }, { type: 'slot', view: 'ASTView' }] }, { type: 'slot', view: 'LogsView' }]
+                        inner: [{ direction: "row", inner: [{ type: 'slot' }, { type: 'slot' }] }, { type: 'slot' }]
                     }
                 }
             ]
@@ -39,15 +39,15 @@ LS.LoadComponent(class Multipane extends LS.Component {
         * |       |
         */
         'editor-focused': {
-            title: "Editor Focused",
+            title: "Dual horizontal",
             direction: 'column',
             inner: [
-                { type: 'slot', view: 'EditorView', resize: { height: "70%" } },
+                { type: 'slot', resize: { height: "70%" } },
                 {
                     direction: 'row',
                     inner: [
-                        { type: 'slot', view: 'TerminalView', resize: { width: "50%" } },
-                        { type: 'slot', view: 'LogsView' }
+                        { type: 'slot', resize: { width: "50%" } },
+                        { type: 'slot' }
                     ]
                 }
             ]
@@ -62,12 +62,12 @@ LS.LoadComponent(class Multipane extends LS.Component {
             title: "Output Focused",
             direction: 'row',
             inner: [
-                { type: 'slot', view: 'EditorView', resize: { width: "40%" } },
+                { type: 'slot', resize: { width: "40%" } },
                 {
                     direction: 'column',
                     inner: [
-                        { type: 'slot', view: 'ASTView', resize: { height: "60%" } },
-                        { type: 'slot', view: 'LogsView' }
+                        { type: 'slot', resize: { height: "60%" } },
+                        { type: 'slot' }
                     ]
                 }
             ]
@@ -84,9 +84,9 @@ LS.LoadComponent(class Multipane extends LS.Component {
             title: "Vertical",
             direction: 'column',
             inner: [
-                { type: 'slot', view: 'EditorView', resize: { height: "50%" } },
-                { type: 'slot', view: 'TerminalView', resize: { height: "25%" } },
-                { type: 'slot', view: 'LogsView' }
+                { type: 'slot', resize: { height: "50%" } },
+                { type: 'slot', resize: { height: "25%" } },
+                { type: 'slot' }
             ]
         },
 
@@ -102,11 +102,11 @@ LS.LoadComponent(class Multipane extends LS.Component {
                 {
                     direction: 'column',
                     inner: [
-                        { type: 'slot', view: 'EditorView', resize: { height: "60%" } },
-                        { type: 'slot', view: 'LogsView' }
+                        { type: 'slot', resize: { height: "60%" } },
+                        { type: 'slot' }
                     ]
                 },
-                { type: 'slot', view: 'ASTView', resize: { width: 300 } }
+                { type: 'slot', resize: { width: 300 } }
             ]
         },
 
@@ -119,9 +119,9 @@ LS.LoadComponent(class Multipane extends LS.Component {
             title: "Three Columns",
             direction: 'row',
             inner: [
-                { type: 'slot', view: 'EditorView', resize: { width: "35%" } },
-                { type: 'slot', view: 'LogsView', resize: { width: "35%" } },
-                { type: 'slot', view: 'ASTView' }
+                { type: 'slot', resize: { width: "35%" } },
+                { type: 'slot', resize: { width: "35%" } },
+                { type: 'slot' }
             ]
         },
 
@@ -136,8 +136,8 @@ LS.LoadComponent(class Multipane extends LS.Component {
             title: "Four Panel",
             direction: 'column',
             inner: [
-                { inner: [{ type: 'slot', view: 'EditorView', resize: { width: "50%" } }, { type: 'slot', view: 'TerminalView' }], resize: { height: "50%" } },
-                { inner: [{ type: 'slot', view: 'ASTView', resize: { width: "50%" } }, { type: 'slot', view: 'LogsView' }], resize: { height: "50%" } }
+                { inner: [{ type: 'slot', resize: { width: "50%" } }, { type: 'slot' }], resize: { height: "50%" } },
+                { inner: [{ type: 'slot', resize: { width: "50%" } }, { type: 'slot' }], resize: { height: "50%" } }
             ]
         },
 
@@ -150,7 +150,7 @@ LS.LoadComponent(class Multipane extends LS.Component {
             title: "Editor only",
             direction: 'column',
             inner: [
-                { type: 'slot', view: 'EditorView' }
+                { type: 'slot' }
             ]
         },
 
@@ -159,11 +159,11 @@ LS.LoadComponent(class Multipane extends LS.Component {
         * |       |
         * |       |
         */
-        'terminal-only': {
-            title: "Terminal only",
+        'single': {
+            title: "Single",
             direction: 'column',
             inner: [
-                { type: 'slot', view: 'TerminalView' }
+                { type: 'slot' }
             ]
         },
     };
