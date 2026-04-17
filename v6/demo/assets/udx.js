@@ -20,6 +20,8 @@ const demo = {
 }
 
 // I'm keeping this separate in case I'll make it possible to hot-swap LS versions
+// ffs i just realized my comments sound like AI, i swear they are not
+// í need to start recording my keystrokes or something
 function render() {
     // Render the sidebar
 
