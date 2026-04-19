@@ -1231,22 +1231,27 @@
 
         /**
          * Dynamic utility for creating elements
-         * @param {*} tagName Element tag (or options)
+         * @param {*} emmet Emmet abbreviation (or options object)
          * @param {Array|String|Object} content Content or options
-         * @returns Created element
+         * @returns {Element} Created element
          */
-        Create(tagName = "div", content){
-            if(typeof tagName !== "string"){
-                content = tagName;
+        Create(emmet = "div", content){
+            if(typeof emmet !== "string"){
+                content = emmet;
                 if(content) {
-                    tagName = content.tag || content.tagName || "div";
+                    // Technically tag/tagName are compatible with emmet, but they should be separate at some point
+                    emmet = content.emmet || content.tag || content.tagName || "div";
+                    delete content.emmet;
                     delete content.tag;
                     delete content.tagName;
                 } else if(content === null) return null;
             }
 
-            // Simple plain element (fast path)
-            if(!content) return document.createElement(tagName);
+            // Default
+            if(!content && !emmet) return document.createElement("div");
+
+            // Simple element (fast path)
+            if(!content) return LS.Util.parseEmmet(emmet).children[0];
 
             content =
                 typeof content === "string"
@@ -1255,19 +1260,14 @@
                         ? { inner: content }
                         : content || {};
 
-            if(content.svg || (tagName === "svg" && content.ns === undefined)) {
-                content.ns = "http://www.w3.org/2000/svg";
-            }
-
             const { class: className, tooltip, ns, inner, content: innerContent, html, text, accent, style, reactive, attr, options, attributes, sanitize, state, ...rest } = content;
-
             const element = Object.assign(
-                ns ? document.createElementNS(ns, tagName) : document.createElement(tagName),
+                LS.Util.parseEmmet(emmet, { ns }).children[0],
                 rest
             );
 
             // Special case for ls-select
-            if(tagName.toLowerCase() === "ls-select" && options){
+            if(element.tagName === "LS-SELECT" && options){
                 element._lsSelectOptions = options;
             }
 
@@ -1413,6 +1413,178 @@
                 }
 
                 return getOne? null : result;
+            },
+
+            /**
+             * Relatively fast & light Emmet abbreviation parser
+             * @experimental
+             * 
+             * @param {string} abbreviation Emmet abbreviation to parse.
+             * @returns {DocumentFragment} Root element of the parsed structure.
+             * @see https://docs.emmet.io/abbreviations/syntax/ for supported syntax
+             * 
+             * @note Limitations: Item numbering ($) is not supported yet.
+             * 
+             * @example LS.Util.parseEmmet("div#main>ul.list>li.item{Item}*3");
+             */
+            parseEmmet(abbreviation, options = {}, adaptor = document) {
+                const len = abbreviation.length;
+                let li = 0, state = 0, root = document.createDocumentFragment(), previousElement = root, currentParent = root, braceCount = 0, inString = false;
+
+                for (let i = 0; i < len; i++) {
+                    const char = abbreviation.charCodeAt(i);
+                    const oldState = state;
+                    const atEnd = i === len - 1;
+
+                    if(state === 3) {
+                        // Attribute state handling
+                        if(inString || (char === /* " */ 34 || char === /* ' */ 39)) {
+                            if(inString === char) {
+                                inString = false;
+                            } else if(!inString) {
+                                inString = char;
+                            }
+                            continue;
+                        } else if(char === /* ] */ 93) {
+                            state = 0; // End of attribute block
+                        } else if(char === /*   */ 32) {
+                            state = 3; // Allow another attribute in the same block
+                        } else continue;
+                    } else if(state === 4) {
+                        // Text state handling
+                        if(char === /* { */ 123) {
+                            braceCount++;
+                            continue;
+                        } else if(char === /* } */ 125) {
+                            if(braceCount === 0 || atEnd) {
+                                state = 0;
+                            } else {
+                                braceCount--;
+                                continue;
+                            }
+                        } else continue;
+                    } else if(state === 5) {
+                        // Temporary group state handling
+                        if(char === /* ( */ 40) {
+                            braceCount++;
+                            continue;
+                        } else if(char === /* ) */ 41) {
+                            if(braceCount === 0 || atEnd) {
+                                state = 0;
+                            } else {
+                                braceCount--;
+                                continue;
+                            }
+                        } else continue;
+                    } else {
+                        switch(char) {
+                            case /* . */ 46:  state = 1; break;                  // Class
+                            case /* # */ 35:  state = 2; break;                  // ID
+                            case /* [ */ 91:  state = 3; break;                  // Attribute
+                            case /* { */ 123: state = 4; braceCount = 0; break;  // Text
+                            case /* ( */ 40:  state = 5; braceCount = 0; break;  // Group
+                            case /* > */ 62:  state = 6; break;                  // Child
+                            case /* + */ 43:  state = 7; break;                  // Sibling
+                            case /* * */ 42:  state = 8; break;                  // Multiply
+                            case /* ^ */ 94:  state = 9; break;                  // Climb-up
+                            default: if (!atEnd) continue;
+                        }
+                    }
+
+                    // We have reached a state change or end
+                    const value = abbreviation.slice(li, (atEnd && state === oldState)? i + 1 : i);
+                    li = i + 1;
+
+                    if((oldState >= 1 && oldState <= 4 || oldState === 8 || oldState === 6) && previousElement === root) {
+                        // Implicit element creation
+                        currentParent = previousElement = adaptor.createElement("div");
+                        root.appendChild(previousElement);
+                    }
+
+                    if (value || oldState === 9 || oldState === 6 || oldState === 7) {
+                        switch(oldState) {
+                            // Element / Child / Sibling / Climb-up
+                            case 0: case 6: case 7: case 9: {
+                                // Climb-up
+                                if(oldState === 9) {
+                                    if(currentParent && currentParent.parentNode) {
+                                        currentParent = currentParent.parentNode;
+                                    }
+                                }
+
+                                if(oldState === 6) {
+                                    currentParent = previousElement;
+                                }
+
+                                if(!value) {
+                                    if(oldState === 7) previousElement = currentParent;
+                                    continue;
+                                }
+
+                                // TODO: Snippets
+                                const el = (value === "svg" || options.ns)? adaptor.createElementNS(options.ns || "http://www.w3.org/2000/svg", value) : adaptor.createElement(value);
+
+                                currentParent.appendChild(el);
+                                previousElement = el;
+                                continue;
+                            }
+
+                            // Class
+                            case 1: {
+                                previousElement.classList.add(value);
+                                continue;
+                            }
+    
+                            // ID
+                            case 2: {
+                                previousElement.id = value;
+                                continue;
+                            }
+    
+                            // Attribute
+                            case 3: {
+                                // Nonstandard behavior note: if attribute starts with %, it gets converted to a LS state. Eg. "button[%loading]" -> <button data-ls-state="loading"></button>
+                                let [attrName, attrValue] = value.charCodeAt(0) === /* % */ 37 ? ["data-ls-state", value.slice(1)] : value.split('=');
+
+                                if(attrValue.charCodeAt(0) === /* " */ 34 || attrValue.charCodeAt(0) === /* ' */ 39) {
+                                    attrValue = attrValue.slice(1, -1);
+                                }
+
+                                previousElement.setAttribute(attrName, attrValue || "");
+                                continue;
+                            }
+    
+                            // Text
+                            case 4: {
+                                previousElement.appendChild(document.createTextNode(value));
+                                continue;
+                            }
+    
+                            // Group
+                            // TODO: Make this single-pass via a stack
+                            case 5: {
+                                const group = LS.Util.parseEmmet(value, options, adaptor);
+                                currentParent.appendChild(group);
+                                previousElement = group.lastElementChild || currentParent.lastChild || group;
+                                continue;
+                            }
+    
+                            // Multiply
+                            case 8: {
+                                const count = parseInt(value, 10) || 1;
+                                for(let j = 1; j < count; j++) {
+                                    const clone = previousElement.cloneNode(true);
+                                    if (previousElement.parentNode) {
+                                        previousElement.parentNode.appendChild(clone);
+                                    }
+                                }
+                                continue;
+                            }
+                        }
+                    }
+                }
+
+                return root;
             },
 
             /**

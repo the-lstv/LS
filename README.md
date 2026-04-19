@@ -1,5 +1,6 @@
 ![Logo](/misc/banner.png)
 # Note: Documentation is currently work in progress, sorry about that! Stay tuned for updates.
+# Note: A major update (v6) is currently in development, along with documentation!
 
 # What's LS?
 LS is a lightweight, dependency-free frontend framework for building fast, accessible interfaces in vanilla JS/CSS, from landing pages to full-featured complex applications.<br>
@@ -16,7 +17,7 @@ Components can be selectively added via the URL so you only load what you need.<
 
 ## See it in action
 Check out the live [example page/demo](https://lstv.space/tech/ls) to see some LS components in action.<br>
-Projects that use LS include [lstv.space](https://lstv.space), [Revie video editor](https://lstv.space/editor), [Extragon](https://extragon.cloud), and hopefully many more in the coming future.
+Projects that use LS include [lstv.space](https://lstv.space), [our video editor](https://github.com/the-lstv/videoeditor), [Extragon](https://extragon.cloud), and hopefully many more in the coming future.
 
 ## Key advantages of LS:
 - 🦎 **Versatile**
@@ -65,6 +66,10 @@ Don't believe me? [See it in action](https://lstv.space) - all of our projects/p
 - 💻 Reworked design language, UI framework, etc.
 - 🐛 Tons of bug fixes and quality improvements
 
+---
+
+<img src=https://cdn.extragon.cloud/file/a771e02dfb37f618.svg> <br>
+LS is made by a human, not by AI.
 <br>
 
 ---

@@ -5,11 +5,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LS Demo</title>
 
-
-    <script src="assets/udx.js"></script>
-
-    <link rel="stylesheet" href="https://cdn.extragon.cloud/ls/icons/3.0.0-alpha.0/ls-icons.css">
     <!-- @use(ls.icons:3.0.0-alpha.O) -->
+    <!-- <link rel="stylesheet" href="https://cdn.extragon.cloud/ls/icons/3.0.0-alpha.0/ls-icons.css"> -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+
+    <!-- @use(ls:alpha[*]); -->
+    <!-- @use(assets/udx.js); -->
+    <script>
+        const version = location.search.split("version=")[1] || "alpha";
+        document.head.insertAdjacentHTML("beforeend", `<link rel="stylesheet" href="https://cdn-origin.extragon.localhost/ls/${version}/*/ls.css">`);
+        const script = document.createElement("script");
+        script.src = `https://cdn-origin.extragon.localhost/ls/${version}/*/ls.js`;
+        document.head.appendChild(script);
+
+        script.onload = () => {
+            const script2 = document.createElement("script");
+            script2.src = `assets/udx.js`;
+            script2.setAttribute("defer", "");
+            document.head.appendChild(script2);
+        };
+    </script>
+
+    <!-- @use(google-fonts[Poppins]); -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins&display=swap">
+
+
+    <style>
+        :root {
+            --font: Poppins, sans-serif;
+        }
+
+        body {
+            height: 100vh;
+            height: 100dvh;
+        }
+    </style>
 </head>
 
 <body ls ls-accent="aquamarine" ls-theme="dark" ls-style="flat" class="ls-sidebar-container level-0">
@@ -17,8 +47,8 @@
         <div class="ls-sidebar-items"></div>
 
         <div class="ls-sidebar-bottom">
-            Select LS version:
-            <ls-select></ls-select>
+            Version:
+            <ls-select id="version-select" ls-options-values="alpha, 6.0.0-alpha.0, 5.2.9, 4.0.2"></ls-select>
         </div>
     </div>
 
