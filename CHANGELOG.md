@@ -19,8 +19,12 @@ Major update (2026 release)!
 - General improvements
 - EventEmitter.alias is now EventEmitter.aliasEvent for clarity
 - Enhancements to LS.ImageCropper
-
+- Enhancements to LS.Toast (smoother animations, responsive)
 < work in progress >
+
+**Misc**
+- Introduced a GUI for generating CDN Links: https://lstv.space/tools/ls-loader
+- Documentation is *finally* here (yeah after 6 major releases)
 
 **Breaking changes:**
 - Removed legacy TinyFramework (LS.Tiny, Q, O, S, N, M). Now entirely under the LS namespace! (Temporarily, a "enableV5Compat" option exists that restores this.)

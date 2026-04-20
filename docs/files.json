@@ -141,9 +141,7 @@
       {
         "type": "file",
         "name": "index.md",
-        "meta": {
-          "title": "animation"
-        }
+        "meta": null
       }
     ]
   }

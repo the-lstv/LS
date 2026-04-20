@@ -1,13 +1,16 @@
 ---
-title: animation
+title: LS Documentation
+description: Comprehensive documentation for LS, a flexible and feature-rich frontend/UI framework. Learn about its components, utilities, and how to get started with LS for your frontend development projects.
 ---
 
-![Logo](/misc/banner.png)
+![Logo](https://cdn.extragon.cloud/file/19613b60f986c5f6.webp)
 
 # What's LS?
 
 LS is a flexible & feature-rich frontend/UI framework, that provides various components, utilities, and more.<br>
-It is incredibly lightweight, fast, feature-rich, and designed to make frontend development enjoyable, while making your apps feel super smooth and performant, and significantly reduce bundle size/bloat.<br>
+It is incredibly lightweight, fast, feature-rich, and designed to make frontend development enjoyable, while making your apps feel super smooth and performant, and significantly reduce bundle size/bloat.
+
+<br>
 
 ## Quick feature overview:
 
@@ -22,12 +25,12 @@ It is incredibly lightweight, fast, feature-rich, and designed to make frontend 
     - Dynamic color system with common variables, automatic light/dark mode, etc.
     - Full-featured UI styles
 
-Either can be used independently or together, depending on what you need.
+Either can be used independently or together (Eg. JS only, CSS only, or just include components you want to use. But, of course, they work the best together).
 
 # Getting Started
 
 Let's get started with some basics.<br>
-There's a lot that LS can do, so there's also many things to look at based on what you are doing at the moment.
+There's a lot that LS can do, so there's also many things to look at based on what you need.
 
 ## Installation
 
@@ -35,23 +38,35 @@ Adding LS to your project is as easy as just adding any library.
 
 ### Method 1 (only when using the Akeno server):
 
-[Akeno](https://github.com/the-lstv/akeno) is a powerful webserver developed by me, and thus works nicely together with LS.<br>If you are not using it, skip to the second method.
+[Akeno](https://github.com/the-lstv/akeno) is a powerful webserver developed by me, and thus works nicely together with LS.<br>
 
-If you are using Akeno, all you need to do is to add an @use block like this to your head tag:
+> [!NOTE]
+> If you are not using Akeno, *skip to the second installation method* - if you are using a different server or environment, everything will work just fine, Akeno just makes it a bit more convenient.
+
+All you need to do is to add an @use block like this to your HTML head tag:
 ```html
 <head>
+    <!-- Components are added into the square brackets ([]) as a comma separated list. -->
+    <!-- Minimal import is @use(ls:version);, which adds just the core. Or @use(ls:version[*]); for all components. -->
     @use(ls:version[...components]);
 </head>
 ```
 Such as:
 ```html
 <head>
-    @use(ls:6.0.0[color, flat, animation, modal, tooltips, tabs]);
+    @use(ls:6.0.0-alpha.0[color, flat, animation, modal, tooltips, tabs]);
 </head>
 ```
-Akeno takes care of adding the correct tags, version, and sorting components for optimal caching for you automatically. It will also cleverly combine @use directives for an optimal bundle.
 
-### Method 2 (every other environment):
+You can also import a specific component separately, excluding the core:
+```html
+@use (ls.js.ImageCropper:5.2.9);
+```
+
+Done - you are using LS! That easy.<br>
+Akeno takes care of adding the correct tags, version, and sorting components for optimal caching for you automatically. It will also combine @use directives for an optimal bundle.
+
+### Method 2 (for every other environment):
 If not using Akeno, you can add LS to your project by using regular script and link tags using the CDN, such as:
 ```html
 <head>
@@ -65,8 +80,8 @@ If not using Akeno, you can add LS to your project by using regular script and l
 These expose LS as a global.
 
 > [!WARNING]
-> By using this method, you need to manually specify JS/CSS components and ensure they match.
-> Want an easier way? Try this [utility](https://lstv.space/tools/ls-loader) that generates the correct tags/URLs for you based on which components/styles you need!
+> By using this method, you need to manually specify JS/CSS components.
+> I highly recommend using this [utility](https://lstv.space/tools/ls-loader) that generates the correct tags/URLs for you based on which components/styles you need!
 
 <br>
 
@@ -79,7 +94,40 @@ Or using require (CommonJS):
 const LS = require("...");
 ```
 
-## Basics
+## Setup
+LS has a minimal, mostly optional setup process. The most important thing is to add the `ls` attribute when using LS styles.
+
+### UI Setup
+If you are using LS.css for UI & styles, there is some minimal boilerplate you should add to wherever you want LS styles to apply. For example:
+```html
+<body ls ls-theme="dark" ls-accent="blue" ls-style="flat"></body>
+```
+
+In detail:
+- `ls` attribute scopes where LS styles apply. LS will style things including default HTML elements (such as buttons & inputs) within this element.
+- `ls-style` sets the overall base UI style. The default style is "flat", which sets the default look & feel of LS. Don't forget to include that theme as a component!
+- `ls-theme` sets the theme. Included are light and dark. Default is dark.
+- `ls-accent` sets the accent color. See more in the color system section. Default is blue.
+
+
+### JS Setup (optional)
+It is not required, but LS can be configured with some options before startup. For example:
+
+```js
+// The following must be set before LS is initialized.
+window.LS_INIT_OPTIONS = {
+    autoScheme: true, // Automatically set the theme based on the user's system preference
+    autoAccent: true, // Automatically set the accent color, eg. reading "ls-accent" from localStorage.
+    theme: null, // Default theme
+    accent: null, // Default accent color
+    optimizeEvents: true, // Whether to compile events. See the EventEmitter documentation for more details.
+};
+
+// You can also set "window.LS_DEFER_INIT = true" to defer the initialization.
+// In that case, you can then call "LS.init(options)" manually whenever you're ready.
+```
+
+# Helpers & Utilities
 
 ### Creating elements
 LS provides a rich utility for creating HTML elements.
@@ -152,29 +200,85 @@ LS.Util.parseEmmet("div+span"); // -> DocumentFragment[<div></div>, <span></span
 ```
 
 ### Selecting elements
-LS provides simple utilities (`LS.Select` and `LS.SelectOne`) for selecting elements. They aren't much different from document.querySelector with the exception that Select returns an actual Array rather than an element collection & has a slightly more flexible API.
+LS provides simple utilities (`LS.Select` and `LS.SelectOne`) for selecting elements. Though they aren't much different from document.querySelector.
+
 ```js
-LS.Select(".myClass"); // Array of all elements with the myClass class.
+LS.Select(".myClass"); // Array of all elements with the myClass class, from the whole document.
+LS.SelectOne("#myId"); // The first element with the id "myId" or null.
+
+// Both also support selecting within a specific parent:
+LS.Select(someParentElement, ".myClass"); // Search only within someParentElement.
+LS.SelectOne(someParentElement, "#myId"); // Search only within someParentElement.
 ```
 
 ### Deep cloning data
-LS has a helper for cloning complex structured objects, that performs faster than the native structuredClone or the popular library "klona".
+LS has a helper for cloning complex structured objects, that performs faster than the native `structuredClone` or even the popular library "klona" (https://jsbm.dev/wFkz6UCGJevxw).
+It accepts any complex object, array, Map, Set, typed array/array buffer, all primitives, and some other types like RegExp or Date. Note: currently it does not support cloning functions or classes.
 
 ```js
-LS.Util.clone({}); // This accepts any complex (nested) object, array, Map, Set, typed array/array buffer, or primitive. It will return a new clone of that object that doesn't affect the original.
+// Returns a new clone of that object that doesn't affect the original.
+LS.Util.clone({});
 ```
 
-### Query parameters
+### Parsing query parameters
 <jsdoc-generate></jsdoc-generate>
 
-LS has a ridiculously fast utility for passing query parameters, either to an object, or getting the value of one parameter. It's ~11x faster & slightly more convenient than native SearchParams (in Chrome) if you aren't expecting multiple values for the same parameter and don't require 100% spec compliance.
+LS has a ridiculously fast utility for passing query parameters, either to an object, or getting the value of one parameter. It's ~11x faster & slightly more convenient than native URLSearchParams (in Chrome) if you aren't expecting multiple values for the same parameter and don't require 100% spec compliance.
 
-```
-// To get an object of all parameters, such as { key: "value" }
-LS.Util.parseQuery("?key=value");
+```js
+// To get an object of all parameters
+LS.Util.parseQuery("?key=value"); // -> { key: "value" }
 
 // To get one value
-LS.Util.parseQuery("?key=value", "key");
+LS.Util.parseQuery("?key=value", "key"); // -> "value"
+```
+
+### Parsing Emmet abbreviations
+LS has a light Emmet abbreviation parser that supports most of the Emmet syntax.<br>
+See: https://docs.emmet.io/abbreviations/syntax/ to see what you can do.<br>
+
+```js
+// Returns a DocumentFragment containing the parsed elements.
+LS.Util.parseEmmet("div.myClass#myId"); // -> DocumentFragment[<div class="myClass" id="myId"></div>]
+
+// If you want a single element (and discard any other top-level siblings):
+LS.Util.parseEmmet("{I am kept}+{I am discarded}", { singleNode: true });
+
+// Additionally, a custom namespace can be passed.
+// This is the the utility that LS.Create uses; for more options, you can use LS.Create.
+```
+
+### Sanitize HTML
+A very simple utility for sanitizing/cleaning an element.<br>
+It removes all child elements not on a whitelist and removing unsafe attributes.<br>
+Note; this mutates the element you pass.
+```js
+const myElement = LS.Create("span{Hello World}>script{alert('XSS')}");
+LS.Util.sanitize(myElement); // myElement is now <span>Hello World</span>.
+
+// LS.Create also supports this, eg.:
+LS.Create("span", { html: "<script>alert('XSS')</script><span onclick='alert(\"XSS\")'>Hello World</span>", sanitize: true });
+
+// Allowlist is in LS.Util.allowedTags
+```
+
+### Copy to clipboard
+A very simple utility for copying text to the clipboard.
+```js
+LS.Util.copy("Text to copy");
+```
+
+### Normalizing text
+A function that normalizes text by performing the following operations:
+- Converting to lowercase
+- NFD Unicode normalization (eg. converts "é" to "e")
+- Replacing everything that isn't a letter or number
+- Normalizing whitespace
+- Trimming whitespace
+
+```js
+// Second argument is an optional space character to use for replacing whitespace.
+LS.Util.normalize("  Héllo   Wórld!  "); // -> "hello world"
 ```
 
 ### 

@@ -17,7 +17,8 @@ LS.LoadComponent(class Toast extends LS.Component {
         this.closeCallback = options.onClose;
 
         this.setTimeout(() => {
-            this.element.class("open");
+            // this.element.class("open");
+            if(LS.Animation) LS.Animation.fadeIn(this.element, 400, "upBackward");
         }, 1);
 
         if(options.timeout > 0) this.setTimeout(() => {
@@ -30,7 +31,7 @@ LS.LoadComponent(class Toast extends LS.Component {
     }
 
     close(){
-        this.element.class("open", 0);
+        if(LS.Animation) LS.Animation.fadeOut(this.element, 150, "upBackward");
         this.constructor.openToasts.delete(this);
 
         if(this.closeCallback) this.closeCallback();
@@ -40,7 +41,7 @@ LS.LoadComponent(class Toast extends LS.Component {
             this.element.remove();
             this.element = null;
             super.destroy();
-        }, 150);
+        }, LS.Animation? 150 : 0);
     }
 
     static {

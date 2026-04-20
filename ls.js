@@ -4,7 +4,7 @@
 
     Last modified: 2026
     License: GPL-3.0
-    Version: 6.0.0-alpha
+    Version: 6.0.0-alpha.0
     See: https://github.com/thelstv/LS
 */
 
@@ -1050,7 +1050,7 @@
     const LS = new class LSMain extends EventEmitter {
         // --- Metadata
         isWeb = typeof window !== 'undefined';
-        version = "6.0.0-alpha";
+        version = "6.0.0-alpha.0";
         v = 6;
 
         components = new Map;
@@ -1089,7 +1089,6 @@
                 theme: null,
                 accent: null,
                 autoScheme: true,
-                adaptiveTheme: false,
                 optimizeEvents: true
             }, options);
 
@@ -1112,8 +1111,7 @@
                     theme: options.theme,
                     accent: options.accent,
                     autoAccent: options.autoAccent,
-                    autoScheme: options.autoScheme,
-                    adaptiveTheme: options.adaptiveTheme
+                    autoScheme: options.autoScheme
                 };
 
                 if(LS.Color) LS.Color.initOptions(colorOptions); else LS.__deferedColorOptions = colorOptions;
@@ -1320,7 +1318,7 @@
                 if(contentToAdd || html) {
                     console.warn("LS.Create: 'text' is being overriden by inner content or html. Only use one of: inner, html, or text.");
                 } else {
-                    element.textContent = text;
+                    element.appendChild(document.createTextNode(text));
                 }
             } else if (html) {
                 if(contentToAdd) {
@@ -2655,8 +2653,13 @@
              * @param {*} element
              * @returns this
              */
-            addTo(element){
-                LS.SelectOne(element).append(this);
+            addTo(element, index = null){
+                const parent = LS.SelectOne(element);
+                if (index !== null) {
+                    parent.insertBefore(this, parent.children[index]);
+                } else {
+                    parent.append(this);
+                }
                 return this;
             },
 

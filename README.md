@@ -1,46 +1,44 @@
 ![Logo](/misc/banner.png)
-# Note: Documentation is currently work in progress, sorry about that! Stay tuned for updates.
-# Note: A major update (v6) is currently in development, along with documentation!
 
 # What's LS?
-LS is a lightweight, dependency-free frontend framework for building fast, accessible interfaces in vanilla JS/CSS, from landing pages to full-featured complex applications.<br>
+LS is a lightweight, dependency-free frontend framework/UI framework/library collection for building fast and accessible interfaces in vanilla JS/CSS, from simple websites to full-featured complex applications. It has a rich set of UI components and utilities that are quite useful for nearly any web project.<br>
 
 
 ## It features:
-- A UI system with modern and accessible controls, an amazing extensive color system, and focus on being developer-friendly and not getting in your way.
-- A wide array of built-in components for various use-cases, from basic UI elements to complex interactive components.
-- A modern, easy-to-use API that is both powerful and flexible.
-- Extremely easy setup - just two files to get started. Even easier with [Akeno](https://github.com/the-lstv/Akeno/).
+- A UI system with modern and accessible controls, an extensive color system, and focus on being developer-friendly.
+- A wide array of built-in components for various use-cases, including complex interactive components.
+- A clean, easy-to-use API that is both powerful and flexible.
+- Many utilities for various use-cases, such as flexible DOM manipulation.
+- Extremely easy, minimal setup.
 
-It's lightweight, *very fast*, efficient, memory-safe and increasingly more robust (see [quality ratings](component-ratings-and-status.md)), and as easy to use as any standard library - just two files for JS and CSS and you're set.
-Components can be selectively added via the URL so you only load what you need.<br>
+It's lightweight, **very fast**, efficient, memory-safe and increasingly more robust (see [quality ratings](component-ratings-and-status.md)), and as easy to use as any standard library - just two files for JS/CSS and you're set.Components can be selectively added so you only load what you need.<br>
 
 ## See it in action
 Check out the live [example page/demo](https://lstv.space/tech/ls) to see some LS components in action.<br>
-Projects that use LS include [lstv.space](https://lstv.space), [our video editor](https://github.com/the-lstv/videoeditor), [Extragon](https://extragon.cloud), and hopefully many more in the coming future.
+Projects that use LS include [lstv.space](https://lstv.space), [our video editor](https://github.com/the-lstv/videoeditor), QuickSand game engine, [Extragon](https://extragon.cloud), and many more.
 
 ## Key advantages of LS:
 - 🦎 **Versatile**
-    - We have used it for things starting from simple landing pages to entire complex interfaces (eg. our [video editor](https://lstv.space/editor)) - thanks to that, we have experience using LS in wildly different ways, which helped shape LS into a highly flexible framework.
+    - It can be used for things starting with simple landing pages to entire complex, professional interfaces.
     - It is modular and extensible. You can use what you need and easily make your own components.
-    - No vendor lock-in. You can technically use parts of LS with other frameworks if you really want to. LS is written in vanilla JS and CSS, making it incredibly flexible and easy to setup (no annoying backend build setups, runtimes or whatever - we do offer backend helpers and compilation, but they are fully optional and you can achieve the same things without them. Means that even static HTML files can use LS, without any special backend).
-    - LS is designed to be very easy to use, to make it fun and enjoyable to create things with it.
+    - No vendor lock-in. You can technically use parts of LS with other frameworks and libraries.
+    - It's written in vanilla JS/CSS, so it works anywhere.
 
 - 🐜 **Light, reliable and ridiculously fast**
-    - This has always been the main goal of LS. I was tired (and still am) of the bloated slow framework mess that is the majority of today's web, and wanted to create something that does its job without hogging resources, and ensure it doesn't trade performance for convenience. LS took me much more work to build this way than it should - but the result is worth it.
-    - LS uses its own highly optimized implementations of core features instead of 3rd party libraries to ensure it is implemented in the best way possible and consistent with the rest.
-    - LS always prefers the fastest way, as to not interfere with your actual code.
-    - All components follow a strict internal lifecycle structure to ensure maximal performance, low memory usage and memory safety.
+    - That is the main focus of LS; I got tired of the bloated slow framework mess that is the majority of today's web, and wanted to create something that does its job without hogging resources, and ensure it doesn't trade performance for convenience. That is why I spend a lot of time and effort optimizing LS to be as fast and efficient as it can be.
+    - LS uses its own optimized implementations of core features, instead of 3rd party libraries, to ensure it is implemented in the best way possible. It has many components that are currently the fastest available implementations.
+    - All components follow a strict internal lifecycle structure to ensure performance, low memory usage, and memory safety.
     - See my [design philosophy](#design-philosophy-and-quality-standards) if you want more details about how LS is written.
 
 - :godmode: **Powerful.**
-    - LS has a growing wide array of built-in components for various use-cases, from basic UI elements to more complex components. Whenever I make some kind of component for my other projects, I usually later complete and release it as a LS component, so there are some interesting examples, such as LS.Timeline.
-    - It's a few years old (4+ years), went through many iterations (survived the horrors of my early coding style), and I am constantly improving it and using it nearly daily. This makes it quite mature and robust despite being new and as of now, a single person effort. I have no intention of abandoning it - it's safe to build with, and I will be providing support for a long time. If you want to help, feel free to contribute <3!
+    - It's relatively mature (4+ years), went through many iterations, and I am constantly improving it and actually using it daily. This makes it quite robust and polished despite being a single person effort.
+    - I will be providing support for a long time. If you want to help, feel free to contribute <3!
+    - Whenever I make some kind of component for my other projects, I usually later complete and release it as a LS component.
 
-- 📦 **No dependencies, no bloat**
-    - LS is fully self-contained, meaning that you don't need to do anything extra to get the full set of features that LS has. Just get it and go. No novel sized `package.json`. Two clicks to set up.
+- 📦 **No dependencies, zero bloat**
+    - LS is fully self-contained, meaning that you don't need to do anything else to get the full set of features that LS has. Just get it and go. No dependencies.
 
-- ✨ **Honest, human and clean code**
+- ✨ **Honest, hand-written, and clean code**
     - Every part of LS is written from scratch, purpose-built for efficiency. Many frameworks rely on random third-party libraries out of convenience. We don't.
     - There are only two 3rd party libraries bundled in LS: normalize.css for CSS resets and omggif in the ImageCropper component to decode GIFs.
     - No AI is used to write LS code. It is handcrafted by a human developer and hundreds of hours of work. AI-assisted bug searching or rapid prototyping without automated changes is okay. I personally believe AI coding is harmful to developers and is a threat to software quality and security.
@@ -50,21 +48,21 @@ Projects that use LS include [lstv.space](https://lstv.space), [our video editor
     - Licensed under GPL v3.0!
 
 
-Don't believe me? [See it in action](https://lstv.space) - all of our projects/platforms use it. Feel the snappy interfaces and speedy performance for yourself, and see the difference.
-(Note: lstv.space currently runs on an old version of LS (as it is still being worked on). The new version has major core changes that make it even smoother - also, lstv.space uses GPU shaders on the homepage, which may be a slowdown on older devices, that is not LS's fault, blame WebGL 🥲).
+Don't believe me? [See it in action](https://lstv.space). Feel the difference.
 <br>
 
 
-## LS v5.2.9
+## LS v6.0.0-alpha
+The next major version of LS is currently in alpha.
+
 ### What's new?
-- ✨ New, modern API remade from scratch
-- 📔 Better component system
-- 🫧 Insanely efficient and light reactivity system
-- 🚀 Significantly improved performance all around
-- 💾 Optimized for memory efficiency
+- ✨ New APIs, Emmet support, and overal polish.
+- 🚀 Improved performance all around
+- 💾 Optimized for memory efficiency and lifecycle management
 - 💼 Smaller size, even more light-weight
 - 💻 Reworked design language, UI framework, etc.
 - 🐛 Tons of bug fixes and quality improvements
+- See more details in the [changelog](changelog.md).
 
 ---
 
@@ -76,62 +74,8 @@ LS is made by a human, not by AI.
 
 <br>
 
-## Getting started
-### With [Akeno](https://github.com/the-lstv/Akeno/)
-Using LS with Akeno is the easier way to do it, since LS works closely with Akeno and vice versa. If you are still deciding on a server, check out Akeno - it's also pretty cool.
-
-But there isn't anything that wouldn't work without Akeno - it's not a requirement and you can skip it, it is just not as convenient (see the next section).<br>
-
-All you need to import LS in Akeno is to put this in your `<head>` (the numbers after ":" are the version):
-```html
-@use (ls:5.2.9);
-```
-Done - you are using LS! That easy. This imports only the LS core. No need to install anything, because "ls" is a built-in module source in Akeno and will automatically translate to an optimal CDN script/link tag.<br>
-
-Components are added into the square brackets ([]) as a comma separated list.
-Akeno will handle optimizing the import, so you don't have to worry about it.<br>
-```html
-<head>
-    <!-- Example of importing some LS components: -->
-    @use (ls:5.2.9[flat, color, tooltips, modal]);
-
-    <!-- If you plan to use the design language, don't forget to specify the style: -->
-    @page { style: flat; accent: blue }
-</head>
-```
-
-You can also import a specific component separately, excluding the core:
-```html
-<!-- Only imports ImageCropper, useful if you only need it sometimes and LS core is already loaded. -->
-@use (ls.js.ImageCropper:5.2.9);
-```
-
-<br>
-
-### Without Akeno
-You can add LS to your app or site easily with just two tags (or one, if you don't need either scripting or styles).<br>
-
-Akeno does the URL building for you, without it you can do it manually with the following syntax.<br>
-To import the core and none or more components with it: `/ls/[version]/[?components]/ls.[?min].[js|css]`<br>
-Or, to only import a component without the core: `/ls/[version]/[component].[?min].[js|css]`<br>
-Or, to import multiple components without the core: `/ls/[version]/[components]/bundle.[?min].[js|css]`
-
-But you need to be careful with what component you place to css/js and ensure that components that need it get both.<br>
-In the future I plan to make an URL builder tool to make this cleaner.
-
-Example:
-```html
-<!-- Imports ls.js core, no components -->
-<script src="https://cdn.extragon.cloud/ls/5.2.9/ls.min.js"></script>
-
-<!-- Imports ls.css core and the flat style -->
-<link href="https://cdn.extragon.cloud/ls/5.2.9/flat/ls.min.css" rel="stylesheet">
-```
-
-And you can start using LS right away!
-Time to head to the docs and explore all the awesome things that LS offers!
-
-(If you are a fan of ESM, it is not currently supported as I have no use for it, but please reach out and I will be happy to implement it.)
+### Now go see the [docs](docs/index.md) to get started!
+### Or do you perhaps want to [try it first](https://lstv.space/tech/ls/demo)?
 
 <br>
 
@@ -139,7 +83,11 @@ Time to head to the docs and explore all the awesome things that LS offers!
 
 <br>
 
+<details>
+<summary>Design philosophy and quality standards</summary>
+
 ## Design philosophy and quality standards
+
 *Skip this section if you don't care and just want to use LS - but if you are interested in how I make sure LS code is of high quality, keep reading!*
 
 ### Performance guarantee
@@ -171,3 +119,5 @@ No human is perfect - I sometimes produce non-optimal code and make mistakes.
 To ensure this is kept to the absolute minimum, I set transparent and objective [quality ratings](component-ratings-and-status.md) on all components.
 Only things that went through intense review and testing get the 5/5 rating, otherwise they are rated based on their current state and I work on improving them over time.
 It is unlikely everything will be get that 5/5 rating as it is intentionally a high bar, but it marks the maturity of each component.
+
+</details>

@@ -92,8 +92,7 @@ LS.LoadComponent(class ImageCropper extends LS.Component {
             inner: [this.image, this.overlay]
         });
 
-        this.scaleInput = LS.Create("input", {
-            type: "range",
+        this.scaleInput = LS.Create("ls-range", {
             step: 0.01,
             oninput: (e) => {
                 this.setScale(parseFloat(e.target.value));

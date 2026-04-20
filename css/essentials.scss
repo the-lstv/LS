@@ -236,26 +236,25 @@ ls-group {
 
 .ls-toast {
     pointer-events: all;
-    opacity: 0;
+    border-radius: var(--border-radius-xxlarge);
     padding: 4px var(--padding-control-h-pill);
-    border-radius: 2em;
+    background: var(--surface-n3) !important;
+    color: var(--accent);
     overflow: hidden;
-    transition: opacity .2s;
     -webkit-user-select: none;
     user-select: none;
-    color: var(--accent);
     display: flex;
     align-items: center;
     box-shadow: 0 10px 20px 0 #0002;
     max-width: 100%;
-    flex-wrap: wrap;
     word-break: break-word;
+    opacity: 0;
 }
 
-.ls-toast.open {
-    opacity: 1;
-    // margin-top: 0;
-}
+// .ls-toast.open {
+//     opacity: 1;
+//     transform: translateY(0);
+// }
 
 button#{priority(".ls-toast-close", 3)} {
     margin: 0;
@@ -263,6 +262,8 @@ button#{priority(".ls-toast-close", 3)} {
     box-sizing: content-box;
     margin-left: 12px;
     margin-right: -10px;
+    flex: 1;
+    min-width: 1.8em;
 }
 
 .ls-toast-content {

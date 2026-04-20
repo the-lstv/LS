@@ -4,7 +4,7 @@
 
     Last modified: 2026
     License: GPL-3.0
-    Version: 6.0.0
+    Version: 6.0.0-alpha.0
     See: https://github.com/thelstv/LS
 */
 /*
@@ -299,24 +299,19 @@ ls-group > *:not(:only-child):last-child {
 
 .ls-toast {
   pointer-events: all;
-  opacity: 0;
+  border-radius: var(--border-radius-xxlarge);
   padding: 4px var(--padding-control-h-pill);
-  border-radius: 2em;
+  background: var(--surface-n3) !important;
+  color: var(--accent);
   overflow: hidden;
-  transition: opacity 0.2s;
   -webkit-user-select: none;
   user-select: none;
-  color: var(--accent);
   display: flex;
   align-items: center;
   box-shadow: 0 10px 20px 0 rgba(0, 0, 0, 0.1333333333);
   max-width: 100%;
-  flex-wrap: wrap;
   word-break: break-word;
-}
-
-.ls-toast.open {
-  opacity: 1;
+  opacity: 0;
 }
 
 button.ls-toast-close.ls-toast-close.ls-toast-close {
@@ -325,6 +320,8 @@ button.ls-toast-close.ls-toast-close.ls-toast-close {
   box-sizing: content-box;
   margin-left: 12px;
   margin-right: -10px;
+  flex: 1;
+  min-width: 1.8em;
 }
 
 .ls-toast-content {
