@@ -4,7 +4,7 @@
 
     Last modified: 2026
     License: GPL-3.0
-    Version: 5.2.9
+    Version: 6.0.0-alpha.0
     See: https://github.com/thelstv/LS
 */
 
@@ -188,15 +188,6 @@ body {
     }
 }
 
-.ls-tfoot {
-    background: var(--elevate);
-    padding: var(--space-tiny);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    width: 100%;
-}
-
 .ls-table-wrap {
     overflow: auto;
     outline: 1px solid var(--elevate-1);
@@ -213,10 +204,21 @@ body {
     }
 }
 
+.ls-tfoot {
+    background: var(--elevate);
+    padding: var(--space-tiny);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+// Disable transitions (eg. on theme change)
 .no-transitions *, .no-transitions *:before, .no-transitions *:after {
     transition: none !important;
 }
 
+// Generated margin classes
 @each $size in tiny, small, medium, large, xlarge, xxlarge, xxxlarge, huge {
     @each $direction in top, bottom, left, right {
         .margin-#{$direction}-#{$size}.margin-#{$direction}-#{$size}.margin-#{$direction}-#{$size} {
@@ -234,7 +236,6 @@ body {
         margin-right: var(--space-#{$size});
     }
 }
-
 
 ::-webkit-scrollbar {
     width: var(--scrollbar-size, 6px);
@@ -254,24 +255,33 @@ body {
     background: var(--elevate-2);
 }
 
+// Custom selection color based on accent.
+body::selection, [ls-accent]::selection {
+    background: var(--accent-mix-40, #006dff5c);
+}
 
-/* A a fix around Chrome's (even Firefox for some reason) aggressive autofill styling forcing (a hardcoded white background, completely ignoring the theme or any accessibility standards).
-   In my opinion, this is just awful design, kills accessibility, makes pages ugly and distracting, serves no real purpose, and there isn't a way to disable it.
+/* A fix around the aggressively forced autofill style (a hardcoded white background, resets font, completely ignores theme or accessibility).
 
-   This attempts to reverse as much of this terrible override as possible, but it is not perfect, and may still slightly break the input until the user changes the value.
+   In my opinion, it is awful design:
+    - Kills accessibility (sometimes makes text invisible, annoying/hard to read, or just confusing, not speaking of the font being reset)
+    - Makes pages ugly (breaks design flow) and distracting (especially in dark mode)
+    - Serves no purpose (no actually significant meaning, doesn't help security or safety either)
+    - And there isn't a way to disable it.
+
+   This attempts to reverse as much of this override as possible, but it's not perfect, and may still slightly break input styling until the user changes the value.
    A JS action may still be needed to truly fix this.
 
-   Someone should urge Google to fix this, I don't even know how something like this happens in the first place.
-   It's not like it's for legacy purposes either, removing it wouldn't break anything.
+   Someone should fix this, I don't even know how something like this happens in the first place.
+   It's not for legacy purposes either, removing it wouldn't break anything.
 */
 input:-webkit-autofill {
     @extend %font;
+
+    // Ugly hack to fix the white background
     -webkit-box-shadow: 0 0 0 1000px var(--background) inset !important;
     box-shadow: 0 0 0 1000px var(--background) inset !important;
-    -webkit-text-fill-color: var(--color) !important;
-    caret-color: var(--color) !important;
-}
 
-body::selection, [ls-accent]::selection {
-    background: var(--accent-mix-40, #006dff5c);
+    // Fix text color
+    -webkit-text-fill-color: var(--color) !important; // color gets ignored, this still works
+    caret-color: var(--color) !important;
 }

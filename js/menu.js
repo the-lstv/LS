@@ -1003,9 +1003,10 @@ LS.LoadComponent(class Menu extends LS.Component {
         } else {
             if (this.selectedItem) {
                 this.focus(this.selectedItem);
-            } else {
-                this.navigate(1);
             }
+            //  else {
+            //     this.navigate(1);
+            // }
         }
 
         if (this.isOpen) return;
@@ -1317,8 +1318,11 @@ customElements.define('ls-select', class LSSelect extends HTMLElement {
             this.menu = null;
         }
 
-        this.content.remove();
-        this.content = null;
+        if(this.content) {
+            this.content.remove();
+            this.content = null;
+        }
+
         this.label = null;
         this.__pendingValue = null;
     }

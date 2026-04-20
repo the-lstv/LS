@@ -1,8 +1,9 @@
 /**
- * Similar behavior as LS.Create, but compiles into a direct optimized function for repeated use.
- * Useful if you have a medium/large structure you expect to create many times and want direct access to its elements.
- * **Not** useful if you intend to do this once ever, it will be slower than LS.Create.
- * @experimental Very experimental
+ * Similar behavior as LS.Create, but compiles into an optimized function for repeated use, removing helper overhead.
+ * Useful if you have a medium/large structure you expect to create *many* times and want direct access to its elements.
+ * **Not** useful if you intend to do this once ever, it will always be slower than LS.Create.
+ *
+ * @experimental Very experimental, NOT intended to be used on the client; use during development for pre-compiling.
  * 
  * @param {Function|Array|Object|string} templateBuilder A function that returns a template array/object/string or a template array/object/string directly.
  */
@@ -39,6 +40,155 @@ LS.CompileTemplate = (() => {
             return Symbol(`__iter__.${String(prop)}`);
         }
     });
+
+    // Adapter for Emmet syntax, converted into compile-time DOM call strings.
+    class VirtualNode {
+        constructor(tag, ns = null) {
+            this.tag = tag;
+            this.ns = ns;
+            this.attributes = {};
+            this.children = [];
+            this.parentNode = null;
+            this.lastChild = null;
+            this.lastElementChild = null;
+            this.textContent = "";
+            this.id = "";
+            this.__emmetRepeat = 1;
+
+            this._classSet = new Set();
+            this.classList = {
+                add: (...tokens) => {
+                    for (const token of tokens) {
+                        if (token) this._classSet.add(token);
+                    }
+                }
+            };
+        }
+
+        appendChild(child) {
+            if (!child) return child;
+
+            // Match DocumentFragment semantics: append its children, not the fragment wrapper.
+            if (child.tag === "#document-fragment") {
+                const toMove = child.children.slice();
+                child.children.length = 0;
+                child.lastChild = null;
+                child.lastElementChild = null;
+                for (const node of toMove) {
+                    this.appendChild(node);
+                }
+                return child;
+            }
+
+            child.parentNode = this;
+            this.children.push(child);
+            this.lastChild = child;
+            if (child.tag !== "#text" && child.tag !== "#document-fragment") {
+                this.lastElementChild = child;
+            }
+
+            return child;
+        }
+
+        setAttribute(name, value = "") {
+            this.attributes[name] = String(value ?? "");
+        }
+
+        contains(node) {
+            if (!node) return false;
+            if (node === this) return true;
+            for (const child of this.children) {
+                if (child === node || (typeof child.contains === "function" && child.contains(node))) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // The Emmet parser calls this for *n expansions. We keep repeat metadata for codegen.
+        emmetClone(parent, times) {
+            this.__emmetRepeat = Math.max(1, times | 0);
+        }
+
+        toString(assignTo, getVarName) {
+            const lines = [];
+            const root = this.tag === "#document-fragment" ? (this.children[0] || null) : this;
+
+            if (!root) {
+                const fallback = assignTo || getVarName("e");
+                lines.push(`var ${fallback}=document.createDocumentFragment();`);
+                return { lines, rootVar: fallback, rootTag: "#document-fragment" };
+            }
+
+            const createElementExpr = (node) => {
+                if (node.ns) {
+                    return `document.createElementNS(${JSON.stringify(node.ns)},${JSON.stringify(node.tag)})`;
+                }
+                return `document.createElement(${JSON.stringify(node.tag)})`;
+            };
+
+            const emitNode = (node, preferredVar = null) => {
+                if (node.tag === "#text") {
+                    const textVar = preferredVar || getVarName("t");
+                    lines.push(`var ${textVar}=document.createTextNode(${JSON.stringify(node.textContent || "")});`);
+                    return textVar;
+                }
+
+                const varName = preferredVar || getVarName("e");
+                lines.push(`var ${varName}=${createElementExpr(node)};`);
+
+                if (node.id) {
+                    lines.push(`${varName}.id=${JSON.stringify(node.id)};`);
+                }
+
+                if (node._classSet.size > 0) {
+                    lines.push(`${varName}.className=${JSON.stringify(Array.from(node._classSet).join(" "))};`);
+                }
+
+                for (const [attrKey, attrValue] of Object.entries(node.attributes)) {
+                    lines.push(`${varName}.setAttribute(${JSON.stringify(attrKey)},${JSON.stringify(attrValue)});`);
+                }
+
+                for (const child of node.children) {
+                    const repeat = Math.max(1, child.__emmetRepeat | 0);
+
+                    if (repeat === 1) {
+                        const childVar = emitNode(child);
+                        lines.push(`${varName}.appendChild(${childVar});`);
+                        continue;
+                    }
+
+                    const loopVar = getVarName("r");
+                    lines.push(`for(let ${loopVar}=0;${loopVar}<${repeat};${loopVar}++){`);
+                    const repeatedChildVar = emitNode(child);
+                    lines.push(`${varName}.appendChild(${repeatedChildVar});`);
+                    lines.push(`}`);
+                }
+
+                return varName;
+            };
+
+            const rootVar = emitNode(root, assignTo || null);
+            return { lines, rootVar, rootTag: root.tag };
+        }
+    }
+
+    const documentAdapter = {
+        createElement(tag) {
+            return new VirtualNode(tag);
+        },
+        createElementNS(ns, tag) {
+            return new VirtualNode(tag, ns || null);
+        },
+        createDocumentFragment() {
+            return new VirtualNode("#document-fragment");
+        },
+        createTextNode(text) {
+            const node = new VirtualNode("#text");
+            node.textContent = text == null ? "" : String(text);
+            return node;
+        }
+    };
 
     // Static logic object
     const logic = {
@@ -348,22 +498,28 @@ LS.CompileTemplate = (() => {
             }
 
             const {
-                tag, tagName: tn, __exportName,
+                tag, tagName: tn, emmet, __exportName,
                 class: className, tooltip, ns, accent, style,
                 inner, content: innerContent, reactive,
                 attr, options, attributes, sanitize, state,
                 ...rest
             } = item;
 
-            const tagName = tag || tn || "div";
+            const emmetSnippet = emmet || tag || tn || "div";
             const varName = assignTo || getVarName();
             const needsExport = !!__exportName;
 
-            // Create element
-            if (ns) {
-                lines.push(`var ${varName}=document.createElementNS(${JSON.stringify(ns)},${JSON.stringify(tagName)});`);
+            const parsed = LS.Util.parseEmmet(emmetSnippet, { ns }, documentAdapter);
+            const parsedCode = parsed && typeof parsed.toString === "function"
+                ? parsed.toString(varName, getVarName)
+                : null;
+
+            if (parsedCode && parsedCode.lines && parsedCode.lines.length) {
+                for (const emitted of parsedCode.lines) lines.push(emitted);
+            } else if (ns) {
+                lines.push(`var ${varName}=document.createElementNS(${JSON.stringify(ns)},${JSON.stringify(emmetSnippet)});`);
             } else {
-                lines.push(`var ${varName}=document.createElement(${JSON.stringify(tagName)});`);
+                lines.push(`var ${varName}=document.createElement(${JSON.stringify(emmetSnippet)});`);
             }
 
             // Track exports
@@ -462,7 +618,8 @@ LS.CompileTemplate = (() => {
             }
 
             // Handle ls-select options
-            if (tagName.toLowerCase() === "ls-select" && options) {
+            const emmetRootTag = parsedCode && parsedCode.rootTag ? parsedCode.rootTag : emmetSnippet;
+            if (String(emmetRootTag).toLowerCase() === "ls-select" && options) {
                 lines.push(`${varName}._lsSelectOptions=${jsValue(options, iterVar)};`);
             }
 

@@ -12,21 +12,25 @@
         default: {
             pointer: "dot"
         },
+
         chrome: {
             arcFill: false,
             arcWidth: 5,
             pointer: "line",
             pointerGlow: true
         },
+
         flat: {
             arcFill: false,
             arcBackground: true
         },
+
         progress: {
             arcGap: [180, 540],
             arcFill: false,
             pointer: "none"
         },
+
         numeric: {
             arc: false,
             arcBackground: false,
@@ -34,6 +38,7 @@
             showTooltip: false,
             digit: true
         },
+
         numericPlain: {
             arc: false,
             arcBackground: false,
@@ -54,21 +59,6 @@
         arcFill: true,
         digit: false,
         pointer: "none"
-    };
-
-    const DEFAULTS = {
-        min: 0,
-        max: 100,
-        step: 1,
-        value: 0,
-        preset: "default",
-        sensitivity: 0.5,
-        disabled: false,
-        showTooltip: true,
-        numeric: false,
-        valueDisplayFormatter: null,
-        label: null,
-        bipolar: "auto" // "auto" = true when min < 0 < max, or explicit true/false
     };
 
     const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
@@ -106,6 +96,21 @@
         static presets = PRESETS;
         static defaultStyle = DEFAULT_STYLE;
 
+        static defaults = LS.Util.staticDefaults({
+            min: 0,
+            max: 100,
+            step: 1,
+            value: 0,
+            preset: "default",
+            sensitivity: 0.5,
+            disabled: false,
+            showTooltip: true,
+            numeric: false,
+            valueDisplayFormatter: null,
+            label: null,
+            bipolar: "auto" // "auto" = true when min < 0 < max, or explicit true/false
+        });
+
         /**
          * Creates a new Knob instance
          * @param {HTMLElement} element - Container element
@@ -119,7 +124,7 @@
 
             this.element.knob = this;
 
-            this.options = LS.Util.defaults(DEFAULTS, options);
+            this.options = this.constructor.defaults(options);
             this.style = { ...DEFAULT_STYLE };
 
             this.#value = clamp(this.options.value, this.options.min, this.options.max);

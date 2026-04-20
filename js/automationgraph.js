@@ -1,6 +1,6 @@
 /**
  * Automation graph component for LS.
- * Migrated from v3 - still work in progress.
+ * Migrated from v3.
  * 
  * @author lstv.space
  * @license GPL-3.0

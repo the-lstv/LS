@@ -39,9 +39,6 @@
 [ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)):not(:disabled, .no-effect):active {
   background-color: var(--accent-30);
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)):not(:disabled, .no-effect):focus {
-  outline: 3px solid var(--accent-mix-10);
-}
 [ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button), :is(select, ls-select, .ls-select .ls-select-handle)):not(:disabled, .no-effect):focus-visible {
   outline: 3px solid currentColor;
 }

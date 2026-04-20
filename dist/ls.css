@@ -4,7 +4,7 @@
 
     Last modified: 2026
     License: GPL-3.0
-    Version: 5.2.9
+    Version: 6.0.0
     See: https://github.com/thelstv/LS
 */
 /*
@@ -411,6 +411,8 @@ button.ls-toast-close.ls-toast-close.ls-toast-close {
   border-bottom: 4px solid var(--ui-element);
   box-shadow: 0 1px 0 0 var(--elevate-0);
   padding: 4px 0 0 6px;
+  min-height: 41px;
+  align-items: center;
 }
 .ls-tabs.ls-tabs-styled .ls-tab-close.ls-tab-close.ls-tab-close {
   border-radius: 5px;
@@ -423,6 +425,7 @@ button.ls-toast-close.ls-toast-close.ls-toast-close {
 }
 .ls-tabs.ls-tabs-styled .ls-tab-handle {
   --background: none;
+  --handle-indent-radius: 12px;
   position: relative;
   display: flex;
   align-items: center;
@@ -435,19 +438,22 @@ button.ls-toast-close.ls-toast-close.ls-toast-close {
   cursor: pointer;
   padding: 2px calc(var(--padding-control-h) - 4px);
   margin: 4px;
-  margin-top: 0;
+  margin-top: 1px;
 }
 .ls-tabs.ls-tabs-styled .ls-tab-handle.ls-tab-handle:hover:not(.active) {
   --background: var(--elevate);
 }
+.ls-tabs.ls-tabs-styled .ls-tab-handle > * {
+  z-index: 1;
+}
 .ls-tabs.ls-tabs-styled .ls-tab-handle.active:not([data-ls-state=loading]) {
   --background: var(--ui-element);
   z-index: 1;
-  box-shadow: 0 4px 12px 2px rgba(0, 0, 0, 0.1333333333);
   border-radius: var(--border-radius) var(--border-radius) 0 0;
   padding: 2px var(--padding-control-h);
   padding-bottom: 6px;
   margin: 0;
+  margin-bottom: -1px;
 }
 .ls-tabs.ls-tabs-styled .ls-tab-handle.active:not([data-ls-state=loading])::after, .ls-tabs.ls-tabs-styled .ls-tab-handle.active:not([data-ls-state=loading])::before {
   content: "";
@@ -459,7 +465,7 @@ button.ls-toast-close.ls-toast-close.ls-toast-close {
   width: 10px;
   pointer-events: none;
   transition: box-shadow 0.1s;
-  z-index: 0;
+  z-index: -1;
 }
 .ls-tabs.ls-tabs-styled .ls-tab-handle[data-ls-state=loading] {
   cursor: wait;
@@ -474,12 +480,12 @@ button.ls-toast-close.ls-toast-close.ls-toast-close {
 .ls-tabs.ls-tabs-styled .ls-tab-handle::after {
   transform: rotate(-90deg);
   left: calc(100% + 18px);
-  border-top-left-radius: 8px;
+  border-top-left-radius: var(--handle-indent-radius);
 }
 .ls-tabs.ls-tabs-styled .ls-tab-handle::before {
   transform: rotate(90deg);
   left: -28px;
-  border-top-right-radius: 8px;
+  border-top-right-radius: var(--handle-indent-radius);
 }
 
 .ls-tooltip-layer {
@@ -791,6 +797,7 @@ button.ls-toast-close.ls-toast-close.ls-toast-close {
   align-items: center;
   gap: 5px;
   overflow: hidden;
+  min-height: fit-content;
 }
 
 .ls-list-item:hover, .ls-list-item.selected {
@@ -2356,15 +2363,6 @@ body {
   border-bottom: 1px solid var(--elevate-1);
 }
 
-.ls-tfoot {
-  background: var(--elevate);
-  padding: var(--space-tiny);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  width: 100%;
-}
-
 .ls-table-wrap {
   overflow: auto;
   outline: 1px solid var(--elevate-1);
@@ -2378,6 +2376,15 @@ body {
   background: none;
   width: 100%;
   box-shadow: none;
+}
+
+.ls-tfoot {
+  background: var(--elevate);
+  padding: var(--space-tiny);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
 }
 
 .no-transitions *, .no-transitions *:before, .no-transitions *:after {
@@ -2610,24 +2617,29 @@ body {
   background: var(--elevate-2);
 }
 
-/* A a fix around Chrome's (even Firefox for some reason) aggressive autofill styling forcing (a hardcoded white background, completely ignoring the theme or any accessibility standards).
-   In my opinion, this is just awful design, kills accessibility, makes pages ugly and distracting, serves no real purpose, and there isn't a way to disable it.
+body::selection, [ls-accent]::selection {
+  background: var(--accent-mix-40, rgba(0, 109, 255, 0.3607843137));
+}
 
-   This attempts to reverse as much of this terrible override as possible, but it is not perfect, and may still slightly break the input until the user changes the value.
+/* A fix around the aggressively forced autofill style (a hardcoded white background, resets font, completely ignores theme or accessibility).
+
+   In my opinion, it is awful design:
+    - Kills accessibility (sometimes makes text invisible, annoying/hard to read, or just confusing, not speaking of the font being reset)
+    - Makes pages ugly (breaks design flow) and distracting (especially in dark mode)
+    - Serves no purpose (no actually significant meaning, doesn't help security or safety either)
+    - And there isn't a way to disable it.
+
+   This attempts to reverse as much of this override as possible, but it's not perfect, and may still slightly break input styling until the user changes the value.
    A JS action may still be needed to truly fix this.
 
-   Someone should urge Google to fix this, I don't even know how something like this happens in the first place.
-   It's not like it's for legacy purposes either, removing it wouldn't break anything.
+   Someone should fix this, I don't even know how something like this happens in the first place.
+   It's not for legacy purposes either, removing it wouldn't break anything.
 */
 input:-webkit-autofill {
   -webkit-box-shadow: 0 0 0 1000px var(--background) inset !important;
   box-shadow: 0 0 0 1000px var(--background) inset !important;
   -webkit-text-fill-color: var(--color) !important;
   caret-color: var(--color) !important;
-}
-
-body::selection, [ls-accent]::selection {
-  background: var(--accent-mix-40, rgba(0, 109, 255, 0.3607843137));
 }
 
 /*# sourceMappingURL=ls.css.map */

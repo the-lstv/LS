@@ -355,6 +355,8 @@ button#{priority(".ls-toast-close", 3)} {
             border-bottom: 4px solid var(--ui-element);
             box-shadow: 0 1px 0 0 var(--elevate-0);
             padding: 4px 0 0 6px;
+            min-height: 41px;
+            align-items: center;
         }
 
         .ls-tab-close.ls-tab-close.ls-tab-close {
@@ -370,6 +372,8 @@ button#{priority(".ls-toast-close", 3)} {
         .ls-tab-handle {
             --background: none;
 
+            --handle-indent-radius: 12px;
+
             position: relative;
             display: flex;
             align-items: center;
@@ -384,20 +388,27 @@ button#{priority(".ls-toast-close", 3)} {
             
             padding: 2px calc(var(--padding-control-h) - 4px);
             margin: 4px;
-            margin-top: 0;
+            margin-top: 1px;
 
             &.ls-tab-handle:hover:not(.active) {
                 --background: var(--elevate);
             }
 
+            &>* {
+                // Prevent clipping
+                z-index: 1;
+            }
+
             &.active:not([data-ls-state="loading"]) {
                 --background: var(--ui-element);
                 z-index: 1;
-                box-shadow: 0 4px 12px 2px #0002;
                 border-radius: var(--border-radius) var(--border-radius) 0 0;
                 padding: 2px var(--padding-control-h);
                 padding-bottom: 6px;
                 margin: 0;
+
+                // Prevent gap
+                margin-bottom: -1px;
 
                 &::after, &::before {
                     content: "";
@@ -409,7 +420,7 @@ button#{priority(".ls-toast-close", 3)} {
                     width: 10px;
                     pointer-events: none;
                     transition: box-shadow 0.1s;
-                    z-index: 0;
+                    z-index: -1;
                 }
             }
 
@@ -429,13 +440,13 @@ button#{priority(".ls-toast-close", 3)} {
             &::after {
                 transform: rotate(-90deg);
                 left: calc(100% + 18px);
-                border-top-left-radius: 8px;
+                border-top-left-radius: var(--handle-indent-radius);
             }
     
             &::before {
                 transform: rotate(90deg);
                 left: -28px;
-                border-top-right-radius: 8px;
+                border-top-right-radius: var(--handle-indent-radius);
             }
         }
     }

@@ -7,10 +7,12 @@
 
 const LS_VERSION = LS.v; // Major version
 
-const banners = {
-    5: "https://cdn.extragon.cloud/file/9d35fb2c1bd2482b.webp",
-    6: "https://cdn.extragon.cloud/file/19613b60f986c5f6.webp"
+const version_specific = {
+    5: { banner: "https://cdn.extragon.cloud/file/9d35fb2c1bd2482b.webp", accent: "aquamarine" },
+    6: { banner: "https://cdn.extragon.cloud/file/19613b60f986c5f6.webp", accent: "rusty-red" }
 }
+
+document.body.setAttribute("ls-accent", version_specific[LS_VERSION]?.accent);
 
 function section(title, inner) {
     return {
@@ -37,7 +39,7 @@ function render() {
     const sidebar = document.querySelector(".ls-sidebar-items");
     const root = LS.Create(".ls-sidebar-content", {
         inner: [
-            section([(banners[LS_VERSION] && { tag: "img", src: banners[LS_VERSION], alt: "Banner" }), { tag: "br" }, "LS", { tag: "span", style: "color: var(--accent)", inner: "v" + LS_VERSION }], [
+            section([(version_specific[LS_VERSION]?.banner && { tag: "img", src: version_specific[LS_VERSION].banner, alt: "Banner" }), { tag: "br" }, "LS", { tag: "span", style: "color: var(--accent)", inner: "v" + LS_VERSION }], [
 
                 { tag: "h2", inner: "Buttons" },
 

@@ -130,7 +130,8 @@ module.exports = new class LS_API extends Units.Addon {
         if (isWindows || isBeta) {
             // Windows is quite unreliable with symlinks (or does not provide them at all in some environments), so we skip them entirely and just use dist.
             // This is incorrect, but you shouldn't use Windows for production servers anyway, this API does not support Windows, so functionality is not guaranteed either way.
-            VERSION_PATH = version === "alpha"? BASE_PATH + "/v6/dist": BASE_PATH + "/dist";
+            // VERSION_PATH = version === "alpha"? BASE_PATH + "/v6/dist": BASE_PATH + "/dist";
+            VERSION_PATH = BASE_PATH + "/dist";
         } else {
             if(!VERSIONS.has(version)) {
                 if(!Units.Version.isValid(version)) {
@@ -377,4 +378,4 @@ const blockProcessor = ({ attrib, version, components, scriptAttributes, context
     context.data.flags.set(PARSER_FLAGS.USING_LS);
 };
 
-webserver.registerModuleProvider("ls", blockProcessor); // Catches ls**:version[components]
+if(webserver.registerModuleProvider) webserver.registerModuleProvider("ls", blockProcessor); // Catches ls**:version[components]
