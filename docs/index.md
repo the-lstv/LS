@@ -6,7 +6,7 @@ title: animation
 
 # What's LS?
 
-LS is a flexible and feature-rich frontend/UI framework, that provides various components, utilities, and more.<br>
+LS is a flexible & feature-rich frontend/UI framework, that provides various components, utilities, and more.<br>
 It is incredibly lightweight, fast, feature-rich, and designed to make frontend development enjoyable, while making your apps feel super smooth and performant, and significantly reduce bundle size/bloat.<br>
 
 ## Quick feature overview:
@@ -35,9 +35,9 @@ Adding LS to your project is as easy as just adding any library.
 
 ### Method 1 (only when using the Akeno server):
 
-[Akeno](https://github.com/the-lstv/akeno) is a powerful webserver developed by me, and thus works nicely together with LS.<br>If you are not using it, skip to the next section.
+[Akeno](https://github.com/the-lstv/akeno) is a powerful webserver developed by me, and thus works nicely together with LS.<br>If you are not using it, skip to the second method.
 
-If you are using Akeno, all you need to do is to add this to your head tag:
+If you are using Akeno, all you need to do is to add an @use block like this to your head tag:
 ```html
 <head>
     @use(ls:version[...components]);
@@ -49,10 +49,10 @@ Such as:
     @use(ls:6.0.0[color, flat, animation, modal, tooltips, tabs]);
 </head>
 ```
-Akeno takes care of adding the correct tags, version, and sorting components for optimal caching for you automatically. It will also cleverly combine multiple @use directives for the most optimal bundle.
+Akeno takes care of adding the correct tags, version, and sorting components for optimal caching for you automatically. It will also cleverly combine @use directives for an optimal bundle.
 
-### Method 2 (for every other environment):
-If you are not using Akeno, you can add LS to your project by using regular script and link tags, such as:
+### Method 2 (every other environment):
+If not using Akeno, you can add LS to your project by using regular script and link tags using the CDN, such as:
 ```html
 <head>
     <!-- Syntax: version/...components/ls.css -->
@@ -62,9 +62,11 @@ If you are not using Akeno, you can add LS to your project by using regular scri
     <!-- I recommend using the utility to get the links: https://lstv.space/tools/ls-loader -->
 </head>
 ```
+These expose LS as a global.
+
 > [!WARNING]
-> By using this method, you need to manually specify components per JS/CSS and ensure they match.
-> Want an easier way? Try this -> [utility](https://lstv.space/tools/ls-loader) <- that generates the correct tags/URLs for you based on which components/styles you need! (or try Akeno)
+> By using this method, you need to manually specify JS/CSS components and ensure they match.
+> Want an easier way? Try this [utility](https://lstv.space/tools/ls-loader) that generates the correct tags/URLs for you based on which components/styles you need!
 
 <br>
 
@@ -117,7 +119,7 @@ LS.Create("div", ["Hello ", "World"]); // -> <div>Hello World</div>
 
 // Or via the following properties:
 LS.Create({
-    text: "Hello World", // textContent (plain text)
+    text: "Hello World", // textContent (plain text, safe from HTML injection)
 });
 
 LS.Create({
@@ -145,4 +147,34 @@ LS.Create({
 LS.Util.parseEmmet("div+span"); // -> DocumentFragment[<div></div>, <span></span>]
 
 // 99% of Emmet is supported, as of now only numbering ($) is not supported, but is planned soon.
+
+// There's more that LS.Create can do, such as sanitizing your HTML (sanitize option).
 ```
+
+### Selecting elements
+LS provides simple utilities (`LS.Select` and `LS.SelectOne`) for selecting elements. They aren't much different from document.querySelector with the exception that Select returns an actual Array rather than an element collection & has a slightly more flexible API.
+```js
+LS.Select(".myClass"); // Array of all elements with the myClass class.
+```
+
+### Deep cloning data
+LS has a helper for cloning complex structured objects, that performs faster than the native structuredClone or the popular library "klona".
+
+```js
+LS.Util.clone({}); // This accepts any complex (nested) object, array, Map, Set, typed array/array buffer, or primitive. It will return a new clone of that object that doesn't affect the original.
+```
+
+### Query parameters
+<jsdoc-generate></jsdoc-generate>
+
+LS has a ridiculously fast utility for passing query parameters, either to an object, or getting the value of one parameter. It's ~11x faster & slightly more convenient than native SearchParams (in Chrome) if you aren't expecting multiple values for the same parameter and don't require 100% spec compliance.
+
+```
+// To get an object of all parameters, such as { key: "value" }
+LS.Util.parseQuery("?key=value");
+
+// To get one value
+LS.Util.parseQuery("?key=value", "key");
+```
+
+### 
