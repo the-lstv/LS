@@ -129,7 +129,7 @@ window.LS_INIT_OPTIONS = {
 
 # Helpers & Utilities
 
-### Creating elements
+### Creating elements #sym:LS.Create
 LS provides a rich utility for creating HTML elements.
 Let's see how it works:
 ```js
@@ -199,7 +199,7 @@ LS.Util.parseEmmet("div+span"); // -> DocumentFragment[<div></div>, <span></span
 // There's more that LS.Create can do, such as sanitizing your HTML (sanitize option).
 ```
 
-### Selecting elements
+### Selecting elements #sym:LS.Select #sym:LS.SelectOne
 LS provides simple utilities (`LS.Select` and `LS.SelectOne`) for selecting elements. Though they aren't much different from document.querySelector.
 
 ```js
@@ -211,8 +211,8 @@ LS.Select(someParentElement, ".myClass"); // Search only within someParentElemen
 LS.SelectOne(someParentElement, "#myId"); // Search only within someParentElement.
 ```
 
-### Deep cloning data
-LS has a helper for cloning complex structured objects, that performs faster than the native `structuredClone` or even the popular library "klona" (https://jsbm.dev/wFkz6UCGJevxw).
+### Deep cloning data #sym:LS.Util.clone
+LS has a helper for cloning complex structured objects, that performs faster than the native `structuredClone` or even the popular library "klona" ([benchmark](https://jsbm.dev/wFkz6UCGJevxw)).
 It accepts any complex object, array, Map, Set, typed array/array buffer, all primitives, and some other types like RegExp or Date. Note: currently it does not support cloning functions or classes.
 
 ```js
@@ -220,8 +220,7 @@ It accepts any complex object, array, Map, Set, typed array/array buffer, all pr
 LS.Util.clone({});
 ```
 
-### Parsing query parameters
-<jsdoc-generate></jsdoc-generate>
+### Parsing query parameters #sym:LS.Util.parseQuery
 
 LS has a ridiculously fast utility for passing query parameters, either to an object, or getting the value of one parameter. It's ~11x faster & slightly more convenient than native URLSearchParams (in Chrome) if you aren't expecting multiple values for the same parameter and don't require 100% spec compliance.
 
@@ -233,7 +232,7 @@ LS.Util.parseQuery("?key=value"); // -> { key: "value" }
 LS.Util.parseQuery("?key=value", "key"); // -> "value"
 ```
 
-### Parsing Emmet abbreviations
+### Parsing Emmet abbreviations #sym:LS.Util.parseEmmet
 LS has a light Emmet abbreviation parser that supports most of the Emmet syntax.<br>
 See: https://docs.emmet.io/abbreviations/syntax/ to see what you can do.<br>
 
@@ -248,7 +247,7 @@ LS.Util.parseEmmet("{I am kept}+{I am discarded}", { singleNode: true });
 // This is the the utility that LS.Create uses; for more options, you can use LS.Create.
 ```
 
-### Sanitize HTML
+### Sanitize HTML #sym:LS.Util.sanitize
 A very simple utility for sanitizing/cleaning an element.<br>
 It removes all child elements not on a whitelist and removing unsafe attributes.<br>
 Note; this mutates the element you pass.
@@ -257,18 +256,18 @@ const myElement = LS.Create("span{Hello World}>script{alert('XSS')}");
 LS.Util.sanitize(myElement); // myElement is now <span>Hello World</span>.
 
 // LS.Create also supports this, eg.:
-LS.Create("span", { html: "<script>alert('XSS')</script><span onclick='alert(\"XSS\")'>Hello World</span>", sanitize: true });
+LS.Create("span", { html: "<script>alert('XSS')</script><span onclick='alert(\\\"XSS\\\")'>Hello World</span>", sanitize: true });
 
 // Allowlist is in LS.Util.allowedTags
 ```
 
-### Copy to clipboard
+### Copy to clipboard #sym:LS.Util.copy
 A very simple utility for copying text to the clipboard.
 ```js
 LS.Util.copy("Text to copy");
 ```
 
-### Normalizing text
+### Normalizing text #sym:LS.Util.normalize
 A function that normalizes text by performing the following operations:
 - Converting to lowercase
 - NFD Unicode normalization (eg. converts "é" to "e")

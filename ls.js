@@ -2347,21 +2347,22 @@
                 }
 
                 set(value) {
-                    if(this.value === value) return;
+                    if(this.value === value) return value;
                     this.value = value;
                     this.onSet(this.value);
+                    return value;
                 }
 
                 on() {
-                    this.set(true);
+                    return this.set(true);
                 }
 
                 off() {
-                    this.set(false);
+                    return this.set(false);
                 }
 
                 toggle() {
-                    this.set(!this.value);
+                    return this.set(!this.value);
                 }
 
                 destroy() {

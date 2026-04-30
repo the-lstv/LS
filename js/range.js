@@ -250,49 +250,38 @@ LS.LoadComponent(class Range extends LS.Component {
      * Needs work.
      */
     renderDots() {
-        if(!this.step || this.max <= this.min) {
-            if(this._renderedDotCount !== 0) {
-                this.dots.innerHTML = "";
-                this._renderedDotCount = 0;
-            }
+        let dotCount = 0;
 
+        if (this.step && this.max > this.min) {
+            const width = this.element.clientWidth || this.element.getBoundingClientRect().width;
+
+            if (width > 0) {
+                const steps = Math.floor((this.max - this.min) / this.step);
+                const candidateCount = steps + 1;
+                const maxDots = Math.floor(width / this._dotDensity) + 1;
+
+                if (candidateCount > 1 && candidateCount <= maxDots) {
+                    dotCount = candidateCount;
+                }
+            }
+        }
+
+        if (this._renderedDotCount === dotCount) {
             return;
         }
 
-        const steps = Math.floor((this.max - this.min) / this.step);
-        const dotCount = steps + 1;
-        const width = this.element.clientWidth || this.element.getBoundingClientRect().width;
-
-        if(width <= 0) {
-            if(this._renderedDotCount !== 0) {
-                this.dots.innerHTML = "";
-                this._renderedDotCount = 0;
-            }
-
-            return;
-        }
-
-        const maxDots = Math.floor(width / this._dotDensity) + 1;
-
-        if(dotCount <= 1 || dotCount > maxDots) {
-            if(this._renderedDotCount !== 0) {
-                this.dots.innerHTML = "";
-                this._renderedDotCount = 0;
-            }
-
-            return;
-        }
-
-        if(this._renderedDotCount === dotCount) {
+        if (dotCount === 0) {
+            this.dots.textContent = "";
+            this._renderedDotCount = 0;
             return;
         }
 
         const fragment = document.createDocumentFragment();
 
-        for(let index = 0; index < dotCount; index++) {
+        for (let i = 0; i < dotCount; i++) {
             const dot = document.createElement("span");
-            if(index !== 0 && index !== dotCount - 1) {
-                dot.classList.add("ls-range-dot");
+            if (i !== 0 && i !== dotCount - 1) {
+                dot.className = "ls-range-dot";
             }
             fragment.appendChild(dot);
         }
@@ -305,7 +294,7 @@ LS.LoadComponent(class Range extends LS.Component {
         const range = this.max - this.min;
         const percentage = range > 0? (this._value - this.min) / range : 0;
         this.element.style.setProperty("--range-value", percentage * 100 + "%");
-        this.renderDots();
+        queueMicrotask? queueMicrotask(() => this.renderDots()): this.renderDots();
     }
 
     destroy() {
