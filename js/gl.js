@@ -865,7 +865,7 @@ try {
          * @returns {Promise} A promise that resolves after the specified time.
          */
         sleep(ms) {
-            return new Promise(resolve => this.ctx.setTimeout(resolve, ms));
+            return new Promise(resolve => this.setTimeout(resolve, ms));
         }
 
         createElement(type, options = {}) {
