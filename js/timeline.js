@@ -45,6 +45,11 @@
         framerateLimit: 90
     };
 
+    function fortnite(value, fallback = 0) {
+        value = Number(value);
+        return Number.isFinite(value) ? value : fallback;
+    }
+
     // const TEMPLATE = LS.CompileTemplate((data, logic) => ({
     //     attributes: { tabindex: "0" },
     //     inner: [
@@ -84,21 +89,6 @@
 
     // Until I have a server-side transpiler of LS.CompileTemplate, I will hard-code the output here to give the client some rest :P
     const TEMPLATE = function(d){'use strict';var e0=document.createElement("div");e0.setAttribute("tabindex","0");var e1=document.createElement("div");e1.className="ls-timeline-markers";var e2=document.createElement("div");e2.className="ls-timeline-player-head";var e3=document.createElement("div");e3.className="ls-timeline-selection-rect";e3.style.cssText="position: absolute; pointer-events: none; display: none; border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent) 50%, rgba(0, 0, 0, 0.2) 50%); z-index: 100;";var e4=document.createElement("div");e4.className="ls-timeline-snap-line";e4.style.cssText="position: fixed; top: 0; left: 0; width: 1px; background: var(--accent-60); z-index: 1000; pointer-events: none; display: none;";var e5=document.createElement("div");e5.className="ls-timeline-scroll-container";var e6=document.createElement("div");e6.className="ls-timeline-spacer";e6.style.cssText="height: 1px; width: 0px;";var e7=document.createElement("div");e7.className="ls-timeline-rows";e5.append(e6,e7);e0.append(e1,e2,e3,e4,e5);var __rootValue=e0;return{"markerContainer":e1,"playerHead":e2,"selectionRect":e3,"snapLine":e4,"scrollContainer":e5,"spacerElement":e6,"rowContainer":e7,root:__rootValue};}
-
-
-    // :shrug:
-    // const computeZoomMultiplier = (zoom) => {
-    //     return zoom < 0.005 ? 512
-    //         : zoom < 0.01 ? 256
-    //         : zoom < 0.015 ? 128
-    //         : zoom < 0.02 ? 64
-    //         : zoom < 0.05 ? 32
-    //         : zoom < 0.1 ? 16
-    //         : zoom < 0.25 ? 8
-    //         : zoom < 0.5 ? 4
-    //         : zoom < 10 ? 1
-    //         : 0.5;
-    // };
 
     LS.LoadComponent(class Timeline extends LS.Component {
         /**
@@ -998,6 +988,8 @@
         sortItems() {
             this.items.sort((a, b) => (a.start || 0) - (b.start || 0));
 
+            this.itemMap.clear();
+
             let totalDuration = 0;
             this.maxDuration = 0;
 
@@ -1005,13 +997,16 @@
                 const item = this.items[i];
                 if (!item.id) {
                     item.id = LS.Misc.uid();
-                    this.itemMap.set(item.id, item);
                 }
-                if (!item.duration || item.duration < 0) item.duration = 0;
-                if (!item.start || item.start < 0) item.start = 0;
-                if (!item.row || item.row < 0) item.row = 0;
-                if (item.duration > this.maxDuration) this.maxDuration = item.duration;
+
+                this.itemMap.set(item.id, item);
+
+                item.start = Math.max(0, fortnite(item.start));
+                item.duration = Math.max(0, fortnite(item.duration));
+                item.row = Math.max(0, Math.floor(fortnite(item.row)));
+
                 if (!item.data) item.data = {};
+                if (item.duration > this.maxDuration) this.maxDuration = item.duration;
                 const end = item.start + item.duration;
                 if (end > totalDuration) totalDuration = end;
             }
@@ -1197,11 +1192,12 @@
                     continue;
                 }
 
+                const widthChanged = computedWidth !== item.__previousWidth;
                 const itemElement = item.timelineElement || this.createTimelineElement(item);
                 const itemRow = item.row || 0;
 
                 // Ensure we do not trigger CSS layout - only update if changed
-                if (computedWidth !== item.__previousWidth) {
+                if (widthChanged) {
                     itemElement.style.width = computedWidth + "px";
                     item.__previousWidth = computedWidth;
                 }
@@ -1233,21 +1229,25 @@
 
                 // Handle automation clips
                 if (item.type === "automation") {
-                    const clip = item.__automationClip;
-                    if (needsAppend) {
-                        if (!clip && autoCreateAutomation) {
-                            const data = item.data || (item.data = {});
-                            data.points = data.points || [];
-                            item.__automationClip = new LS.AutomationGraph({ items: data.points, value: data.value || 0 });
+                    let clip = item.__automationClip;
+
+                    if (!clip && autoCreateAutomation) {
+                        const data = item.data || (item.data = {});
+                        data.points = data.points || [];
+                        clip = item.__automationClip = new LS.AutomationGraph({
+                            items: data.points,
+                            value: data.value || 0
+                        });
+                    }
+
+                    if (clip) {
+                        if (needsAppend) {
+                            clip.setElement(itemElement);
                         }
-                        if (item.__automationClip) {
-                            item.__automationClip.setElement(itemElement);
-                            item.__automationClip.updateScale(zoom);
-                            item.__automationClip.updateSize(computedWidth, automationHeight);
-                        }
-                    } else if (clip) {
+
                         clip.updateScale(zoom);
-                        if (computedWidth !== item.__previousWidth || rowHeight !== item.__previousHeight) {
+
+                        if (needsAppend || widthChanged || rowHeight !== item.__previousHeight) {
                             clip.updateSize(computedWidth, automationHeight);
                             item.__previousHeight = rowHeight;
                         }
@@ -1363,21 +1363,23 @@
 
         cloneItem(item, keepId = false) {
             const id = keepId? item.id: LS.Misc.uid();
+
             return {
                 start: item.start,
                 duration: item.duration,
-                id: id,
+                id,
                 row: item.row || 0,
                 label: item.label || id,
                 color: item.color || null,
                 data: item.data && LS.Util.clone(item.data, (key, value) => {
                     // Skip prefixed properties, DOM elements, and functions
-                    if (key.startsWith("_") || (value instanceof Element) || typeof value === "function") return undefined;
-                    return true;
+                    return ((typeof key === "string" && key.startsWith("_")) ||
+                        value instanceof Element ||
+                        typeof value === "function")? undefined : true;
                 }),
                 type: item.type || null,
-                ...item.cover? { cover: item.cover }: null,
-                ...item.waveform? { waveform: item.waveform }: null,
+                ...(item.cover? { cover: item.cover }: null),
+                ...(item.waveform? { waveform: item.waveform }: null)
             };
         }
 
@@ -1630,6 +1632,12 @@
                 this.frameScheduler.schedule();
             }
 
+            this.selectedItems.delete(item);
+
+            if (this.__rendered && item.timelineElement) {
+                this.__rendered.delete(item.timelineElement);
+            }
+
             if (item.id) this.itemMap.delete(item.id);
             if(item.type === "automation" && item.__automationClip) {
                 item.__automationClip?.destroy?.();
@@ -1642,6 +1650,9 @@
 
             if (item.timelineElement && item.timelineElement.parentNode) {
                 item.timelineElement.remove();
+                if (item.timelineElement) {
+                    item.timelineElement.__eligible = false;
+                }
             }
 
             this.quickEmit("item-removed", item);
@@ -1668,9 +1679,21 @@
          */
         destroyTimelineElement(item) {
             if (item.timelineElement) {
-                if(LS.Resize) LS.Resize.remove(item.timelineElement);
-                if(item.timelineElement.parentNode) item.timelineElement.remove();
+                if (LS.Resize) {
+                    LS.Resize.remove(item.timelineElement);
+                }
+
+                if (this.__rendered) {
+                    this.__rendered.delete(item.timelineElement);
+                }
+
+                if (item.timelineElement.parentNode) {
+                    item.timelineElement.remove();
+                }
+
+                item.timelineElement.__timelineItem = null;
             }
+
             item.timelineElement = null;
         }
 
@@ -1706,33 +1729,51 @@
         }
 
         reset(destroyItems = true, replacingItems = null) {
-            if(this.destroyed) return;
+            if (this.destroyed) return;
 
-            for (let item of this.items) {
+            const oldItems = Array.isArray(this.items) ? this.items.slice() : [];
+
+            for (const item of oldItems) {
                 if (destroyItems) {
                     this.destroyItem(item);
                 } else if (item.timelineElement && item.timelineElement.parentNode) {
                     if (item.type === "automation" && item.__automationClip) {
                         item.__automationClip.setElement(null);
                     }
+
+                    if (this.__rendered) {
+                        this.__rendered.delete(item.timelineElement);
+                    }
+
                     item.timelineElement.remove();
                 }
             }
 
+            this.items = replacingItems || [];
+
+            this.itemMap.clear();
+            this.__rendered.clear();
+            this.selectedItems.clear();
+            this.focusedItem = null;
+
             this.maxDuration = 0;
             this.#duration = 0;
+
             this.clearUnusedRows();
             this.reserveRows(this.options.startingRows);
 
-            this.items = replacingItems || [];
-            this.itemMap.clear();
             if (replacingItems) {
                 for (const item of this.items) {
                     if (!item.id) item.id = LS.Misc.uid();
                     this.itemMap.set(item.id, item);
                 }
+
+                this.__needsSort = true;
                 this.sortItems();
+            } else {
+                this.__needsSort = false;
             }
+
             this.frameScheduler.schedule();
         }
 
@@ -1942,10 +1983,8 @@
             this.reset(true);
             this.frameScheduler.destroy();
             this.frameScheduler = null;
-            this.container.remove();
             this.clipboard = null;
             this.__actionEventRef = null;
-            this.container = null;
             this.markerPool = null;
             this.activeMarkers = null;
             this.selectedItems.clear();
@@ -1979,6 +2018,9 @@
                 this.container.removeEventListener('drop', this.__nativeDropHandler);
                 this.__nativeDropHandler = null;
             }
+
+            this.container.remove();
+            this.container = null;
 
             if(this.contextMenu) {
                 this.contextMenu.destroy();
