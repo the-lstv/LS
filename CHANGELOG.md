@@ -20,6 +20,7 @@ Major update (2026 release)!
 - EventEmitter.alias is now EventEmitter.aliasEvent for clarity
 - Enhancements to LS.ImageCropper
 - Enhancements to LS.Toast (smoother animations, responsive)
+- Added tools to LS.Timeline
 < work in progress >
 
 **Misc**

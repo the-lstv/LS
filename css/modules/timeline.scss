@@ -7,6 +7,43 @@
     flex-direction: column;
     position: relative;
     overflow: hidden;
+    --ls-timeline-grid-major-color: var(--surface-4);
+    --ls-timeline-grid-minor-color: color-mix(in srgb, var(--surface-4) 55%, transparent 45%);
+}
+
+:root {
+    --ls-timeline-cursor-slice:
+        url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="35" height="35" fill="none"><g filter="url(%23A)"><path d="M11.22 17.84a1.95 1.95 0 0 1-.56-1.17l5.51-2.36 8.49 8.48c.78.79.78 2.05 0 2.83l-1.42 1.42c-.78.78-2.04.78-2.83 0l-9.19-9.2zM9 13.75V8l5.81 5.22-5 2L9 13.75z" fill="%23000"/></g><g filter="url(%23B)"><path d="M19.005 28.463c1.564 1.544 4.083 1.557 5.649-.009l1.42-1.42c1.566-1.566 1.553-4.085.009-5.649l-9.457-9.446-.17.073-.31-.279L7 3.515v10.75l1.796 3.259c.174.624.503 1.224 1.009 1.731l9.2 9.209zm4.235-1.423c-.78.78-2.04.78-2.83 0l-9.19-9.2a1.95 1.95 0 0 1-.559-1.17l5.51-2.36 8.49 8.48c.731.741.777 1.895.137 2.679l-.137.151-1.42 1.42zM9 8l5.81 5.22-5 2L9 13.75V8z" fill="%23fff"/></g><defs><filter id="A" x="8.3" y="6.6" width="21.845" height="25.225" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><feFlood flood-opacity="0" result="A"/><feColorMatrix in="SourceAlpha" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="B"/><feOffset dx="2.1" dy="1.4"/><feGaussianBlur stdDeviation="1.4"/><feComposite in2="B" operator="out"/><feColorMatrix values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.4 0"/><feBlend in2="A"/><feBlend in="SourceGraphic"/></filter><filter id="B" x="6.3" y="2.115" width="25.845" height="31.71" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><feFlood flood-opacity="0" result="A"/><feColorMatrix in="SourceAlpha" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="B"/><feOffset dx="2.1" dy="1.4"/><feGaussianBlur stdDeviation="1.4"/><feComposite in2="B" operator="out"/><feColorMatrix values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.4 0"/><feBlend in2="A"/><feBlend in="SourceGraphic"/></filter></defs></svg>')
+        5 16, crosshair;
+    --ls-timeline-cursor-erase:
+        url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="35" height="35" fill="none"><g filter="url(%23A)"><path fill-rule="evenodd" d="M19.899 9a3 3 0 0 1 1.149.229c.364.151.695.373.974.651l-.001.001 4.242 4.24a3 3 0 0 1 0 4.242l-6.071 6.071h4.565a1 1 0 1 1 0 2H11.535a3 3 0 0 1-2.12-.878l-1.536-1.536a3 3 0 0 1-.001-4.242l9.899-9.898.218-.198A3 3 0 0 1 19.899 9zM9.293 21.192a1 1 0 0 0 0 1.414l1.535 1.535a1 1 0 0 0 .707.293h5.829l4.656-4.657-5.656-5.656-7.071 7.071zM19.899 11a1 1 0 0 0-.383.076c-.121.05-.231.124-.324.217l-1.414 1.414 5.656 5.656 1.415-1.414a1 1 0 0 0 0-1.414l-4.242-4.241c-.093-.093-.204-.167-.325-.218a1 1 0 0 0-.383-.076z" fill="%23000"/><path d="M19.899 8c.525 0 1.046.103 1.532.305s.927.497 1.298.868l.707.707h-.001l3.535 3.534.137.144a4 4 0 0 1 0 5.369l-.137.143-4.364 4.364h2.151a2 2 0 0 1 .205 3.989l-.205.011H11.535A4 4 0 0 1 8.852 26.4l-.144-.137-1.536-1.536A4 4 0 0 1 6 21.899l.005-.198a4 4 0 0 1 1.166-2.63l9.899-9.898.017-.017.018-.016.218-.198.019-.018.02-.016c.304-.25.644-.454 1.008-.604A4 4 0 0 1 19.899 8zM10 21.899l1.535 1.535h5.415l3.656-3.657-4.242-4.242L10 21.899zm9.192-9.192l4.242 4.242.708-.707-4.242-4.241-.001-.001-.707.707z" stroke="%23fff" stroke-width="2"/></g><defs><filter id="A" x="4.3" y="5.6" width="29.743" height="27.035" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><feFlood flood-opacity="0" result="A"/><feColorMatrix in="SourceAlpha" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="B"/><feOffset dx="2.1" dy="1.4"/><feGaussianBlur stdDeviation="1.4"/><feComposite in2="B" operator="out"/><feColorMatrix values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.4 0"/><feBlend in2="A"/><feBlend in="SourceGraphic"/></filter></defs></svg>')
+        8 8, not-allowed;
+    --ls-timeline-cursor-preview:
+        url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="35" height="35" fill="none"><g clip-path="url(%23C)"><g filter="url(%23A)"><path d="M17 14.5a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3zm0 8a5 5 0 0 1-5-5 5 5 0 0 1 5-5 5 5 0 0 1 5 5 5 5 0 0 1-5 5zM17 10c-5 0-9.27 3.11-11 7.5 1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5z" fill="%23000"/></g><g filter="url(%23B)"><path d="M17 8c5.852 0 10.84 3.641 12.86 8.767l.289.733-.289.733C27.84 23.359 22.852 27 17 27S6.16 23.359 4.14 18.233l-.289-.733.289-.733C6.16 11.641 11.148 8 17 8zm0 2c-5 0-9.27 3.11-11 7.5 1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zm3 7.5a3 3 0 0 0-.68-1.901l-.199-.22a3 3 0 0 0-4.242 0l-.199.22a3 3 0 0 0 .199 4.022A3 3 0 0 0 17 20.5v2a5 5 0 0 1-3.355-1.294l-.18-.171a5 5 0 0 1 0-7.07 5 5 0 0 1 7.07 0 5 5 0 0 1 0 7.07A5 5 0 0 1 17 22.5v-2a3 3 0 0 0 3-3z" fill="%23fff"/></g></g><defs><filter id="A" x="5.3" y="8.6" width="27.6" height="20.6" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><feFlood flood-opacity="0" result="A"/><feColorMatrix in="SourceAlpha" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="B"/><feOffset dx="2.1" dy="1.4"/><feGaussianBlur stdDeviation="1.4"/><feComposite in2="B" operator="out"/><feColorMatrix values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.4 0"/><feBlend in2="A"/><feBlend in="SourceGraphic"/></filter><filter id="B" x="3.151" y="6.6" width="31.899" height="24.6" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><feFlood flood-opacity="0" result="A"/><feColorMatrix in="SourceAlpha" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="B"/><feOffset dx="2.1" dy="1.4"/><feGaussianBlur stdDeviation="1.4"/><feComposite in2="B" operator="out"/><feColorMatrix values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.4 0"/><feBlend in2="A"/><feBlend in="SourceGraphic"/></filter><clipPath id="C"><path fill="%23fff" d="M0 0h35v35H0z"/></clipPath></defs></svg>')
+        8 8, pointer;
+    --ls-timeline-cursor-group:
+        url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="35" height="35" fill="none"><g filter="url(%23A)"><path d="M7.769 23.385a.77.77 0 0 1 .769.769v2.308h2.308a.77.77 0 0 1 .769.769.77.77 0 0 1-.769.769H7.769A.77.77 0 0 1 7 27.231v-3.077a.77.77 0 0 1 .769-.769zm11.538 3.077a.77.77 0 0 1 .769.769.77.77 0 0 1-.769.769h-4.615a.77.77 0 0 1-.769-.769.77.77 0 0 1 .769-.769h4.615zm6.923-3.077a.77.77 0 0 1 .769.769v3.077a.77.77 0 0 1-.769.769h-3.077a.77.77 0 0 1-.769-.769.77.77 0 0 1 .769-.769h2.306l.002-2.308a.77.77 0 0 1 .769-.769zM7.769 14.923a.77.77 0 0 1 .769.769v4.615a.77.77 0 0 1-.769.769.77.77 0 0 1-.769-.769v-4.615a.77.77 0 0 1 .769-.769zm18.462 0a.77.77 0 0 1 .769.769v4.615a.77.77 0 0 1-.769.769.77.77 0 0 1-.769-.769v-4.615a.77.77 0 0 1 .769-.769zM10.846 8a.77.77 0 0 1 .769.769.77.77 0 0 1-.769.769H8.538v2.308a.77.77 0 0 1-.769.769.77.77 0 0 1-.769-.769V8.769A.77.77 0 0 1 7.769 8h3.077zm15.383 0a.77.77 0 0 1 .545.225.77.77 0 0 1 .226.544v3.077a.77.77 0 0 1-.769.769.77.77 0 0 1-.769-.769V9.538h-2.308a.77.77 0 0 1-.769-.769.77.77 0 0 1 .769-.769h3.075zm-6.923 0a.77.77 0 0 1 .769.769.77.77 0 0 1-.769.769h-4.614a.77.77 0 0 1-.769-.769.77.77 0 0 1 .769-.769h4.614z" fill="%23000"/><path d="M7.944 22.394a1.77 1.77 0 0 1 .946.392l.13.117.117.13a1.77 1.77 0 0 1 .4 1.122v1.308h1.308a1.77 1.77 0 0 1 1.122.4l.13.117.117.13a1.77 1.77 0 0 1-.117 2.372 1.77 1.77 0 0 1-1.252.519H7.77A1.77 1.77 0 0 1 6 27.231v-3.076l.009-.176a1.77 1.77 0 0 1 1.761-1.594l.175.009zm11.363 3.068a1.77 1.77 0 0 1 1.77 1.769 1.77 1.77 0 0 1-1.77 1.77h-4.615a1.77 1.77 0 0 1-1.769-1.77 1.77 1.77 0 0 1 .518-1.251l.13-.117a1.77 1.77 0 0 1 1.121-.4h4.615zm7.098-3.068A1.77 1.77 0 0 1 28 24.154v3.076a1.77 1.77 0 0 1-1.77 1.77h-3.076a1.77 1.77 0 0 1-1.761-1.595l-.009-.175.009-.175a1.77 1.77 0 0 1 1.761-1.594h1.307l.001-1.309a1.77 1.77 0 0 1 1.769-1.769l.175.009zM7.944 13.932a1.77 1.77 0 0 1 .946.393l.13.117.117.13a1.77 1.77 0 0 1 .4 1.121v4.615a1.77 1.77 0 0 1-1.769 1.77A1.77 1.77 0 0 1 6 20.308v-4.615a1.77 1.77 0 0 1 .519-1.251l.13-.117a1.77 1.77 0 0 1 1.121-.401l.175.009zm18.286-.009a1.77 1.77 0 0 1 1.121.401l.13.117.118.13a1.77 1.77 0 0 1 .4 1.121v4.615a1.77 1.77 0 0 1-1.77 1.77 1.77 1.77 0 0 1-1.769-1.77v-4.615a1.77 1.77 0 0 1 .518-1.251l.13-.117a1.77 1.77 0 0 1 1.121-.401zM10.846 7a1.77 1.77 0 0 1 1.122.4l.13.118.117.13a1.77 1.77 0 0 1-.117 2.372 1.77 1.77 0 0 1-1.252.518H9.538v1.308a1.77 1.77 0 0 1-1.769 1.769A1.77 1.77 0 0 1 6 11.846V8.77A1.77 1.77 0 0 1 7.77 7h3.076zM26.23 7v.001a1.77 1.77 0 0 1 1.122.399l.129.116.117.129c.073.089.138.186.192.288l.075.158.059.163A1.77 1.77 0 0 1 28 8.77v3.076a1.77 1.77 0 0 1-1.77 1.769 1.77 1.77 0 0 1-1.769-1.769v-1.308h-1.308a1.77 1.77 0 0 1-1.761-1.594l-.009-.175.009-.175A1.77 1.77 0 0 1 23.154 7h3.075zm-6.923 0a1.77 1.77 0 0 1 1.121.4l.13.118.117.13a1.77 1.77 0 0 1-.117 2.372 1.77 1.77 0 0 1-1.251.518h-4.614a1.77 1.77 0 0 1-1.761-1.594l-.009-.175.009-.175a1.77 1.77 0 0 1 .51-1.076l.13-.118a1.77 1.77 0 0 1 1.121-.4h4.614z" stroke="%23fff" stroke-width="2"/></g><defs><filter id="A" x="4.3" y="4.6" width="29.6" height="29.6" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><feFlood flood-opacity="0" result="A"/><feColorMatrix in="SourceAlpha" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="B"/><feOffset dx="2.1" dy="1.4"/><feGaussianBlur stdDeviation="1.4"/><feComposite in2="B" operator="out"/><feColorMatrix values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.4 0"/><feBlend in2="A"/><feBlend in="SourceGraphic"/></filter></defs></svg>')
+        8 8, grab;
+}
+
+.ls-timeline[data-tool="slice"],
+.ls-timeline[data-tool="slice"] .ls-timeline-item {
+    cursor: var(--ls-timeline-cursor-slice);
+}
+
+.ls-timeline[data-tool="erase"],
+.ls-timeline[data-tool="erase"] .ls-timeline-item {
+    cursor: var(--ls-timeline-cursor-erase);
+}
+
+.ls-timeline[data-tool="preview"],
+.ls-timeline[data-tool="preview"] .ls-timeline-item {
+    cursor: var(--ls-timeline-cursor-preview);
+}
+
+.ls-timeline[data-tool="group"],
+.ls-timeline[data-tool="group"] .ls-timeline-item {
+    cursor: var(--ls-timeline-cursor-group);
 }
 
 .ls-timeline:focus-visible {
@@ -36,11 +73,32 @@
     display: block;
     min-height: var(--ls-timeline-row-height, 45px);
     position: relative;
-    background: var(--background);
+    background-color: var(--background);
 }
 
 .ls-timeline-row:nth-child(odd) {
-    background: var(--elevate);
+    background-color: var(--elevate);
+}
+
+.ls-timeline.grid-enabled .ls-timeline-row {
+    background-image:
+        repeating-linear-gradient(
+            to right,
+            var(--ls-timeline-grid-major-color) 0,
+            var(--ls-timeline-grid-major-color) 1px,
+            transparent 1px,
+            transparent var(--ls-timeline-grid-major-step)
+        ),
+        repeating-linear-gradient(
+            to right,
+            var(--ls-timeline-grid-minor-color) 0,
+            var(--ls-timeline-grid-minor-color) 1px,
+            transparent 1px,
+            transparent var(--ls-timeline-grid-minor-step)
+        );
+    background-position: var(--ls-timeline-grid-offset) 0;
+    background-size: var(--ls-timeline-grid-major-step) 100%, var(--ls-timeline-grid-minor-step) 100%;
+    background-repeat: repeat;
 }
 
 .ls-timeline-item {
@@ -67,9 +125,9 @@
 }
 
 .ls-timeline-item-automation > span, .ls-timeline-item-automation > .ls-resize-handle {
-    height: 20px;
-    min-height: 20px;
-    max-height: 20px;
+    height: 18px;
+    min-height: 18px;
+    max-height: 18px;
 }
 
 .ls-timeline-item-automation > span {
@@ -93,6 +151,14 @@
     filter: brightness(1.2);
     cursor: default;
     z-index: 5;
+}
+
+.ls-timeline.preview-focus .ls-timeline-item {
+    opacity: 0.5;
+}
+
+.ls-timeline.preview-focus .ls-timeline-item.previewed {
+    opacity: 1;
 }
 
 .ls-timeline-item-automation.selected {
@@ -198,6 +264,39 @@
     left: 0px;
 }
 
+.ls-timeline-slice-line {
+    left: 0px;
+    background: var(--accent-60);
+    opacity: 0.9;
+
+    &::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        border-left: 12px solid transparent;
+        border-right: 12px solid transparent;
+        border-top: 10px solid var(--accent-60);
+        height: 0;
+        width: 0;
+        left: 1px;
+        transform: translateX(-50%);
+    }
+
+    &::before {
+        content: "";
+        position: absolute;
+        bottom: 0;
+        border-left: 12px solid transparent;
+        border-right: 12px solid transparent;
+        border-bottom: 10px solid var(--accent-60);
+        height: 0;
+        width: 0;
+        left: 1px;
+        transform: translateX(-50%);
+    }
+}
+
 .ls-timeline-snap-line::before, .ls-timeline-snap-line::after {
     content: "\00d7";
     position: absolute;
@@ -214,4 +313,8 @@
 
 .ls-automation-graph:not(:hover) :is(.ls-automation-point-handle, .ls-automation-center-handle) {
     opacity: 0;
+}
+
+.ls-timeline-selection-rect {
+    border-radius: var(--border-radius-small);
 }

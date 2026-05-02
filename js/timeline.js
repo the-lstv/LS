@@ -41,9 +41,21 @@
         startingRows: 15,
         rowHeight: 45,
         snapEnabled: true,
+        gridSnapping: true,
+        gridSnapDivision: 1 / 100,
         remapAutomationTargets: true,
-        framerateLimit: 90
+        framerateLimit: 90,
+        tool: "select",
+        toolShortcuts: {
+            select: "v",
+            slice: "c",
+            preview: "p",
+            erase: "e",
+            group: "g"
+        }
     };
+
+    const SLICE_EPSILON = 0.01;
 
     function fortnite(value, fallback = 0) {
         value = Number(value);
@@ -71,6 +83,11 @@
     //             style: "position: fixed; top: 0; left: 0; width: 1px; background: var(--accent-60); z-index: 1000; pointer-events: none; display: none;"
     //         })),
 
+    //         (logic.export("sliceLine", {
+    //             class: "ls-timeline-slice-line",
+    //             style: "position: fixed; top: 0; left: 0; width: 2px; background: var(--accent-60); z-index: 1000; pointer-events: none; display: none;"
+    //         })),
+
     //         (logic.export("scrollContainer", {
     //             class: "ls-timeline-scroll-container",
     //             inner: [
@@ -88,7 +105,7 @@
     // }));
 
     // Until I have a server-side transpiler of LS.CompileTemplate, I will hard-code the output here to give the client some rest :P
-    const TEMPLATE = function(d){'use strict';var e0=document.createElement("div");e0.setAttribute("tabindex","0");var e1=document.createElement("div");e1.className="ls-timeline-markers";var e2=document.createElement("div");e2.className="ls-timeline-player-head";var e3=document.createElement("div");e3.className="ls-timeline-selection-rect";e3.style.cssText="position: absolute; pointer-events: none; display: none; border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent) 50%, rgba(0, 0, 0, 0.2) 50%); z-index: 100;";var e4=document.createElement("div");e4.className="ls-timeline-snap-line";e4.style.cssText="position: fixed; top: 0; left: 0; width: 1px; background: var(--accent-60); z-index: 1000; pointer-events: none; display: none;";var e5=document.createElement("div");e5.className="ls-timeline-scroll-container";var e6=document.createElement("div");e6.className="ls-timeline-spacer";e6.style.cssText="height: 1px; width: 0px;";var e7=document.createElement("div");e7.className="ls-timeline-rows";e5.append(e6,e7);e0.append(e1,e2,e3,e4,e5);var __rootValue=e0;return{"markerContainer":e1,"playerHead":e2,"selectionRect":e3,"snapLine":e4,"scrollContainer":e5,"spacerElement":e6,"rowContainer":e7,root:__rootValue};}
+    const TEMPLATE = function(d){'use strict';var e0=document.createElement("div");e0.setAttribute("tabindex","0");var e1=document.createElement("div");e1.className="ls-timeline-markers";var e2=document.createElement("div");e2.className="ls-timeline-player-head";var e3=document.createElement("div");e3.className="ls-timeline-selection-rect";e3.style.cssText="position: absolute; pointer-events: none; display: none; border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent) 50%, rgba(0, 0, 0, 0.2) 50%); z-index: 100;";var e4=document.createElement("div");e4.className="ls-timeline-snap-line";e4.style.cssText="position: fixed; top: 0; left: 0; width: 1px; background: var(--accent-60); z-index: 1000; pointer-events: none; display: none;";var e5=document.createElement("div");e5.className="ls-timeline-slice-line";e5.style.cssText="position: fixed; top: 0; left: 0; width: 2px; background: var(--accent-60); z-index: 1000; pointer-events: none; display: none;";var e6=document.createElement("div");e6.className="ls-timeline-scroll-container";var e7=document.createElement("div");e7.className="ls-timeline-spacer";e7.style.cssText="height: 1px; width: 0px;";var e8=document.createElement("div");e8.className="ls-timeline-rows";e6.append(e7,e8);e0.append(e1,e2,e3,e4,e5,e6);var __rootValue=e0;return{"markerContainer":e1,"playerHead":e2,"selectionRect":e3,"snapLine":e4,"sliceLine":e5,"scrollContainer":e6,"spacerElement":e7,"rowContainer":e8,root:__rootValue};}
 
     LS.LoadComponent(class Timeline extends LS.Component {
         /**
@@ -111,6 +128,13 @@
             });
 
             this.options = LS.Util.defaults(DEFAULTS, options);
+            if (options.toolShortcuts && typeof options.toolShortcuts === "object" && !Array.isArray(options.toolShortcuts)) {
+                // TODO: Use the new defaults API
+                this.options.toolShortcuts = {
+                    ...DEFAULTS.toolShortcuts,
+                    ...options.toolShortcuts
+                };
+            }
 
             const element = TEMPLATE();
 
@@ -122,6 +146,13 @@
             this.playerHead = element.playerHead;
             this.selectionRect = element.selectionRect;
             this.snapLine = element.snapLine;
+            this.sliceLine = element.sliceLine;
+
+            queueMicrotask(() => {
+                // I defer this because JS is a piece of s#it and somehow when we read a private property,
+                // they now **all** suddenly need to be at the top before the constructor, which I don't want to
+                this.tool = this.options.tool;
+            });
 
             if (this.options.element) {
                 this.options.element.appendChild(this.container);
@@ -139,6 +170,7 @@
             this.activeMarkers = [];
 
             this.selectedItems = new Set();
+            this.__previewItem = null;
 
             this.__rendered = new Set();
             this.__needsSort = false;
@@ -157,7 +189,7 @@
             
             // Inertia & Edge Scroll state
             let velocityX = 0, lastMoveTime = 0, inertiaRaf = null;
-            let edgeScrollSpeedX = 0, edgeScrollSpeedY = 0, edgeScrollRaf = null, lastCursorX = 0;
+            let edgeScrollSpeedX = 0, edgeScrollSpeedY = 0, edgeScrollRaf = null, lastCursorX = 0, lastClientX = 0, lastClientY = 0;
 
             const stopInertia = () => {
                 if (inertiaRaf) cancelAnimationFrame(inertiaRaf);
@@ -171,10 +203,48 @@
                 edgeScrollSpeedY = 0;
             };
 
+            const getRowIndexAtClientY = (clientY) => {
+                if (!this.rowElements.length) return 0;
+
+                for (let i = 0; i < this.rowElements.length; i++) {
+                    const rect = this.rowElements[i].getBoundingClientRect();
+                    if (clientY >= rect.top && clientY <= rect.bottom) {
+                        return i;
+                    }
+                }
+
+                const firstRect = this.rowElements[0].getBoundingClientRect();
+                const lastRect = this.rowElements[this.rowElements.length - 1].getBoundingClientRect();
+                if (clientY < firstRect.top) return 0;
+                if (clientY > lastRect.bottom) return this.rowElements.length - 1;
+                return 0;
+            };
+
+            const getRowSpanBounds = (startRow, endRow) => {
+                if (!this.rowElements.length) return null;
+
+                const minRow = Math.min(startRow, endRow);
+                const maxRow = Math.max(startRow, endRow);
+                const startEl = this.rowElements[minRow];
+                const endEl = this.rowElements[maxRow];
+
+                if (startEl && endEl) {
+                    const startRect = startEl.getBoundingClientRect();
+                    const endRect = endEl.getBoundingClientRect();
+                    return { top: startRect.top, bottom: endRect.bottom };
+                }
+
+                const containerRect = this.rowContainer.getBoundingClientRect();
+                const rowHeight = this.rowElements[0]?.offsetHeight || this.rowHeight || 30;
+                const top = containerRect.top + (minRow * rowHeight);
+                const bottom = containerRect.top + ((maxRow + 1) * rowHeight);
+                return { top, bottom };
+            };
+
             const updateSelectionBox = (x, y) => {
                 const currentX = x;
                 const currentY = y;
-                
+
                 const scrollLeft = this.offset;
                 const scrollTop = this.scrollContainer.scrollTop;
 
@@ -185,17 +255,17 @@
                 const top = Math.min(startScreenY, currentY);
                 const width = Math.abs(currentX - startScreenX);
                 const height = Math.abs(currentY - startScreenY);
-                
+
                 this.selectionRect.style.transform = `translate3d(${left}px, ${top}px, 0)`;
                 this.selectionRect.style.width = `${width}px`;
                 this.selectionRect.style.height = `${height}px`;
 
                 const worldLeft = left + scrollLeft;
                 const worldRight = worldLeft + width;
-                
+
                 const timeStart = worldLeft / this.#zoom;
                 const timeEnd = worldRight / this.#zoom;
-                
+
                 const rowRect = this.rowContainer.getBoundingClientRect();
                 const containerRect = this.container.getBoundingClientRect();
                 const relativeRowTop = rowRect.top - containerRect.top;
@@ -210,9 +280,9 @@
                 const rowEnd = Math.floor(boxBottomRel / rowHeight);
 
                 const candidates = this.getRange(timeStart, timeEnd, false);
-                
+
                 this.selectedItems.clear();
-                
+
                 for(const item of candidates) {
                     if (item.row >= rowStart && item.row <= rowEnd) {
                         const itemEnd = item.start + item.duration;
@@ -231,9 +301,13 @@
                     this.scrollContainer.scrollTop += edgeScrollSpeedY;
 
                     // Update seek position based on the last known cursor position relative to the moving viewport
-                    if (dragType === "seek") {
+                    if (dragType === "seek" || dragType === "preview") {
                         const worldX = lastCursorX + this.offset;
                         this.setSeek(worldX / this.#zoom);
+                    } else if (dragType === "slice") {
+                        updateSliceLine(lastClientX, lastClientY);
+                    } else if (dragType === "erase" || dragType === "delete") {
+                        performToolAlongPath(lastClientX, lastClientY, performEraseAtPointer);
                     } else if (dragType === "select") {
                         updateSelectionBox(lastCursorX, lastCursorY);
                     } else if (dragState.draggingItems) {
@@ -256,36 +330,284 @@
                 }
             };
 
+            const DRAG_ACTIVATION_DISTANCE = 6;
+            const ITEM_DRAG_ACTIVATION_DISTANCE = 4;
+
             const dragState = {};
 
+            const getGridSnapStep = () => {
+                if (!this.options.gridSnapping) return 0;
+                let step = this.options.gridSnapDivision;
+                if (typeof step === "string" && step.includes("/")) {
+                    const parts = step.split("/").map(Number);
+                    if (parts.length === 2 && Number.isFinite(parts[0]) && Number.isFinite(parts[1]) && parts[1] !== 0) {
+                        step = parts[0] / parts[1];
+                    }
+                }
+                step = fortnite(step, 0);
+                return step > 0 ? step : 0;
+            };
+
+            this.__getGridSnapStep = getGridSnapStep;
+
+            const getItemFromElement = (itemElement) => {
+                if (!itemElement) return null;
+                return itemElement.__timelineItem
+                    || this.items.find((item) => item.timelineElement === itemElement || item.element === itemElement)
+                    || null;
+            };
+
+            const setPreviewItem = (item) => {
+                if (this.__previewItem === item) return;
+
+                if (this.__previewItem) {
+                    const prevElement = this.__previewItem.timelineElement;
+                    if (prevElement) prevElement.classList.remove("previewed");
+                    this.quickEmit("preview-stop", this.__previewItem);
+                }
+
+                this.__previewItem = item;
+
+                if (item) {
+                    const nextElement = item.timelineElement;
+                    if (nextElement) nextElement.classList.add("previewed");
+                    this.container.classList.add("preview-focus");
+                    this.quickEmit("preview-start", item);
+                } else {
+                    this.container.classList.remove("preview-focus");
+                }
+            };
+
+            this.__setPreviewItem = setPreviewItem;
+
+            const updateSliceLine = (clientX, clientY) => {
+                if (!this.sliceLine) return;
+
+                const containerRect = this.container.getBoundingClientRect();
+                const x = clamp(clientX, containerRect.left, containerRect.right);
+                const startRow = Number.isFinite(dragState.sliceStartRow)
+                    ? dragState.sliceStartRow
+                    : getRowIndexAtClientY(clientY);
+                const currentRow = getRowIndexAtClientY(clientY);
+                const bounds = getRowSpanBounds(startRow, currentRow);
+
+                if (!bounds) return;
+
+                this.sliceLine.style.transform = `translate3d(${x}px, ${bounds.top}px, 0)`;
+                this.sliceLine.style.height = `${Math.max(0, bounds.bottom - bounds.top)}px`;
+                this.sliceLine.style.display = "block";
+
+                dragState.sliceStartRow = startRow;
+                dragState.sliceCurrentRow = currentRow;
+            };
+
+            const getItemsAtPointer = (clientX, clientY, includeEdges = false) => {
+                const { time, row } = this.transformCoords(clientX, clientY);
+                const candidates = this.getIntersectingAt(time);
+                const items = [];
+
+                for (const item of candidates) {
+                    if ((item.row || 0) !== row) continue;
+
+                    if (!includeEdges && (
+                        time <= item.start + SLICE_EPSILON ||
+                        time >= item.start + item.duration - SLICE_EPSILON
+                    )) {
+                        continue;
+                    }
+
+                    items.push(item);
+                }
+
+                return { time, row, items };
+            };
+
+            const performSliceAtLine = (clientX, startRow, endRow) => {
+                const containerRect = this.container.getBoundingClientRect();
+                const clampedX = clamp(clientX, containerRect.left, containerRect.right);
+                const rowRect = this.rowContainer.getBoundingClientRect();
+                const time = (clampedX - rowRect.left + this.#offset) / this.#zoom;
+                const rowMin = Math.min(startRow, endRow);
+                const rowMax = Math.max(startRow, endRow);
+                const candidates = this.getIntersectingAt(time);
+                const slicedItems = new Set();
+
+                for (const item of candidates) {
+                    const itemRow = item.row || 0;
+                    if (itemRow < rowMin || itemRow > rowMax) continue;
+                    if (
+                        time <= item.start + SLICE_EPSILON ||
+                        time >= item.start + item.duration - SLICE_EPSILON
+                    ) {
+                        continue;
+                    }
+                    if (slicedItems.has(item)) continue;
+
+                    const newItem = this.cut(item, time);
+                    if (newItem) {
+                        slicedItems.add(item);
+                        slicedItems.add(newItem);
+                    }
+                }
+            };
+
+            const performEraseAtPointer = (clientX, clientY) => {
+                const { items } = getItemsAtPointer(clientX, clientY, true);
+                const erasedItems = dragState.erasedItems || (dragState.erasedItems = new Set());
+                const erasedActionItems = dragState.erasedActionItems || (dragState.erasedActionItems = []);
+
+                for (const item of items) {
+                    if (erasedItems.has(item)) continue;
+
+                    erasedItems.add(item);
+                    erasedActionItems.push({
+                        id: item.id,
+                        data: this.cloneItem(item)
+                    });
+
+                    this.destroyItem(item);
+                }
+            };
+
+            const performToolAlongPath = (clientX, clientY, action) => {
+                const startX = Number.isFinite(dragState.lastToolClientX) ? dragState.lastToolClientX : clientX;
+                const startY = Number.isFinite(dragState.lastToolClientY) ? dragState.lastToolClientY : clientY;
+                const distance = Math.hypot(clientX - startX, clientY - startY);
+                const steps = Math.min(64, Math.max(1, Math.ceil(distance / 12)));
+
+                for (let i = 1; i <= steps; i++) {
+                    const ratio = i / steps;
+                    action(
+                        startX + ((clientX - startX) * ratio),
+                        startY + ((clientY - startY) * ratio)
+                    );
+                }
+
+                dragState.lastToolClientX = clientX;
+                dragState.lastToolClientY = clientY;
+            };
+
+            const beginItemDrag = (event) => {
+                dragState.pendingItemDrag = false;
+                dragState.draggingItems = true;
+                this.__suppressNextClick = true;
+
+                let itemsToMove = Array.isArray(dragState.baseItemsToMove)
+                    ? dragState.baseItemsToMove.slice()
+                    : [];
+
+                if (!itemsToMove.length && dragState.item) {
+                    itemsToMove = [dragState.item];
+                }
+
+                if (this.options.snapEnabled) {
+                    dragState.snapValues = [];
+                    const cw = dragState.item.duration * this.#zoom;
+                    const vh = window.innerHeight;
+                    const vw = window.innerWidth;
+                    const itemRect = dragState.itemElement.getBoundingClientRect();
+                    const dragOffset = event.x - itemRect.left;
+
+                    dragState.dragOffsetY = event.y - itemRect.top;
+                    dragState.itemHeight = itemRect.height;
+
+                    for (const item of this.items) {
+                        const element = item.timelineElement;
+                        if (!element || element === dragState.itemElement) continue;
+
+                        // Exclude all selected items from snapping
+                        if (itemsToMove.includes(item)) continue;
+
+                        const box = element.getBoundingClientRect();
+
+                        // Skip invisible or off-screen elements
+                        if (box.width === 0 && box.height === 0) continue;
+                        if (box.bottom < -50 || box.top > vh + 50 || box.right < -50 || box.left > vw + 50) continue;
+
+                        dragState.snapValues.push(
+                            { dest: box.left + dragOffset, line: box.left, top: box.top, height: box.height },
+                            { dest: box.right + dragOffset, line: box.right, top: box.top, height: box.height },
+                            { dest: (box.left - cw) + dragOffset, line: box.left, top: box.top, height: box.height },
+                            { dest: (box.right - cw) + dragOffset, line: box.right, top: box.top, height: box.height }
+                        );
+                    }
+                } else {
+                    dragState.snapValues = [];
+                }
+
+                if (dragState.isCloning) {
+                    const clonedItems = [];
+                    const cloneMap = new Map();
+                    const idMap = new Map(); // Maps old item IDs to new item IDs
+
+                    for (const itm of itemsToMove) {
+                        const cloned = this.cloneItem(itm);
+                        cloned.start = itm.start;
+                        cloned.row = itm.row || 0;
+                        this.add(cloned);
+                        clonedItems.push(cloned);
+                        cloneMap.set(itm, cloned);
+                        idMap.set(itm.id, cloned.id);
+                    }
+
+                    // Remap automation targets if enabled
+                    if (this.options.remapAutomationTargets) {
+                        this.remapAutomationTargets(clonedItems, idMap);
+                    }
+
+                    // Update dragState to use cloned items
+                    dragState.clonedItems = clonedItems;
+                    itemsToMove = clonedItems;
+
+                    // Update selection to cloned items
+                    this.selectedItems.clear();
+                    for (const cloned of clonedItems) {
+                        this.selectedItems.add(cloned);
+                    }
+
+                    // Update drag target
+                    if (cloneMap.has(dragState.item)) {
+                        dragState.item = cloneMap.get(dragState.item);
+                        dragState.itemElement = dragState.item.timelineElement;
+                    }
+                }
+
+                dragState._initialPositions = itemsToMove.map((itm) => ({
+                    item: itm,
+                    start: itm.start,
+                    row: itm.row || 0
+                }));
+
+                dragState.itemsToMove = itemsToMove;
+
+                let minStart = Infinity;
+                for (const entry of itemsToMove) {
+                    if (entry.start < minStart) minStart = entry.start;
+                }
+                dragState.gridSnapAnchorStart = Number.isFinite(minStart) ? minStart : 0;
+            };
+
             const updateDragItemPosition = (x, y) => {
-                if (this.options.snapEnabled && !dragState.disableSnapping) {
+                let snapLineX = null;
+                let snapped = false;
+                const gridStep = getGridSnapStep();
+                const useGridSnap = gridStep > 0;
+
+                if (!useGridSnap && this.options.snapEnabled && !dragState.disableSnapping) {
                     const snapValues = dragState.snapValues;
                     const snapArea = 10;
-                    let snapped = false;
                     if (Array.isArray(snapValues)) {
-                        const currentItemTop = y - (dragState.dragOffsetY || 0);
-                        const currentItemHeight = dragState.itemHeight || 0;
-
                         for (const snap of snapValues) {
                             if (snap.dest - x > -snapArea && snap.dest - x < snapArea) {
                                 x = snap.dest;
-                                if (this.snapLine) {
-                                    const top = Math.min(snap.top, y);
-                                    const height = Math.max(snap.top + snap.height, currentItemTop + currentItemHeight) - top;
-
-                                    this.snapLine.style.transform = `translate3d(${snap.line}px, ${top}px, 0)`;
-                                    this.snapLine.style.height = `${height}px`;
-                                    this.snapLine.style.display = "block";
-                                }
+                                snapLineX = snap.line;
                                 snapped = true;
                                 break;
                             }
                         }
                     }
-                    if (!snapped && this.snapLine) this.snapLine.style.display = "none";
-                } else {
-                    if (this.snapLine) this.snapLine.style.display = "none";
+                } else if (this.snapLine) {
+                    this.snapLine.style.display = "none";
                 }
 
                 const rect = this.container.getBoundingClientRect();
@@ -296,6 +618,12 @@
                 const deltaWorldY = currentWorldY - dragState.startWorldY;
 
                 let deltaTime = deltaWorldX / this.#zoom;
+                if (useGridSnap && Number.isFinite(dragState.gridSnapAnchorStart)) {
+                    let targetStart = dragState.gridSnapAnchorStart + deltaTime;
+                    if (targetStart < 0) targetStart = 0;
+                    const snappedStart = Math.round(targetStart / gridStep) * gridStep;
+                    deltaTime = snappedStart - dragState.gridSnapAnchorStart;
+                }
                 const rowOffset = Math.round(deltaWorldY / this.rowHeight);
 
                 // Prevent items from collapsing when dragged past edges
@@ -307,7 +635,7 @@
                 }
                 
                 // If any item would go negative, clamp the deltaTime to keep all items at or above 0
-                if (minResultStart < 0) {
+                if (minResultStart < 0 && !useGridSnap) {
                     deltaTime -= minResultStart; // Adjust deltaTime to keep the leftmost item at 0
                 }
 
@@ -325,16 +653,42 @@
                     entry.item.row = entry.row + clampedRowOffset;
                 }
 
+                if (this.snapLine) {
+                    if (!useGridSnap && snapped && snapLineX !== null) {
+                        let minRow = Infinity;
+                        let maxRow = -Infinity;
+                        for (const entry of dragState._initialPositions) {
+                            const row = entry.item.row || 0;
+                            if (row < minRow) minRow = row;
+                            if (row > maxRow) maxRow = row;
+                        }
+
+                        if (Number.isFinite(minRow) && Number.isFinite(maxRow)) {
+                            const bounds = getRowSpanBounds(minRow, maxRow);
+                            if (bounds) {
+                                this.snapLine.style.transform = `translate3d(${snapLineX}px, ${bounds.top}px, 0)`;
+                                this.snapLine.style.height = `${Math.max(0, bounds.bottom - bounds.top)}px`;
+                                this.snapLine.style.display = "block";
+                            } else {
+                                this.snapLine.style.display = "none";
+                            }
+                        } else {
+                            this.snapLine.style.display = "none";
+                        }
+                    } else {
+                        this.snapLine.style.display = "none";
+                    }
+                }
+
                 this.__needsSort = true;
                 this.frameScheduler.schedule();
             };
 
             this.dragHandle = new LS.Util.TouchHandle(this.container, {
-                exclude: ".ls-resize-handle, .ls-automation-point-handle, .ls-automation-center-handle",
+                exclude: ".ls-resize-handle, .ls-automation-point-handle, .ls-automation-center-handle, .ls-automation-graph",
                 frameTimed: true,
 
                 onStart: (event) => {
-                    if(event.domEvent.button === 2) return event.cancel(); // Temporarily disabled until implemented
 
                     stopInertia();
                     stopEdgeScroll();
@@ -342,117 +696,130 @@
                     this.dragHandle.options.pointerLock = false;
 
                     rect = this.container.getBoundingClientRect();
-                    const itemElement = event.domEvent.button === 0 ? event.domEvent.target.closest(".ls-timeline-item") : null;
-                    this.dragHandle.options.disablePointerEvents = !itemElement;
+                    const domEvent = event.domEvent;
+                    const touchEvent = domEvent.type.startsWith("touch");
+                    const primaryButton = touchEvent || domEvent.button === 0;
+                    const rightButton = !touchEvent && domEvent.button === 2;
+                    const activeTool = this.tool;
+                    const itemElement = domEvent.target.closest(".ls-timeline-item");
+                    const sliceGesture = primaryButton && (domEvent.altKey || activeTool === "slice");
+                    const eraseGesture = primaryButton && activeTool === "erase" && !domEvent.altKey;
+                    const previewGesture = primaryButton && activeTool === "preview" && !domEvent.altKey;
+                    const rightPreviewGesture = rightButton && domEvent.altKey;
+                    const selectionModifiers = domEvent.ctrlKey || domEvent.shiftKey;
+                    lastClientX = event.x;
+                    lastClientY = event.y;
+                    lastCursorX = event.x - rect.left;
+                    lastCursorY = event.y - rect.top;
+                    dragState.pointerDownX = event.x;
+                    dragState.pointerDownY = event.y;
+                    dragState.pointerMoved = false;
+                    dragState.erasedItems = null;
+                    dragState.erasedActionItems = null;
+                    dragState.lastToolClientX = event.x;
+                    dragState.lastToolClientY = event.y;
+                    this.dragHandle.options.disablePointerEvents = rightButton ? false : !(
+                        primaryButton
+                        && itemElement
+                        && (activeTool === "select" || selectionModifiers)
+                        && !sliceGesture
+                        && !eraseGesture
+                        && !previewGesture
+                    );
 
-                    // Prepare for dragging items, if that is what we're doing
-                    if(itemElement) {
+                    this.dragHandle.cursor = "default";
 
-                        // Dragging an item
-                        dragState.draggingItems = true;
-                        dragState.itemElement = itemElement;
-                        dragState.item = itemElement.__timelineItem || this.items.find(i => i.element === itemElement);
-                        dragState.startX = event.x;
-                        dragState.startY = event.y;
-                        dragState.startWorldX = (event.x - rect.left) + this.offset;
-                        dragState.startWorldY = (event.y - rect.top) + this.scrollContainer.scrollTop;
-                        dragState.disableSnapping = false;
-                        dragState.isCloning = event.domEvent.shiftKey; // Shift+drag to clone
-
-                        let itemsToMove = this.selectedItems.size && this.selectedItems.has(dragState.item) ? Array.from(this.selectedItems) : [dragState.item];
-
-                        if (this.options.snapEnabled) {
-                            dragState.snapValues = [];
-                            const cw = dragState.item.duration * this.#zoom;
-                            const vh = window.innerHeight;
-                            const vw = window.innerWidth;
-                            const itemRect = dragState.itemElement.getBoundingClientRect();
-                            const dragOffset = event.x - itemRect.left;
-                            
-                            dragState.dragOffsetY = event.y - itemRect.top;
-                            dragState.itemHeight = itemRect.height;
-
-                            for (const item of this.items) {
-                                const element = item.timelineElement;
-                                if (!element || element === dragState.itemElement) continue;
-
-                                // Exclude all selected items from snapping
-                                if (itemsToMove.includes(item)) continue;
-
-                                const box = element.getBoundingClientRect();
-
-                                // Skip invisible or off-screen elements
-                                if (box.width === 0 && box.height === 0) continue;
-                                if (box.bottom < -50 || box.top > vh + 50 || box.right < -50 || box.left > vw + 50) continue;
-
-                                dragState.snapValues.push(
-                                    { dest: box.left + dragOffset, line: box.left, top: box.top, height: box.height },
-                                    { dest: box.right + dragOffset, line: box.right, top: box.top, height: box.height },
-                                    { dest: (box.left - cw) + dragOffset, line: box.left, top: box.top, height: box.height },
-                                    { dest: (box.right - cw) + dragOffset, line: box.right, top: box.top, height: box.height }
-                                );
-                            }
-                        } else dragState.snapValues = [];
-
-                        // Save initial positions for undo
-                        dragState._initialPositions = itemsToMove.map((itm) => ({
-                            item: itm,
-                            start: itm.start,
-                            row: itm.row || 0
-                        }));
-
-                        // Shift+drag to clone items
-                        if (dragState.isCloning) {
-                            const clonedItems = [];
-                            const cloneMap = new Map();
-                            const idMap = new Map(); // Maps old item IDs to new item IDs
-                            
-                            for (const itm of itemsToMove) {
-                                const cloned = this.cloneItem(itm);
-                                cloned.start = itm.start;
-                                cloned.row = itm.row || 0;
-                                this.add(cloned);
-                                clonedItems.push(cloned);
-                                cloneMap.set(itm, cloned);
-                                idMap.set(itm.id, cloned.id);
-                            }
-                            
-                            // Remap automation targets if enabled
-                            if (this.options.remapAutomationTargets) {
-                                this.remapAutomationTargets(clonedItems, idMap);
-                            }
-                            
-                            // Update dragState to use cloned items
-                            dragState.clonedItems = clonedItems;
-                            dragState._initialPositions = clonedItems.map((itm) => ({
-                                item: itm,
-                                start: itm.start,
-                                row: itm.row || 0
-                            }));
-                            
-                            // Update selection to cloned items
-                            this.selectedItems.clear();
-                            for (const cloned of clonedItems) {
-                                this.selectedItems.add(cloned);
-                            }
-                            
-                            // Update drag target
-                            if (cloneMap.has(dragState.item)) {
-                                dragState.item = cloneMap.get(dragState.item);
-                                dragState.itemElement = dragState.item.timelineElement;
-                            }
-                            
-                            itemsToMove = clonedItems;
-                        }
-                        return;
-                    } else {
+                    if (rightPreviewGesture) {
+                        dragType = "preview-item";
                         dragState.draggingItems = false;
+                        this.__suppressContextMenuUntil = performance.now() + 500;
+                        this.__suppressNextClick = true;
+                        this.dragHandle.cursor = "var(--ls-timeline-cursor-preview)";
+                        setPreviewItem(getItemFromElement(itemElement));
+                        this.quickEmit("drag-start", dragType);
+                        return;
                     }
 
-                    const touchEvent = event.domEvent.type.startsWith("touch");
+                    if (rightButton) {
+                        dragType = "delete-pending";
+                        dragState.draggingItems = false;
+                        dragState.deleteStartX = event.x;
+                        dragState.deleteStartY = event.y;
+                        dragState.deleteActivated = false;
+                        return;
+                    }
+
+                    if (sliceGesture) {
+                        dragType = "slice";
+                        dragState.draggingItems = false;
+                        dragState.sliceStartRow = getRowIndexAtClientY(event.y);
+                        dragState.sliceCurrentRow = dragState.sliceStartRow;
+                        dragState.sliceStartClientX = event.x;
+                        this.__suppressNextClick = true;
+                        this.dragHandle.cursor = "var(--ls-timeline-cursor-slice)";
+                        updateSliceLine(event.x, event.y);
+                        this.quickEmit("drag-start", dragType);
+                        return;
+                    }
+
+                    if (eraseGesture) {
+                        dragType = "erase-pending";
+                        dragState.draggingItems = false;
+                        dragState.eraseStartX = event.x;
+                        dragState.eraseStartY = event.y;
+                        dragState.erasedItems = null;
+                        dragState.erasedActionItems = null;
+                        this.__suppressNextClick = true;
+                        this.dragHandle.cursor = "var(--ls-timeline-cursor-erase)";
+                        return;
+                    }
+
+                    if (previewGesture) {
+                        dragType = "preview";
+                        dragState.draggingItems = false;
+                        this.__suppressNextClick = true;
+                        this.dragHandle.cursor = "var(--ls-timeline-cursor-preview)";
+                        setPreviewItem(getItemFromElement(itemElement));
+                        this.setSeek(((event.x - rect.left) + this.offset) / this.#zoom);
+                        this.quickEmit("drag-start", dragType);
+                        return;
+                    }
+
+                    // Prepare for dragging items, if that is what we're doing
+                    if(itemElement && (activeTool === "select" || activeTool === "move")) {
+
+                        const item = getItemFromElement(itemElement);
+                        if (!item) {
+                            dragState.draggingItems = false;
+                        } else {
+                            // Dragging an item (activate after a small threshold)
+                            dragState.draggingItems = false;
+                            dragState.pendingItemDrag = true;
+                            dragState.itemElement = itemElement;
+                            dragState.item = item;
+                            dragState.startX = event.x;
+                            dragState.startY = event.y;
+                            dragState.startWorldX = (event.x - rect.left) + this.offset;
+                            dragState.startWorldY = (event.y - rect.top) + this.scrollContainer.scrollTop;
+                            dragState.disableSnapping = false;
+                            dragState.isCloning = event.domEvent.shiftKey; // Shift+drag to clone
+                            dragState.itemDragStartX = event.x;
+                            dragState.itemDragStartY = event.y;
+                            dragState.baseItemsToMove = this.selectedItems.size && this.selectedItems.has(item)
+                                ? Array.from(this.selectedItems)
+                                : [item];
+                            dragState._initialPositions = null;
+                            dragState.gridSnapAnchorStart = null;
+                            return;
+                        }
+                    } else {
+                        dragState.draggingItems = false;
+                        dragState.pendingItemDrag = false;
+                    }
+
                     const button = touchEvent? ((event.domEvent.target === this.scrollContainer || this.scrollContainer.contains(event.domEvent.target)) ? 1 : 0) : event.domEvent.button;
 
-                    if (event.domEvent.ctrlKey && button === 0) {
+                    if ((event.domEvent.ctrlKey || event.domEvent.shiftKey) && button === 0) {
                         dragType = "select";
                     } else if (event.domEvent.ctrlKey && button === 1) {
                         dragType = "zoom-v";
@@ -477,6 +844,7 @@
 
                     if (dragType === "select") {
                         this.selectionRect.style.display = "block";
+                        this.selectionRect.style.transform = `translate3d(${lastCursorX}px, ${lastCursorY}px, 0)`;
                         this.selectionRect.style.width = "0px";
                         this.selectionRect.style.height = "0px";
                         this.dragHandle.cursor = "crosshair";
@@ -501,6 +869,74 @@
                     const cursorY = event.y - rect.top;
                     lastCursorX = cursorX;
                     lastCursorY = cursorY;
+                    lastClientX = event.x;
+                    lastClientY = event.y;
+
+                    if (dragType === "preview-item") {
+                        const hoverElement = document.elementFromPoint(event.x, event.y);
+                        const hoverItemElement = hoverElement ? hoverElement.closest(".ls-timeline-item") : null;
+                        if (hoverItemElement) {
+                            const hoverItem = getItemFromElement(hoverItemElement);
+                            if (hoverItem) setPreviewItem(hoverItem);
+                        }
+                        this.quickEmit("drag-move", dragType, cursorX, cursorY);
+                        return;
+                    }
+
+                    if (dragType === "delete-pending") {
+                        const startX = dragState.deleteStartX || event.x;
+                        const startY = dragState.deleteStartY || event.y;
+                        const distance = Math.hypot(event.x - startX, event.y - startY);
+                        if (distance > DRAG_ACTIVATION_DISTANCE) {
+                            dragType = "delete";
+                            dragState.deleteActivated = true;
+                            dragState.erasedItems = new Set();
+                            dragState.erasedActionItems = [];
+                            this.__suppressContextMenuUntil = performance.now() + 500;
+                            this.contextMenu.close();
+                            this.itemContextMenu.close();
+                            this.dragHandle.cursor = "var(--ls-timeline-cursor-erase)";
+                            performToolAlongPath(event.x, event.y, performEraseAtPointer);
+                            this.quickEmit("drag-start", dragType);
+                        }
+                        return;
+                    }
+
+                    if (dragType === "erase-pending") {
+                        const startX = dragState.eraseStartX || event.x;
+                        const startY = dragState.eraseStartY || event.y;
+                        const distance = Math.hypot(event.x - startX, event.y - startY);
+                        if (distance > DRAG_ACTIVATION_DISTANCE) {
+                            dragType = "erase";
+                            dragState.erasedItems = new Set();
+                            dragState.erasedActionItems = [];
+                            this.contextMenu.close();
+                            this.itemContextMenu.close();
+                            this.dragHandle.cursor = "var(--ls-timeline-cursor-erase)";
+                            performToolAlongPath(event.x, event.y, performEraseAtPointer);
+                            this.quickEmit("drag-start", dragType);
+                        }
+                        return;
+                    }
+
+                    if (dragState.pendingItemDrag) {
+                        const startX = dragState.itemDragStartX || event.x;
+                        const startY = dragState.itemDragStartY || event.y;
+                        const distance = Math.hypot(event.x - startX, event.y - startY);
+                        if (distance > ITEM_DRAG_ACTIVATION_DISTANCE) {
+                            beginItemDrag(event);
+                        } else {
+                            return;
+                        }
+                    }
+
+                    if (!dragState.pointerMoved && dragState.pointerDownX != null && dragType !== "preview") {
+                        const distance = Math.hypot(event.x - dragState.pointerDownX, event.y - dragState.pointerDownY);
+                        if (distance < DRAG_ACTIVATION_DISTANCE) {
+                            return;
+                        }
+                        dragState.pointerMoved = true;
+                    }
 
                     if (dragState.draggingItems) {
                         const threshold = 50;
@@ -553,11 +989,43 @@
                         }
 
                         this.quickEmit("drag-move", dragType, 0, event.dy);
-                    } else if (dragType === "seek" || dragType === "select") {
-                        if (dragType === "seek") {
+                    } else if (dragType === "slice" || dragType === "erase" || dragType === "delete") {
+                        const threshold = 50;
+                        const maxSpeed = 15;
+                        
+                        edgeScrollSpeedX = 0;
+                        edgeScrollSpeedY = 0;
+                        if (cursorX < threshold) {
+                            edgeScrollSpeedX = -maxSpeed * ((threshold - cursorX) / threshold);
+                        } else if (cursorX > rect.width - threshold) {
+                            edgeScrollSpeedX = maxSpeed * ((cursorX - (rect.width - threshold)) / threshold);
+                        }
+                        
+                        if (cursorY < threshold) edgeScrollSpeedY = -maxSpeed * ((threshold - cursorY) / threshold);
+                        else if (cursorY > rect.height - threshold) edgeScrollSpeedY = maxSpeed * ((cursorY - (rect.height - threshold)) / threshold);
+                        
+                        if ((edgeScrollSpeedX !== 0 || edgeScrollSpeedY !== 0) && !edgeScrollRaf) {
+                            edgeScrollRaf = this.requestAnimationFrame(processEdgeScroll);
+                        }
+                        if (dragType === "slice") {
+                            updateSliceLine(event.x, event.y);
+                        } else {
+                            performToolAlongPath(event.x, event.y, performEraseAtPointer);
+                        }
+                        this.quickEmit("drag-move", dragType, cursorX, cursorY);
+                    } else if (dragType === "seek" || dragType === "select" || dragType === "preview") {
+                        if (dragType === "seek" || dragType === "preview") {
                             const worldX = cursorX + this.offset;
                             const time = worldX / this.#zoom;
                             this.setSeek(time);
+                            if (dragType === "preview") {
+                                const hoverElement = document.elementFromPoint(event.x, event.y);
+                                const hoverItemElement = hoverElement ? hoverElement.closest(".ls-timeline-item") : null;
+                                if (hoverItemElement) {
+                                    const hoverItem = getItemFromElement(hoverItemElement);
+                                    if (hoverItem) setPreviewItem(hoverItem);
+                                }
+                            }
                         } else {
                             updateSelectionBox(cursorX, cursorY);
                         }
@@ -585,8 +1053,6 @@
                         }
 
                         this.quickEmit("drag-move", dragType, cursorX, cursorY);
-                    } else if (dragType === "delete") {
-                        // TODO: implement delete
                     }
                     
                     lastMoveTime = now;
@@ -601,6 +1067,52 @@
                     } else if (dragType === "select") {
                         this.selectionRect.style.display = "none";
                     }
+
+                    if (dragType === "preview-item") {
+                        setPreviewItem(null);
+                    }
+
+                    if (dragType === "preview") {
+                        setPreviewItem(null);
+                    }
+
+                    if (dragType === "slice") {
+                        if (this.sliceLine) this.sliceLine.style.display = "none";
+
+                        const startRow = Number.isFinite(dragState.sliceStartRow) ? dragState.sliceStartRow : 0;
+                        const endRow = Number.isFinite(dragState.sliceCurrentRow) ? dragState.sliceCurrentRow : startRow;
+                        const sliceClientX = Number.isFinite(lastClientX) ? lastClientX : dragState.sliceStartClientX;
+
+                        if (Number.isFinite(sliceClientX)) {
+                            performSliceAtLine(sliceClientX, startRow, endRow);
+                        }
+
+                        dragState.sliceStartRow = null;
+                        dragState.sliceCurrentRow = null;
+                        dragState.sliceStartClientX = null;
+                    }
+
+                    if ((dragType === "erase" || dragType === "delete") && dragState.erasedActionItems && dragState.erasedActionItems.length > 0) {
+                        this.emitAction({
+                            type: "delete",
+                            items: dragState.erasedActionItems
+                        });
+                    }
+
+                    dragState.erasedItems = null;
+                    dragState.erasedActionItems = null;
+                    dragState.lastToolClientX = null;
+                    dragState.lastToolClientY = null;
+                    dragState.deleteStartX = null;
+                    dragState.deleteStartY = null;
+                    dragState.deleteActivated = false;
+                    dragState.eraseStartX = null;
+                    dragState.eraseStartY = null;
+                    dragState.itemDragStartX = null;
+                    dragState.itemDragStartY = null;
+                    dragState.pointerDownX = null;
+                    dragState.pointerDownY = null;
+                    dragState.pointerMoved = false;
 
                     // Emit action for external history management
                     if (dragState.draggingItems && dragState._initialPositions) {
@@ -635,12 +1147,33 @@
                         dragState.clonedItems = null;
                         dragState.isCloning = false;
                         dragState.draggingItems = false;
+                        dragState.baseItemsToMove = null;
+                        dragState.itemsToMove = null;
+                        dragState.item = null;
+                        dragState.itemElement = null;
+                        dragState.gridSnapAnchorStart = null;
+                    }
+
+                    if (dragState.pendingItemDrag) {
+                        dragState.pendingItemDrag = false;
+                        dragState.isCloning = false;
+                        dragState.baseItemsToMove = null;
+                        dragState.item = null;
+                        dragState.itemElement = null;
+                        dragState._initialPositions = null;
+                        dragState.clonedItems = null;
+                        dragState.gridSnapAnchorStart = null;
                     }
 
                     if (this.snapLine) this.snapLine.style.display = "none";
 
                     stopEdgeScroll();
                     this.setTimeout(() => this.__isDragging = false, 10);
+
+                    if (dragType === "delete-pending" || dragType === "erase-pending") {
+                        dragType = null;
+                        return;
+                    }
 
                     this.quickEmit("drag-end", dragType);
                     dragType = null;
@@ -650,6 +1183,11 @@
             this.focusedItem = null;
             this.container.addEventListener("contextmenu", (event) => {
                 event.preventDefault();
+
+                if (this.__suppressContextMenuUntil && performance.now() <= this.__suppressContextMenuUntil) {
+                    this.__suppressContextMenuUntil = 0;
+                    return;
+                }
 
                 const itemElement = event.target.closest(".ls-timeline-item");
                 if(itemElement) {
@@ -732,17 +1270,44 @@
                 ]
             });
 
-            this.container.addEventListener("click", (event) => {
+            this.rowContainer.addEventListener("click", (event) => {
+
+                console.log("Timeline item clicked:", event.target)//, itemElement, getItemFromElement(itemElement));
                 if (this.__isDragging) return;
+                if (this.__suppressNextClick) {
+                    this.__suppressNextClick = false;
+                    return;
+                }
+
+                if (event.currentTarget.closest(".ls-resize-handle, .ls-automation-point-handle, .ls-automation-center-handle")) {
+                    return;
+                }
+
+                const selectionModifiers = event.ctrlKey || event.shiftKey;
+                const canSelect = this.tool === "select" || selectionModifiers;
+                if (!canSelect) return;
 
                 const itemElement = event.target.closest(".ls-timeline-item");
+                
                 if (itemElement) {
-                    const item = itemElement.__timelineItem || this.items.find(i => i.element === itemElement);
-                    if (item) {
-                        this.select(item);
+                    const item = getItemFromElement(itemElement);
+                    if (!item) return;
+
+                    if (selectionModifiers) {
+                        if (this.selectedItems.has(item)) {
+                            this.selectedItems.delete(item);
+                        } else {
+                            this.selectedItems.add(item);
+                        }
+                        this.focusedItem = item;
+                        this.quickEmit("item-select", item);
+                        this.frameScheduler.schedule();
+                        return;
                     }
+
+                    this.select(item);
                 } else {
-                    this.deselectAll();
+                    if (!selectionModifiers) this.deselectAll();
                 }
             });
 
@@ -965,6 +1530,29 @@
             return this.#duration;
         }
 
+        #tool = "select";
+        set tool(value) {
+            const previous = this.#tool;
+            value = value == null ? "select" : String(value);
+            if (value === previous) return;
+
+            this.#tool = value;
+
+            if (this.container) {
+                this.container.setAttribute("data-tool", value);
+            }
+
+            if (previous === "preview" && value !== "preview" && this.__setPreviewItem) {
+                this.__setPreviewItem(null);
+            }
+
+            this.quickEmit("tool-changed", value, previous);
+        }
+
+        get tool() {
+            return this.#tool;
+        }
+
         getItemById(id) {
             return this.itemMap.get(id);
         }
@@ -1061,6 +1649,22 @@
 
             if (this.__needsSort) {
                 this.sortItems();
+            }
+
+            const gridStep = this.__getGridSnapStep ? this.__getGridSnapStep() : 0;
+            if (gridStep > 0) {
+                const majorStepPx = zoom;
+                const minorStepPx = gridStep * zoom;
+                if (!this.__gridEnabled) {
+                    this.container.classList.add("grid-enabled");
+                    this.__gridEnabled = true;
+                }
+                this.rowContainer.style.setProperty("--ls-timeline-grid-major-step", `${majorStepPx}px`);
+                this.rowContainer.style.setProperty("--ls-timeline-grid-minor-step", `${minorStepPx}px`);
+                this.rowContainer.style.setProperty("--ls-timeline-grid-offset", `${-offset}px`);
+            } else if (this.__gridEnabled) {
+                this.container.classList.remove("grid-enabled");
+                this.__gridEnabled = false;
             }
 
             // Update spacer width
@@ -2003,12 +2607,28 @@
             this.markerContainer = null;
             this.selectionRect = null;
             this.snapLine = null;
+            this.sliceLine = null;
+
+            if (this.__setPreviewItem) {
+                this.__setPreviewItem(null);
+                this.__setPreviewItem = null;
+            }
+            this.__previewItem = null;
 
             this.__seekEventRef = null;
             this.__fileProcessEventRef = null;
 
             document.removeEventListener('wheel', this.__wheelHandler);
             this.__wheelHandler = null;
+
+            if (this.container && this.__previewHoverHandler) {
+                this.container.removeEventListener("pointermove", this.__previewHoverHandler);
+                this.__previewHoverHandler = null;
+            }
+            if (this.container && this.__previewLeaveHandler) {
+                this.container.removeEventListener("pointerleave", this.__previewLeaveHandler);
+                this.__previewLeaveHandler = null;
+            }
 
             if (this.container && this.__nativeDragOverHandler) {
                 this.container.removeEventListener('dragover', this.__nativeDragOverHandler);
