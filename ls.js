@@ -1810,7 +1810,7 @@
                         domEvent: null
                     };
 
-                    this.attach();
+                    if(!this.options.detached) this.attach();
                 }
 
                 addTarget(target) {

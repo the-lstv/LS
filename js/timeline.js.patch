@@ -21,6 +21,8 @@
 
 (() => {
     const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+    const normalizeSnappedTime = (value) => Math.abs(value) < 1e-12 ? 0 : Number(value.toPrecision(12));
+    const snapTimeToStep = (time, step) => step > 0 ? normalizeSnappedTime(Math.round(time / step) * step) : time;
 
     const DEFAULTS = {
         element: null,
@@ -345,7 +347,7 @@
             const dragState = {};
             this.__dragSnapModifiers = null;
 
-            const getGridSnapStep = (modifiers = null) => {
+            const getBaseGridSnapStep = (modifiers = null) => {
                 if (modifiers && (modifiers.altKey || modifiers.snapModifierAlt)) return 0;
                 if (!this.options.gridSnapping) return 0;
                 if (modifiers && (modifiers.shiftKey || modifiers.snapModifierShift)) return 1;
@@ -359,6 +361,36 @@
                 }
                 step = num(step, 0);
                 return step > 0 ? step : 0;
+            };
+
+            const getGridSnapStep = (modifiers = null) => {
+                let step = getBaseGridSnapStep(modifiers);
+                if (step <= 0 || this.#zoom <= 0) return 0;
+
+                while (step * this.#zoom < MIN_GRID_LINE_SPACING) {
+                    step *= 2;
+                }
+
+                return step;
+            };
+
+            const snapTimeToGrid = (time, modifiers = null) => {
+                const step = getGridSnapStep(modifiers);
+                return step > 0 ? Math.max(0, snapTimeToStep(time, step)) : time;
+            };
+
+            const snapClientXToGrid = (clientX, modifiers = null) => {
+                const containerRect = this.container.getBoundingClientRect();
+                let x = clamp(clientX, containerRect.left, containerRect.right);
+                const step = getGridSnapStep(modifiers);
+
+                if (step <= 0 || this.#zoom <= 0) {
+                    return x;
+                }
+
+                const rowRect = this.rowContainer.getBoundingClientRect();
+                const time = snapTimeToGrid((x - rowRect.left + this.#offset) / this.#zoom, modifiers);
+                return clamp(rowRect.left + (time * this.#zoom) - this.#offset, containerRect.left, containerRect.right);
             };
 
             this.__getGridSnapStep = getGridSnapStep;
@@ -396,8 +428,7 @@
             const updateSliceLine = (clientX, clientY) => {
                 if (!this.sliceLine) return;
 
-                const containerRect = this.container.getBoundingClientRect();
-                const x = clamp(clientX, containerRect.left, containerRect.right);
+                const x = snapClientXToGrid(clientX, dragState);
                 const startRow = Number.isFinite(dragState.sliceStartRow)
                     ? dragState.sliceStartRow
                     : getRowIndexAtClientY(clientY);
@@ -410,6 +441,7 @@
                 this.sliceLine.style.height = `${Math.max(0, bounds.bottom - bounds.top)}px`;
                 this.sliceLine.style.display = "block";
 
+                dragState.sliceClientX = x;
                 dragState.sliceStartRow = startRow;
                 dragState.sliceCurrentRow = currentRow;
             };
@@ -436,10 +468,9 @@
             };
 
             const performSliceAtLine = (clientX, startRow, endRow) => {
-                const containerRect = this.container.getBoundingClientRect();
-                const clampedX = clamp(clientX, containerRect.left, containerRect.right);
+                const clampedX = snapClientXToGrid(clientX, dragState);
                 const rowRect = this.rowContainer.getBoundingClientRect();
-                const time = (clampedX - rowRect.left + this.#offset) / this.#zoom;
+                const time = snapTimeToGrid((clampedX - rowRect.left + this.#offset) / this.#zoom, dragState);
                 const rowMin = Math.min(startRow, endRow);
                 const rowMax = Math.max(startRow, endRow);
                 const candidates = this.getIntersectingAt(time);
@@ -639,8 +670,7 @@
                 if (!snapped && gridStep > 0 && Number.isFinite(dragState.gridSnapAnchorStart)) {
                     let targetStart = dragState.gridSnapAnchorStart + deltaTime;
                     if (targetStart < 0) targetStart = 0;
-                    const snappedStart = Math.round(targetStart / gridStep) * gridStep;
-                    deltaTime = snappedStart - dragState.gridSnapAnchorStart;
+                    deltaTime = snapTimeToStep(targetStart, gridStep) - dragState.gridSnapAnchorStart;
                 }
                 const rowOffset = Math.round(deltaWorldY / this.rowHeight);
 
@@ -667,7 +697,7 @@
 
                 // Apply the clamped deltas to all items
                 for (const entry of dragState._initialPositions) {
-                    entry.item.start = entry.start + deltaTime;
+                    entry.item.start = normalizeSnappedTime(entry.start + deltaTime);
                     entry.item.row = entry.row + clampedRowOffset;
                 }
 
@@ -800,6 +830,9 @@
                         if (sliceGesture) {
                             dragType = "slice";
                             dragState.draggingItems = false;
+                            dragState.snapModifierShift = domEvent.shiftKey;
+                            dragState.snapModifierAlt = domEvent.altKey;
+                            this.__dragSnapModifiers = dragState;
                             dragState.sliceStartRow = getRowIndexAtClientY(event.y);
                             dragState.sliceCurrentRow = dragState.sliceStartRow;
                             dragState.sliceStartClientX = event.x;
@@ -1056,6 +1089,9 @@
                                 edgeScrollRaf = this.requestAnimationFrame(processEdgeScroll);
                             }
                             if (dragType === "slice") {
+                                dragState.snapModifierShift = event.domEvent.shiftKey;
+                                dragState.snapModifierAlt = event.domEvent.altKey;
+                                this.__dragSnapModifiers = dragState;
                                 updateSliceLine(event.x, event.y);
                             } else {
                                 performToolAlongPath(event.x, event.y, performEraseAtPointer);
@@ -1129,7 +1165,7 @@
     
                             const startRow = Number.isFinite(dragState.sliceStartRow) ? dragState.sliceStartRow : 0;
                             const endRow = Number.isFinite(dragState.sliceCurrentRow) ? dragState.sliceCurrentRow : startRow;
-                            const sliceClientX = Number.isFinite(lastClientX) ? lastClientX : dragState.sliceStartClientX;
+                            const sliceClientX = Number.isFinite(dragState.sliceClientX) ? dragState.sliceClientX : dragState.sliceStartClientX;
     
                             if (Number.isFinite(sliceClientX)) {
                                 performSliceAtLine(sliceClientX, startRow, endRow);
@@ -1138,6 +1174,7 @@
                             dragState.sliceStartRow = null;
                             dragState.sliceCurrentRow = null;
                             dragState.sliceStartClientX = null;
+                            dragState.sliceClientX = null;
                         }
     
                         if ((dragType === "erase" || dragType === "delete") && dragState.erasedActionItems && dragState.erasedActionItems.length > 0) {
@@ -2057,10 +2094,10 @@
             
             // Update durations and start times
             const originalEndTime = item.start + item.duration;
-            item.duration = splitTime - item.start;
+            item.duration = normalizeSnappedTime(splitTime - item.start);
             
-            newItem.start = splitTime;
-            newItem.duration = originalEndTime - splitTime;
+            newItem.start = normalizeSnappedTime(splitTime);
+            newItem.duration = normalizeSnappedTime(originalEndTime - splitTime);
 
             this.add(newItem);
             
@@ -2612,6 +2649,7 @@
             this.itemMap = null;
             this.__rendered = null;
             this.__dragSnapModifiers = null;
+            this.__getGridSnapStep = null;
             this.focusedItem = null;
 
             // UI Elements

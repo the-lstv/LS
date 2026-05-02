@@ -8,8 +8,8 @@
   flex-direction: column;
   position: relative;
   overflow: hidden;
-  --ls-timeline-grid-major-color: var(--surface-4);
-  --ls-timeline-grid-minor-color: color-mix(in srgb, var(--surface-4) 55%, transparent 45%);
+  --ls-timeline-grid-major-color: var(--surface-n1);
+  --ls-timeline-grid-minor-color: color-mix(in srgb, var(--surface-n1) 50%, transparent);
 }
 
 :root {
@@ -86,6 +86,7 @@
   background-position: var(--ls-timeline-grid-offset) 0;
   background-size: var(--ls-timeline-grid-major-step) 100%, var(--ls-timeline-grid-minor-step) 100%;
   background-repeat: repeat;
+  border-top: 1px solid var(--ls-timeline-grid-major-color);
 }
 
 .ls-timeline-item {
@@ -96,8 +97,11 @@
   top: 0;
   overflow: hidden;
   min-width: 5px;
-  cursor: pointer;
   border-radius: var(--timeline-item-radius, var(--border-radius-small));
+  cursor: move;
+}
+.ls-timeline-item .ls-automation-graph {
+  cursor: default;
 }
 
 .ls-timeline-item:not(.ls-timeline-item-automation), .ls-timeline-item-automation > span {
