@@ -4,437 +4,12 @@
  * @author Lukas
  */
 
-LS.LoadComponent(class Multipane extends LS.Component {
-    static PRESETS = {
-        /**
-         * |   | | |
-         * |   |---|
-         * |   |   |
-         */
-        'default': {
-            title: "Default",
-            direction: 'row',
-            inner: [
-                {
-                    inner: {
-                        direction: 'column',
-                        inner: [
-                            { type: 'slot', resize: { height: "70%" } },
-                            { type: 'slot' }
-                        ]
-                    }
-                },
-                {
-                    inner: {
-                        direction: 'column',
-                        inner: [{ direction: "row", inner: [{ type: 'slot' }, { type: 'slot' }] }, { type: 'slot' }]
-                    }
-                }
-            ]
-        },
-
-        /**
-        * |       |
-        * |-------|
-        * |       |
-        */
-        'editor-focused': {
-            title: "Dual horizontal",
-            direction: 'column',
-            inner: [
-                { type: 'slot', resize: { height: "70%" } },
-                {
-                    direction: 'row',
-                    inner: [
-                        { type: 'slot', resize: { width: "50%" } },
-                        { type: 'slot' }
-                    ]
-                }
-            ]
-        },
-
-        /**
-        * |   |   |
-        * |   |   |
-        * |   |   |
-        */
-        'output-focused': {
-            title: "Output Focused",
-            direction: 'row',
-            inner: [
-                { type: 'slot', resize: { width: "40%" } },
-                {
-                    direction: 'column',
-                    inner: [
-                        { type: 'slot', resize: { height: "60%" } },
-                        { type: 'slot' }
-                    ]
-                }
-            ]
-        },
-
-        /**
-        * |       |
-        * |-------|
-        * |       |
-        * |-------|
-        * |       |
-        */
-        'vertical-compiler': {
-            title: "Vertical",
-            direction: 'column',
-            inner: [
-                { type: 'slot', resize: { height: "50%" } },
-                { type: 'slot', resize: { height: "25%" } },
-                { type: 'slot' }
-            ]
-        },
-
-        /**
-        * |     |  |
-        * |-----|--|
-        * |     |  |
-        */
-        'ast-sidebar': {
-            title: "AST Sidebar",
-            direction: 'row',
-            inner: [
-                {
-                    direction: 'column',
-                    inner: [
-                        { type: 'slot', resize: { height: "60%" } },
-                        { type: 'slot' }
-                    ]
-                },
-                { type: 'slot', resize: { width: 300 } }
-            ]
-        },
-
-        /**
-        * | |   | |
-        * | |   | |
-        * | |   | |
-        */
-        'three-column-compiler': {
-            title: "Three Columns",
-            direction: 'row',
-            inner: [
-                { type: 'slot', resize: { width: "35%" } },
-                { type: 'slot', resize: { width: "35%" } },
-                { type: 'slot' }
-            ]
-        },
-
-        /**
-        * |   |   |
-        * |-------|
-        * |   |   |
-        * |-------|
-        * |   |   |
-        */
-        'four-panel': {
-            title: "Four Panel",
-            direction: 'column',
-            inner: [
-                { inner: [{ type: 'slot', resize: { width: "50%" } }, { type: 'slot' }], resize: { height: "50%" } },
-                { inner: [{ type: 'slot', resize: { width: "50%" } }, { type: 'slot' }], resize: { height: "50%" } }
-            ]
-        },
-
-        /**
-        * |       |
-        * |       |
-        * |       |
-        */
-        'editor-only': {
-            title: "Editor only",
-            direction: 'column',
-            inner: [
-                { type: 'slot' }
-            ]
-        },
-
-        /**
-        * |       |
-        * |       |
-        * |       |
-        */
-        'single': {
-            title: "Single",
-            direction: 'column',
-            inner: [
-                { type: 'slot' }
-            ]
-        },
-    };
-
-    /**
-     * Main Layout Manager
-     * 
-     * LS.Multipane manages a schema and a set of slots.
-     * Views can specify an array of slot names where they want to be placed, in order.
-     * 
-     * The schema defines the layout structure, which can be virtually any combination with an unlimited amount of slots.
-     */    
-    constructor(container, options = {}) {
-        this.container = container || document.body;
-        this.options = options;
-
-        this.views = new Set();
-        this.slots = new Set();
-        this.destroyables = new Set();
-
-        this.__schemaLoaded = false;
-        this.setSchema(options.layout || 'default');
-    }
-
-    static cloneSchema(schema) {
-        function replacer(key, value) {
-            if (value instanceof Slot) {
-                return { type: 'slot', view: value.expectedView, ...value.options? { options: value.options }: {}, ...value.resize? { resize: value.resize }: {} };
-            }
-            return value;
-        }
-
-        return JSON.parse(JSON.stringify(schema, replacer));
-    }
-
-    add(...views) {
-        for (const view of views) {
-            if (!(view instanceof View)) {
-                console.error("LS.Multipane.add: view must be an instance of View");
-                return;
-            }
-
-            this.views.add(view);
-        }
-
-        this.render();
-    }
-
-    render() {
-        for (const slot of this.slots) {
-            if (!slot.expectedView) continue;
-
-            // Find the view
-            let foundView = null;
-            for (const view of this.views) {
-                const viewName = view.__name || view.constructor.name;
-                if (viewName === slot.expectedView) {
-                    foundView = view;
-                    break;
-                }
-            }
-
-            if (foundView) {
-                slot.set(foundView);
-            }
-        }
-    }
-
-    setSchema(schema) {
-        if(typeof schema === "string") {
-            schema = this.constructor.PRESETS[schema];
-        }
-
-        if(!schema || (typeof schema !== "object")) {
-            if(this.__schemaLoaded) {
-                console.error("LS.Multipane.setSchema: valid schema is required");
-                return false;
-            }
-
-            console.warn("LS.Multipane.setSchema: invalid schema provided, using default");
-            schema = this.constructor.PRESETS['default'];
-        }
-
-        // Make a deep copy of the schema and set it as the current working schema
-        schema = this.constructor.cloneSchema(schema);
-        this.schema = schema;
-
-        for(const child of this.container.children) {
-            child.remove();
-        }
-
-        for(const slot of this.slots) {
-            if(slot.container) {
-                LS.Resize.remove(slot.container); // Removes any resize handlers
-                if(slot.destroy) slot.destroy();
-            }
-        }
-
-        for(const item of this.destroyables) {
-            item.destroy();
-        }
-        this.destroyables.clear();
-
-        this.slots.clear();
-        this.container.appendChild(this._processSchema(this.schema));
-
-        this.__schemaLoaded = true;
-        this.render();
-        return true;
-    }
-
-    getAvailableLayouts() {
-        const layouts = [];
-        for (const key in this.constructor.PRESETS) {
-            layouts.push({
-                name: key,
-                title: this.constructor.PRESETS[key].title || key,
-                schema: this.constructor.cloneSchema(this.constructor.PRESETS[key])
-            });
-        }
-        return layouts;
-    }
-
-    _processSchema(schema) {
-        if (schema instanceof Slot || (schema.type && schema.type === 'slot')) {
-            if (!(schema instanceof Slot)) {
-                schema = new Slot(schema.options || schema);
-            }
-
-            this.slots.add(schema);
-            return schema.container;
-        }
-
-        if (schema.type === 'tabs') {
-            const container = LS.Create("layout-item", { class: "editor-tabs" });
-            const tabs = new LS.Tabs(container, {
-                list: true,
-                styled: false
-            });
-
-            if(schema.tabs) {
-                let i = 0;
-                for(const tabData of schema.tabs) {
-                    let title = tabData.title || `Tab ${i + 1}`;
-                    let contentNode;
-
-                    if (Array.isArray(tabData)) {
-                        contentNode = this._processSchema({ inner: tabData, direction: schema.direction || 'row' });
-                    } else {
-                        contentNode = this._processSchema(tabData);
-                    }
-                    
-                    tabs.add(title, contentNode);
-                    i++;
-                }
-                tabs.set(0);
-            }
-
-            this.destroyables.add(tabs);
-            return container;
-        }
-
-        const direction = schema.direction || "row";
-        const container = LS.Create({ tag: "layout-item", class: 'layout-' + direction, ...schema.tilt? { style: `transform:rotate(${schema.tilt}deg)` }: {} });
-
-        if(Array.isArray(schema.inner)) {
-            let i = 0;
-            for (const item of schema.inner) {
-                const child = this._processSchema(item);
-                container.appendChild(child);
-
-                if(i !== schema.inner.length - 1) {
-                    LS.Resize.set(child, {
-                        sides: direction === 'column'? ['bottom']: ['right'],
-
-                        // Snapping
-                        snapCollapse: true,
-                        snapExpand: true,
-                        snapVertical: direction === 'column',
-                        snapHorizontal: direction === 'row',
-
-                        // Storage
-                        store: true,
-                        storeStringify: false,
-                        storage: {
-                            getItem: (key) => {
-                                return item.resize || null;
-                            },
-                            setItem: (key, value) => {
-                                item.resize = value;
-                            }
-                        }
-                    });
-
-                    if(!item.resize) child.style[direction === 'column'? 'height': 'width'] = (100 / schema.inner.length) + '%';
-                }
-
-                i++;
-            }
-        } else if (schema.inner) {
-            container.appendChild(this._processSchema(schema.inner));
-        }
-
-        return container;
-    }
-
-    exportLayout(asString = false) {
-        const exported = {
-            schema: this.constructor.cloneSchema(this.schema)
-        }
-
-        return asString? JSON.stringify(exported): exported;
-    }
-
-    importLayout(data) {
-        if (typeof data === "string") {
-            data = JSON.parse(data);
-        }
-
-        if (!data.schema) {
-            console.error("LS.Multipane.importLayout: invalid layout data");
-            return;
-        }
-
-        this.setSchema(data.schema);
-        this.render();
-    }
-
-    destroy() {
-
-    }
-
-
-    /**
-     * View class
-     * Base class for all views
-     */
-    static View = class View extends LS.EventEmitter {
-        constructor({ container, name, title } = {}) { 
-            super();
-
-            this.container = container;
-            this.container.classList.add('editor-view');
-            this.__name = name || null;
-            this.title = title || null;
-
-            this.currentSlot = null;
-        }
-
-        get isVisible() {
-            return (this.container && this.container.isConnected && this.currentSlot && this.container.parentElement === this.currentSlot.container);
-        }
-
-        // Subclasses should override with their own destruction logic, but DON'T forget to call super.destroy()
-        destroy() {
-            this.emit('destroy');
-            this.container.remove();
-            this.events.clear();
-            this.__destroyed = true;
-            if(this.currentSlot) {
-                this.currentSlot.set(null);
-            }
-        }
-    }
-
-
+(() => {
     /**
      * Slot class
      * Represents a slot in the layout where views can be placed
      */
-    static Slot = class Slot {
+    class Slot {
         constructor(options = {}) {
             this.options = options;
             this.expectedView = options.view || null;
@@ -446,7 +21,7 @@ LS.LoadComponent(class Multipane extends LS.Component {
                 tag: "layout-item",
                 class: 'layout-slot',
                 inner: [
-                    this.__header = N({ class: "layout-slot-header", inner: [
+                    this.__header = LS.Create({ class: "layout-slot-header", inner: [
                         [
                             { tag: "svg", attributes: {
                                 xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 256 256",
@@ -499,10 +74,10 @@ LS.LoadComponent(class Multipane extends LS.Component {
 
             this.currentView = view;
 
-            if(!view || view.__destroyed) {
+            if(!view || view.destroyed) {
                 this.container.appendChild(this.__emptyMessage);
                 this.__titleElement.innerText = "Empty slot";
-                if(view && view.__destroyed) {
+                if(view && view.destroyed) {
                     console.warn(`Slot.set: cannot set destroyed view ${view.constructor.name} to slot ${this.name}`);
                     view.currentSlot = null;
                     return;
@@ -533,7 +108,456 @@ LS.LoadComponent(class Multipane extends LS.Component {
             this.__emptyMessage = null;
             this.__header = null;
             this.__titleElement = null;
-            this.__destroyed = true;
+            this.destroyed = true;
         }
     }
-}, { name: "Multipane", id: "ls-multipane-layout", global: true });
+
+    /**
+     * View class
+     * Base class for all views
+     */
+    class View extends LS.EventEmitter {
+        constructor({ container, name, title } = {}) { 
+            super();
+
+            this.container = container;
+            this.container.classList.add('editor-view');
+            this.__name = name || null;
+            this.title = title || null;
+
+            this.currentSlot = null;
+        }
+
+        get isVisible() {
+            return (this.container && this.container.isConnected && this.currentSlot && this.container.parentElement === this.currentSlot.container);
+        }
+
+        // Subclasses should override with their own destruction logic, but DON'T forget to call super.destroy()
+        destroy() {
+            this.emit('destroy');
+            this.container.remove();
+            this.events.clear();
+            this.destroyed = true;
+            if(this.currentSlot) {
+                this.currentSlot.set(null);
+            }
+        }
+    }
+
+    LS.LoadComponent(class Multipane extends LS.Component {
+        static PRESETS = {
+            /**
+             * |   | | |
+             * |   |---|
+             * |   |   |
+             */
+            'default': {
+                title: "Default",
+                direction: 'row',
+                inner: [
+                    {
+                        inner: {
+                            direction: 'column',
+                            inner: [
+                                { type: 'slot', resize: { height: "70%" } },
+                                { type: 'slot' }
+                            ]
+                        }
+                    },
+                    {
+                        inner: {
+                            direction: 'column',
+                            inner: [{ direction: "row", inner: [{ type: 'slot' }, { type: 'slot' }] }, { type: 'slot' }]
+                        }
+                    }
+                ]
+            },
+
+            /**
+            * |       |
+            * |-------|
+            * |       |
+            */
+            'editor-focused': {
+                title: "Dual horizontal",
+                direction: 'column',
+                inner: [
+                    { type: 'slot', resize: { height: "70%" } },
+                    {
+                        direction: 'row',
+                        inner: [
+                            { type: 'slot', resize: { width: "50%" } },
+                            { type: 'slot' }
+                        ]
+                    }
+                ]
+            },
+
+            /**
+            * |   |   |
+            * |   |   |
+            * |   |   |
+            */
+            'output-focused': {
+                title: "Output Focused",
+                direction: 'row',
+                inner: [
+                    { type: 'slot', resize: { width: "40%" } },
+                    {
+                        direction: 'column',
+                        inner: [
+                            { type: 'slot', resize: { height: "60%" } },
+                            { type: 'slot' }
+                        ]
+                    }
+                ]
+            },
+
+            /**
+            * |       |
+            * |-------|
+            * |       |
+            * |-------|
+            * |       |
+            */
+            'vertical-compiler': {
+                title: "Vertical",
+                direction: 'column',
+                inner: [
+                    { type: 'slot', resize: { height: "50%" } },
+                    { type: 'slot', resize: { height: "25%" } },
+                    { type: 'slot' }
+                ]
+            },
+
+            /**
+            * |     |  |
+            * |-----|--|
+            * |     |  |
+            */
+            'ast-sidebar': {
+                title: "AST Sidebar",
+                direction: 'row',
+                inner: [
+                    {
+                        direction: 'column',
+                        inner: [
+                            { type: 'slot', resize: { height: "60%" } },
+                            { type: 'slot' }
+                        ]
+                    },
+                    { type: 'slot', resize: { width: 300 } }
+                ]
+            },
+
+            /**
+            * | |   | |
+            * | |   | |
+            * | |   | |
+            */
+            'three-column-compiler': {
+                title: "Three Columns",
+                direction: 'row',
+                inner: [
+                    { type: 'slot', resize: { width: "35%" } },
+                    { type: 'slot', resize: { width: "35%" } },
+                    { type: 'slot' }
+                ]
+            },
+
+            /**
+            * |   |   |
+            * |-------|
+            * |   |   |
+            * |-------|
+            * |   |   |
+            */
+            'four-panel': {
+                title: "Four Panel",
+                direction: 'column',
+                inner: [
+                    { inner: [{ type: 'slot', resize: { width: "50%" } }, { type: 'slot' }], resize: { height: "50%" } },
+                    { inner: [{ type: 'slot', resize: { width: "50%" } }, { type: 'slot' }], resize: { height: "50%" } }
+                ]
+            },
+
+            /**
+            * |       |
+            * |       |
+            * |       |
+            */
+            'editor-only': {
+                title: "Editor only",
+                direction: 'column',
+                inner: [
+                    { type: 'slot' }
+                ]
+            },
+
+            /**
+            * |       |
+            * |       |
+            * |       |
+            */
+            'single': {
+                title: "Single",
+                direction: 'column',
+                inner: [
+                    { type: 'slot' }
+                ]
+            },
+        };
+
+        static View = View;
+        static Slot = Slot;
+
+        /**
+         * Main Layout Manager
+         * 
+         * LS.Multipane manages a schema and a set of slots.
+         * Views can specify an array of slot names where they want to be placed, in order.
+         * 
+         * The schema defines the layout structure, which can be virtually any combination with an unlimited amount of slots.
+         */
+        constructor(container, options = {}) {
+            super();
+
+            this.container = container || document.body;
+            this.options = options;
+
+            this.views = new Set();
+            this.slots = new Set();
+            this.destroyables = new Set();
+
+            this.__schemaLoaded = false;
+            this.setSchema(options.layout || 'default');
+        }
+
+        static cloneSchema(schema) {
+            function replacer(key, value) {
+                if (value instanceof Slot) {
+                    return { type: 'slot', view: value.expectedView, ...value.options? { options: value.options }: {}, ...value.resize? { resize: value.resize }: {} };
+                }
+                return value;
+            }
+
+            return JSON.parse(JSON.stringify(schema, replacer));
+        }
+
+        add(...views) {
+            for (const view of views) {
+                if (!(view instanceof View)) {
+                    console.error("LS.Multipane.add: view must be an instance of View");
+                    return;
+                }
+
+                this.views.add(view);
+            }
+
+            this.render();
+        }
+
+        render() {
+            for (const slot of this.slots) {
+                if (!slot.expectedView) continue;
+
+                // Find the view
+                let foundView = null;
+                for (const view of this.views) {
+                    const viewName = view.__name || view.constructor.name;
+                    if (viewName === slot.expectedView) {
+                        foundView = view;
+                        break;
+                    }
+                }
+
+                if (foundView) {
+                    slot.set(foundView);
+                }
+            }
+        }
+
+        setSchema(schema) {
+            if(typeof schema === "string") {
+                schema = this.constructor.PRESETS[schema];
+            }
+
+            if(!schema || (typeof schema !== "object")) {
+                if(this.__schemaLoaded) {
+                    console.error("LS.Multipane.setSchema: valid schema is required");
+                    return false;
+                }
+
+                console.warn("LS.Multipane.setSchema: invalid schema provided, using default");
+                schema = this.constructor.PRESETS['default'];
+            }
+
+            // Make a deep copy of the schema and set it as the current working schema
+            schema = this.constructor.cloneSchema(schema);
+            this.schema = schema;
+
+            for(const child of this.container.children) {
+                child.remove();
+            }
+
+            for(const slot of this.slots) {
+                if(slot.container) {
+                    LS.Resize.remove(slot.container); // Removes any resize handlers
+                    if(slot.destroy) slot.destroy();
+                }
+            }
+
+            for(const item of this.destroyables) {
+                item.destroy();
+            }
+            this.destroyables.clear();
+
+            this.slots.clear();
+            this.container.appendChild(this._processSchema(this.schema));
+
+            this.__schemaLoaded = true;
+            this.render();
+            return true;
+        }
+
+        getAvailableLayouts() {
+            const layouts = [];
+            for (const key in this.constructor.PRESETS) {
+                layouts.push({
+                    name: key,
+                    title: this.constructor.PRESETS[key].title || key,
+                    schema: this.constructor.cloneSchema(this.constructor.PRESETS[key])
+                });
+            }
+            return layouts;
+        }
+
+        _processSchema(schema) {
+            if (schema instanceof Slot || (schema.type && schema.type === 'slot')) {
+                if (!(schema instanceof Slot)) {
+                    schema = new Slot(schema.options || schema);
+                }
+
+                this.slots.add(schema);
+                return schema.container;
+            }
+
+            if (schema.type === 'tabs') {
+                const container = LS.Create("layout-item", { class: "editor-tabs" });
+                const tabs = new LS.Tabs(container, {
+                    list: true,
+                    styled: false
+                });
+
+                if(schema.tabs) {
+                    let i = 0;
+                    for(const tabData of schema.tabs) {
+                        let title = tabData.title || `Tab ${i + 1}`;
+                        let contentNode;
+
+                        if (Array.isArray(tabData)) {
+                            contentNode = this._processSchema({ inner: tabData, direction: schema.direction || 'row' });
+                        } else {
+                            contentNode = this._processSchema(tabData);
+                        }
+                        
+                        tabs.add(title, contentNode);
+                        i++;
+                    }
+                    tabs.set(0);
+                }
+
+                this.destroyables.add(tabs);
+                return container;
+            }
+
+            const direction = schema.direction || "row";
+            const container = LS.Create({ tag: "layout-item", class: 'layout-' + direction, ...schema.tilt? { style: `transform:rotate(${schema.tilt}deg)` }: {} });
+
+            if(Array.isArray(schema.inner)) {
+                let i = 0;
+                for (const item of schema.inner) {
+                    const child = this._processSchema(item);
+                    container.appendChild(child);
+
+                    if(i !== schema.inner.length - 1) {
+                        LS.Resize.set(child, {
+                            sides: direction === 'column'? ['bottom']: ['right'],
+
+                            // Snapping
+                            snapCollapse: true,
+                            snapExpand: true,
+                            snapVertical: direction === 'column',
+                            snapHorizontal: direction === 'row',
+
+                            // Storage
+                            store: true,
+                            storeStringify: false,
+                            storage: {
+                                getItem: (key) => {
+                                    return item.resize || null;
+                                },
+                                setItem: (key, value) => {
+                                    item.resize = value;
+                                }
+                            }
+                        });
+
+                        if(!item.resize) child.style[direction === 'column'? 'height': 'width'] = (100 / schema.inner.length) + '%';
+                    }
+
+                    i++;
+                }
+            } else if (schema.inner) {
+                container.appendChild(this._processSchema(schema.inner));
+            }
+
+            return container;
+        }
+
+        exportLayout(asString = false) {
+            const exported = {
+                schema: this.constructor.cloneSchema(this.schema)
+            }
+
+            return asString? JSON.stringify(exported): exported;
+        }
+
+        importLayout(data) {
+            if (typeof data === "string") {
+                data = JSON.parse(data);
+            }
+
+            if (!data.schema) {
+                console.error("LS.Multipane.importLayout: invalid layout data");
+                return;
+            }
+
+            this.setSchema(data.schema);
+            this.render();
+        }
+
+        // TODO:
+        destroy() {
+            if(this.destroyed) return;
+
+            for (const slot of this.slots) {
+                if (slot.container) {
+                    LS.Resize.remove(slot.container); // Removes any resize handlers
+                    if (slot.destroy) slot.destroy();
+                }
+            }
+
+            for (const item of this.destroyables) {
+                item.destroy();
+            }
+
+            this.slots.clear();
+            this.destroyables.clear();
+            this.views.clear();
+
+            this.container = null;
+            super.destroy();
+        }
+    }, { name: "Multipane", id: "ls-multipane-layout", global: true });
+})();

@@ -265,9 +265,28 @@
                 const startScreenY = selectStartWorldY - scrollTop;
 
                 const left = Math.min(startScreenX, currentX);
-                const top = Math.min(startScreenY, currentY);
                 const width = Math.abs(currentX - startScreenX);
-                const height = Math.abs(currentY - startScreenY);
+
+                const rowRect = this.rowContainer.getBoundingClientRect();
+                const containerRect = this.container.getBoundingClientRect();
+                const relativeRowTop = rowRect.top - containerRect.top;
+                const rowHeight = this.rowElements.length > 0 ? this.rowElements[0].offsetHeight : this.rowHeight || 30;
+                if(rowHeight <= 0) return;
+
+                const maxRowIndex = Math.max(0, this.rowElements.length - 1);
+                let startRow = Math.floor((startScreenY - relativeRowTop) / rowHeight);
+                let endRow = Math.floor((currentY - relativeRowTop) / rowHeight);
+
+                if (startRow < 0) startRow = 0;
+                else if (startRow > maxRowIndex) startRow = maxRowIndex;
+
+                if (endRow < 0) endRow = 0;
+                else if (endRow > maxRowIndex) endRow = maxRowIndex;
+
+                const rowStart = Math.min(startRow, endRow);
+                const rowEnd = Math.max(startRow, endRow);
+                const top = relativeRowTop + (rowStart * rowHeight);
+                const height = ((rowEnd - rowStart) + 1) * rowHeight;
 
                 this.selectionRect.style.transform = `translate3d(${left}px, ${top}px, 0)`;
                 this.selectionRect.style.width = `${width}px`;
@@ -278,19 +297,6 @@
 
                 const timeStart = worldLeft / this.#zoom;
                 const timeEnd = worldRight / this.#zoom;
-
-                const rowRect = this.rowContainer.getBoundingClientRect();
-                const containerRect = this.container.getBoundingClientRect();
-                const relativeRowTop = rowRect.top - containerRect.top;
-                
-                const boxTopRel = top - relativeRowTop;
-                const boxBottomRel = boxTopRel + height;
-                
-                const rowHeight = this.rowElements.length > 0 ? this.rowElements[0].offsetHeight : 30;
-                if(rowHeight <= 0) return;
-
-                const rowStart = Math.floor(boxTopRel / rowHeight);
-                const rowEnd = Math.floor(boxBottomRel / rowHeight);
 
                 const candidates = this.getRange(timeStart, timeEnd, false);
 
@@ -317,7 +323,7 @@
                     if (dragType === "seek" || dragType === "preview") {
                         const worldX = lastCursorX + this.offset;
                         this.setSeek(worldX / this.#zoom);
-                    } else if (dragType === "slice") {
+                    } else if (dragType === "slice" || dragType === "slice-delete") {
                         updateSliceLine(lastClientX, lastClientY);
                     } else if (dragType === "resize") {
                         updateResizePosition(lastClientX);
@@ -351,6 +357,24 @@
             const dragState = {};
             this.__dragSnapModifiers = null;
 
+            const updateSnapModifiers = (domEvent) => {
+                const shiftKey = !!(domEvent && domEvent.shiftKey);
+                const altKey = !!(domEvent && domEvent.altKey);
+
+                if (!shiftKey) dragState.consumedSnapShift = false;
+                if (!altKey) dragState.consumedSnapAlt = false;
+
+                dragState.snapModifierShift = shiftKey && !dragState.consumedSnapShift;
+                dragState.snapModifierAlt = altKey && !dragState.consumedSnapAlt;
+            };
+
+            const resetSnapModifiers = () => {
+                dragState.consumedSnapShift = false;
+                dragState.consumedSnapAlt = false;
+                dragState.snapModifierShift = false;
+                dragState.snapModifierAlt = false;
+            };
+
             const getGridSnapStep = (modifiers = null) => this.#getGridSnapStep(modifiers);
             const snapTimeToGrid = (time, modifiers = null) => this.#snapTimeToGrid(time, modifiers);
             const snapClientXToGrid = (clientX, modifiers = null) => this.#snapClientXToGrid(clientX, modifiers);
@@ -360,9 +384,8 @@
             this.__modifierKeyHandler = (event) => {
                 if (event.key !== "Shift" && event.key !== "Alt") return;
 
-                if (dragType === "slice" || dragType === "resize" || dragState.draggingItems || dragState.resizingItems) {
-                    dragState.snapModifierShift = event.shiftKey;
-                    dragState.snapModifierAlt = event.altKey;
+                if (dragType === "slice" || dragType === "slice-delete" || dragType === "resize" || dragState.draggingItems || dragState.resizingItems || dragState.pendingItemDrag) {
+                    updateSnapModifiers(event);
                     this.__dragSnapModifiers = dragState;
                 } else if (this.__dragSnapModifiers) {
                     this.__dragSnapModifiers = null;
@@ -500,6 +523,12 @@
             const updateSliceLine = (clientX, clientY) => {
                 if (!this.sliceLine) return;
 
+                if (dragState.sliceDeleteShorter) {
+                    this.sliceLine.setAttribute("ls-accent", "red");
+                } else {
+                    this.sliceLine.removeAttribute("ls-accent");
+                }
+
                 const x = snapClientXToGrid(clientX, dragState);
                 const startRow = Number.isFinite(dragState.sliceStartRow)
                     ? dragState.sliceStartRow
@@ -539,7 +568,7 @@
                 return { time, row, items };
             };
 
-            const performSliceAtLine = (clientX, startRow, endRow) => {
+            const performSliceAtLine = (clientX, startRow, endRow, deleteShorter = false) => {
                 const clampedX = snapClientXToGrid(clientX, dragState);
                 const rowRect = this.rowContainer.getBoundingClientRect();
                 const time = snapTimeToGrid((clampedX - rowRect.left + this.#offset) / this.#zoom, dragState);
@@ -547,6 +576,7 @@
                 const rowMax = Math.max(startRow, endRow);
                 const candidates = this.getIntersectingAt(time);
                 const slicedItems = new Set();
+                const changes = deleteShorter ? [] : null;
 
                 for (const item of candidates) {
                     const itemRow = item.row || 0;
@@ -559,11 +589,44 @@
                     }
                     if (slicedItems.has(item)) continue;
 
+                    if (deleteShorter) {
+                        const start = item.start;
+                        const duration = item.duration;
+                        const end = start + duration;
+                        const leftDuration = time - start;
+                        const rightDuration = end - time;
+
+                        if (leftDuration >= rightDuration) {
+                            item.duration = normalizeSnappedTime(leftDuration);
+                        } else {
+                            item.start = normalizeSnappedTime(time);
+                            item.duration = normalizeSnappedTime(rightDuration);
+                        }
+
+                        changes.push({
+                            id: item.id,
+                            before: { start, duration },
+                            after: { start: item.start, duration: item.duration }
+                        });
+
+                        slicedItems.add(item);
+                        continue;
+                    }
+
                     const newItem = this.cut(item, time);
                     if (newItem) {
                         slicedItems.add(item);
                         slicedItems.add(newItem);
                     }
+                }
+
+                if (deleteShorter && changes.length > 0) {
+                    this.__needsSort = true;
+                    this.emitAction({
+                        type: "slice-delete",
+                        changes
+                    });
+                    this.frameScheduler.schedule();
                 }
             };
 
@@ -606,8 +669,7 @@
             const beginItemDrag = (event) => {
                 dragState.pendingItemDrag = false;
                 dragState.draggingItems = true;
-                dragState.snapModifierShift = event.domEvent.shiftKey;
-                dragState.snapModifierAlt = event.domEvent.altKey;
+                updateSnapModifiers(event.domEvent);
                 this.__dragSnapModifiers = dragState;
 
                 let itemsToMove = Array.isArray(dragState.baseItemsToMove)
@@ -785,8 +847,7 @@
                     row: itm.row || 0
                 }));
                 dragState.resizeItems = itemsToResize;
-                dragState.snapModifierShift = event.domEvent.shiftKey;
-                dragState.snapModifierAlt = event.domEvent.altKey;
+                updateSnapModifiers(event.domEvent);
                 dragState.snapValues = this.options.snapEnabled ? buildItemSnapValues(itemsToResize) : [];
                 this.__dragSnapModifiers = dragState;
 
@@ -891,6 +952,9 @@
                         stopInertia();
                         stopEdgeScroll();
 
+                        resetSnapModifiers();
+                        dragState.sliceDeleteShorter = false;
+
                         const domEvent = event.domEvent;
                         const target = domEvent.target;
                         const touchEvent = domEvent.type.startsWith("touch");
@@ -954,10 +1018,11 @@
     
                         rect = this.container.getBoundingClientRect();
                         const activeTool = this.tool;
+                        const sliceDeleteGesture = rightButton && activeTool === "slice";
                         const sliceGesture = primaryButton && (domEvent.altKey || activeTool === "slice");
                         const eraseGesture = primaryButton && activeTool === "erase" && !domEvent.altKey;
                         const previewGesture = primaryButton && activeTool === "preview" && !domEvent.altKey;
-                        const rightPreviewGesture = rightButton && domEvent.altKey;
+                        const rightPreviewGesture = rightButton && domEvent.altKey && !sliceDeleteGesture;
                         lastClientX = event.x;
                         lastClientY = event.y;
                         lastCursorX = event.x - rect.left;
@@ -978,7 +1043,7 @@
                             && !previewGesture
                         );
     
-                        this.dragHandle.cursor = "move";
+                        this.dragHandle.cursor = "var(--ls-timeline-cursor-move)";
     
                         if (rightPreviewGesture) {
                             dragType = "preview-item";
@@ -986,6 +1051,24 @@
                             this.__suppressContextMenuUntil = performance.now() + 500;
                             this.dragHandle.cursor = "var(--ls-timeline-cursor-preview)";
                             setPreviewItem(getItemFromElement(itemElement));
+                            this.quickEmit("drag-start", dragType);
+                            return;
+                        }
+    
+                        if (sliceDeleteGesture) {
+                            dragType = "slice-delete";
+                            dragState.draggingItems = false;
+                            dragState.sliceDeleteShorter = true;
+                            updateSnapModifiers(domEvent);
+                            this.__dragSnapModifiers = dragState;
+                            dragState.sliceStartRow = getRowIndexAtClientY(event.y);
+                            dragState.sliceCurrentRow = dragState.sliceStartRow;
+                            dragState.sliceStartClientX = event.x;
+                            this.__suppressContextMenuUntil = performance.now() + 500;
+                            this.contextMenu.close();
+                            this.itemContextMenu.close();
+                            this.dragHandle.cursor = "var(--ls-timeline-cursor-slice)";
+                            updateSliceLine(event.x, event.y);
                             this.quickEmit("drag-start", dragType);
                             return;
                         }
@@ -1002,8 +1085,9 @@
                         if (sliceGesture) {
                             dragType = "slice";
                             dragState.draggingItems = false;
-                            dragState.snapModifierShift = domEvent.shiftKey;
-                            dragState.snapModifierAlt = domEvent.altKey;
+                            dragState.sliceDeleteShorter = false;
+                            dragState.consumedSnapAlt = domEvent.altKey && activeTool !== "slice";
+                            updateSnapModifiers(domEvent);
                             this.__dragSnapModifiers = dragState;
                             dragState.sliceStartRow = getRowIndexAtClientY(event.y);
                             dragState.sliceCurrentRow = dragState.sliceStartRow;
@@ -1052,6 +1136,8 @@
                                 dragState.startWorldY = (event.y - rect.top) + this.scrollContainer.scrollTop;
                                 dragState.disableSnapping = false;
                                 dragState.isCloning = event.domEvent.shiftKey; // Shift+drag to clone
+                                dragState.consumedSnapShift = dragState.isCloning;
+                                updateSnapModifiers(event.domEvent);
                                 dragState.itemDragStartX = event.x;
                                 dragState.itemDragStartY = event.y;
                                 dragState.baseItemsToMove = this.selectedItems.size && this.selectedItems.has(item)
@@ -1173,8 +1259,7 @@
                             const maxSpeed = 15;
 
                             this.__isDragging = true;
-                            dragState.snapModifierShift = event.domEvent.shiftKey;
-                            dragState.snapModifierAlt = event.domEvent.altKey;
+                            updateSnapModifiers(event.domEvent);
                             this.__dragSnapModifiers = dragState;
 
                             edgeScrollSpeedX = 0;
@@ -1215,8 +1300,7 @@
                             const threshold = 50;
                             const maxSpeed = 15;
     
-                            dragState.snapModifierShift = event.domEvent.shiftKey;
-                            dragState.snapModifierAlt = event.domEvent.altKey;
+                            updateSnapModifiers(event.domEvent);
                             this.__dragSnapModifiers = dragState;
     
                             edgeScrollSpeedX = 0;
@@ -1266,7 +1350,7 @@
                             }
     
                             this.quickEmit("drag-move", dragType, 0, event.dy);
-                        } else if (dragType === "slice" || dragType === "erase" || dragType === "delete") {
+                        } else if (dragType === "slice" || dragType === "slice-delete" || dragType === "erase" || dragType === "delete") {
                             const threshold = 50;
                             const maxSpeed = 15;
                             
@@ -1284,9 +1368,8 @@
                             if ((edgeScrollSpeedX !== 0 || edgeScrollSpeedY !== 0) && !edgeScrollRaf) {
                                 edgeScrollRaf = this.requestAnimationFrame(processEdgeScroll);
                             }
-                            if (dragType === "slice") {
-                                dragState.snapModifierShift = event.domEvent.shiftKey;
-                                dragState.snapModifierAlt = event.domEvent.altKey;
+                            if (dragType === "slice" || dragType === "slice-delete") {
+                                updateSnapModifiers(event.domEvent);
                                 this.__dragSnapModifiers = dragState;
                                 updateSliceLine(event.x, event.y);
                             } else {
@@ -1356,21 +1439,25 @@
                             setPreviewItem(null);
                         }
     
-                        if (dragType === "slice") {
-                            if (this.sliceLine) this.sliceLine.style.display = "none";
+                        if (dragType === "slice" || dragType === "slice-delete") {
+                            if (this.sliceLine) {
+                                this.sliceLine.style.display = "none";
+                                this.sliceLine.removeAttribute("ls-accent");
+                            }
     
                             const startRow = Number.isFinite(dragState.sliceStartRow) ? dragState.sliceStartRow : 0;
                             const endRow = Number.isFinite(dragState.sliceCurrentRow) ? dragState.sliceCurrentRow : startRow;
                             const sliceClientX = Number.isFinite(dragState.sliceClientX) ? dragState.sliceClientX : dragState.sliceStartClientX;
     
                             if (Number.isFinite(sliceClientX)) {
-                                performSliceAtLine(sliceClientX, startRow, endRow);
+                                performSliceAtLine(sliceClientX, startRow, endRow, dragType === "slice-delete");
                             }
     
                             dragState.sliceStartRow = null;
                             dragState.sliceCurrentRow = null;
                             dragState.sliceStartClientX = null;
                             dragState.sliceClientX = null;
+                            dragState.sliceDeleteShorter = false;
                         }
 
                         if (dragType === "resize" && dragState.resizeInitialPositions) {
@@ -1417,8 +1504,7 @@
                         dragState.pointerDownX = null;
                         dragState.pointerDownY = null;
                         dragState.pointerMoved = false;
-                        dragState.snapModifierShift = false;
-                        dragState.snapModifierAlt = false;
+                        resetSnapModifiers();
                         dragState.resizingItems = false;
                         dragState.resizeSide = null;
                         dragState.resizeItem = null;
@@ -1722,6 +1808,9 @@
                     this.selectedItems.clear();
                     for (const item of this.items) this.selectedItems.add(item);
                     this.frameScheduler.schedule();
+                } else if (key === "b") {
+                    event.preventDefault();
+                    this.#repeatSelection();
                 } else if (key === "c") {
                     event.preventDefault();
                     if (this.selectedItems.size === 0) return;
@@ -1994,6 +2083,63 @@
                 type: "move",
                 changes
             });
+            this.frameScheduler.schedule();
+            return true;
+        }
+
+        #repeatSelection() {
+            const items = this.selectedItems.size > 0
+                ? Array.from(this.selectedItems)
+                : this.focusedItem
+                    ? [this.focusedItem]
+                    : [];
+
+            if (items.length === 0) return false;
+
+            let minStart = Infinity;
+            let maxEnd = -Infinity;
+
+            for (const item of items) {
+                const start = num(item.start);
+                const end = start + num(item.duration);
+                if (start < minStart) minStart = start;
+                if (end > maxEnd) maxEnd = end;
+            }
+
+            if (!Number.isFinite(minStart) || !Number.isFinite(maxEnd)) return false;
+
+            const offset = maxEnd - minStart;
+            const clonedItems = [];
+            const idMap = new Map();
+
+            for (const item of items) {
+                const cloned = this.cloneItem(item);
+                cloned.start = normalizeSnappedTime((item.start || 0) + offset);
+                cloned.row = item.row || 0;
+                idMap.set(item.id, cloned.id);
+                clonedItems.push(cloned);
+                this.add(cloned);
+            }
+
+            if (this.options.remapAutomationTargets) {
+                this.remapAutomationTargets(clonedItems, idMap);
+            }
+
+            this.selectedItems.clear();
+            for (const item of clonedItems) {
+                this.selectedItems.add(item);
+            }
+
+            this.focusedItem = clonedItems[0] || null;
+
+            this.emitAction({
+                type: "clone",
+                items: clonedItems.map((item) => ({
+                    id: item.id,
+                    data: this.cloneItem(item)
+                }))
+            });
+
             this.frameScheduler.schedule();
             return true;
         }
@@ -2882,6 +3028,7 @@
                     break;
                     
                 case "resize":
+                case "slice-delete":
                     // Restore previous size
                     for (const change of action.changes) {
                         const item = this.getItemById(change.id);
@@ -2959,6 +3106,7 @@
                     break;
                     
                 case "resize":
+                case "slice-delete":
                     // Apply resize again
                     for (const change of action.changes) {
                         const item = this.getItemById(change.id);

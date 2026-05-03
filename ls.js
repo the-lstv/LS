@@ -252,7 +252,6 @@
          * Emit an event with the given name and data.
          * @param {string|object} name Name of the event to emit or it's reference
          * @param {Array} data Array of values to pass
-         * @param {object} event Optional emit options override
          * @returns {null|Array|Promise<null|Array>} Array of results (if options.results is true) or null. If event.await is true, returns a Promise.
          */
         emit(name, data) {
