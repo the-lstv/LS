@@ -30,8 +30,8 @@
         reservedRows: 5,
         zoom: 200,
         offset: 0,
-        minZoom: 0.1,
-        maxZoom: 800,
+        minZoom: 0.4,
+        maxZoom: 1400,
         markerSpacing: 100,
         markerMetric: "time",
         resizable: true,
@@ -61,6 +61,7 @@
     const SLICE_EPSILON = 0.01;
     const MIN_GRID_LINE_SPACING = 10;
     const MIN_MAJOR_GRID_LINE_SPACING = 60;
+    const MIN_ITEM_PIXEL_WIDTH = 5;
 
     function num(value, fallback = 0) {
         value = Number(value);
@@ -141,7 +142,7 @@
          */
         constructor(options = {}) {
             super({
-                dependencies: ["Menu", "Resize"]
+                dependencies: ["Menu"]
             });
 
             this.options = LS.Util.defaults(DEFAULTS, options);
@@ -318,6 +319,8 @@
                         this.setSeek(worldX / this.#zoom);
                     } else if (dragType === "slice") {
                         updateSliceLine(lastClientX, lastClientY);
+                    } else if (dragType === "resize") {
+                        updateResizePosition(lastClientX);
                     } else if (dragType === "erase" || dragType === "delete") {
                         performToolAlongPath(lastClientX, lastClientY, performEraseAtPointer);
                     } else if (dragType === "select") {
@@ -348,53 +351,37 @@
             const dragState = {};
             this.__dragSnapModifiers = null;
 
-            const getBaseGridSnapStep = (modifiers = null) => {
-                if (modifiers && (modifiers.altKey || modifiers.snapModifierAlt)) return 0;
-                if (!this.options.gridSnapping) return 0;
-                if (modifiers && (modifiers.shiftKey || modifiers.snapModifierShift)) return 1;
-
-                let step = this.options.gridSnapDivision;
-                if (typeof step === "string" && step.includes("/")) {
-                    const parts = step.split("/").map(Number);
-                    if (parts.length === 2 && Number.isFinite(parts[0]) && Number.isFinite(parts[1]) && parts[1] !== 0) {
-                        step = parts[0] / parts[1];
-                    }
-                }
-                step = num(step, 0);
-                return step > 0 ? step : 0;
-            };
-
-            const getGridSnapStep = (modifiers = null) => {
-                let step = getBaseGridSnapStep(modifiers);
-                if (step <= 0 || this.#zoom <= 0) return 0;
-
-                while (step * this.#zoom < MIN_GRID_LINE_SPACING) {
-                    step *= 2;
-                }
-
-                return step;
-            };
-
-            const snapTimeToGrid = (time, modifiers = null) => {
-                const step = getGridSnapStep(modifiers);
-                return step > 0 ? Math.max(0, snapTimeToStep(time, step)) : time;
-            };
-
-            const snapClientXToGrid = (clientX, modifiers = null) => {
-                const containerRect = this.container.getBoundingClientRect();
-                let x = clamp(clientX, containerRect.left, containerRect.right);
-                const step = getGridSnapStep(modifiers);
-
-                if (step <= 0 || this.#zoom <= 0) {
-                    return x;
-                }
-
-                const rowRect = this.rowContainer.getBoundingClientRect();
-                const time = snapTimeToGrid((x - rowRect.left + this.#offset) / this.#zoom, modifiers);
-                return clamp(rowRect.left + (time * this.#zoom) - this.#offset, containerRect.left, containerRect.right);
-            };
+            const getGridSnapStep = (modifiers = null) => this.#getGridSnapStep(modifiers);
+            const snapTimeToGrid = (time, modifiers = null) => this.#snapTimeToGrid(time, modifiers);
+            const snapClientXToGrid = (clientX, modifiers = null) => this.#snapClientXToGrid(clientX, modifiers);
 
             this.__getGridSnapStep = getGridSnapStep;
+
+            this.__modifierKeyHandler = (event) => {
+                if (event.key !== "Shift" && event.key !== "Alt") return;
+
+                if (dragType === "slice" || dragType === "resize" || dragState.draggingItems || dragState.resizingItems) {
+                    dragState.snapModifierShift = event.shiftKey;
+                    dragState.snapModifierAlt = event.altKey;
+                    this.__dragSnapModifiers = dragState;
+                } else if (this.__dragSnapModifiers) {
+                    this.__dragSnapModifiers = null;
+                }
+
+                this.frameScheduler.schedule();
+            };
+
+            this.__modifierBlurHandler = () => {
+                if (dragType || dragState.draggingItems || dragState.resizingItems) return;
+                if (!this.__dragSnapModifiers) return;
+
+                this.__dragSnapModifiers = null;
+                this.frameScheduler.schedule();
+            };
+
+            document.addEventListener("keydown", this.__modifierKeyHandler);
+            document.addEventListener("keyup", this.__modifierKeyHandler);
+            window.addEventListener("blur", this.__modifierBlurHandler);
 
             const getItemFromElement = (itemElement) => {
                 if (!itemElement) return null;
@@ -425,6 +412,90 @@
             };
 
             this.__setPreviewItem = setPreviewItem;
+
+            const buildItemSnapValues = (excludedItems, width = 0, dragOffset = 0, includeWidthOffsets = false) => {
+                const excluded = new Set(excludedItems);
+                const snapValues = [];
+                const vh = window.innerHeight;
+                const vw = window.innerWidth;
+
+                for (const item of this.items) {
+                    if (excluded.has(item)) continue;
+
+                    const element = item.timelineElement;
+                    if (!element) continue;
+
+                    const box = element.getBoundingClientRect();
+
+                    // Skip invisible or off-screen elements
+                    if (box.width === 0 && box.height === 0) continue;
+                    if (box.bottom < -50 || box.top > vh + 50 || box.right < -50 || box.left > vw + 50) continue;
+
+                    if (includeWidthOffsets) {
+                        snapValues.push(
+                            { dest: box.left + dragOffset, line: box.left },
+                            { dest: box.right + dragOffset, line: box.right },
+                            { dest: (box.left - width) + dragOffset, line: box.left },
+                            { dest: (box.right - width) + dragOffset, line: box.right }
+                        );
+                    } else {
+                        snapValues.push(
+                            { dest: box.left, line: box.left },
+                            { dest: box.right, line: box.right }
+                        );
+                    }
+                }
+
+                return snapValues;
+            };
+
+            const applyItemSnap = (x, snapValues) => {
+                const snapArea = 10;
+
+                if (Array.isArray(snapValues)) {
+                    for (const snap of snapValues) {
+                        if (snap.dest - x > -snapArea && snap.dest - x < snapArea) {
+                            return { x: snap.dest, line: snap.line, snapped: true };
+                        }
+                    }
+                }
+
+                return { x, line: null, snapped: false };
+            };
+
+            const shouldUseItemSnap = (state) => this.options.snapEnabled
+                && !state.disableSnapping
+                && !state.snapModifierAlt
+                && !state.snapModifierShift
+                && !state.altKey
+                && !state.shiftKey;
+
+            const updateSnapLineForEntries = (snapLineX, entries) => {
+                if (!this.snapLine || snapLineX === null) return false;
+
+                let minRow = Infinity;
+                let maxRow = -Infinity;
+
+                for (const entry of entries) {
+                    const row = entry.item.row || 0;
+                    if (row < minRow) minRow = row;
+                    if (row > maxRow) maxRow = row;
+                }
+
+                if (!Number.isFinite(minRow) || !Number.isFinite(maxRow)) return false;
+
+                const bounds = getRowSpanBounds(minRow, maxRow);
+                if (!bounds) return false;
+
+                this.snapLine.style.transform = `translate3d(${snapLineX}px, ${bounds.top}px, 0)`;
+                this.snapLine.style.height = `${Math.max(0, bounds.bottom - bounds.top)}px`;
+                this.snapLine.style.display = "block";
+                return true;
+            };
+
+            const hideSnapLine = () => {
+                if (this.snapLine) this.snapLine.style.display = "none";
+            };
 
             const updateSliceLine = (clientX, clientY) => {
                 if (!this.sliceLine) return;
@@ -548,36 +619,13 @@
                 }
 
                 if (this.options.snapEnabled) {
-                    dragState.snapValues = [];
                     const cw = dragState.item.duration * this.#zoom;
-                    const vh = window.innerHeight;
-                    const vw = window.innerWidth;
                     const itemRect = dragState.itemElement.getBoundingClientRect();
                     const dragOffset = event.x - itemRect.left;
 
                     dragState.dragOffsetY = event.y - itemRect.top;
                     dragState.itemHeight = itemRect.height;
-
-                    for (const item of this.items) {
-                        const element = item.timelineElement;
-                        if (!element || element === dragState.itemElement) continue;
-
-                        // Exclude all selected items from snapping
-                        if (itemsToMove.includes(item)) continue;
-
-                        const box = element.getBoundingClientRect();
-
-                        // Skip invisible or off-screen elements
-                        if (box.width === 0 && box.height === 0) continue;
-                        if (box.bottom < -50 || box.top > vh + 50 || box.right < -50 || box.left > vw + 50) continue;
-
-                        dragState.snapValues.push(
-                            { dest: box.left + dragOffset, line: box.left, top: box.top, height: box.height },
-                            { dest: box.right + dragOffset, line: box.right, top: box.top, height: box.height },
-                            { dest: (box.left - cw) + dragOffset, line: box.left, top: box.top, height: box.height },
-                            { dest: (box.right - cw) + dragOffset, line: box.right, top: box.top, height: box.height }
-                        );
-                    }
+                    dragState.snapValues = buildItemSnapValues(itemsToMove, cw, dragOffset, true);
                 } else {
                     dragState.snapValues = [];
                 }
@@ -638,26 +686,17 @@
                 let snapLineX = null;
                 let snapped = false;
                 const gridStep = getGridSnapStep(dragState);
-                const allowItemSnap = this.options.snapEnabled
-                    && !dragState.disableSnapping
-                    && !dragState.snapModifierAlt
-                    && !dragState.snapModifierShift;
+                const allowItemSnap = shouldUseItemSnap(dragState);
 
                 if (allowItemSnap) {
-                    const snapValues = dragState.snapValues;
-                    const snapArea = 10;
-                    if (Array.isArray(snapValues)) {
-                        for (const snap of snapValues) {
-                            if (snap.dest - x > -snapArea && snap.dest - x < snapArea) {
-                                x = snap.dest;
-                                snapLineX = snap.line;
-                                snapped = true;
-                                break;
-                            }
-                        }
+                    const snap = applyItemSnap(x, dragState.snapValues);
+                    if (snap.snapped) {
+                        x = snap.x;
+                        snapLineX = snap.line;
+                        snapped = true;
                     }
-                } else if (this.snapLine) {
-                    this.snapLine.style.display = "none";
+                } else {
+                    hideSnapLine();
                 }
 
                 const rect = this.container.getBoundingClientRect();
@@ -702,31 +741,138 @@
                     entry.item.row = entry.row + clampedRowOffset;
                 }
 
-                if (this.snapLine) {
-                    if (snapped && snapLineX !== null) {
-                        let minRow = Infinity;
-                        let maxRow = -Infinity;
-                        for (const entry of dragState._initialPositions) {
-                            const row = entry.item.row || 0;
-                            if (row < minRow) minRow = row;
-                            if (row > maxRow) maxRow = row;
-                        }
-
-                        if (Number.isFinite(minRow) && Number.isFinite(maxRow)) {
-                            const bounds = getRowSpanBounds(minRow, maxRow);
-                            if (bounds) {
-                                this.snapLine.style.transform = `translate3d(${snapLineX}px, ${bounds.top}px, 0)`;
-                                this.snapLine.style.height = `${Math.max(0, bounds.bottom - bounds.top)}px`;
-                                this.snapLine.style.display = "block";
-                            } else {
-                                this.snapLine.style.display = "none";
-                            }
-                        } else {
-                            this.snapLine.style.display = "none";
-                        }
-                    } else {
-                        this.snapLine.style.display = "none";
+                if (snapped && snapLineX !== null) {
+                    if (!updateSnapLineForEntries(snapLineX, dragState._initialPositions)) {
+                        hideSnapLine();
                     }
+                } else {
+                    hideSnapLine();
+                }
+
+                this.__needsSort = true;
+                this.frameScheduler.schedule();
+            };
+
+            const beginResizeDrag = (event, resizeHandle, itemElement, item) => {
+                const side = resizeHandle.classList.contains("ls-left") ? "left" : "right";
+
+                if (!this.selectedItems.has(item)) {
+                    this.select(item);
+                } else {
+                    this.focusedItem = item;
+                }
+
+                const itemsToResize = this.selectedItems.size && this.selectedItems.has(item)
+                    ? Array.from(this.selectedItems)
+                    : [item];
+
+                const itemRect = itemElement.getBoundingClientRect();
+                const initialEdgeClientX = side === "left" ? itemRect.left : itemRect.right;
+
+                dragType = "resize";
+                dragState.pendingItemDrag = false;
+                dragState.draggingItems = false;
+                dragState.resizingItems = true;
+                dragState.resizeSide = side;
+                dragState.resizeItem = item;
+                dragState.resizeItemElement = itemElement;
+                dragState.resizePointerOffsetX = event.x - initialEdgeClientX;
+                dragState.resizeInitialEdgeTime = side === "left" ? item.start : item.start + item.duration;
+                dragState.resizeInitialPositions = itemsToResize.map((itm) => ({
+                    item: itm,
+                    start: itm.start,
+                    duration: itm.duration,
+                    row: itm.row || 0
+                }));
+                dragState.resizeItems = itemsToResize;
+                dragState.snapModifierShift = event.domEvent.shiftKey;
+                dragState.snapModifierAlt = event.domEvent.altKey;
+                dragState.snapValues = this.options.snapEnabled ? buildItemSnapValues(itemsToResize) : [];
+                this.__dragSnapModifiers = dragState;
+
+                this.dragHandle.options.pointerLock = false;
+                this.dragHandle.options.disablePointerEvents = false;
+                this.dragHandle.cursor = side === "left" ? "w-resize" : "e-resize";
+
+                LS.Tooltips.set(this.formatMarker(item.duration)).position(itemElement).show();
+                this.quickEmit("drag-start", dragType);
+            };
+
+            const updateResizePosition = (clientX) => {
+                const entries = dragState.resizeInitialPositions;
+                if (!entries || entries.length === 0) return;
+
+                let edgeClientX = clientX - (dragState.resizePointerOffsetX || 0);
+                let snapLineX = null;
+                let snapped = false;
+
+                if (shouldUseItemSnap(dragState)) {
+                    const snap = applyItemSnap(edgeClientX, dragState.snapValues);
+                    if (snap.snapped) {
+                        edgeClientX = snap.x;
+                        snapLineX = snap.line;
+                        snapped = true;
+                    }
+                } else {
+                    hideSnapLine();
+                }
+
+                const rowRect = this.rowContainer.getBoundingClientRect();
+                let edgeTime = (edgeClientX - rowRect.left + this.#offset) / this.#zoom;
+
+                if (snapped) {
+                    edgeTime = Math.max(0, edgeTime);
+                } else {
+                    edgeTime = snapTimeToGrid(Math.max(0, edgeTime), dragState);
+                }
+
+                let deltaTime = edgeTime - dragState.resizeInitialEdgeTime;
+                const minDuration = this.#zoom > 0 ? MIN_ITEM_PIXEL_WIDTH / this.#zoom : 0;
+                const side = dragState.resizeSide;
+
+                if (side === "left") {
+                    let minDelta = -Infinity;
+                    let maxDelta = Infinity;
+
+                    for (const entry of entries) {
+                        const minAllowed = -entry.start;
+                        const maxAllowed = entry.duration - minDuration;
+                        if (minAllowed > minDelta) minDelta = minAllowed;
+                        if (maxAllowed < maxDelta) maxDelta = maxAllowed;
+                    }
+
+                    deltaTime = clamp(deltaTime, minDelta, maxDelta);
+
+                    for (const entry of entries) {
+                        entry.item.start = normalizeSnappedTime(entry.start + deltaTime);
+                        entry.item.duration = normalizeSnappedTime(entry.duration - deltaTime);
+                    }
+                } else {
+                    let minDelta = -Infinity;
+
+                    for (const entry of entries) {
+                        const minAllowed = minDuration - entry.duration;
+                        if (minAllowed > minDelta) minDelta = minAllowed;
+                    }
+
+                    if (deltaTime < minDelta) deltaTime = minDelta;
+
+                    for (const entry of entries) {
+                        entry.item.duration = normalizeSnappedTime(entry.duration + deltaTime);
+                    }
+                }
+
+                if (snapped && snapLineX !== null) {
+                    if (!updateSnapLineForEntries(snapLineX, entries)) {
+                        hideSnapLine();
+                    }
+                } else {
+                    hideSnapLine();
+                }
+
+                const resizeItem = dragState.resizeItem;
+                if (resizeItem && resizeItem.timelineElement) {
+                    LS.Tooltips.set(this.formatMarker(resizeItem.duration)).position(resizeItem.timelineElement).show();
                 }
 
                 this.__needsSort = true;
@@ -737,21 +883,46 @@
             // If I understand it right, fixing this would require restructuring the entire component to have every private property at the top, which would nerf any kind of readability.
             queueMicrotask(() => {
                 this.dragHandle = new LS.Util.TouchHandle(this.container, {
-                    exclude: ".ls-resize-handle, .ls-automation-point-handle, .ls-automation-center-handle, .ls-automation-graph",
+                    exclude: ".ls-automation-point-handle, .ls-automation-center-handle, .ls-automation-graph",
                     frameTimed: true,
     
                     onStart: (event) => {
 
                         stopInertia();
                         stopEdgeScroll();
-    
-                        // --- One item selection logic
-                        if (event.domEvent.target.closest(".ls-resize-handle, .ls-automation-point-handle, .ls-automation-center-handle")) {
+
+                        const domEvent = event.domEvent;
+                        const target = domEvent.target;
+                        const touchEvent = domEvent.type.startsWith("touch");
+                        const primaryButton = touchEvent || domEvent.button === 0;
+                        const rightButton = !touchEvent && domEvent.button === 2;
+                        const resizeHandle = target.closest(".ls-resize-handle");
+
+                        if (resizeHandle) {
+                            if (!primaryButton) return;
+
+                            const itemElement = resizeHandle.closest(".ls-timeline-item");
+                            const item = getItemFromElement(itemElement);
+                            if (!item) return;
+
+                            rect = this.container.getBoundingClientRect();
+                            lastClientX = event.x;
+                            lastClientY = event.y;
+                            lastCursorX = event.x - rect.left;
+                            lastCursorY = event.y - rect.top;
+
+                            beginResizeDrag(event, resizeHandle, itemElement, item);
                             return;
                         }
     
-                        const selectionModifiers = event.domEvent.ctrlKey || event.domEvent.shiftKey;
-                        const itemElement = event.domEvent.target.closest(".ls-timeline-item");
+                        // --- One item selection logic
+                        if (target.closest(".ls-automation-point-handle, .ls-automation-center-handle")) {
+                            return;
+                        }
+    
+                        const selectionModifiers = domEvent.ctrlKey || domEvent.metaKey;
+                        const additiveSelectionModifiers = selectionModifiers || domEvent.shiftKey;
+                        const itemElement = target.closest(".ls-timeline-item");
     
                         if (itemElement) {
                             const item = getItemFromElement(itemElement);
@@ -768,20 +939,20 @@
                                 this.frameScheduler.schedule();
                                 return;
                             }
-    
-                            this.select(item);
+
+                            if (!this.selectedItems.has(item)) {
+                                this.select(item);
+                            } else {
+                                this.focusedItem = item;
+                            }
                         } else {
-                            if (!selectionModifiers) this.deselectAll();
+                            if (!additiveSelectionModifiers) this.deselectAll();
                         }
                         // ---
     
                         this.dragHandle.options.pointerLock = false;
     
                         rect = this.container.getBoundingClientRect();
-                        const domEvent = event.domEvent;
-                        const touchEvent = domEvent.type.startsWith("touch");
-                        const primaryButton = touchEvent || domEvent.button === 0;
-                        const rightButton = !touchEvent && domEvent.button === 2;
                         const activeTool = this.tool;
                         const sliceGesture = primaryButton && (domEvent.altKey || activeTool === "slice");
                         const eraseGesture = primaryButton && activeTool === "erase" && !domEvent.altKey;
@@ -801,7 +972,7 @@
                         this.dragHandle.options.disablePointerEvents = rightButton ? false : !(
                             primaryButton
                             && itemElement
-                            && (activeTool === "select" || selectionModifiers)
+                            && (activeTool === "select" || activeTool === "move" || selectionModifiers)
                             && !sliceGesture
                             && !eraseGesture
                             && !previewGesture
@@ -897,7 +1068,7 @@
     
                         const button = touchEvent? ((event.domEvent.target === this.scrollContainer || this.scrollContainer.contains(event.domEvent.target)) ? 1 : 0) : event.domEvent.button;
     
-                        if ((event.domEvent.ctrlKey || event.domEvent.shiftKey) && button === 0) {
+                        if (additiveSelectionModifiers && button === 0) {
                             dragType = "select";
                         } else if (event.domEvent.ctrlKey && button === 1) {
                             dragType = "zoom-v";
@@ -994,6 +1165,30 @@
                                 performToolAlongPath(event.x, event.y, performEraseAtPointer);
                                 this.quickEmit("drag-start", dragType);
                             }
+                            return;
+                        }
+
+                        if (dragType === "resize") {
+                            const threshold = 50;
+                            const maxSpeed = 15;
+
+                            this.__isDragging = true;
+                            dragState.snapModifierShift = event.domEvent.shiftKey;
+                            dragState.snapModifierAlt = event.domEvent.altKey;
+                            this.__dragSnapModifiers = dragState;
+
+                            edgeScrollSpeedX = 0;
+                            edgeScrollSpeedY = 0;
+
+                            if (cursorX < threshold) edgeScrollSpeedX = -maxSpeed * ((threshold - cursorX) / threshold);
+                            else if (cursorX > rect.width - threshold) edgeScrollSpeedX = maxSpeed * ((cursorX - (rect.width - threshold)) / threshold);
+
+                            if ((edgeScrollSpeedX !== 0 || edgeScrollSpeedY !== 0) && !edgeScrollRaf) {
+                                edgeScrollRaf = this.requestAnimationFrame(processEdgeScroll);
+                            }
+
+                            updateResizePosition(event.x);
+                            this.quickEmit("drag-move", dragType, cursorX, cursorY);
                             return;
                         }
     
@@ -1177,6 +1372,29 @@
                             dragState.sliceStartClientX = null;
                             dragState.sliceClientX = null;
                         }
+
+                        if (dragType === "resize" && dragState.resizeInitialPositions) {
+                            const changes = [];
+
+                            for (const entry of dragState.resizeInitialPositions) {
+                                if (entry.item.start !== entry.start || entry.item.duration !== entry.duration) {
+                                    changes.push({
+                                        id: entry.item.id,
+                                        before: { start: entry.start, duration: entry.duration },
+                                        after: { start: entry.item.start, duration: entry.item.duration }
+                                    });
+                                }
+                            }
+
+                            if (changes.length > 0) {
+                                this.emitAction({
+                                    type: "resize",
+                                    changes
+                                });
+                            }
+
+                            LS.Tooltips.hide();
+                        }
     
                         if ((dragType === "erase" || dragType === "delete") && dragState.erasedActionItems && dragState.erasedActionItems.length > 0) {
                             this.emitAction({
@@ -1201,6 +1419,14 @@
                         dragState.pointerMoved = false;
                         dragState.snapModifierShift = false;
                         dragState.snapModifierAlt = false;
+                        dragState.resizingItems = false;
+                        dragState.resizeSide = null;
+                        dragState.resizeItem = null;
+                        dragState.resizeItemElement = null;
+                        dragState.resizePointerOffsetX = null;
+                        dragState.resizeInitialEdgeTime = null;
+                        dragState.resizeInitialPositions = null;
+                        dragState.resizeItems = null;
                         this.__dragSnapModifiers = null;
     
                         // Emit action for external history management
@@ -1254,7 +1480,7 @@
                             dragState.gridSnapAnchorStart = null;
                         }
     
-                        if (this.snapLine) this.snapLine.style.display = "none";
+                        hideSnapLine();
     
                         stopEdgeScroll();
                         this.setTimeout(() => this.__isDragging = false, 10);
@@ -1361,20 +1587,47 @@
             });
 
             document.addEventListener('wheel', this.__wheelHandler = (event) => {
-                if (!event.ctrlKey) return;
+                if (!event.ctrlKey && !event.altKey) return;
                 if (event.target !== this.container && !this.container.contains(event.target)) return;
 
                 event.preventDefault();
 
+                if (event.altKey) {
+                    const deltaY = event.deltaMode === 1
+                        ? event.deltaY * 16
+                        : event.deltaMode === 2
+                            ? event.deltaY * this.scrollContainer.clientHeight
+                            : event.deltaY;
+                    const oldHeight = this.rowHeight;
+                    const targetHeight = oldHeight - (deltaY * 0.25);
+
+                    this.rowHeight = targetHeight;
+                    const newHeight = this.rowHeight;
+
+                    if (newHeight !== oldHeight) {
+                        const rect = this.scrollContainer.getBoundingClientRect();
+                        const mouseY = event.clientY - rect.top;
+                        const oldScrollTop = this.scrollContainer.scrollTop;
+                        const contentY = oldScrollTop + mouseY;
+                        
+                        const ratio = newHeight / oldHeight;
+                        this.scrollContainer.scrollTop = (contentY * ratio) - mouseY;
+                    }
+
+                    return;
+                }
+
                 const rect = this.container.getBoundingClientRect();
                 const cursorX = event.clientX - rect.left;
                 const currentZoom = this.#zoom;
+                const currentOffset = this.scrollContainer.scrollLeft;
+                const worldX = (cursorX + currentOffset) / currentZoom;
 
                 const zoomDelta = currentZoom * 0.16 * (event.deltaY > 0 ? -1 : 1);
                 this.zoom = currentZoom + zoomDelta;
 
-                const worldX = (cursorX + this.offset) / currentZoom;
-                this.offset = (worldX * this.zoom) - cursorX;
+                const appliedZoom = this.#zoom;
+                this.offset = Math.max(0, (worldX * appliedZoom) - cursorX);
             }, { passive: false });
 
 
@@ -1430,16 +1683,13 @@
 
             let previousScrollLeft = this.#offset;
             this.scrollContainer.addEventListener('scroll', (event) => {
-                this.#offset = this.scrollContainer.scrollLeft;
-                if (this.#offset !== previousScrollLeft) {
-                    previousScrollLeft = this.#offset;
+                const scrollLeft = this.scrollContainer.scrollLeft;
+                this.#offset = scrollLeft;
+                if (scrollLeft !== previousScrollLeft) {
+                    previousScrollLeft = scrollLeft;
                     this.frameScheduler.schedule();
                 }
             });
-
-            if(this.options.resizable && !LS.Resize) {
-                console.warn("LS.Timeline: LS.Resize component is required for resizable timeline items.");
-            }
 
             this.clipboard = [];
             
@@ -1447,6 +1697,17 @@
             this.__actionEventRef = this.prepareEvent("action");
 
             this.container.addEventListener("keydown", (event) => {
+                if(event.shiftKey && (
+                    event.key === "ArrowLeft" ||
+                    event.key === "ArrowRight" ||
+                    event.key === "ArrowUp" ||
+                    event.key === "ArrowDown"
+                )) {
+                    event.preventDefault();
+                    this.#moveSelectedWithKeyboard(event.key, event);
+                    return;
+                }
+
                 if(event.key === "Delete" || event.key === "Backspace") {
                     this.deleteSelected();
                     return;
@@ -1544,6 +1805,8 @@
             value = Math.max(0, value);
             if (value === this.#offset) return;
             this.scrollContainer.scrollLeft = value;
+            value = this.scrollContainer.scrollLeft;
+            if (value === this.#offset) return;
             this.#offset = value;
             this.frameScheduler.schedule();
         }
@@ -1590,6 +1853,149 @@
 
         get tool() {
             return this.#tool;
+        }
+
+        #parseGridSnapDivision() {
+            let step = this.options.gridSnapDivision;
+            if (typeof step === "string" && step.includes("/")) {
+                const parts = step.split("/").map(Number);
+                if (parts.length === 2 && Number.isFinite(parts[0]) && Number.isFinite(parts[1]) && parts[1] !== 0) {
+                    step = parts[0] / parts[1];
+                }
+            }
+
+            step = num(step, 0);
+            return step > 0 ? step : 0;
+        }
+
+        #getBaseGridSnapStep(modifiers = null) {
+            if (modifiers && (modifiers.altKey || modifiers.snapModifierAlt)) return 0;
+            if (!this.options.gridSnapping) return 0;
+            if (modifiers && (modifiers.shiftKey || modifiers.snapModifierShift)) return 1;
+            return this.#parseGridSnapDivision();
+        }
+
+        #getGridSnapStep(modifiers = null) {
+            let step = this.#getBaseGridSnapStep(modifiers);
+            if (step <= 0 || this.#zoom <= 0) return 0;
+
+            while (step * this.#zoom < MIN_GRID_LINE_SPACING) {
+                step = normalizeSnappedTime(step * 2);
+            }
+
+            return step;
+        }
+
+        #snapTimeToGrid(time, modifiers = null) {
+            const step = this.#getGridSnapStep(modifiers);
+            return step > 0 ? Math.max(0, snapTimeToStep(time, step)) : time;
+        }
+
+        #snapClientXToGrid(clientX, modifiers = null) {
+            const containerRect = this.container.getBoundingClientRect();
+            let x = clamp(clientX, containerRect.left, containerRect.right);
+            const step = this.#getGridSnapStep(modifiers);
+
+            if (step <= 0 || this.#zoom <= 0) {
+                return x;
+            }
+
+            const rowRect = this.rowContainer.getBoundingClientRect();
+            const time = this.#snapTimeToGrid((x - rowRect.left + this.#offset) / this.#zoom, modifiers);
+            return clamp(rowRect.left + (time * this.#zoom) - this.#offset, containerRect.left, containerRect.right);
+        }
+
+        #getKeyboardMoveStep(event) {
+            if (event && event.altKey) {
+                return this.#zoom > 0 ? normalizeSnappedTime(1 / this.#zoom) : 0;
+            }
+
+            let step = this.#getGridSnapStep(null);
+            if (step <= 0) step = this.#parseGridSnapDivision();
+            return step > 0 ? step : 1;
+        }
+
+        #moveSelectedWithKeyboard(key, event) {
+            const items = this.selectedItems.size > 0
+                ? Array.from(this.selectedItems)
+                : this.focusedItem
+                    ? [this.focusedItem]
+                    : [];
+
+            if (items.length === 0) return false;
+
+            let deltaTime = 0;
+            let rowDelta = 0;
+
+            if (key === "ArrowLeft" || key === "ArrowRight") {
+                const step = this.#getKeyboardMoveStep(event);
+                deltaTime = key === "ArrowLeft" ? -step : step;
+
+                if (deltaTime < 0) {
+                    let minStart = Infinity;
+                    for (const item of items) {
+                        if (item.start < minStart) minStart = item.start;
+                    }
+
+                    if (minStart + deltaTime < 0) {
+                        deltaTime = -minStart;
+                    }
+                }
+
+                if (deltaTime === 0) return true;
+            } else {
+                rowDelta = key === "ArrowUp" ? -1 : 1;
+
+                if (rowDelta < 0) {
+                    let minRow = Infinity;
+                    for (const item of items) {
+                        const row = item.row || 0;
+                        if (row < minRow) minRow = row;
+                    }
+
+                    if (minRow + rowDelta < 0) {
+                        rowDelta = -minRow;
+                    }
+                }
+
+                if (rowDelta === 0) return true;
+            }
+
+            const changes = [];
+
+            for (const item of items) {
+                const before = { start: item.start, row: item.row || 0 };
+
+                if (deltaTime !== 0) {
+                    item.start = normalizeSnappedTime(item.start + deltaTime);
+                }
+
+                if (rowDelta !== 0) {
+                    item.row = Math.max(0, (item.row || 0) + rowDelta);
+                }
+
+                if (item.start !== before.start || (item.row || 0) !== before.row) {
+                    changes.push({
+                        id: item.id,
+                        before,
+                        after: { start: item.start, row: item.row || 0 }
+                    });
+                }
+            }
+
+            if (changes.length === 0) return true;
+
+            if (deltaTime !== 0) {
+                this.__needsSort = true;
+            }
+
+            this.__dragSnapModifiers = null;
+            this.emitAction({
+                type: "move",
+                changes
+            });
+            this.frameScheduler.schedule();
+            return true;
         }
 
         getItemById(id) {
@@ -1690,31 +2096,28 @@
                 this.sortItems();
             }
 
-            const gridStep = this.__getGridSnapStep ? this.__getGridSnapStep(this.__dragSnapModifiers) : 0;
+            const gridStep = this.#getGridSnapStep(this.__dragSnapModifiers);
             if (gridStep > 0 && zoom > 0) {
-                let visualMinorStep = gridStep;
-                while (visualMinorStep * zoom < MIN_GRID_LINE_SPACING) {
-                    visualMinorStep *= 2;
-                }
+                const visualMinorStep = gridStep;
+                let visualMajorStep = visualMinorStep;
 
-                let visualMajorStep = 1;
                 while (visualMajorStep * zoom < MIN_MAJOR_GRID_LINE_SPACING) {
-                    visualMajorStep *= 2;
-                }
-
-                if (visualMajorStep < visualMinorStep) {
-                    visualMajorStep = visualMinorStep;
+                    visualMajorStep = normalizeSnappedTime(visualMajorStep * 2);
                 }
 
                 const majorStepPx = visualMajorStep * zoom;
                 const minorStepPx = visualMinorStep * zoom;
+                const gridOffset = majorStepPx > 0
+                    ? -((((offset % majorStepPx) + majorStepPx) % majorStepPx))
+                    : 0;
+
                 if (!this.__gridEnabled) {
                     this.container.classList.add("grid-enabled");
                     this.__gridEnabled = true;
                 }
                 this.rowContainer.style.setProperty("--ls-timeline-grid-major-step", `${majorStepPx}px`);
                 this.rowContainer.style.setProperty("--ls-timeline-grid-minor-step", `${minorStepPx}px`);
-                this.rowContainer.style.setProperty("--ls-timeline-grid-offset", `${-offset}px`);
+                this.rowContainer.style.setProperty("--ls-timeline-grid-offset", `${gridOffset}px`);
             } else if (this.__gridEnabled) {
                 this.container.classList.remove("grid-enabled");
                 this.__gridEnabled = false;
@@ -2216,58 +2619,14 @@
 
             item.timelineElement.__timelineItem = item;
 
-            if (LS.Resize && this.options.resizable) {
-                const entry = LS.Resize.set(item.timelineElement, {
-                    left: true,
-                    right: true,
-                    translate: true,
-                    anchor: 0,
-                    minWidth: 5,
-                });
+            if (this.options.resizable) {
+                const leftHandle = document.createElement("div");
+                leftHandle.className = "ls-resize-handle ls-left ls-resize-handle-styled";
 
-                const resizeHandler = (width, side) => {
-                    if(side === 'left') {
-                        const newDuration = width / this.#zoom;
-                        const endTime = item.start + item.duration;
-                        item.start = endTime - newDuration;
-                        item.duration = newDuration;
-                    } else {
-                        item.duration = width / this.#zoom;
-                    }
+                const rightHandle = document.createElement("div");
+                rightHandle.className = "ls-resize-handle ls-right ls-resize-handle-styled";
 
-                    if (item.type === "automation" && item.__automationClip) {
-                        item.__automationClip.updateSize(width, this.rowHeight - this.options.itemHeaderHeight);
-                    }
-
-                    // Resize all selected items proportionally
-                    if (this.selectedItems.size > 1) {
-                        for (const selectedItem of this.selectedItems) {
-                            if (selectedItem === item) continue;
-                            
-                            if (side === 'left') {
-                                const newDuration = width / this.#zoom;
-                                const endTime = selectedItem.start + selectedItem.duration;
-                                selectedItem.start = endTime - newDuration;
-                                selectedItem.duration = newDuration;
-                            } else {
-                                selectedItem.duration = width / this.#zoom;
-                            }
-                        }
-                    }
-
-                    LS.Tooltips.set(this.formatMarker(item.duration)).position(item.timelineElement).show();
-                    this.frameScheduler.schedule();
-                }
-
-                entry.handler.on("resize", (side, width) => {
-                    resizeHandler(width, side);
-                });
-
-                entry.handler.on("resize-end", () => {
-                    this.__needsSort = true;
-                    LS.Tooltips.hide();
-                    this.frameScheduler.schedule();
-                });
+                item.timelineElement.append(leftHandle, rightHandle);
             }
 
             return item.timelineElement;
@@ -2336,10 +2695,6 @@
          */
         destroyTimelineElement(item) {
             if (item.timelineElement) {
-                if (LS.Resize) {
-                    LS.Resize.remove(item.timelineElement);
-                }
-
                 if (this.__rendered) {
                     this.__rendered.delete(item.timelineElement);
                 }
@@ -2675,6 +3030,17 @@
 
             document.removeEventListener('wheel', this.__wheelHandler);
             this.__wheelHandler = null;
+
+            if (this.__modifierKeyHandler) {
+                document.removeEventListener("keydown", this.__modifierKeyHandler);
+                document.removeEventListener("keyup", this.__modifierKeyHandler);
+                this.__modifierKeyHandler = null;
+            }
+
+            if (this.__modifierBlurHandler) {
+                window.removeEventListener("blur", this.__modifierBlurHandler);
+                this.__modifierBlurHandler = null;
+            }
 
             if (this.container && this.__previewHoverHandler) {
                 this.container.removeEventListener("pointermove", this.__previewHoverHandler);
