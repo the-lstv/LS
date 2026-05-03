@@ -22,3 +22,6 @@ v6/dist
 
 node_modules
 pnpm-*
+
+*.patch
+*.log
