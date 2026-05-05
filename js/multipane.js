@@ -320,7 +320,9 @@
          * The schema defines the layout structure, which can be virtually any combination with an unlimited amount of slots.
          */
         constructor(container, options = {}) {
-            super();
+            super({
+                dependencies: ["Resize", "Tabs"]
+            });
 
             this.container = container || document.body;
             this.options = options;
@@ -483,6 +485,7 @@
                     if(i !== schema.inner.length - 1) {
                         LS.Resize.set(child, {
                             sides: direction === 'column'? ['bottom']: ['right'],
+                            siblibngs: true, // TODO
 
                             // Snapping
                             snapCollapse: true,

@@ -473,7 +473,7 @@
         #destroyables = null;
         #timeouts = null;
         #intervals = null;
-        #rAF = null;
+        #rAFv = 0;
         #externalEvents = null;
 
         #aggressiveCleanup = false;
@@ -596,17 +596,6 @@
             this.#intervals = null;
         }
 
-        clearRAF() {
-            const raf = this.#rAF;
-            if (!raf) return;
-
-            for (const id of raf) {
-                cancelAnimationFrame(id);
-            }
-
-            this.#rAF = null;
-        }
-
         createComponent(component, ...options) {
             if (this.destroyed) return null;
 
@@ -620,12 +609,19 @@
         requestAnimationFrame(callback) {
             if (this.destroyed) return null;
 
-            let raf = this.#rAF;
-            if (!raf) this.#rAF = raf = [];
+            // !! todo: Find a way to avoid closures, and well, actually clear the frames
+            // This method is an alternative to storing IDs/callbacks, but is quite hacky.
+            // It gives the best memory safety, but callbacks run even after destroy, and closures are somewhat expensive
 
-            const id = Context.requestAnimationFrame(callback);
-            raf.push(id);
-            return id;
+            const currentVersion = this.#rAFv;
+            return requestAnimationFrame(time => {
+                if (this.destroyed || this.#rAFv !== currentVersion) return;
+                callback(time);
+            });
+        }
+
+        clearRAF() {
+            this.#rAFv++;
         }
 
         destroyOne(destroyable, _remove = true, _explicit = true) {
@@ -877,6 +873,7 @@
             if (typeof globalThis.requestAnimationFrame === "function") {
                 return globalThis.requestAnimationFrame(callback);
             }
+            // dog what?
             return globalThis.setTimeout(callback, 16);
         }
 
@@ -886,6 +883,7 @@
             }
             return Promise.reject(new Error("Fetch API is not supported in this environment."));
         }
+
         static queueMicrotask(callback) {
             if (typeof globalThis.queueMicrotask === "function") {
                 return globalThis.queueMicrotask(callback);

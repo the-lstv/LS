@@ -15,11 +15,6 @@ misc/demos
 app.conf
 ls-reference.md
 
-# Hmmm, what could this be?
-# v6
-v6/dist
-
-
 node_modules
 pnpm-*
 
