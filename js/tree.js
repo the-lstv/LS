@@ -1,12 +1,11 @@
 /**
  * Tree/ListView Component for LS with optimized virtualized rendering.
  * Can also be used as a general-purpose virtualized list.
- * Supports automatic resizing, dynamic updates, etc.
+ * Handles automatic resizing, dynamic updates, etc.
  * 
  * ! Early stages component. The flat structure is very hacky as of now & testing is needed.
  * 
  * Future improvements:
- * * Keyboard navigation & accessibility improvements
  * * Drag and drop support
  * * Overlays, maybe
  * * More customization
@@ -15,12 +14,19 @@
  */
 
 LS.LoadComponent(class Tree extends LS.Component {
+    // See constructor for documentation on options
     static defaults = LS.Util.staticDefaults({
-        rowHeight: 24, // Height of each row in pixels
+        rowHeight: 24,
         updateNode: null,
         createNode: null,
+        loadData: null,
         overscan: 2,
-        lazy: false
+        styled: true,
+        lazy: false,
+        guides: true,
+        icons: true,
+        iconClass: "li-icons",
+        caretIconClass: null
     });
 
     #scroll = 0;
@@ -40,17 +46,24 @@ LS.LoadComponent(class Tree extends LS.Component {
     // Flat-Tree State
     #flatNodes = [];
     #flatDirty = true;
+    #focusedNode = null;
 
     /**
      * Create a new Tree component.
      * @param {*} options - Configuration options for the tree.
      * @param {function} options.updateNode - A function that will be called when it is time to update a node's content. It will receive the node data and the corresponding DOM element as arguments.
      * @param {function} options.createNode - A function that will be called when it is time to create a new node. It should return a DOM element.
+     * @param {function} options.loadData - A function that will be called when a lazy node is expanded and needs to load its children. It will receive the node data as an argument, and should populate the node's `children` property with the loaded data.
      * @param {number} options.overscan - The number of rows to render outside the visible area.
      * @param {number} options.rowHeight - The height of each row in pixels.
      * @param {Array} options.data - The initial tree data to load.
      * @param {Element} options.target - The DOM element to which the tree should be appended. If not provided, the tree will simply not be appended automatically, and you can do it manually (tree.container).
      * @param {boolean} options.lazy - Whether to always enable lazy loading behavior (load-on-demand), even for nodes without the `lazy` property.
+     * @param {boolean} options.styled - Whether to apply default styles to the tree. You can set this to false if you want to provide your own styles.
+     * @param {boolean} options.guides - Whether to display indent guides (lines). Setting to false will only set padding.
+     * @param {boolean} options.icons - Whether to display icons.
+     * @param {string} options.iconClass - The base CSS classname to use for node icons.
+     * @param {string} options.caretIconClass - The CSS class to use for the caret icon. If null, the default caret will be used.
      */
     constructor(options) {
         super();
@@ -77,6 +90,8 @@ LS.LoadComponent(class Tree extends LS.Component {
 
         // Lookup map
         this.nodeMap = new Map();
+
+        // Data is currently held in three places (nodes - recursive, nodeMap - lookup, flatNodes - for rendering)
 
         // A fixed list of DOM nodes that we will recycle for rendering.
         // The length of this list will depend on the height of the container and the row height.
@@ -150,6 +165,10 @@ LS.LoadComponent(class Tree extends LS.Component {
         if(typeof options.createNode === "function") this.options.createNode = options.createNode;
         if(options.overscan !== undefined) this.overscan = options.overscan;
         if(options.lazy !== undefined) this.options.lazy = options.lazy;
+        if(options.styled !== undefined) {
+            this.container.classList.toggle("ls-tree-styled", options.styled);
+            this.options.styled = options.styled;
+        }
 
         this.render();
     }
@@ -161,17 +180,34 @@ LS.LoadComponent(class Tree extends LS.Component {
      *   parentId: string,  // Identifier of the parent node (null for root nodes)
      *   label: string,     // Text to display for the node
      *   children: array,   // Optional array of child nodes
-     *   state: boolean,    // Expanded or collapsed
+     *   state: object,     // { expanded: boolean }
      *   lazy: boolean,     // Whether the node should be loaded lazily (load-on-demand)
      *   ...any other user data, the component only uses the ones mentioned above.
      * }
      * @param {Array} data - The tree data to load.
      */
     loadData(data) {
+        this.reset();
+
         this.#pendingDataRefresh = true;
         for(let item of data) {
             this.addNode(item);
         }
+    }
+
+    reset() {
+        this.nodes.length = 0;
+        this.nodeMap.clear();
+        this.#flatNodes.length = 0;
+        this.#flatDirty = true;
+        this.#focusedNode = null;
+
+        for (let domNode of this.domNodes) {
+            domNode.onclick = null;
+            domNode.onkeydown = null;
+            domNode.remove();
+        }
+        this.domNodes.length = 0;
     }
 
     /**
@@ -179,27 +215,43 @@ LS.LoadComponent(class Tree extends LS.Component {
      */
     render() { this.frameScheduler.schedule(); }
 
-    nodeFromDom(domNode) {
+    getNodeDataByElement(domNode) {
         const index = domNode.__lsTreeIndex;
         if(index === undefined || index === -1) return null;
         return this.flatNodes[index] || null;
     }
 
     collapse(node) {
-        if (!node.state) return;
-        node.state = false;
+        if (!node.state?.expanded) return;
+        node.state.expanded = false;
         this.#flatDirty = true;
         this.render();
     }
 
-    expand(node) {
-        if (node.state) return;
-        node.state = true;
-        
+    async expand(node) {
+        if (node.state?.expanded) return;
+        node.state ??= {};
+        node.state.expanded = true;
+
         // Simple built-in lazy loading
         if ((node.lazy || this.options.lazy) && !node.children) {
             node.children = []; // Set empty initially to prevent multiple load event fires
-            this.quickEmit("load", node);
+            if (typeof this.options.loadData === "function") {
+                node.__promise = this.options.loadData(node);
+                this.#flatDirty = true;
+                this.render();
+                try {
+                    const children = await node.__promise;
+                    if(children) node.children = children;
+                } catch (error) {
+                    console.error("Error loading node data:", error);
+                    node.children = null; // Reset to null on error to allow retrying
+                } finally {
+                    delete node.__promise;
+                    this.#flatDirty = true;
+                    this.render();
+                }
+            }
         }
 
         this.#flatDirty = true;
@@ -207,8 +259,7 @@ LS.LoadComponent(class Tree extends LS.Component {
     }
 
     toggle(node) {
-        if (node.state) this.collapse(node);
-        else this.expand(node);
+        if (node.state?.expanded) this.collapse(node); else this.expand(node);
     }
 
     removeNode(id) {
@@ -277,18 +328,37 @@ LS.LoadComponent(class Tree extends LS.Component {
         this.render();
     }
 
+    /**
+     * Expand all nodes in the tree.
+     */
     expandAll() {
-        this.traverse(node => node.state = true);
+        this.traverse(node => {
+            node.state ??= {};
+            node.state.expanded = true;
+        });
+
         this.#flatDirty = true;
         this.render();
     }
 
+    /**
+     * Collapse all nodes in the tree.
+     */
     collapseAll() {
-        this.traverse(node => node.state = false);
+        this.traverse(node => {
+            node.state ??= {};
+            node.state.expanded = false;
+        });
+
         this.#flatDirty = true;
         this.render();
     }
 
+    /**
+     * Traverse all nodes in the tree and execute a callback on each node.
+     * @param {function} callback - The function to execute on each node. It receives the node data as an argument.
+     * @param {Array} nodes - List of nodes to traverse
+     */
     traverse(callback, nodes = this.nodes) {
         for (let i = 0; i < nodes.length; i++) {
             callback(nodes[i]);
@@ -403,10 +473,14 @@ LS.LoadComponent(class Tree extends LS.Component {
     #flattenInto(nodes, depth) {
         for (let i = 0; i < nodes.length; i++) {
             const node = nodes[i];
-            node.depth = depth;
+            node.state ??= {};
+            node.state.depth = depth;
+            node.state.posinset = i + 1;
+            node.state.setsize = nodes.length;
+            node.state.isLastChild = (i === nodes.length - 1);
             this.#flatNodes.push(node);
-            
-            if (node.state && node.children && node.children.length > 0) {
+
+            if (node.state.expanded && node.children && node.children.length > 0) {
                 this.#flattenInto(node.children, depth + 1);
             }
         }
@@ -431,12 +505,34 @@ LS.LoadComponent(class Tree extends LS.Component {
             const fragment = document.createDocumentFragment();
 
             for(let i = currentSize; i < targetSize; i++) {
-                const domNode = this.options.createNode ? this.options.createNode() : this.createElement();
+                const domNode = this.options.createNode ? this.options.createNode() : LS.Create({
+                    inner: [
+                        { tag: "span", class: "ls-tree-node-indent"  },
+                        { tag: "span", class: "ls-tree-node-icon" + (this.options.icons ? ` ${this.options.iconClass}` : "") },
+                        { tag: "span", class: "ls-tree-node-label"   },
+                        { tag: "span", class: "ls-tree-node-badge"   },
+                    ],
+                });
 
                 domNode.classList.add("ls-tree-node");
                 domNode.setAttribute("role", "treeitem");
+                domNode.tabIndex = 0;
 
                 domNode.onclick = (event) => this.#nodeClicked(event, domNode);
+                domNode.onkeydown = (event) => this.#nodeKeyDown(event, domNode);
+                domNode.onfocus = () => {
+                    const node = this.getNodeDataByElement(domNode);
+                    if (node) {
+                        if (this.#focusedNode && this.#focusedNode !== node) {
+                            this.#focusedNode.selected = false;
+                            const prevDom = this.domNodes.find(n => n.__lsTreeIndex === this.flatNodes.indexOf(this.#focusedNode));
+                            if (prevDom) prevDom.setAttribute("aria-selected", "false");
+                        }
+                        node.selected = true;
+                        this.#focusedNode = node;
+                        domNode.setAttribute("aria-selected", "true");
+                    }
+                };
 
                 domNode.__lsTreeIndex = -1;
                 domNode.__lsTreeY = null;
@@ -458,7 +554,7 @@ LS.LoadComponent(class Tree extends LS.Component {
     }
 
     #nodeClicked(event, domNode) {
-        const nodeData = this.nodeFromDom(domNode);
+        const nodeData = this.getNodeDataByElement(domNode);
         if(!nodeData) return;
 
         this.quickEmit("click", nodeData, domNode, event);
@@ -468,6 +564,71 @@ LS.LoadComponent(class Tree extends LS.Component {
             event.stopPropagation();
             this.toggle(nodeData);
         }
+    }
+
+    #nodeKeyDown(event, domNode) {
+        const nodeData = this.getNodeDataByElement(domNode);
+        if(!nodeData) return;
+
+        const dataIndex = domNode.__lsTreeIndex;
+        let prevent = true;
+
+        switch(event.key) {
+            case "ArrowDown":
+                if (dataIndex < this.flatNodes.length - 1) {
+                    this.#focusNode(dataIndex + 1);
+                }
+                break;
+            case "ArrowUp":
+                if (dataIndex > 0) {
+                    this.#focusNode(dataIndex - 1);
+                }
+                break;
+            case "ArrowRight":
+                if (nodeData.children || nodeData.lazy) {
+                    if (!nodeData.state?.expanded) this.expand(nodeData);
+                    else if (dataIndex < this.flatNodes.length - 1) this.#focusNode(dataIndex + 1);
+                }
+                break;
+            case "ArrowLeft":
+                if (nodeData.children && nodeData.state?.expanded) {
+                    this.collapse(nodeData);
+                } else if (nodeData.parentId) {
+                    const parentNode = this.getNodeById(nodeData.parentId);
+                    const index = this.flatNodes.indexOf(parentNode);
+                    if (index !== -1) this.#focusNode(index);
+                }
+                break;
+            case "Enter":
+            case " ":
+                this.quickEmit("click", nodeData, domNode, event);
+                if (nodeData.children || nodeData.lazy) this.toggle(nodeData);
+                break;
+            default:
+                prevent = false;
+        }
+
+        if (prevent) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+    }
+
+    #focusNode(index) {
+        const rowHeight = this.options.rowHeight;
+        const top = index * rowHeight;
+        const bottom = top + rowHeight;
+
+        if (top < this.#scroll) {
+            this.scroll = top;
+        } else if (bottom > this.#scroll + this.#containerHeight) {
+            this.scroll = bottom - this.#containerHeight;
+        }
+
+        this.requestAnimationFrame(() => {
+            const domNode = this.domNodes.find(n => n.__lsTreeIndex === index);
+            if (domNode && !domNode.__lsTreeHidden) domNode.focus();
+        });
     }
 
     #updateDOMNode(domNode, dataIndex, flat, segmentBaseIndex, rowHeight, totalRows, forceContentUpdate) {
@@ -495,11 +656,79 @@ LS.LoadComponent(class Tree extends LS.Component {
         }
 
         if(forceContentUpdate || domNode.__lsTreeIndex !== dataIndex) {
+            domNode.setAttribute("aria-level", (nodeData.depth || 0) + 1);
+            domNode.setAttribute("aria-setsize", nodeData.setsize || 1);
+            domNode.setAttribute("aria-posinset", nodeData.posinset || 1);
+            domNode.setAttribute("aria-selected", nodeData.selected ? "true" : "false");
+            if (nodeData.label) domNode.setAttribute("aria-label", nodeData.label);
+            domNode.setAttribute("data-index", dataIndex);
+            
+            if (nodeData.isLastChild) domNode.setAttribute("data-last-element", "true");
+            else domNode.removeAttribute("data-last-element");
+
+            domNode.setAttribute("data-parity", dataIndex % 2 === 0 ? "even" : "odd");
+            
+            if (nodeData.children || nodeData.lazy) {
+                domNode.classList.add("ls-tree-node-expandable");
+                if (nodeData.state?.expanded) {
+                    domNode.classList.add("ls-tree-expanded");
+                } else {
+                    domNode.classList.remove("ls-tree-expanded");
+                }
+            } else {
+                domNode.classList.remove("ls-tree-node-expandable");
+                domNode.classList.remove("ls-tree-expanded");
+            }
+
+            if (nodeData.__promise) {
+                domNode.setAttribute("data-ls-state", "loading");
+                domNode.setAttribute("aria-busy", "true");
+            } else {
+                domNode.removeAttribute("data-ls-state");
+                domNode.removeAttribute("aria-busy");
+            }
+
             if(this.options.updateNode) {
                 this.options.updateNode(nodeData, domNode);
             } else {
-                domNode.textContent = nodeData.label || nodeData.id || "";
-                domNode.style.paddingLeft = `${(nodeData.depth || 0) * 20}px`; // Provide default indent
+                // Indent guides, they also get recycled when possible.
+                if(this.options.guides) {
+                    const indentContainer = domNode.querySelector(".ls-tree-node-indent");
+                    const existingIndents = indentContainer.children;
+
+                    if (existingIndents.length > nodeData.state.depth) {
+                        for (let i = nodeData.state.depth; i < existingIndents.length; i++) {
+                            indentContainer.removeChild(existingIndents[i]);
+                        }
+                    }
+
+                    // Update or create indent guides
+                    for (let i = 0; i < nodeData.state.depth; i++) {
+                        const line = existingIndents[i] || LS.Create({ class: "ls-tree-indent-guide" }).addTo(indentContainer);
+                        line.classList.toggle("ls-tree-indent-guide-empty", nodeData.state.isLastChild && i === nodeData.state.depth - 1);
+                    }
+                }
+
+                // Icons & Caret
+                if(this.options.icons) {
+                    const iconEl = domNode.querySelector(".ls-tree-node-icon");
+                    let iconClassName = "ls-tree-node-icon " + (this.options.iconClass || "");
+
+                    if (nodeData.children || nodeData.lazy) {
+                        iconClassName += " " + (this.options.caretIconClass || "ls-tree-caret");
+                    } else if (nodeData.icon) {
+                        iconClassName += " " + nodeData.icon;
+                    }
+                    
+                    iconEl.className = iconClassName.trim();
+                }
+
+                // Label
+                const label = domNode.querySelector(".ls-tree-node-label");
+                label.textContent = nodeData.label || nodeData.id || "";
+
+                // Provide default indent
+                domNode.style.setProperty("--ls-tree-indent", `${(nodeData.state.depth || 0) * 20}px`);
             }
         }
 
@@ -520,6 +749,13 @@ LS.LoadComponent(class Tree extends LS.Component {
         this.nodes = null;
         this.nodeMap.clear();
         this.nodeMap = null;
+
+        for (let domNode of this.domNodes) {
+            domNode.onclick = null;
+            domNode.onkeydown = null;
+            domNode.remove();
+        }
+        this.domNodes.length = 0;
         this.domNodes = null;
  
         super.destroy();

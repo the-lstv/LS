@@ -883,6 +883,129 @@ ls-select ls-option, ls-select option, ls-select optgroup {
   border-top: none;
 }
 
+.ls-tree {
+  overflow: auto;
+  position: relative;
+  height: 100%;
+}
+
+.ls-tree-content {
+  position: sticky;
+  width: 100%;
+  top: 0;
+  left: 0;
+}
+
+.ls-tree-node {
+  height: var(--ls-tree-row-height);
+  min-height: var(--ls-tree-row-height);
+  max-height: var(--ls-tree-row-height);
+  box-sizing: border-box;
+  position: absolute;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  user-select: none;
+  padding-left: var(--ls-tree-indent, 0);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.ls-tree-fake-scroll {
+  pointer-events: none;
+  visibility: hidden;
+  width: 0;
+}
+
+.ls-tree-node[data-ls-state=loading] {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+.ls-tree-node-indent {
+  display: flex;
+  height: 100%;
+  width: var(--ls-tree-indent);
+  justify-content: space-around;
+  position: relative;
+}
+
+.ls-tree-node-label {
+  min-width: 0;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  flex: 1 1 auto;
+  width: 100%;
+  text-align: left;
+}
+
+.ls-tree-indent-guide {
+  height: 100%;
+  box-sizing: border-box;
+  width: 8px;
+  margin-left: 8px;
+  margin-right: 4px;
+}
+
+/* .ls-tree-indent-guide-empty {
+    height: 50%;
+} */
+.ls-tree-node-icon {
+  width: 16px;
+  height: 100%;
+  margin: 0 4px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ls-tree-node-badge {
+  float: right;
+  margin-left: 8px;
+  margin-right: 16px;
+}
+
+/* Default caret */
+.ls-tree-caret {
+  background-color: currentColor;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpolyline points='9 6 15 12 9 18' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+}
+
+.ls-tree-expanded > .ls-tree-caret {
+  transform: rotate(90deg);
+}
+
+.ls-tree-node[aria-selected=true] {
+  background: var(--elevate);
+}
+
+/* .ls-tree-node:focus::before {
+    content: "";
+    position: absolute;
+    border-top: 4px solid transparent;
+    border-bottom: 4px solid transparent;
+    border-left: 4px solid var(--surface-10);
+} */
+.ls-tree-styled {
+  /* .ls-tree-indent-guide-empty {
+      border-bottom: 1px solid var(--elevate-1);
+  } */
+}
+.ls-tree-styled .ls-tree-node {
+  padding-left: 0;
+}
+.ls-tree-styled .ls-tree-node:hover {
+  background: var(--elevate);
+}
+.ls-tree-styled .ls-tree-indent-guide {
+  border-left: 1px solid var(--elevate-1);
+}
+
 :root {
   --ls-color-navy: rgb(40, 28, 108);
   --ls-color-blue: rgb(0, 133, 255);

@@ -5,6 +5,7 @@
     <script>
         const tree = new LS.Tree({
             target: document.body,
+
             data: [
                 {
                     id: 'Root',
@@ -30,52 +31,22 @@
                 { id: 'Another Root7' },
                 { id: 'Another Root8' },
                 { id: 'Another Root9' },
-                { id: 'Another Root10' },
-                { id: 'Another Root11' },
-                { id: 'Another Root12' },
-                { id: 'Another Root13' },
-                { id: 'Another Root14' },
-                { id: 'Another Root15' },
-                { id: 'Another Root16' },
-                { id: 'Another Root17' },
-                { id: 'Another Root18' },
-                { id: 'Another Root19' },
-                { id: 'Another Root20' },
-                ...Array.from({ length: 1000 }, (_, i) => ({ id: `Node ${i}` }))
-            ]
+                { id: 'Another Root10', lazy: true },
+                ...Array.from({ length: 1000 }, (_, i) => ({ id: `Node ${i}`, lazy: true }))
+            ],
+
+            async loadData(node) {
+                console.log(`Loading children for node`, node);
+
+                // Simulate async loading
+                await new Promise(resolve => setTimeout(resolve, 100));
+
+                return [
+                    { id: `${node.id} - Child 1`, lazy: true },
+                    { id: `${node.id} - Child 2`, lazy: true },
+                    { id: `${node.id} - Child 3`, lazy: true }
+                ];
+            }
         });
     </script>
-    
-    <style>
-        .ls-tree {
-            overflow: auto;
-            position: relative;
-            height: 200px;
-        }
-
-        .ls-tree-content {
-            position: sticky;
-            width: 100%;
-            top: 0;
-            left: 0;
-        }
-        
-        .ls-tree-node {
-            height: var(--ls-tree-row-height);
-            min-height: var(--ls-tree-row-height);
-            max-height: var(--ls-tree-row-height);
-            box-sizing: border-box;
-            position: absolute;
-            width: 100%;
-            display: flex;
-            align-items: center;
-            user-select: none;
-        }
-
-        .ls-tree-fake-scroll {
-            pointer-events: none;
-            visibility: hidden;
-            width: 0;
-        }
-    </style>
 </body>
