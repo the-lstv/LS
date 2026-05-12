@@ -1,9 +1,9 @@
 ## Version 6.0.0-alpha.0
 Major update (2026 release)!
-- New components: LS.Icons, LS.Multipane, LS.Layout
-- LS.Create now supports Emmet abbreviations! (eg. LS.Create("#myId>ul>li*3") instead of LS.Create("div", { id: "myId", ... }))
+- **New components**: `LS.Icons`, `LS.Multipane`, `LS.Layout`, `LS.WindowManager`, `LS.CommandPalette`, `LS.ColorPicker`, `LS.Tree`
+- LS.Create now supports Emmet abbreviations! (eg. LS.Create("#myId") instead of LS.Create("div", { id: "myId" }))
 - Added LS.Util.parseEmmet
-- [ ] Added UI effects
+- Added UI effects!
 - Added sanitize option to LS.Create
 - Optimized startup and reduced overhead
 - Added LS.Icons support
@@ -20,7 +20,8 @@ Major update (2026 release)!
 - EventEmitter.alias is now EventEmitter.aliasEvent for clarity
 - Enhancements to LS.ImageCropper
 - Enhancements to LS.Toast (smoother animations, responsive)
-- Added tools to LS.Timeline
+- Added tools, grid snapping, and other enhancements to LS.Timeline
+
 < work in progress >
 
 **Misc**

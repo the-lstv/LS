@@ -1,0 +1,49 @@
+<script src="https://cdn-origin.extragon.localhost/ls/beta/compiletemplate,shortcutmanager,animation,automationgraph,color,knob,menu,modal,patcher,node,resize,tabs,tree,timeline,toast,tooltips,gl,multipane/ls.js"></script>
+<link rel=stylesheet href="https://cdn-origin.extragon.localhost/ls/beta/flat,knob,timeline/ls.css">
+
+<body ls ls-theme="dark">
+    <script>
+        const tree = new LS.Tree({
+            data: [
+                {
+                    id: 'Root',
+                    children: [
+                        { id: 'Child 1' },
+                        { id: 'Child 2' },
+                        {
+                            id: 'Child 3',
+                            children: [
+                                { id: 'Grandchild 1' },
+                                { id: 'Grandchild 2' }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        });
+
+        document.body.append(tree.container);
+    </script>
+    
+    <style>
+        .ls-tree {
+            overflow: auto;
+            position: relative;
+            height: 200px;
+        }
+
+        .ls-tree-content {
+            position: absolute;
+            width: 100%;
+            top: 0;
+            left: 0;
+        }
+
+        .ls-tree-node {
+            height: var(--ls-tree-row-height);
+            min-height: var(--ls-tree-row-height);
+            max-height: var(--ls-tree-row-height);
+            box-sizing: border-box;
+        }
+    </style>
+</body>
