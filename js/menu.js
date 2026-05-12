@@ -6,6 +6,8 @@
  * @license GPL-3.0
  */
 
+// todo: virtual scrolling perhaps & reuse more nodes
+
 LS.LoadComponent(class Menu extends LS.Component {
     static index = 0;
     static groups = {};

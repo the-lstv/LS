@@ -1,11 +1,18 @@
 /**
- * Tree Component for LS with virtualized rendering.
+ * Tree Component for LS with optimized virtualized rendering.
+ * Can also be used as a general-purpose virtualized list.
+ * Supports automatic resizing, dynamic updates, etc.
+ * Early stages component.
  * 
- * Very early stages component.
- * I am aware of the mid performance but it is at relatively constant and has faster rendering & less memory usage than some other libraries (ahem infinitytree).
- * Though a LOT of work is needed to improve this so yeah.
- * Tbh I am just tired and have no clue if all this is even worth it.
- * I mean nobody is ever going to use this anyway, so why do I care how good it is
+ * TODO:
+ * - Flattened tree structure
+ * - Expand/collapse logic
+ * - Keyboard navigation
+ * - Accessibility improvements
+ * - Drag and drop support
+ * - Overlays, maybe
+ * - More customization
+ * 
  * @version 0.1.0
  */
 
@@ -13,32 +20,52 @@ LS.LoadComponent(class Tree extends LS.Component {
     static defaults = LS.Util.staticDefaults({
         rowHeight: 24, // Height of each row in pixels
         updateNode: null,
-        createNode: null
+        createNode: null,
+        overscan: 2,
     });
 
     #scroll = 0;
+
+    overscan = 2;
+
+    // Internals
+    #startIndex = null;
+    #segmentBaseIndex = 0;
+    #containerHeight = 0;
+    #scrollDirty = false;
+    #pendingDataRefresh = true;
+    #lastRowHeight = 0;
+    #lastFakeHeight = 0;
+    #lastContentOffset = null;
+    #resizeObserver = null;
 
     /**
      * Create a new Tree component.
      * @param {*} options - Configuration options for the tree.
      * @param {function} options.updateNode - A function that will be called when it is time to update a node's content. It will receive the node data and the corresponding DOM element as arguments.
      * @param {function} options.createNode - A function that will be called when it is time to create a new node. It should return a DOM element.
+     * @param {number} options.overscan - The number of rows to render outside the visible area.
+     * @param {number} options.rowHeight - The height of each row in pixels.
+     * @param {Array} options.data - The initial tree data to load.
+     * @param {Element} options.target - The DOM element to which the tree should be appended. If not provided, the tree will simply not be appended automatically, and you can do it manually (tree.container).
      */
     constructor(options) {
         super();
 
+        /**
+         * Structure:
+         * 
+         * container
+         *  - content (moves with the scroll offset to give the illusion of scrolling)
+         *    - tree-node (flat structure)
+         *  - fakeScroll (for proper scrollbar height, which there *still* isn't a better way to achieve without custom scrollbars, that i know of, let me know if there is a better way. actually making a custom scrollbar seems fun. should i?)
+         */
         this.container = this.createElement({ class: "ls-tree", role: "tree", inner: [
-            (this.fakeScroll = this.createElement({ class: "ls-tree-fake-scroll", inner: [] })),
-            (this.content = this.createElement({ class: "ls-tree-content", inner: [] }))
+            (this.content = this.createElement({ class: "ls-tree-content" })),
+            (this.fakeScroll = this.createElement({ class: "ls-tree-fake-scroll" })),
         ] });
 
         this.options = this.constructor.defaults(options);
-
-        if(options.target) {
-            // We don't really care where the user appends the component
-            options.target.append(this.container);
-            delete options.target;
-        }
 
         this.frameScheduler = this.addDestroyable(new LS.Util.FrameScheduler(() => this.#render()));
 
@@ -52,9 +79,24 @@ LS.LoadComponent(class Tree extends LS.Component {
         // The length of this list will depend on the height of the container and the row height.
         this.domNodes = [];
 
-        if(options.data) {
-            this.loadData(options.data);
-            delete options.data;
+        this.container.addEventListener("scroll", (event) => {
+            this.#scroll = event.target.scrollTop;
+            this.#scrollDirty = true;
+            this.render();
+        });
+
+        if (typeof ResizeObserver !== "undefined") {
+            this.#resizeObserver = new ResizeObserver((entries) => {
+                const entry = entries[0];
+                if(!entry) return;
+
+                const newHeight = Math.round(entry.contentRect.height);
+                if(newHeight === this.#containerHeight) return;
+                this.#containerHeight = newHeight;
+                this.render();
+            });
+
+            this.#resizeObserver.observe(this.container);
         }
 
         this.updateOptions(this.options);
@@ -67,13 +109,52 @@ LS.LoadComponent(class Tree extends LS.Component {
     set scroll(value) {
         if(this.#scroll === value) return;
         this.#scroll = value;
+        this.container.scrollTop = value;
+        this.#scrollDirty = true;
         this.render();
     }
 
+    /**
+     * Update the tree's options dynamically.
+     * @param {*} options 
+     */
     updateOptions(options) {
         if(options.rowHeight !== undefined) {
             this.container.style.setProperty("--ls-tree-row-height", `${options.rowHeight}px`);
+            this.options.rowHeight = options.rowHeight;
         }
+
+        if(options.scroll !== undefined) {
+            this.#scroll = options.scroll;
+            this.container.scrollTop = options.scroll;
+            this.#scrollDirty = true;
+            delete options.scroll;
+        }
+
+        if(options.data) {
+            this.loadData(options.data);
+            delete options.data;
+        }
+
+        if(options.target) {
+            // We don't really care where the user appends the component or how or when.
+            // Most libraries don't seem to grasp that concept and force some mounting bs
+            options.target.append(this.container);
+            delete options.target;
+        }
+
+        if(typeof options.updateNode === "function") {
+            this.options.updateNode = options.updateNode;
+        }
+
+        if(typeof options.createNode === "function") {
+            this.options.createNode = options.createNode;
+        }
+
+        if(options.overscan !== undefined) {
+            this.overscan = options.overscan;
+        }
+
         this.render();
     }
 
@@ -90,6 +171,7 @@ LS.LoadComponent(class Tree extends LS.Component {
      * @param {Array} data - The tree data to load.
      */
     loadData(data) {
+        this.#pendingDataRefresh = true;
         for(let item of data) {
             this.addNode(item);
         }
@@ -104,42 +186,205 @@ LS.LoadComponent(class Tree extends LS.Component {
      * Actually render the tree.
      */
     #render() {
+        // Temporary
         const flat = this.toFlat();
+        const totalRows = flat.length;
+        const rowHeight = this.options.rowHeight;
 
-        this.fakeScroll.style.height = `${flat.length * this.options.rowHeight}px`;
+        // * Oh my fucking god this code is shit
+        // * AI does NOT pay off
+        // * Please remind me to rewrite this properly, I just did not have the time to do this
+        // * And I am sorry for this
 
-        const containerHeight = this.content.clientHeight;
-        const startIndex = Math.floor(this.scroll / this.options.rowHeight);
-        const endIndex = Math.min(flat.length, Math.ceil((this.scroll + containerHeight) / this.options.rowHeight)) + 1;
-
-        console.log(`Rendering nodes ${startIndex} to ${endIndex} (total: ${flat.length})`);
-        
-        this.content.style.transform = `transform3d(0, ${this.scroll}px, 0)`;
-
-        // Recycle DOM nodes
-        while(this.domNodes.length < (endIndex - startIndex)) {
-            const node = this.options.createNode ? this.options.createNode() : this.createElement({ class: "ls-tree-node" });
-            this.content.append(node);
-            this.domNodes.push(node);
+        if(!this.#resizeObserver || this.#containerHeight === 0) {
+            this.#containerHeight = this.container.clientHeight;
         }
 
-        for(let i = 0; i < this.domNodes.length; i++) {
-            const nodeIndex = startIndex + i;
-            const domNode = this.domNodes[i];
+        const containerHeight = this.#containerHeight;
+        const visibleCount = containerHeight > 0 ? Math.ceil(containerHeight / rowHeight) + 1 : 0;
+        const targetPoolSize = Math.min(totalRows, Math.max(0, visibleCount + this.overscan * 2));
+        const poolChanged = this.#ensurePoolSize(targetPoolSize);
 
-            if(nodeIndex < endIndex) {
-                const nodeData = flat[nodeIndex];
-                domNode.style.display = "";
+        const maxScrollTop = Math.max(0, totalRows * rowHeight - containerHeight);
+        const scrollTop = Math.min(this.#scroll, maxScrollTop);
+        if(scrollTop !== this.#scroll) {
+            this.#scroll = scrollTop;
+            this.container.scrollTop = scrollTop;
+        }
 
-                if(this.options.updateNode) {
-                    this.options.updateNode(nodeData, domNode);
-                } else {
-                    domNode.textContent = nodeData.label || `Node ${nodeData.id}`;
+        const firstVisible = Math.max(0, Math.floor(scrollTop / rowHeight));
+        const maxStart = Math.max(0, totalRows - this.domNodes.length);
+        const unclampedStart = Math.max(0, firstVisible - this.overscan);
+        const startIndex = Math.min(unclampedStart, maxStart);
+
+        // hm?
+        const minRows = 64;
+        const maxRows = 1024;
+
+        const segmentRows = Math.max(minRows, Math.min((this.domNodes.length || 1) * 2, maxRows));
+        const segmentBaseIndex = Math.floor(firstVisible / segmentRows) * segmentRows;
+        const contentOffset = scrollTop - segmentBaseIndex * rowHeight;
+
+        if(this.#lastContentOffset !== contentOffset) {
+            this.content.style.transform = `translateY(${-contentOffset}px)`;
+            this.#lastContentOffset = contentOffset;
+        }
+
+        const fakeHeight = totalRows * rowHeight;
+        if(this.#lastFakeHeight !== fakeHeight) {
+            this.fakeScroll.style.height = `${fakeHeight}px`;
+            this.#lastFakeHeight = fakeHeight;
+        }
+
+        const rowHeightChanged = rowHeight !== this.#lastRowHeight;
+        const segmentChanged = segmentBaseIndex !== this.#segmentBaseIndex;
+        const forceContentUpdate = this.#pendingDataRefresh || !this.#scrollDirty;
+        const delta = this.#startIndex === null ? 0 : startIndex - this.#startIndex;
+
+        const needsUpdate = this.#startIndex === null
+            || poolChanged
+            || rowHeightChanged
+            || segmentChanged
+            || forceContentUpdate
+            || Math.abs(delta) >= this.domNodes.length;
+
+        if(needsUpdate) {
+            for(let i = 0; i < this.domNodes.length; i++) {
+                this.#applyNode(this.domNodes[i], startIndex + i, flat, segmentBaseIndex, rowHeight, totalRows, forceContentUpdate);
+            }
+        } else if(delta !== 0) {
+            const baseIndex = this.#startIndex;
+            const poolSize = this.domNodes.length;
+
+            if(delta > 0) {
+                for(let i = 0; i < delta; i++) {
+                    const domNode = this.domNodes.shift();
+                    this.domNodes.push(domNode);
+                    const newIndex = baseIndex + poolSize + i;
+                    this.#applyNode(domNode, newIndex, flat, segmentBaseIndex, rowHeight, totalRows, false);
                 }
             } else {
-                domNode.style.display = "none";
+                for(let i = 0; i < Math.abs(delta); i++) {
+                    const domNode = this.domNodes.pop();
+                    this.domNodes.unshift(domNode);
+                    const newIndex = baseIndex - 1 - i;
+                    this.#applyNode(domNode, newIndex, flat, segmentBaseIndex, rowHeight, totalRows, false);
+                }
             }
         }
+
+        this.#startIndex = startIndex;
+        this.#segmentBaseIndex = segmentBaseIndex;
+        this.#lastRowHeight = rowHeight;
+        this.#pendingDataRefresh = false;
+        this.#scrollDirty = false;
+    }
+
+    /**
+     * Ensure the pool of DOM nodes is the correct size for the current viewport.
+     * @param {*} targetSize - The desired number of DOM nodes in the pool based on the current viewport size and overscan.
+     * @returns {boolean} - Returns true if the pool size was changed
+     */
+    #ensurePoolSize(targetSize) {
+        const currentSize = this.domNodes.length;
+        if(targetSize === currentSize) return false;
+
+        if(targetSize > currentSize) {
+            const fragment = document.createDocumentFragment();
+
+            for(let i = currentSize; i < targetSize; i++) {
+                const domNode = this.options.createNode ? this.options.createNode() : this.createElement();
+
+                domNode.classList.add("ls-tree-node");
+                domNode.setAttribute("role", "treeitem");
+
+                domNode.onclick = (event) => {
+                    this.#nodeClicked?.(event, domNode);
+                };
+
+                domNode.__lsTreeIndex = -1;
+                domNode.__lsTreeY = null;
+                domNode.__lsTreeHidden = true;
+                fragment.appendChild(domNode);
+                this.domNodes.push(domNode);
+            }
+
+            // Append new nodes to the content
+            this.content.appendChild(fragment);
+        } else {
+            for(let i = currentSize - 1; i >= targetSize; i--) {
+                const domNode = this.domNodes.pop();
+                if(!domNode) continue;
+                domNode.remove();
+            }
+        }
+
+        return true;
+    }
+
+    #nodeClicked(event, domNode) {
+        const nodeData = this.nodeFromDom(domNode);
+        if(!nodeData) return;
+
+        this.quickEmit("click", nodeData, domNode, event);
+
+        if(nodeData.children) {
+            event.stopPropagation();
+            this.toggle(nodeData);
+        }
+    }
+
+    nodeFromDom(domNode) {
+        const index = domNode.__lsTreeIndex;
+        if(index === undefined || index === -1) return null;
+        
+        const nodeData = this.toFlat()[index];
+        return nodeData || null;
+    }
+
+    /**
+     * Apply data to a DOM node.
+     */
+    #applyNode(domNode, dataIndex, flat, segmentBaseIndex, rowHeight, totalRows, forceContentUpdate) {
+        if(dataIndex < 0 || dataIndex >= totalRows) {
+            if(!domNode.__lsTreeHidden) {
+                domNode.style.display = "none";
+                domNode.__lsTreeHidden = true;
+            }
+            domNode.__lsTreeIndex = -1;
+            return;
+        }
+
+        const nodeData = flat[dataIndex];
+        if(!nodeData) {
+            if(!domNode.__lsTreeHidden) {
+                domNode.style.display = "none";
+                domNode.__lsTreeHidden = true;
+            }
+            domNode.__lsTreeIndex = -1;
+            return;
+        }
+
+        if(domNode.__lsTreeHidden) {
+            domNode.style.display = "";
+            domNode.__lsTreeHidden = false;
+        }
+
+        const y = (dataIndex - segmentBaseIndex) * rowHeight;
+        if(domNode.__lsTreeY !== y) {
+            domNode.style.transform = `translateY(${y}px)`;
+            domNode.__lsTreeY = y;
+        }
+
+        if(forceContentUpdate || domNode.__lsTreeIndex !== dataIndex) {
+            if(this.options.updateNode) {
+                this.options.updateNode(nodeData, domNode);
+            } else {
+                domNode.textContent = nodeData.label || nodeData.id || "";
+            }
+        }
+
+        domNode.__lsTreeIndex = dataIndex;
     }
 
     toFlat() {
@@ -184,6 +429,8 @@ LS.LoadComponent(class Tree extends LS.Component {
         const node = (typeof id === "string") ? this.nodeMap.get(id) : id;
         if(!node) return;
 
+        this.#pendingDataRefresh = true;
+
         // Remove from node map
         this.nodeMap.delete(node.id);
 
@@ -211,6 +458,7 @@ LS.LoadComponent(class Tree extends LS.Component {
      * @param {string|null} parentId - The ID of the parent node to which this new node should be added. If null, the node will be added as a root node (or just taken from the node object).
      */
     addNode(nodeData, parentId = null) {
+        this.#pendingDataRefresh = true;
         this.nodes.push(nodeData);
         this.nodeMap.set(nodeData.id, nodeData);
 
@@ -242,8 +490,18 @@ LS.LoadComponent(class Tree extends LS.Component {
      */
     destroy() {
         if (this.destroyed) return;
-        this.container.remove();
+
+        if (this.#resizeObserver) {
+            this.#resizeObserver.disconnect();
+            this.#resizeObserver = null;
+        }
+
+        this.container = null;
         this.nodes = null;
-        super.destroy();
+        this.nodeMap.clear();
+        this.nodeMap = null;
+        this.domNodes = null;
+ 
+        super.destroy(); // Does the rest
     }
 }, { name: "Tree", global: true });
