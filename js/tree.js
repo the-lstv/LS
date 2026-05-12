@@ -1,19 +1,17 @@
 /**
- * Tree Component for LS with optimized virtualized rendering.
+ * Tree/ListView Component for LS with optimized virtualized rendering.
  * Can also be used as a general-purpose virtualized list.
  * Supports automatic resizing, dynamic updates, etc.
- * Early stages component.
  * 
- * TODO:
- * - Flattened tree structure
- * - Expand/collapse logic
- * - Keyboard navigation
- * - Accessibility improvements
- * - Drag and drop support
- * - Overlays, maybe
- * - More customization
+ * ! Early stages component. The flat structure is very hacky as of now & testing is needed.
  * 
- * @version 0.1.0
+ * Future improvements:
+ * * Keyboard navigation & accessibility improvements
+ * * Drag and drop support
+ * * Overlays, maybe
+ * * More customization
+ * 
+ * @version 0.2.0
  */
 
 LS.LoadComponent(class Tree extends LS.Component {
@@ -22,10 +20,10 @@ LS.LoadComponent(class Tree extends LS.Component {
         updateNode: null,
         createNode: null,
         overscan: 2,
+        lazy: false
     });
 
     #scroll = 0;
-
     overscan = 2;
 
     // Internals
@@ -38,6 +36,10 @@ LS.LoadComponent(class Tree extends LS.Component {
     #lastFakeHeight = 0;
     #lastContentOffset = null;
     #resizeObserver = null;
+    
+    // Flat-Tree State
+    #flatNodes = [];
+    #flatDirty = true;
 
     /**
      * Create a new Tree component.
@@ -48,6 +50,7 @@ LS.LoadComponent(class Tree extends LS.Component {
      * @param {number} options.rowHeight - The height of each row in pixels.
      * @param {Array} options.data - The initial tree data to load.
      * @param {Element} options.target - The DOM element to which the tree should be appended. If not provided, the tree will simply not be appended automatically, and you can do it manually (tree.container).
+     * @param {boolean} options.lazy - Whether to always enable lazy loading behavior (load-on-demand), even for nodes without the `lazy` property.
      */
     constructor(options) {
         super();
@@ -69,7 +72,7 @@ LS.LoadComponent(class Tree extends LS.Component {
 
         this.frameScheduler = this.addDestroyable(new LS.Util.FrameScheduler(() => this.#render()));
 
-        // Tree structure, as an actual tree structure
+        // Tree structure
         this.nodes = [];
 
         // Lookup map
@@ -143,17 +146,10 @@ LS.LoadComponent(class Tree extends LS.Component {
             delete options.target;
         }
 
-        if(typeof options.updateNode === "function") {
-            this.options.updateNode = options.updateNode;
-        }
-
-        if(typeof options.createNode === "function") {
-            this.options.createNode = options.createNode;
-        }
-
-        if(options.overscan !== undefined) {
-            this.overscan = options.overscan;
-        }
+        if(typeof options.updateNode === "function") this.options.updateNode = options.updateNode;
+        if(typeof options.createNode === "function") this.options.createNode = options.createNode;
+        if(options.overscan !== undefined) this.overscan = options.overscan;
+        if(options.lazy !== undefined) this.options.lazy = options.lazy;
 
         this.render();
     }
@@ -166,6 +162,7 @@ LS.LoadComponent(class Tree extends LS.Component {
      *   label: string,     // Text to display for the node
      *   children: array,   // Optional array of child nodes
      *   state: boolean,    // Expanded or collapsed
+     *   lazy: boolean,     // Whether the node should be loaded lazily (load-on-demand)
      *   ...any other user data, the component only uses the ones mentioned above.
      * }
      * @param {Array} data - The tree data to load.
@@ -182,19 +179,130 @@ LS.LoadComponent(class Tree extends LS.Component {
      */
     render() { this.frameScheduler.schedule(); }
 
+    nodeFromDom(domNode) {
+        const index = domNode.__lsTreeIndex;
+        if(index === undefined || index === -1) return null;
+        return this.flatNodes[index] || null;
+    }
+
+    collapse(node) {
+        if (!node.state) return;
+        node.state = false;
+        this.#flatDirty = true;
+        this.render();
+    }
+
+    expand(node) {
+        if (node.state) return;
+        node.state = true;
+        
+        // Simple built-in lazy loading
+        if ((node.lazy || this.options.lazy) && !node.children) {
+            node.children = []; // Set empty initially to prevent multiple load event fires
+            this.quickEmit("load", node);
+        }
+
+        this.#flatDirty = true;
+        this.render();
+    }
+
+    toggle(node) {
+        if (node.state) this.collapse(node);
+        else this.expand(node);
+    }
+
+    removeNode(id) {
+        const node = (typeof id === "string") ? this.nodeMap.get(id) : id;
+        if(!node) return;
+
+        this.#pendingDataRefresh = true;
+
+        // Recursively clean Map registry
+        const removeRecursive = (n) => {
+            this.nodeMap.delete(n.id);
+            if (n.children) {
+                for (let i = 0; i < n.children.length; i++) removeRecursive(n.children[i]);
+            }
+        };
+        removeRecursive(node);
+
+        // Disconnect from parent / base array
+        const parentNode = node.parentId != null ? this.nodeMap.get(node.parentId) : null;
+        const siblings = parentNode ? parentNode.children : this.nodes;
+        
+        if (siblings) {
+            const index = siblings.indexOf(node);
+            if(index !== -1) siblings.splice(index, 1);
+        }
+
+        this.#flatDirty = true;
+        this.render();
+    }
+
+    getNodeById(id) {
+        return this.nodeMap.get(id) || null;
+    }
+
+    addNode(nodeData, parentId = null) {
+        if (parentId !== null) nodeData.parentId = parentId;
+        
+        this.#pendingDataRefresh = true;
+
+        // Prevent duplication in root `nodes` list
+        if (nodeData.parentId != null) {
+            const parentNode = this.nodeMap.get(nodeData.parentId);
+            if (parentNode) {
+                parentNode.children ??= [];
+                if (!parentNode.children.includes(nodeData)) {
+                    parentNode.children.push(nodeData);
+                }
+            }
+        } else if (!this.nodes.includes(nodeData)) {
+            this.nodes.push(nodeData);
+        }
+
+        // Recursively register nodes deeply to nodeMap (helps bulk adding data safely)
+        const indexRecursive = (node) => {
+            this.nodeMap.set(node.id, node);
+            if (node.children) {
+                for (let i = 0; i < node.children.length; i++) {
+                    node.children[i].parentId = node.id;
+                    indexRecursive(node.children[i]);
+                }
+            }
+        };
+        indexRecursive(nodeData);
+
+        this.#flatDirty = true;
+        this.render();
+    }
+
+    expandAll() {
+        this.traverse(node => node.state = true);
+        this.#flatDirty = true;
+        this.render();
+    }
+
+    collapseAll() {
+        this.traverse(node => node.state = false);
+        this.#flatDirty = true;
+        this.render();
+    }
+
+    traverse(callback, nodes = this.nodes) {
+        for (let i = 0; i < nodes.length; i++) {
+            callback(nodes[i]);
+            if (nodes[i].children) this.traverse(callback, nodes[i].children);
+        }
+    }
+
     /**
-     * Actually render the tree.
+     * Actually render the tree
      */
     #render() {
-        // Temporary
-        const flat = this.toFlat();
+        const flat = this.flatNodes;
         const totalRows = flat.length;
         const rowHeight = this.options.rowHeight;
-
-        // * Oh my fucking god this code is shit
-        // * AI does NOT pay off
-        // * Please remind me to rewrite this properly, I just did not have the time to do this
-        // * And I am sorry for this
 
         if(!this.#resizeObserver || this.#containerHeight === 0) {
             this.#containerHeight = this.container.clientHeight;
@@ -207,6 +315,7 @@ LS.LoadComponent(class Tree extends LS.Component {
 
         const maxScrollTop = Math.max(0, totalRows * rowHeight - containerHeight);
         const scrollTop = Math.min(this.#scroll, maxScrollTop);
+
         if(scrollTop !== this.#scroll) {
             this.#scroll = scrollTop;
             this.container.scrollTop = scrollTop;
@@ -250,7 +359,7 @@ LS.LoadComponent(class Tree extends LS.Component {
 
         if(needsUpdate) {
             for(let i = 0; i < this.domNodes.length; i++) {
-                this.#applyNode(this.domNodes[i], startIndex + i, flat, segmentBaseIndex, rowHeight, totalRows, forceContentUpdate);
+                this.#updateDOMNode(this.domNodes[i], startIndex + i, flat, segmentBaseIndex, rowHeight, totalRows, forceContentUpdate);
             }
         } else if(delta !== 0) {
             const baseIndex = this.#startIndex;
@@ -261,14 +370,14 @@ LS.LoadComponent(class Tree extends LS.Component {
                     const domNode = this.domNodes.shift();
                     this.domNodes.push(domNode);
                     const newIndex = baseIndex + poolSize + i;
-                    this.#applyNode(domNode, newIndex, flat, segmentBaseIndex, rowHeight, totalRows, false);
+                    this.#updateDOMNode(domNode, newIndex, flat, segmentBaseIndex, rowHeight, totalRows, false);
                 }
             } else {
                 for(let i = 0; i < Math.abs(delta); i++) {
                     const domNode = this.domNodes.pop();
                     this.domNodes.unshift(domNode);
                     const newIndex = baseIndex - 1 - i;
-                    this.#applyNode(domNode, newIndex, flat, segmentBaseIndex, rowHeight, totalRows, false);
+                    this.#updateDOMNode(domNode, newIndex, flat, segmentBaseIndex, rowHeight, totalRows, false);
                 }
             }
         }
@@ -278,6 +387,35 @@ LS.LoadComponent(class Tree extends LS.Component {
         this.#lastRowHeight = rowHeight;
         this.#pendingDataRefresh = false;
         this.#scrollDirty = false;
+    }
+
+    // ! Temporary
+    #updateFlatNodes() {
+        if (!this.#flatDirty) return;
+        
+        // Zero-out array dynamically to reuse the reference and preserve memory
+        this.#flatNodes.length = 0;
+        this.#flattenInto(this.nodes, 0);
+        this.#flatDirty = false;
+    }
+
+    // ! Temporary
+    #flattenInto(nodes, depth) {
+        for (let i = 0; i < nodes.length; i++) {
+            const node = nodes[i];
+            node.depth = depth;
+            this.#flatNodes.push(node);
+            
+            if (node.state && node.children && node.children.length > 0) {
+                this.#flattenInto(node.children, depth + 1);
+            }
+        }
+    }
+
+    // ! Temporary
+    get flatNodes() {
+        this.#updateFlatNodes();
+        return this.#flatNodes;
     }
 
     /**
@@ -298,9 +436,7 @@ LS.LoadComponent(class Tree extends LS.Component {
                 domNode.classList.add("ls-tree-node");
                 domNode.setAttribute("role", "treeitem");
 
-                domNode.onclick = (event) => {
-                    this.#nodeClicked?.(event, domNode);
-                };
+                domNode.onclick = (event) => this.#nodeClicked(event, domNode);
 
                 domNode.__lsTreeIndex = -1;
                 domNode.__lsTreeY = null;
@@ -314,8 +450,7 @@ LS.LoadComponent(class Tree extends LS.Component {
         } else {
             for(let i = currentSize - 1; i >= targetSize; i--) {
                 const domNode = this.domNodes.pop();
-                if(!domNode) continue;
-                domNode.remove();
+                if(domNode) domNode.remove();
             }
         }
 
@@ -328,24 +463,14 @@ LS.LoadComponent(class Tree extends LS.Component {
 
         this.quickEmit("click", nodeData, domNode, event);
 
-        if(nodeData.children) {
+        // Allows nodes that are lazy-loaded (load-on-demand) to register clicks even without native children
+        if(nodeData.children || nodeData.lazy) {
             event.stopPropagation();
             this.toggle(nodeData);
         }
     }
 
-    nodeFromDom(domNode) {
-        const index = domNode.__lsTreeIndex;
-        if(index === undefined || index === -1) return null;
-        
-        const nodeData = this.toFlat()[index];
-        return nodeData || null;
-    }
-
-    /**
-     * Apply data to a DOM node.
-     */
-    #applyNode(domNode, dataIndex, flat, segmentBaseIndex, rowHeight, totalRows, forceContentUpdate) {
+    #updateDOMNode(domNode, dataIndex, flat, segmentBaseIndex, rowHeight, totalRows, forceContentUpdate) {
         if(dataIndex < 0 || dataIndex >= totalRows) {
             if(!domNode.__lsTreeHidden) {
                 domNode.style.display = "none";
@@ -356,14 +481,7 @@ LS.LoadComponent(class Tree extends LS.Component {
         }
 
         const nodeData = flat[dataIndex];
-        if(!nodeData) {
-            if(!domNode.__lsTreeHidden) {
-                domNode.style.display = "none";
-                domNode.__lsTreeHidden = true;
-            }
-            domNode.__lsTreeIndex = -1;
-            return;
-        }
+        if(!nodeData) return;
 
         if(domNode.__lsTreeHidden) {
             domNode.style.display = "";
@@ -381,113 +499,13 @@ LS.LoadComponent(class Tree extends LS.Component {
                 this.options.updateNode(nodeData, domNode);
             } else {
                 domNode.textContent = nodeData.label || nodeData.id || "";
+                domNode.style.paddingLeft = `${(nodeData.depth || 0) * 20}px`; // Provide default indent
             }
         }
 
         domNode.__lsTreeIndex = dataIndex;
     }
 
-    toFlat() {
-        const flat = [];
-
-        const traverse = (nodes, parent = null) => {
-            for(const node of nodes) {
-                if(node.state !== true && parent !== null) continue; // Skip collapsed nodes
-
-                flat.push({ ...node, parentId: parent });
-
-                if(node.children) {
-                    traverse(node.children, node.id);
-                }
-            }
-        };
-
-        traverse(this.nodes);
-        return flat;
-    }
-
-    /**
-     * Collapse a node.
-     */
-    collapse(node) {}
-
-    /**
-     * Expand a node.
-     */
-    expand(node) {}
-
-    /**
-     * Toggle a node's expanded/collapsed state.
-     */
-    toggle(node) {}
-
-    /**
-     * Remove a node by its ID or node object.
-     * @param {string|object} id - The ID of the node to remove or the node object itself.
-     */
-    removeNode(id) {
-        const node = (typeof id === "string") ? this.nodeMap.get(id) : id;
-        if(!node) return;
-
-        this.#pendingDataRefresh = true;
-
-        // Remove from node map
-        this.nodeMap.delete(node.id);
-
-        const parent = node.parentId? this.nodeMap.get(node.parentId)?.children: this.nodes;
-
-        // Remove from array
-        const index = parent.indexOf(node);
-        if(index !== -1) {
-            parent.splice(index, 1);
-        }
-    }
-
-    /**
-     * Get a node by its ID.
-     * @param {string} id - The ID of the node to retrieve.
-     * @returns {object|null} The node with the specified ID, or null if not found.
-     */
-    getNodeById(id) {
-        return this.nodeMap.get(id) || null;
-    }
-
-    /**
-     * Add a new node to the tree.
-     * @param {object} nodeData - The data for the new node, following the same structure as described in loadData.
-     * @param {string|null} parentId - The ID of the parent node to which this new node should be added. If null, the node will be added as a root node (or just taken from the node object).
-     */
-    addNode(nodeData, parentId = null) {
-        this.#pendingDataRefresh = true;
-        this.nodes.push(nodeData);
-        this.nodeMap.set(nodeData.id, nodeData);
-
-        if(parentId) {
-            nodeData.parentId = parentId;
-        }
-
-        if(nodeData.parentId !== null) {
-            const parentNode = this.nodeMap.get(nodeData.parentId);
-            if(parentNode) {
-                parentNode.children ??= [];
-                parentNode.children.push(nodeData);
-            }
-        }
-    }
-
-    /**
-     * Expand all nodes.
-     */
-    expandAll() {}
-
-    /**
-     * Collapse all nodes.
-     */
-    collapseAll() {}
-
-    /**
-     * Destroy the component and clean up any resources.
-     */
     destroy() {
         if (this.destroyed) return;
 
@@ -496,12 +514,14 @@ LS.LoadComponent(class Tree extends LS.Component {
             this.#resizeObserver = null;
         }
 
+        this.#flatNodes.length = 0;
+        this.#flatNodes = null;
         this.container = null;
         this.nodes = null;
         this.nodeMap.clear();
         this.nodeMap = null;
         this.domNodes = null;
  
-        super.destroy(); // Does the rest
+        super.destroy();
     }
 }, { name: "Tree", global: true });
