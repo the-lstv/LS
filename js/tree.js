@@ -176,7 +176,7 @@ LS.LoadComponent(class Tree extends LS.Component {
     }
 
     /**
-     * Load data into the tree. The data should be an array of objects with the following structure:
+     * Replaces data in the tree. The data should be an array of objects with the following structure:
      * {
      *   id: string,        // Unique identifier for the node
      *   parentId: string,  // Identifier of the parent node (null for root nodes)
@@ -187,13 +187,19 @@ LS.LoadComponent(class Tree extends LS.Component {
      *   ...any other user data, the component only uses the ones mentioned above.
      * }
      * @param {Array} data - The tree data to load.
+     * @param {Object} parent - The parent node to which the data should replaced, otherwise the whole tree will be replaced.
      */
-    loadData(data) {
-        this.reset();
+    loadData(data, parent = null) {
+        if(parent) {
+            return this.replaceChildren(parent, data);
+        } else {
+            // Reset everything
+            this.reset();
+        }
 
         this.#pendingDataRefresh = true;
         for(let item of data) {
-            this.addNode(item);
+            this.addNode(item, parent);
         }
     }
 
@@ -292,13 +298,49 @@ LS.LoadComponent(class Tree extends LS.Component {
         this.render();
     }
 
+    /**
+     * Replace or remove the children of a node with new data.
+     * @param {*} id - The node or ID of the node whose children should be replaced.
+     * @param {*} newData - An array of new child nodes, or null to remove existing children.
+     */
+    replaceChildren(id, newData) {
+        const node = (typeof id === "string") ? this.nodeMap.get(id) : id;
+        if(!node) return;
+
+        this.#pendingDataRefresh = true;
+
+        // Clear existing children and recursively remove them from map
+        if (node.children) {
+            const removeRecursive = (n) => {
+                this.nodeMap.delete(n.id);
+                if (n.children) {
+                    for (let i = 0; i < n.children.length; i++) removeRecursive(n.children[i]);
+                }
+            };
+            for (let i = 0; i < node.children.length; i++) {
+                removeRecursive(node.children[i]);
+            }
+            node.children.length = 0;
+        }
+
+        // Add new children
+        if (newData) for(let item of newData) {
+            this.addNode(item, node);
+        }
+    }
+
     getNodeById(id) {
         return this.nodeMap.get(id) || null;
     }
 
+    /**
+     * Add a new node to the tree.
+     * @param {*} nodeData - The data for the new node.
+     * @param {*} parentId - The ID of the parent node to attach to, or null to add to the root.
+     */
     addNode(nodeData, parentId = null) {
-        if (parentId !== null) nodeData.parentId = parentId;
-        
+        if (parentId !== null) nodeData.parentId = typeof parentId === "string" ? parentId : parentId.id;
+
         this.#pendingDataRefresh = true;
 
         // Prevent duplication in root `nodes` list
@@ -480,6 +522,7 @@ LS.LoadComponent(class Tree extends LS.Component {
             node.state.posinset = i + 1;
             node.state.setsize = nodes.length;
             node.state.isLastChild = (i === nodes.length - 1);
+            node.state.selected = (this.#focusedNode === node);
             this.#flatNodes.push(node);
 
             if (node.state.expanded && node.children && node.children.length > 0) {
@@ -526,11 +569,11 @@ LS.LoadComponent(class Tree extends LS.Component {
                     const node = this.getNodeDataByElement(domNode);
                     if (node) {
                         if (this.#focusedNode && this.#focusedNode !== node) {
-                            this.#focusedNode.selected = false;
+                            this.#focusedNode.state.selected = false;
                             const prevDom = this.domNodes.find(n => n.__lsTreeIndex === this.flatNodes.indexOf(this.#focusedNode));
                             if (prevDom) prevDom.setAttribute("aria-selected", "false");
                         }
-                        node.selected = true;
+                        node.state.selected = true;
                         this.#focusedNode = node;
                         domNode.setAttribute("aria-selected", "true");
                     }
@@ -657,22 +700,24 @@ LS.LoadComponent(class Tree extends LS.Component {
             domNode.__lsTreeY = y;
         }
 
+        nodeData.state ??= {};
+        domNode.setAttribute("aria-selected", nodeData.state.selected ? "true" : "false");
+
         if(forceContentUpdate || domNode.__lsTreeIndex !== dataIndex) {
-            domNode.setAttribute("aria-level", (nodeData.depth || 0) + 1);
-            domNode.setAttribute("aria-setsize", nodeData.setsize || 1);
-            domNode.setAttribute("aria-posinset", nodeData.posinset || 1);
-            domNode.setAttribute("aria-selected", nodeData.selected ? "true" : "false");
+            domNode.setAttribute("aria-level", (nodeData.state.depth || 0) + 1);
+            domNode.setAttribute("aria-setsize", nodeData.state.setsize || 1);
+            domNode.setAttribute("aria-posinset", nodeData.state.posinset || 1);
             if (nodeData.label) domNode.setAttribute("aria-label", nodeData.label);
             domNode.setAttribute("data-index", dataIndex);
             
             if (nodeData.isLastChild) domNode.setAttribute("data-last-element", "true");
             else domNode.removeAttribute("data-last-element");
 
-            domNode.setAttribute("data-parity", dataIndex % 2 === 0 ? "even" : "odd");
+            // domNode.setAttribute("data-parity", dataIndex % 2 === 0 ? "even" : "odd");
             
             if (nodeData.children || nodeData.lazy) {
                 domNode.classList.add("ls-tree-node-expandable");
-                if (nodeData.state?.expanded) {
+                if (nodeData.state.expanded) {
                     domNode.classList.add("ls-tree-expanded");
                 } else {
                     domNode.classList.remove("ls-tree-expanded");
@@ -690,13 +735,11 @@ LS.LoadComponent(class Tree extends LS.Component {
                 domNode.removeAttribute("aria-busy");
             }
 
-            if(this.options.updateNode) {
-                this.options.updateNode(nodeData, domNode);
-            } else {
-                // Indent guides, they also get recycled when possible.
-                if(this.options.guides) {
-                    const indentContainer = domNode.querySelector(".ls-tree-node-indent");
-                    const existingIndents = indentContainer.children;
+            // Indent guides, they also get recycled when possible.
+            if(this.options.guides) {
+                const indentContainer = domNode.querySelector(".ls-tree-node-indent");
+                if(indentContainer) {
+                    const existingIndents = Array.from(indentContainer.children);
 
                     if (existingIndents.length > nodeData.state.depth) {
                         for (let i = nodeData.state.depth; i < existingIndents.length; i++) {
@@ -710,10 +753,12 @@ LS.LoadComponent(class Tree extends LS.Component {
                         line.classList.toggle("ls-tree-indent-guide-empty", nodeData.state.isLastChild && i === nodeData.state.depth - 1);
                     }
                 }
+            }
 
-                // Icons & Caret
-                if(this.options.icons) {
-                    const iconEl = domNode.querySelector(".ls-tree-node-icon");
+            // Icons & Caret
+            if(this.options.icons) {
+                const iconEl = domNode.querySelector(".ls-tree-node-icon");
+                if(iconEl) {
                     let iconClassName = "ls-tree-node-icon " + (this.options.iconClass || "");
 
                     if (nodeData.children || nodeData.lazy) {
@@ -724,13 +769,17 @@ LS.LoadComponent(class Tree extends LS.Component {
                     
                     iconEl.className = iconClassName.trim();
                 }
+            }
 
-                // Label
-                const label = domNode.querySelector(".ls-tree-node-label");
-                label.textContent = nodeData.label || nodeData.id || "";
+            // Provide default indent
+            domNode.style.setProperty("--ls-tree-indent", `${(nodeData.state.depth || 0) * this.options.space}px`);
 
-                // Provide default indent
-                domNode.style.setProperty("--ls-tree-indent", `${(nodeData.state.depth || 0) * this.options.space}px`);
+            // Label
+            const label = domNode.querySelector(".ls-tree-node-label");
+            label.textContent = nodeData.label || nodeData.id || "";
+
+            if(this.options.updateNode) {
+                this.options.updateNode(nodeData, domNode);
             }
         }
 
