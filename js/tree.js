@@ -26,7 +26,8 @@ LS.LoadComponent(class Tree extends LS.Component {
         guides: true,
         icons: true,
         iconClass: "li-icons",
-        caretIconClass: null
+        caretIconClass: null,
+        space: 16
     });
 
     #scroll = 0;
@@ -64,6 +65,7 @@ LS.LoadComponent(class Tree extends LS.Component {
      * @param {boolean} options.icons - Whether to display icons.
      * @param {string} options.iconClass - The base CSS classname to use for node icons.
      * @param {string} options.caretIconClass - The CSS class to use for the caret icon. If null, the default caret will be used.
+     * @param {number} options.space - The amount of space to use for each level of indentation.
      */
     constructor(options) {
         super();
@@ -728,7 +730,7 @@ LS.LoadComponent(class Tree extends LS.Component {
                 label.textContent = nodeData.label || nodeData.id || "";
 
                 // Provide default indent
-                domNode.style.setProperty("--ls-tree-indent", `${(nodeData.state.depth || 0) * 20}px`);
+                domNode.style.setProperty("--ls-tree-indent", `${(nodeData.state.depth || 0) * this.options.space}px`);
             }
         }
 

@@ -945,7 +945,6 @@ ls-select ls-option, ls-select option, ls-select optgroup {
   box-sizing: border-box;
   width: 8px;
   margin-left: 8px;
-  margin-right: 4px;
 }
 
 /* .ls-tree-indent-guide-empty {
@@ -954,7 +953,7 @@ ls-select ls-option, ls-select option, ls-select optgroup {
 .ls-tree-node-icon {
   width: 16px;
   height: 100%;
-  margin: 0 4px;
+  margin: 0 6px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
