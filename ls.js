@@ -1255,7 +1255,7 @@
                         ? { inner: content }
                         : content || {};
 
-            const { class: className, tooltip, ns, inner, content: innerContent, html, text, accent, style, reactive, attr, options, attributes, sanitize, state, ...rest } = content;
+            const { class: className, tooltip, ns, inner, content: innerContent, i18n, html, text, accent, style, reactive, attr, options, attributes, sanitize, state, ...rest } = content;
             const element = Object.assign(
                 LS.Util.parseEmmet(emmet, { ns, singleNode: true }),
                 rest
@@ -1311,17 +1311,32 @@
                 element.append(...LS.Util.resolveElements(contentToAdd));
             }
 
-            if (text) {
-                if(contentToAdd || html) {
-                    console.warn("LS.Create: 'text' is being overriden by inner content or html. Only use one of: inner, html, or text.");
+            if(i18n) {
+                const key = typeof i18n === "string" ? i18n : i18n.key;
+                element.setAttribute("data-ls-i18n", key);
+
+                const vars = i18n.vars || null;
+                if(vars) element._lsI18nVars = vars;
+                if(i18n.fallback) element._lsI18nFallback = i18n.fallback; else if(text) element._lsI18nFallback = text;
+
+                if(LS.i18n) {
+                    element.textContent = LS.i18n.translate(key, element._lsI18nVars, undefined, element._lsI18nFallback);
                 } else {
-                    element.appendChild(document.createTextNode(text));
+                    console.warn("LS.i18n module is not available, cannot translate:", i18n);
                 }
-            } else if (html) {
-                if(contentToAdd) {
-                    console.warn("LS.Create: 'html' is being overriden by inner content. Only use one of: inner, html, or text.");
-                } else {
-                    element.innerHTML = html;
+            } else {
+                if (text) {
+                    if(contentToAdd || html) {
+                        console.warn("LS.Create: 'text' is being overriden by inner content or html. Only use one of: inner, html, or text.");
+                    } else {
+                        element.appendChild(document.createTextNode(text));
+                    }
+                } else if (html) {
+                    if(contentToAdd) {
+                        console.warn("LS.Create: 'html' is being overriden by inner content. Only use one of: inner, html, or text.");
+                    } else {
+                        element.innerHTML = html;
+                    }
                 }
             }
 

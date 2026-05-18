@@ -776,7 +776,28 @@ LS.LoadComponent(class Tree extends LS.Component {
 
             // Label
             const label = domNode.querySelector(".ls-tree-node-label");
-            label.textContent = nodeData.label || nodeData.id || "";
+            if(label) {
+                if(nodeData.i18n && LS.i18n) {
+                    if(!this.__localeListener) {
+                        this.__localeListener = () => {
+                            for(let domNode of this.domNodes) {
+                                const nodeData = this.getNodeDataByElement(domNode);
+                                if(nodeData && nodeData.i18n) {
+                                    const label = domNode.querySelector(".ls-tree-node-label");
+                                    if(label) {
+                                        label.textContent = LS.i18n.translate(nodeData.i18n?.key || nodeData.i18n, nodeData.i18n?.vars, null, nodeData.label || nodeData.id || "");
+                                    }
+                                }
+                            }
+                        };
+                        LS.on("localeChanged", this.__localeListener);
+                    }
+
+                    label.textContent = LS.i18n.translate(nodeData.i18n?.key || nodeData.i18n, nodeData.i18n?.vars, null, nodeData.label || nodeData.id || "");
+                } else {
+                    label.textContent = nodeData.label || nodeData.id || "";
+                }
+            }
 
             if(this.options.updateNode) {
                 this.options.updateNode(nodeData, domNode);
@@ -808,6 +829,11 @@ LS.LoadComponent(class Tree extends LS.Component {
         }
         this.domNodes.length = 0;
         this.domNodes = null;
+
+        if(this.__localeListener) {
+            LS.off("localeChanged", this.__localeListener);
+            this.__localeListener = null;
+        }
  
         super.destroy();
     }

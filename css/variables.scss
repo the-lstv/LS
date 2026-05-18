@@ -64,18 +64,42 @@ $buttonLike: ':is(#{$button}, #{$select}):not(.ls-ignore)';
     );
 }
 
-@function generate-tone-oklch($color, $tone, $saturation: 40) {
-    $lightness: ($tone / 100) * 0.8 + 0.1;
+// @function generate-tone($color, $tone, $chroma-scale: 100) {
+//     $l: ($tone / 100) * 0.8 + 0.1;
 
-    $oklch: oklch(
-        $lightness ($saturation / 400) (color.channel($color, "hue", $space: oklch))
-    );
+//     $c: color.channel($color, "chroma", $space: oklch);
+//     $h: color.channel($color, "hue", $space: oklch);
 
-    // @return $oklch;
+//     $c: $c * ($chroma-scale / 100);
 
-    @return rgb(
-        math.floor(color.channel($oklch, "red", $space: rgb)),
-        math.floor(color.channel($oklch, "green", $space: rgb)),
-        math.floor(color.channel($oklch, "blue", $space: rgb))
-    );
-}
+//     $c: math.min($c, 0.4);
+
+//     // @return color.to-space(
+//     //     oklch($l $c $h),
+//     //     rgb
+//     // );
+
+//     $oklch: oklch($l $c $h);
+
+//     @return rgb(
+//         math.floor(color.channel($oklch, "red", $space: rgb)),
+//         math.floor(color.channel($oklch, "green", $space: rgb)),
+//         math.floor(color.channel($oklch, "blue", $space: rgb))
+//     );
+// }
+
+// @function generate-tone($color, $tone, $saturation: 40) {
+//     $lightness: ($tone / 100) * 0.8 + 0.1;
+
+//     $oklch: oklch(
+//         $lightness ($saturation / 400) (color.channel($color, "hue", $space: oklch))
+//     );
+
+//     // @return $oklch;
+
+//     @return rgb(
+//         math.floor(color.channel($oklch, "red", $space: rgb)),
+//         math.floor(color.channel($oklch, "green", $space: rgb)),
+//         math.floor(color.channel($oklch, "blue", $space: rgb))
+//     );
+// }
