@@ -84,18 +84,31 @@
 
             // document.documentElement.dir = ["ar", "he", "fa"].includes(locale)? "rtl" : "ltr";
 
-            for (const element of document.querySelectorAll("[data-ls-i18n]")) {
-                const key = element.getAttribute("data-ls-i18n");
+            for (const element of document.querySelectorAll("[data-ls-i18n], [data-ls-i18n-tooltip]")) {
+                if(element.hasAttribute("data-ls-i18n")) {
+                    const key = element.getAttribute("data-ls-i18n");
 
-                if(!element._lsI18nFallback && element.hasAttribute("data-ls-i18n-fallback")) {
-                    element._lsI18nFallback = element.getAttribute("data-ls-i18n-fallback");
+                    if(!element._lsI18nFallback && element.hasAttribute("data-ls-i18n-fallback")) {
+                        element._lsI18nFallback = element.getAttribute("data-ls-i18n-fallback");
+                    }
+
+                    element.textContent = LS.i18n.translate(key, element._lsI18nVars, locale, element._lsI18nFallback);
                 }
 
-                element.textContent = LS.i18n.translate(key, element._lsI18nVars, locale, element._lsI18nFallback);
+                if(element.hasAttribute("data-ls-i18n-tooltip")) {
+                    const key = element.getAttribute("data-ls-i18n-tooltip");
+
+                    if(!element._lsI18nTooltipFallback && element.hasAttribute("data-ls-i18n-tooltip-fallback")) {
+                        element._lsI18nTooltipFallback = element.getAttribute("data-ls-i18n-tooltip-fallback");
+                    }
+
+                    element.setAttribute("ls-tooltip", LS.i18n.translate(key, element._lsI18nVars, locale, element._lsI18nTooltipFallback));
+                }
             }
         },
 
         translate(key, vars = {}, locale, fallback = null) {
+            if(!key) return "";
             locale = locale || LS.i18n.locale;
 
             const translations = LS.i18n.locales[locale] || {};

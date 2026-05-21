@@ -38,20 +38,26 @@
     display: inline-block;
     position: relative;
     --range-value-clamped: clamp(0%, var(--range-value, 0%), 100%);
+
+    &.ls-range-vertical {
+        width: 1em;
+        height: 100%;
+    }
 }
 
 .ls-range-handle {
     position: absolute;
     height: 120%;
     top: 50%;
+    left: var(--range-value-clamped);
     aspect-ratio: 1 / 1;
     border-radius: var(--border-radius-circle);
     background: var(--elevate);
-    left: var(--range-value-clamped);
     transform: translate(-50%, -50%);
     border: 2px solid var(--elevate-2);
     cursor: grab;
 }
+
 
 .ls-range-bar {
     height: 100%;
@@ -59,7 +65,19 @@
     background: var(--accent);
 }
 
-.ls-range-progress {
+.ls-range-vertical {
+    .ls-range-handle {
+        left: 50%;
+        top: var(--range-value-clamped);
+    }
+
+    .ls-range-bar {
+        width: 100%;
+        height: var(--range-value-clamped);
+    }
+}
+
+.ls-range-progressbar {
     width: 100%;
     height: 100%;
     overflow: hidden;

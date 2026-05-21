@@ -329,8 +329,17 @@ LS.LoadComponent(class Tree extends LS.Component {
         }
     }
 
+    willUpdate() {
+        this.#pendingDataRefresh = true;
+        return this;
+    }
+
     getNodeById(id) {
         return this.nodeMap.get(id) || null;
+    }
+
+    has(id) {
+        return this.nodeMap.has(id);
     }
 
     /**

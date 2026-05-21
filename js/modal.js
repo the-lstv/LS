@@ -71,7 +71,7 @@
             return this.options.shade !== false;
         }
 
-        open() {
+        open(options = {}) {
             if (this.isOpen || this.destroyed) return;
             this.previousFocus = document.activeElement;
             this.isOpen = true;
@@ -87,10 +87,10 @@
             this.container.classList.add("open");
             this.container.classList.add("ls-top-modal");
 
-            this.setTimeout(() => {
+            if(options.focus !== false) this.setTimeout(() => {
                 if(!this.isOpen || this.destroyed) return;
 
-                const focusable = this.container.querySelector("input, button, select, textarea, [tabindex]:not([tabindex='-1'])");
+                const focusable = options.focusTarget instanceof HTMLElement ? options.focusTarget : this.container.querySelector(typeof options.focusTarget === "string" ? options.focusTarget : "input, button, select, textarea, [tabindex]:not([tabindex='-1'])");
                 if (focusable) {
                     focusable.focus();
                 } else {
@@ -222,6 +222,13 @@
 
         static build(template = {}, modalOptions = {}) {
             return new LS.Modal(modalOptions, template);
+        }
+
+        static closeFromElement(element) {
+            const modal = element.closest(".ls-modal");
+            if (modal && modal.lsComponent instanceof LS.Modal) {
+                modal.lsComponent.close();
+            }
         }
     }, { name: "Modal", global: true })
 })();

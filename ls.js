@@ -611,7 +611,7 @@
 
             // !! todo: Find a way to avoid closures, and well, actually clear the frames
             // This method is an alternative to storing IDs/callbacks, but is quite hacky.
-            // It gives the best memory safety, but callbacks run even after destroy, and closures are somewhat expensive
+            // It gives the best memory safety, but callbacks run even after destroy, and closures are somewhat more expensive
 
             const currentVersion = this.#rAFv;
             return requestAnimationFrame(time => {
@@ -676,6 +676,10 @@
 
                 if (destroyable instanceof EventEmitter) {
                     destroyable.events?.clear?.();
+                }
+
+                if (typeof destroyable.dispose === "function") {
+                    destroyable.dispose();
                 }
 
                 if (typeof destroyable.destroy === "function") {
@@ -971,8 +975,22 @@
             this.container = document.createElement("div");
             this.container.className = "ls-modal-layer level-1";
 
-            this.container.addEventListener("click", (event) => {
-                if (event.target === this.container && LS.Stack.length > 0 && LS.Stack.top.canClickAway !== false) {
+            // The DOM click event is dumb and gives the last element rather than the actual initially clicked element.
+            // This causes modals to be closed on accident a lot (eg. mouse brushed outside, certain window resize situations, etc.), which is frustrating.
+            // So we need to track the pointerdown event manually.
+            let startedInsideChild = false;
+
+            this.container.addEventListener("pointerdown", (event) => {
+                startedInsideChild = event.target !== this.container;
+            });
+
+            this.container.addEventListener("pointerup", (event) => {
+                if (startedInsideChild || event.target !== this.container) {
+                    startedInsideChild = false;
+                    return;
+                }
+
+                if (LS.Stack.length > 0 && LS.Stack.top.canClickAway !== false) {
                     LS.Stack.pop();
                 }
             });
@@ -1313,16 +1331,33 @@
 
             if(i18n) {
                 const key = typeof i18n === "string" ? i18n : i18n.key;
-                element.setAttribute("data-ls-i18n", key);
 
-                const vars = i18n.vars || null;
-                if(vars) element._lsI18nVars = vars;
-                if(i18n.fallback) element._lsI18nFallback = i18n.fallback; else if(text) element._lsI18nFallback = text;
+                if(key) {
+                    element.setAttribute("data-ls-i18n", key);
+                    const vars = i18n.vars || null;
+                    if(vars) element._lsI18nVars = vars;
+                    if(i18n.fallback) element._lsI18nFallback = i18n.fallback; else if(text) element._lsI18nFallback = text;
 
-                if(LS.i18n) {
-                    element.textContent = LS.i18n.translate(key, element._lsI18nVars, undefined, element._lsI18nFallback);
-                } else {
-                    console.warn("LS.i18n module is not available, cannot translate:", i18n);
+                    if(LS.i18n) {
+                        element.textContent = LS.i18n.translate(key, element._lsI18nVars, undefined, element._lsI18nFallback);
+                    } else {
+                        console.warn("LS.i18n module is not available, cannot translate:", i18n);
+                    }
+                }
+
+                if(i18n.tooltip) {
+                    const key = typeof i18n.tooltip === "string" ? i18n.tooltip : i18n.tooltip.key;
+                    if(key) {
+                        element.setAttribute("data-ls-i18n-tooltip", key);
+                        element._lsI18nTooltipFallback = i18n.tooltip?.fallback || tooltip || element.getAttribute("ls-tooltip") || element.getAttribute("title") || null;
+                    }
+
+                    if(LS.i18n) {
+                        element.setAttribute("ls-tooltip", LS.i18n.translate(key, element._lsI18nVars, undefined, element._lsI18nTooltipFallback));
+                        if(LS.Tooltips) LS.Tooltips.updateElement(element);
+                    } else {
+                        console.warn("LS.i18n module is not available, cannot translate:", i18n);
+                    }
                 }
             } else {
                 if (text) {
@@ -1684,17 +1719,27 @@
                 });
             },
 
+            FILTER_MODE_REMOVE: 0,
+            FILTER_MODE_MAP: 1,
+
             /**
-             * Deep-clones an Object/Set/Map/Array with filtering support, faster than structuredClone and apparently even the klona library.
+             * Deep-clones an Object/Set/Map/Array with advanced filtering/mapping support, faster than structuredClone and apparently even the klona library.
              * Very experimental - may not always be reliable for complex objects and as of now ignores functions and prototypes (maybe I'll expand it later).
-             * I recommend to use only on relatively simple/predictable objects.
              * https://jsbm.dev/wFkz6UCGJevxw
+             * 
+             * Filter modes:
+             * - LS.Util.FILTER_MODE_REMOVE (default): Removes the key from the cloned object if the filter returns a falsy value.
+             * - LS.Util.FILTER_MODE_MAP: Also removes the key on a falsy value, but accepts a { newKey, newValue, cloneValue } object to rename/modify the key and value in the cloned object.
+             *   Emitting either newKey or newValue alone will keep the original key or value, respectively.
+             *   It also allows deciding whether the new value should be cloned or not.
              * 
              * @param {*} obj Object to clone
              * @returns Cloned object
              * @experimental
+             * 
+             * @example LS.Util.clone(obj, (key, value) => key.startsWith("_")? false : { newKey: key.toUpperCase(), newValue: value, cloneValue: true }, LS.Util.FILTER_MODE_MAP);
              */
-            clone(obj, filter) {
+            clone(obj, filter, filterMode = 0) {
                 // If item is a primitive, we don't need to clone
                 // TODO: Handle typeof function
                 if (typeof obj !== "object" || obj === null || obj === undefined) return obj;
@@ -1705,11 +1750,11 @@
                 if (Array.isArray(obj)) {
                     const len = obj.length;
                     if (len === 0) return [];
-                    if (len === 1) return [mkClone(obj[0], filter)];
+                    if (len === 1) return [mkClone(obj[0], filter, filterMode)];
 
                     const a = [];
                     for (let i = 0; i < len; i++) {
-                        a.push(mkClone(obj[i], filter));
+                        a.push(mkClone(obj[i], filter, filterMode));
                     }
 
                     return a;
@@ -1719,7 +1764,7 @@
                 if(obj.constructor === Map) {
                     const m = new Map();
                     for(const [key, value] of obj) {
-                        m.set(key, mkClone(value, filter));
+                        m.set(key, mkClone(value, filter, filterMode));
                     }
                     return m;
                 }
@@ -1728,12 +1773,12 @@
                 if(obj.constructor === Set) {
                     const s = new Set();
                     for(const value of obj) {
-                        s.add(mkClone(value, filter));
+                        s.add(mkClone(value, filter, filterMode));
                     }
                     return s;
                 }
 
-                if (obj.constructor === DataView) return new obj.constructor(mkClone(obj.buffer, filter), obj.byteOffset, obj.byteLength);
+                if (obj.constructor === DataView) return new obj.constructor(mkClone(obj.buffer, filter, filterMode), obj.byteOffset, obj.byteLength);
                 if (obj.constructor === ArrayBuffer) return obj.slice(0);
                 if (obj.constructor === Date) return new Date(obj);
                 if (obj.constructor === RegExp) return new RegExp(obj);
@@ -1748,13 +1793,25 @@
                 if(typeof filter === "function") {
                     for (let i = 0; i < klen; i++) {
                         const k = keys[i];
-                        if(filter(k, obj[k]) === undefined) continue;
-                        clone[k] = mkClone(obj[k], filter);
+                        const f = filter(k, obj[k]);
+
+                        if(filterMode === LS.Util.FILTER_MODE_MAP && f && typeof f === "object") {
+                            const newKey = f.newKey || k;
+                            const newValue = "newValue" in f? f.newValue : obj[k];
+
+                            if(f.cloneValue !== false) {
+                                clone[newKey] = mkClone(newValue, filter, filterMode);
+                            } else {
+                                clone[newKey] = newValue;
+                            }
+                        } else if(f) {
+                            clone[k] = mkClone(obj[k], filter, filterMode);
+                        }
                     }
                 } else {
                     for (let i = 0; i < klen; i++) {
                         const k = keys[i];
-                        clone[k] = mkClone(obj[k], filter);
+                        clone[k] = mkClone(obj[k]);
                     }
                 }
 

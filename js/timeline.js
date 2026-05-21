@@ -2555,7 +2555,7 @@
          * @property {number} duration - Duration of the item
          * @property {number} [row=0] - Row index where the item is placed
          * @property {string} [label=""] - Display label for the item
-         * @property {string|null} [color=null] - Accent color for the item
+         * @property {string|null} [tileColor=null] - Tile accent color for the item
          * @property {*} [data=null] - Custom data associated with the item
          */
         add(item) {
@@ -2566,7 +2566,7 @@
             this.frameScheduler.schedule();
         }
 
-        cloneItem(item, keepId = false) {
+        cloneItem(item, keepId = false, exportMode = false) {
             const id = keepId? item.id: LS.Misc.uid();
 
             return {
@@ -2575,13 +2575,23 @@
                 id,
                 row: item.row || 0,
                 label: item.label || id,
-                color: item.color || null,
+                tileColor: item.tileColor || null,
                 data: item.data && LS.Util.clone(item.data, (key, value) => {
-                    // Skip prefixed properties, DOM elements, and functions
-                    return ((typeof key === "string" && key.startsWith("_")) ||
-                        value instanceof Element ||
-                        typeof value === "function")? undefined : true;
-                }),
+                    if(this.options.cloneFilter) {
+                        const filterResult = this.options.cloneFilter(key, value, item, exportMode);
+                        if(filterResult !== undefined) {
+                            return filterResult;
+                        }
+                    }
+
+                    if(exportMode && typeof value.export === "function") {
+                        return { newValue: value.export() };
+                    }
+
+                    // Only clone plain objects or primitives.
+                    // In export mode, special objects simply get discarded unless they offer an export method.
+                    return typeof value !== "object" || value.constructor === Object? true: exportMode? { cloneValue: false }: false;
+                }, LS.Util.FILTER_MODE_MAP),
                 type: item.type || null,
                 ...(item.cover? { cover: item.cover }: null),
                 ...(item.waveform? { waveform: item.waveform }: null)
@@ -2734,10 +2744,11 @@
             item.timelineElement = LS.Create({
                 class: "ls-timeline-item" + (item.type ? ` ls-timeline-item-${item.type}` : "") + (item.cover ? " ls-timeline-item-cover" : ""),
                 inner: { tag: "span", textContent: item.label || (item.data && item.data.label ? item.data.label : "") },
-                accent: item.color || null,
+                accent: item.tileColor || null,
                 style: item.cover ? `background-image: url('${item.cover}'); background-size: cover; background-position: center;` : ""
             });
 
+            // todo
             Object.defineProperty(item, "label", {
                 get: () => {
                     const span = item.timelineElement.querySelector("span");
@@ -2748,8 +2759,9 @@
                     if (span) span.textContent = value;
                 }
             });
-
-            Object.defineProperty(item, "color", {
+            
+            // todo
+            Object.defineProperty(item, "tileColor", {
                 get: () => {
                     return item.timelineElement.getAttribute("ls-accent");
                 },
@@ -2969,7 +2981,7 @@
                 this.sortItems();
             }
 
-            return this.items.map(item => this.cloneItem(item, true));
+            return this.items.map(item => this.cloneItem(item, true, true));
         }
 
         /**
