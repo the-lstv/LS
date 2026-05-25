@@ -88,13 +88,19 @@
             this.__titleElement.innerText = view.title || view.__name || view.constructor.name;
             view.currentSlot = this;
 
+            view.on?.('destroy', () => {
+                if(this.currentView === view) {
+                    this.set(null);
+                }
+            });
+
             this.container.appendChild(view.container);
         }
 
         swapWith(otherSlot) {
             const myView = this.currentView;
             const otherView = otherSlot.currentView;
-            
+
             otherSlot.set(myView);
             this.set(otherView);
         }
@@ -134,6 +140,7 @@
 
         // Subclasses should override with their own destruction logic, but DON'T forget to call super.destroy()
         destroy() {
+            if(this.destroyed) return;
             this.emit('destroy');
             this.container.remove();
             this.events.clear();
@@ -354,6 +361,12 @@
                 }
 
                 this.views.add(view);
+                view.on?.('destroy', () => {
+                    this.views.delete(view);
+                    if (view.currentSlot) {
+                        view.currentSlot.set(null);
+                    }
+                });
             }
 
             this.render();

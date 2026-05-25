@@ -215,6 +215,8 @@
                 edgeScrollSpeedY = 0;
             };
 
+            // ???
+            // Why is this not a method and why does it use the slowest solution possible
             const getRowIndexAtClientY = (clientY) => {
                 if (!this.rowElements.length) return 0;
 

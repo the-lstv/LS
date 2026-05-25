@@ -1273,7 +1273,7 @@
                         ? { inner: content }
                         : content || {};
 
-            const { class: className, tooltip, ns, inner, content: innerContent, i18n, html, text, accent, style, reactive, attr, options, attributes, sanitize, state, ...rest } = content;
+            const { class: className, tooltip, ns, inner, content: innerContent, i18n, html, text, accent, style, parent, reactive, attr, options, attributes, sanitize, state, ...rest } = content;
             const element = Object.assign(
                 LS.Util.parseEmmet(emmet, { ns, singleNode: true }),
                 rest
@@ -1329,7 +1329,7 @@
                 element.append(...LS.Util.resolveElements(contentToAdd));
             }
 
-            if(i18n) {
+            if (i18n) {
                 const key = typeof i18n === "string" ? i18n : i18n.key;
 
                 if(key) {
@@ -1375,9 +1375,18 @@
                 }
             }
 
-            if(sanitize) {
+            if (sanitize) {
                 // Remove unsafe tags and attributes
                 LS.Util.sanitize(element);
+            }
+
+            if (parent) {
+                const parentElement = typeof parent === "string" ? document.querySelector(parent) : parent;
+                if (parentElement) {
+                    parentElement.appendChild(element);
+                } else {
+                    console.warn("LS.Create: Parent element not found for selector:", parent);
+                }
             }
 
             return element;
