@@ -21,13 +21,15 @@ LS.LoadComponent(class Tree extends LS.Component {
         createNode: null,
         loadData: null,
         overscan: 2,
+        
+        // Related to default styling:
+        space: 16,
         styled: true,
         lazy: false,
         guides: true,
         icons: true,
         iconClass: "li-icons",
         caretIconClass: null,
-        space: 16
     });
 
     #scroll = 0;
@@ -52,6 +54,7 @@ LS.LoadComponent(class Tree extends LS.Component {
     /**
      * Create a new Tree component.
      * @param {*} options - Configuration options for the tree.
+     * @param {boolean} options.tree - If true, the component will enable rendering as a tree structure. If false, it will render a flat list.
      * @param {function} options.updateNode - A function that will be called when it is time to update a node's content. It will receive the node data and the corresponding DOM element as arguments.
      * @param {function} options.createNode - A function that will be called when it is time to create a new node. It should return a DOM element.
      * @param {function} options.loadData - A function that will be called when a lazy node is expanded and needs to load its children. It will receive the node data as an argument, and should populate the node's `children` property with the loaded data.
@@ -94,6 +97,7 @@ LS.LoadComponent(class Tree extends LS.Component {
         this.nodeMap = new Map();
 
         // Data is currently held in three places (nodes - recursive, nodeMap - lookup, flatNodes - for rendering)
+        // This is not ideal
 
         // A fixed list of DOM nodes that we will recycle for rendering.
         // The length of this list will depend on the height of the container and the row height.
@@ -349,6 +353,13 @@ LS.LoadComponent(class Tree extends LS.Component {
      */
     addNode(nodeData, parentId = null) {
         if (parentId !== null) nodeData.parentId = typeof parentId === "string" ? parentId : parentId.id;
+
+        if(!nodeData.id) {
+            nodeData.id = `node-${Math.random().toString(16).slice(2)}`;
+        } else if (this.nodeMap.has(nodeData.id)) {
+            console.warn(`Node with id "${nodeData.id}" already exists. Skipping addNode.`);
+            return;
+        }
 
         this.#pendingDataRefresh = true;
 
