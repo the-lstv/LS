@@ -10,8 +10,6 @@
 
 
 LS.LoadComponent(class Patcher extends LS.Component {
-    static Node = class Node extends LS.Node {}
-
     constructor(options = {}) {
         super();
         this.name = "Patcher";
@@ -22,21 +20,22 @@ LS.LoadComponent(class Patcher extends LS.Component {
             element: LS.Create()
         }, options);
 
-        this.element = this.options.element;
+        this.container = this.options.element;
         this.frameScheduler = new LS.Util.FrameScheduler(() => this.#render());
 
-        this.handle = new LS.Util.TouchHandle(this.element, {
+        this.handle = new LS.Util.TouchHandle(this.container, {
             onStart: (event) => {
-                this.frameScheduler.start();
+                // this.frameScheduler.start();
             },
 
             onMove: (event) => {
                 this.#camera.position[0] += event.dx;
                 this.#camera.position[1] += event.dy;
+                this.render();
             },
 
             onEnd: (event) => {
-                this.frameScheduler.stop();
+                // this.frameScheduler.stop();
             }
         });
 
@@ -50,17 +49,28 @@ LS.LoadComponent(class Patcher extends LS.Component {
             height: 0
         };
 
-        this.cachedWidth = this.element.clientWidth;
-        this.cachedHeight = this.element.clientHeight;
-
         this.__resizeObserver = new ResizeObserver(() => {
-            this.cachedWidth = this.element.clientWidth;
-            this.cachedHeight = this.element.clientHeight;
+            this.cachedWidth = this.container.clientWidth;
+            this.cachedHeight = this.container.clientHeight;
             this.#render();
         });
 
-        this.__resizeObserver.observe(this.element);
-        this.element.classList.add("ls-patcher");
+        this.__resizeObserver.observe(this.container);
+        this.container.classList.add("ls-patcher");
+
+        this.container.appendChild(this.contentContainer = LS.Create(".ls-patcher-container"));
+        
+        if(this.options.nodes) {
+            this.nodes = this.options.nodes;
+        }
+
+        if(this.options.parent) {
+            this.options.parent.append(this.container);
+        }
+
+        this.cachedWidth = this.container.clientWidth;
+        this.cachedHeight = this.container.clientHeight;
+        this.render();
     }
 
     #camera = {
@@ -71,12 +81,12 @@ LS.LoadComponent(class Patcher extends LS.Component {
     #render() {
         const vvp = this.visibleViewport;
 
-        vvp.x      = -this.#camera.position[0] / this.#camera.zoom;
-        vvp.y      = -this.#camera.position[1] / this.#camera.zoom;
+        vvp.x      = (-this.#camera.position[0] - (this.cachedWidth / 2)) / this.#camera.zoom;
+        vvp.y      = (-this.#camera.position[1] - (this.cachedHeight / 2)) / this.#camera.zoom;
         vvp.width  = this.cachedWidth / this.#camera.zoom;
         vvp.height = this.cachedHeight / this.#camera.zoom;
 
-        this.element.style.transform = `translate3d(${this.#camera.position[0]}px, ${this.#camera.position[1]}px, 0) scale(${this.#camera.zoom})`;
+        this.contentContainer.style.transform = `translate3d(${this.#camera.position[0] + (this.cachedWidth / 2)}px, ${this.#camera.position[1] + (this.cachedHeight / 2)}px, 0) scale(${this.#camera.zoom})`;
 
         let required = 0;
         // TODO: binary search equivalent or something so we don't do this ugly O(n).
@@ -89,6 +99,8 @@ LS.LoadComponent(class Patcher extends LS.Component {
                 continue;
             }
 
+            node.id ??= LS.Misc.uid();
+
             required++;
             let element = null;
             if(required < this.elementPool.length) {
@@ -97,20 +109,27 @@ LS.LoadComponent(class Patcher extends LS.Component {
             } else {
                 // Create new element.
                 element = {
-                    container: LS.Create(".ls-patcher-node"),
+                    container: LS.Create(".ls-patcher-node", { style: { position: "absolute" } }),
                     label: LS.Create("span")
                 };
 
                 element.container.append(element.label);
-
-                this.element.appendChild(element.container);
                 this.elementPool.push(element);
+            }
+
+            if(!element.container.isConnected) {
+                this.contentContainer.appendChild(element.container);
+            }
+
+            if(element.nodeId === node.id) {
+                continue;
             }
 
             element.container.style.transform = `translate3d(${node.x}px, ${node.y}px, 0)`;
             element.container.style.width = `${node.width}px`;
             element.container.style.height = `${node.height}px`;
-            element.label.textContent = node.content;
+            element.label.textContent = node.label;
+            element.nodeId = node.id;
         }
 
         for(let i = required; i < this.elementPool.length; i++) {
@@ -133,7 +152,11 @@ LS.LoadComponent(class Patcher extends LS.Component {
 
     destroy() {
         if(this.destroyed) return;
-        this.flushPoool();
+
+        this.handle.destroy();
+        this.nodes.length = 0;
+        this.container.remove();
+        this.elementPool.length = 0;
 
         this.__resizeObserver.disconnect();
         this.__resizeObserver = null;
