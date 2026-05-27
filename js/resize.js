@@ -56,6 +56,7 @@ LS.LoadComponent(class Resize extends LS.Component {
      * @param {boolean} [options.storeStringify=true] - Whether to stringify the stored data.
      * @param {object} [options.storage=null] - Custom storage object (must implement getItem/setItem). Default is localStorage.
      * @param {boolean} [options.translate] - Use translate3d instead of left/top
+     * @param {function} [options.map] - A function to apply custom mapping to resizing
      * @returns An object with the registered handles
      * Events on handle:
      * - resize: Emitted when the element is resized with the new width, height, and state.
@@ -114,6 +115,7 @@ LS.LoadComponent(class Resize extends LS.Component {
             storeStringify: entry.options?.storeStringify ?? true,
             storage: entry.options?.storage ?? null,      // custom storage (must implement getItem/setItem)
             translate: entry.options?.translate ?? false, // use transform: translate3d instead of left/top
+            map: entry.options?.map ?? null,              // a function to apply custom mapping to resizing
         }, options || {});
 
         entry.options = options;
@@ -248,6 +250,8 @@ LS.LoadComponent(class Resize extends LS.Component {
             onStart: (event) => {
                 targetOffsetX = 0;
                 targetOffsetY = 0;
+                endWidth = null;
+                endHeight = null;
 
                 side = event.domEvent.target?.dataset?.side;
                 if (!side) return event.cancel();
@@ -435,18 +439,6 @@ LS.LoadComponent(class Resize extends LS.Component {
                     else entry.target.style.height = newHeight + 'px';
                 }
 
-                // Manage classes
-                if (snappedCollapsed) {
-                    entry.target.classList.add('ls-resize-collapsed');
-                    entry.target.classList.remove('ls-resize-expanded');
-                } else if (snappedExpanded) {
-                    entry.target.classList.add('ls-resize-expanded');
-                    entry.target.classList.remove('ls-resize-collapsed');
-                } else {
-                    entry.target.classList.remove('ls-resize-collapsed');
-                    entry.target.classList.remove('ls-resize-expanded');
-                }
-
                 // --- Boundary constraints ---
                 if (boundaryRect) {
                     const bx = boundaryRect.x || 0;
@@ -502,6 +494,46 @@ LS.LoadComponent(class Resize extends LS.Component {
                     // Re-apply min constraints after boundary clamping
                     if (newWidth < minWidth) newWidth = minWidth;
                     if (newHeight < minHeight) newHeight = minHeight;
+                }
+
+                if (entry.options.map && typeof entry.options.map === 'function') {
+                    const mapped = entry.options.map({
+                        side,
+                        width: newWidth,
+                        height: newHeight,
+                        posX: newPosX,
+                        posY: newPosY,
+                        snappedCollapsed,
+                        snappedExpanded,
+                        event,
+                        cancelIfUnchanged: false
+                    });
+
+                    
+                    if (mapped) {
+                        if (mapped.cancelIfUnchanged && endWidth === newWidth && endHeight === newHeight) {
+                            return;
+                        }
+
+                        if (mapped.width != null) newWidth = mapped.width;
+                        if (mapped.height != null) newHeight = mapped.height;
+                        if (mapped.posX != null) newPosX = mapped.posX;
+                        if (mapped.posY != null) newPosY = mapped.posY;
+                        if (mapped.snappedCollapsed != null) snappedCollapsed = mapped.snappedCollapsed;
+                        if (mapped.snappedExpanded != null) snappedExpanded = mapped.snappedExpanded;
+                    }
+                }
+
+                // Manage classes
+                if (snappedCollapsed) {
+                    entry.target.classList.add('ls-resize-collapsed');
+                    entry.target.classList.remove('ls-resize-expanded');
+                } else if (snappedExpanded) {
+                    entry.target.classList.add('ls-resize-expanded');
+                    entry.target.classList.remove('ls-resize-collapsed');
+                } else {
+                    entry.target.classList.remove('ls-resize-collapsed');
+                    entry.target.classList.remove('ls-resize-expanded');
                 }
 
                 entry.states[side] = 'normal';
