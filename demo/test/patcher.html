@@ -1,0 +1,24 @@
+<script src="https://cdn-origin.extragon.localhost/ls/beta/patcher/ls.min.js"></script>
+<link rel="stylesheet" href="https://cdn-origin.extragon.localhost/ls/beta/*/ls.min.css" />
+
+<body ls ls-theme="dark" class="level-0">
+    <style>
+        .ls-patcher {
+            width: 400px;
+            height: 400px;
+            outline: 1px solid var(--accent);
+            overflow: hidden;
+        }
+    </style>
+
+    <script>
+        const patcher = new LS.Patcher({
+            parent: document.body,
+            nodes: [
+                { label: "Node 1", x: 100, y: 100 },
+                { label: "Node 2", x: 300, y: 100 },
+                { label: "Node 3", x: 200, y: 300 }
+            ]
+        });
+    </script>
+</body>

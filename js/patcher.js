@@ -23,14 +23,34 @@ LS.LoadComponent(class Patcher extends LS.Component {
         this.container = this.options.element;
         this.frameScheduler = new LS.Util.FrameScheduler(() => this.#render());
 
+        this.zIndex = 0;
+
+        let target = null;
         this.handle = new LS.Util.TouchHandle(this.container, {
             onStart: (event) => {
                 // this.frameScheduler.start();
+                const evTarget = event.domEvent.target;
+                const node = evTarget.closest(".ls-patcher-node");
+
+                if(node && node._lsNodeId) {
+                    target = this.nodes.find(e => e.id === node._lsNodeId);
+
+                    if(target) {
+                        target.x ??= 0;
+                        target.y ??= 0;
+                        node.style.zIndex = this.zIndex++;
+                    }
+                } else target = null;
             },
 
             onMove: (event) => {
-                this.#camera.position[0] += event.dx;
-                this.#camera.position[1] += event.dy;
+                if(target) {
+                    target.x += event.dx;
+                    target.y += event.dy;
+                } else {
+                    this.#camera.position[0] += event.dx;
+                    this.#camera.position[1] += event.dy;
+                }
                 this.render();
             },
 
@@ -38,6 +58,27 @@ LS.LoadComponent(class Patcher extends LS.Component {
                 // this.frameScheduler.stop();
             }
         });
+
+        this.container.addEventListener("wheel", (event) => {
+            event.preventDefault();
+            const delta = -event.deltaY * 0.001;
+            const zoomFactor = 1 + delta;
+            const newZoom = this.#camera.zoom * zoomFactor;
+
+            // Limit zoom level
+            if (newZoom < 0.1 || newZoom > 10) return;
+
+            // Calculate the position of the mouse relative to the content container
+            const rect = this.contentContainer.getBoundingClientRect();
+            const offsetX = event.clientX - rect.left;
+            const offsetY = event.clientY - rect.top;
+            
+            // Calculate the new camera position to keep the zoom centered on the mouse
+            this.#camera.position[0] -= offsetX * (zoomFactor - 1);
+            this.#camera.position[1] -= offsetY * (zoomFactor - 1);
+            this.#camera.zoom = newZoom;
+            this.render();
+        }, { passive: false });
 
         this.nodes = [];
         this.elementPool = [];
@@ -110,7 +151,7 @@ LS.LoadComponent(class Patcher extends LS.Component {
                 // Create new element.
                 element = {
                     container: LS.Create(".ls-patcher-node", { style: { position: "absolute" } }),
-                    label: LS.Create("span")
+                    label: document.createElement("span")
                 };
 
                 element.container.append(element.label);
@@ -121,14 +162,16 @@ LS.LoadComponent(class Patcher extends LS.Component {
                 this.contentContainer.appendChild(element.container);
             }
 
+            element.container.style.transform = `translate3d(${node.x}px, ${node.y}px, 0)`;
+
             if(element.nodeId === node.id) {
                 continue;
             }
 
-            element.container.style.transform = `translate3d(${node.x}px, ${node.y}px, 0)`;
             element.container.style.width = `${node.width}px`;
             element.container.style.height = `${node.height}px`;
             element.label.textContent = node.label;
+            element.container._lsNodeId = node.id;
             element.nodeId = node.id;
         }
 
@@ -148,6 +191,12 @@ LS.LoadComponent(class Patcher extends LS.Component {
         }
 
         this.elementPool.length = 0;
+    }
+
+    export(){
+        return {
+            nodes: this.nodes.map(n => ({ x: n.x, y: n.y, width: n.width, height: n.height, label: n.label }))
+        };
     }
 
     destroy() {
