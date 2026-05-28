@@ -4,8 +4,10 @@
  * 
  * Technically WebGL rendering could be more efficient but also eh
  * 
+ * Copyright (c) 2026 lstv.space. All rights reserved.
+ * Use of this source code is governed by the IMMSA license that can be found in the LICENSE file.
  * @author lstv.space
- * @license https://lstv.space/IMMFOSS
+ * @license https://lstv.space/IMMSA.0.txt
  */
 
 
@@ -18,7 +20,8 @@ LS.LoadComponent(class Patcher extends LS.Component {
 
         this.options = LS.Util.defaults({
             element: LS.Create(),
-            edgeSize: 10
+            edgeSize: 10,
+            maxEdgeScroll: 20
         }, options);
 
         this.container = this.options.element;
@@ -26,22 +29,25 @@ LS.LoadComponent(class Patcher extends LS.Component {
 
         this.zIndex = 0;
 
-        let target = null;
+        let target = null, scrolledX = 0, scrolledY = 0, moveX = 0, moveY = 0;
         this.handle = new LS.Util.TouchHandle(this.container, {
             frameTimed: true,
             fluentFrames: true,
 
             onStart: (event) => {
-                // this.frameScheduler.start();
                 const evTarget = event.domEvent.target;
                 const node = evTarget.closest(".ls-patcher-node");
-
+                
                 if(node && node._lsNodeId) {
                     target = this.nodes.find(e => e.id === node._lsNodeId);
 
                     if(target) {
+                        scrolledX = 0;
+                        scrolledY = 0;
                         target.x ??= 0;
                         target.y ??= 0;
+                        moveX = target.x;
+                        moveY = target.y;
                         node.style.zIndex = this.zIndex++;
                     }
                 } else target = null;
@@ -59,20 +65,22 @@ LS.LoadComponent(class Patcher extends LS.Component {
                     return;
                 }
 
-                let scrollX = 0, scrollY = 0, edgeSize = this.options.edgeSize;
-                if(event.x < edgeSize) scrollX = edgeSize - event.x;
-                else if(event.x > this.cachedWidth - edgeSize) scrollX = -(event.x - (this.cachedWidth - edgeSize));
-                if(event.y < edgeSize) scrollY = edgeSize - event.y;
-                else if(event.y > this.cachedHeight - edgeSize) scrollY = -(event.y - (this.cachedHeight - edgeSize));
+                let scrollX = 0, scrollY = 0, edgeSize = this.options.edgeSize, maxEdgeScroll = this.options.maxEdgeScroll;
+                if(event.x < edgeSize) scrollX = Math.min(maxEdgeScroll, edgeSize - event.x);
+                else if(event.x > this.cachedWidth - edgeSize) scrollX = Math.max(-maxEdgeScroll, -(event.x - (this.cachedWidth - edgeSize)));
+                if(event.y < edgeSize) scrollY = Math.min(maxEdgeScroll, edgeSize - event.y);
+                else if(event.y > this.cachedHeight - edgeSize) scrollY = Math.max(-maxEdgeScroll, -(event.y - (this.cachedHeight - edgeSize)));
 
                 this.#camera.position[0] += scrollX;
                 this.#camera.position[1] += scrollY;
+                scrolledX += scrollX;
+                scrolledY += scrollY;
 
-                target.x += event.dx / zoom;
-                target.y += event.dy / zoom;
+                target.x = moveX + (event.offsetX - scrolledX) / zoom;
+                target.y = moveY + (event.offsetY - scrolledY) / zoom;
 
                 if(scrollX || scrollY) {
-                    // Trigger another move event for continuous scrolling
+                    // Trigger another move event for continuous scrolling until the mouse is not in the corner boundary
                     this.handle.scheduleMove();
                 }
 
@@ -80,7 +88,7 @@ LS.LoadComponent(class Patcher extends LS.Component {
             },
 
             onEnd: (event) => {
-                // this.frameScheduler.stop();
+                target = null;
             }
         });
 
@@ -97,7 +105,7 @@ LS.LoadComponent(class Patcher extends LS.Component {
             const rect = this.contentContainer.getBoundingClientRect();
             const offsetX = event.clientX - rect.left;
             const offsetY = event.clientY - rect.top;
-            
+
             // Calculate the new camera position to keep the zoom centered on the mouse
             this.#camera.position[0] -= offsetX * (zoomFactor - 1);
             this.#camera.position[1] -= offsetY * (zoomFactor - 1);
@@ -210,7 +218,11 @@ LS.LoadComponent(class Patcher extends LS.Component {
         this.frameScheduler.schedule();
     }
 
-    flushPoool() {
+    calculateCenterPoint(x1, y1, x2, y2, x3, y3, t = 0.5) {
+        return [ (1 - t) * (1 - t) * x1 + 2 * (1 - t) * t * x2 + t * t * x3, (1 - t) * (1 - t) * y1 + 2 * (1 - t) * t * y2 + t * t * y3 ];
+    }
+
+    flushPool() {
         for(let i = 0; i < this.elementPool.length; i++) {
             this.elementPool[i].container.remove();
         }
