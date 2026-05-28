@@ -2049,7 +2049,7 @@
                     docEl.classList.add("ls-dragging");
                     if (this.options.disablePointerEvents) docEl.style.pointerEvents = "none";
 
-                    if (!docEl.style.cursor) docEl.style.cursor = this._cursor || "grab";
+                    if (!docEl.style.cursor) docEl.style.cursor = this._cursor || "grabbing";
 
                     // Attach move/up listeners to document
                     document.addEventListener("pointermove", this.onMove);
@@ -2076,6 +2076,8 @@
                     if (this.latestMoveEvent) {
                         this.processMove(this.latestMoveEvent);
                         this.latestMoveEvent = null;
+                    } else if(this.options.fluentFrames) {
+                        this.fireMove();
                     }
                 }
 
@@ -2113,8 +2115,20 @@
                     this._eventData.y = y;
                     this._eventData.domEvent = event;
                     this._eventData.isTouch = isTouch;
+                    return this.fireMove();
+                }
+
+                fireMove() {
+                    if (this._eventData.cancelled) return;
                     if (this.options.onMove) this.options.onMove(this._eventData);
                     this.quickEmit(this._moveEventRef, this._eventData);
+                }
+
+                scheduleMove() {
+                    if (!this.frameQueued) {
+                        this.frameQueued = true;
+                        LS.Context.requestAnimationFrame(this.frameHandler);
+                    }
                 }
 
                 onRelease(event) {

@@ -17,7 +17,8 @@ LS.LoadComponent(class Patcher extends LS.Component {
         if(options instanceof Element) options = { element: options };
 
         this.options = LS.Util.defaults({
-            element: LS.Create()
+            element: LS.Create(),
+            edgeSize: 10
         }, options);
 
         this.container = this.options.element;
@@ -27,6 +28,9 @@ LS.LoadComponent(class Patcher extends LS.Component {
 
         let target = null;
         this.handle = new LS.Util.TouchHandle(this.container, {
+            frameTimed: true,
+            fluentFrames: true,
+
             onStart: (event) => {
                 // this.frameScheduler.start();
                 const evTarget = event.domEvent.target;
@@ -44,13 +48,34 @@ LS.LoadComponent(class Patcher extends LS.Component {
             },
 
             onMove: (event) => {
-                if(target) {
-                    target.x += event.dx;
-                    target.y += event.dy;
-                } else {
+                const zoom = this.#camera.zoom;
+
+                if(!target) {
+                    if(!event.dx && !event.dy) return;
                     this.#camera.position[0] += event.dx;
                     this.#camera.position[1] += event.dy;
+
+                    this.render();
+                    return;
                 }
+
+                let scrollX = 0, scrollY = 0, edgeSize = this.options.edgeSize;
+                if(event.x < edgeSize) scrollX = edgeSize - event.x;
+                else if(event.x > this.cachedWidth - edgeSize) scrollX = -(event.x - (this.cachedWidth - edgeSize));
+                if(event.y < edgeSize) scrollY = edgeSize - event.y;
+                else if(event.y > this.cachedHeight - edgeSize) scrollY = -(event.y - (this.cachedHeight - edgeSize));
+
+                this.#camera.position[0] += scrollX;
+                this.#camera.position[1] += scrollY;
+
+                target.x += event.dx / zoom;
+                target.y += event.dy / zoom;
+
+                if(scrollX || scrollY) {
+                    // Trigger another move event for continuous scrolling
+                    this.handle.scheduleMove();
+                }
+
                 this.render();
             },
 
