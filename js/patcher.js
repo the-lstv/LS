@@ -1,3 +1,5 @@
+const G_CENTERPOINT_ARRAY = new Float32Array(2);
+
 /**
  * High performance patcher component for LS.
  * Migrated from v3, fully rewritten for v6 - still work in progress.
@@ -8,10 +10,26 @@
  * Use of this source code is governed by the IMMSA license that can be found in the LICENSE file.
  * @author lstv.space
  * @license https://lstv.space/IMMSA.0.txt
+ * 
+ * Data model:
+ * - Node: { x, y, width, height, label, id?, inputs?:[Port], outputs?:[Port], metadata?: any }
+ * - Port: { id: string, connection: Connection?, metadata?: { type: any, label: string, color?: string } }
+ * - Connection: { nodeId, portId, strength?: number }
+ * 
+ * Nodes are individual graph nodes.
+ * Ports are inputs/outputs that nodes can connect to each other for data flow.
+ * Connection is an output to another port.
+ * 
+ * Ports can be connected if their types are compatible.
+ * Port IDs are unique per-node and not globally unique, so nodes can share port IDs without conflict.
+ * Connection will only work when a port is an output port.
+ * 
+ * Port metadata can be stored in a port itself, OR globally via options.portMetadata or patcher.setPortMetadata(portId, metadata) to share by it's ID.
  */
 
+class Patcher extends LS.Component {
+    static { LS.LoadComponent(this, { name: "Patcher", global: true }) }
 
-LS.LoadComponent(class Patcher extends LS.Component {
     constructor(options = {}) {
         super();
         this.name = "Patcher";
@@ -21,7 +39,11 @@ LS.LoadComponent(class Patcher extends LS.Component {
         this.options = LS.Util.defaults({
             element: LS.Create(),
             edgeSize: 10,
-            maxEdgeScroll: 20
+            maxEdgeScroll: 20,
+            anchor: 0.5,
+            minZoom: 0.1,
+            maxZoom: 20,
+            buffer: 20,
         }, options);
 
         this.container = this.options.element;
@@ -50,7 +72,12 @@ LS.LoadComponent(class Patcher extends LS.Component {
                         moveY = target.y;
                         node.style.zIndex = this.zIndex++;
                     }
+
+                    this.handle.cursor = "none";
+                    return;
                 } else target = null;
+
+                this.handle.cursor = "grabbing";
             },
 
             onMove: (event) => {
@@ -78,6 +105,7 @@ LS.LoadComponent(class Patcher extends LS.Component {
 
                 target.x = moveX + (event.offsetX - scrolledX) / zoom;
                 target.y = moveY + (event.offsetY - scrolledY) / zoom;
+                target._dirty = true;
 
                 if(scrollX || scrollY) {
                     // Trigger another move event for continuous scrolling until the mouse is not in the corner boundary
@@ -99,10 +127,10 @@ LS.LoadComponent(class Patcher extends LS.Component {
             const newZoom = this.#camera.zoom * zoomFactor;
 
             // Limit zoom level
-            if (newZoom < 0.1 || newZoom > 10) return;
+            if (newZoom < this.options.minZoom || newZoom > this.options.maxZoom) return;
 
             // Calculate the position of the mouse relative to the content container
-            const rect = this.contentContainer.getBoundingClientRect();
+            const rect = this.scene.getBoundingClientRect();
             const offsetX = event.clientX - rect.left;
             const offsetY = event.clientY - rect.top;
 
@@ -115,13 +143,7 @@ LS.LoadComponent(class Patcher extends LS.Component {
 
         this.nodes = [];
         this.elementPool = [];
-
-        this.visibleViewport = {
-            x: 0,
-            y: 0,
-            width: 0,
-            height: 0
-        };
+        this.pathPool = [];
 
         this.__resizeObserver = new ResizeObserver(() => {
             this.cachedWidth = this.container.clientWidth;
@@ -132,8 +154,8 @@ LS.LoadComponent(class Patcher extends LS.Component {
         this.__resizeObserver.observe(this.container);
         this.container.classList.add("ls-patcher");
 
-        this.container.appendChild(this.contentContainer = LS.Create(".ls-patcher-container"));
-        
+        this.container.appendChild(this.scene = LS.Create(".ls-patcher-container"));
+
         if(this.options.nodes) {
             this.nodes = this.options.nodes;
         }
@@ -141,6 +163,10 @@ LS.LoadComponent(class Patcher extends LS.Component {
         if(this.options.parent) {
             this.options.parent.append(this.container);
         }
+
+        this.svgContext = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        this.svgContext.setAttribute("class", "ls-patcher-svg");
+        this.scene.appendChild(this.svgContext);
 
         this.cachedWidth = this.container.clientWidth;
         this.cachedHeight = this.container.clientHeight;
@@ -153,29 +179,61 @@ LS.LoadComponent(class Patcher extends LS.Component {
     };
 
     #render() {
-        const vvp = this.visibleViewport;
+        // Camera
+        const camX = this.#camera.position[0];
+        const camY = this.#camera.position[1];
+        const zoom = this.#camera.zoom;
 
-        vvp.x      = (-this.#camera.position[0] - (this.cachedWidth / 2)) / this.#camera.zoom;
-        vvp.y      = (-this.#camera.position[1] - (this.cachedHeight / 2)) / this.#camera.zoom;
-        vvp.width  = this.cachedWidth / this.#camera.zoom;
-        vvp.height = this.cachedHeight / this.#camera.zoom;
+        const anchor = this.options.anchor ?? 0.5;
+        const buffer = (this.options.buffer ?? 100) / zoom;
 
-        this.contentContainer.style.transform = `translate3d(${this.#camera.position[0] + (this.cachedWidth / 2)}px, ${this.#camera.position[1] + (this.cachedHeight / 2)}px, 0) scale(${this.#camera.zoom})`;
+        // Anchor
+        const originW = this.cachedWidth  * anchor;
+        const originH = this.cachedHeight * anchor;
+
+        const cameraUpdated = camX !== this._lastCameraX || camY !== this._lastCameraY || zoom !== this._lastCameraZoom;
+
+        // Visible viewport in content coordinates
+        const visibleViewportLeft   = (-camX - originW) / zoom;
+        const visibleViewportTop    = (-camY - originH) / zoom;
+        const visibleViewportBottom = visibleViewportTop  + this.cachedHeight / zoom;
+        const visibleViewportRight  = visibleViewportLeft + this.cachedWidth  / zoom;
+
+        this.scene.style.transform = `translate3d(${camX + (originW * zoom)}px, ${camY + (originH * zoom)}px, 0) scale(${zoom})`;
 
         let required = 0;
         // TODO: binary search equivalent or something so we don't do this ugly O(n).
         for(let i = 0; i < this.nodes.length; i++) {
             const node = this.nodes[i];
 
-            if(node.x + node.width < vvp.x || node.x > vvp.x + vvp.width ||
-               node.y + node.height < vvp.y || node.y > vvp.y + vvp.height) {
+            const nodeLeft = node.x ?? 0;
+            const nodeTop = node.y ?? 0;
+            const nodeWidth  = node.width  ?? 1;
+            const nodeHeight = node.height ?? 1;
+            const nodeRight  = nodeLeft + (nodeWidth ?? 1);
+            const nodeBottom = nodeTop + (nodeHeight ?? 1);
+
+            // if(zoom < 0.5 && nodeWidth * zoom < 20 && nodeHeight * zoom < 20) {
+            //     // Render a simple rectangle for very small nodes to improve performance.
+            // }
+
+            if(
+                nodeRight + buffer  <= visibleViewportLeft  ||
+                nodeLeft - buffer   >= visibleViewportRight ||
+                nodeBottom + buffer <= visibleViewportTop   ||
+                nodeTop - buffer    >= visibleViewportBottom
+            ) {
                 // Skip invisible nodes.
                 continue;
             }
 
             node.id ??= LS.Misc.uid();
-
             required++;
+
+            if(!cameraUpdated && !node._dirty && !this.rebuildRequested) {
+                continue;
+            }
+
             let element = null;
             if(required < this.elementPool.length) {
                 // Reuse existing element.
@@ -192,17 +250,17 @@ LS.LoadComponent(class Patcher extends LS.Component {
             }
 
             if(!element.container.isConnected) {
-                this.contentContainer.appendChild(element.container);
+                this.scene.appendChild(element.container);
             }
 
-            element.container.style.transform = `translate3d(${node.x}px, ${node.y}px, 0)`;
+            element.container.style.transform = `translate3d(${nodeLeft}px, ${nodeTop}px, 0)`;
 
             if(element.nodeId === node.id) {
                 continue;
             }
 
-            element.container.style.width = `${node.width}px`;
-            element.container.style.height = `${node.height}px`;
+            element.container.style.width = `${nodeWidth}px`;
+            element.container.style.height = `${nodeHeight}px`;
             element.label.textContent = node.label;
             element.container._lsNodeId = node.id;
             element.nodeId = node.id;
@@ -212,14 +270,33 @@ LS.LoadComponent(class Patcher extends LS.Component {
             // Remove unused elements.
             this.elementPool[i].container.remove();
         }
+
+        this._lastCameraX = camX;
+        this._lastCameraY = camY;
+        this._lastCameraZoom = zoom;
+        this.rebuildRequested = false;
     }
 
     render() {
         this.frameScheduler.schedule();
     }
 
-    calculateCenterPoint(x1, y1, x2, y2, x3, y3, t = 0.5) {
-        return [ (1 - t) * (1 - t) * x1 + 2 * (1 - t) * t * x2 + t * t * x3, (1 - t) * (1 - t) * y1 + 2 * (1 - t) * t * y2 + t * t * y3 ];
+    /**
+     * Calculate a point of a quadratic Bezier curve defined by three points (x1, y1), (x2, y2), and (x3, y3) at a given t parameter (0 <= t <= 1).
+     * @param {number} x1 - The x-coordinate of the first point.
+     * @param {number} y1 - The y-coordinate of the first point.
+     * @param {number} x2 - The x-coordinate of the control point.
+     * @param {number} y2 - The y-coordinate of the control point.
+     * @param {number} x3 - The x-coordinate of the second point.
+     * @param {number} y3 - The y-coordinate of the second point.
+     * @param {number} t - The parameter (0 <= t <= 1) at which to calculate the point on the curve.
+     * @param {Float32Array} [array] - Optional array to store the result, to avoid creating new arrays.
+     * @returns {Float32Array} An array containing the x and y coordinates of the calculated point on the curve.
+    */
+    calculateCenterPoint(x1, y1, x2, y2, x3, y3, t = 0.5, array = G_CENTERPOINT_ARRAY) {
+        array[0] = (1 - t) * (1 - t) * x1 + 2 * (1 - t) * t * x2 + t * t * x3;
+        array[1] = (1 - t) * (1 - t) * y1 + 2 * (1 - t) * t * y2 + t * t * y3;
+        return array;
     }
 
     flushPool() {
@@ -232,7 +309,7 @@ LS.LoadComponent(class Patcher extends LS.Component {
 
     export(){
         return {
-            nodes: this.nodes.map(n => ({ x: n.x, y: n.y, width: n.width, height: n.height, label: n.label }))
+            nodes: this.nodes.map(n => ({ x: n.x, y: n.y, width: n.width, height: n.height, label: n.label, id: n.id, inputs: n.inputs, outputs: n.outputs, metadata: n.metadata }))
         };
     }
 
@@ -250,4 +327,4 @@ LS.LoadComponent(class Patcher extends LS.Component {
         this.frameScheduler.destroy();
         super.destroy();
     }
-}, { name: "Patcher", global: true });
+}

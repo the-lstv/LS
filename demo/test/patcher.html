@@ -4,20 +4,71 @@
 <body ls ls-theme="dark" class="level-0">
     <style>
         .ls-patcher {
+            overflow: hidden;
+        }
+
+        .ls-patcher-node {
+            overflow: hidden;
+            position: absolute;
+        }
+
+        .ls-patcher-container {
+            overflow: visible;
+            width: 100%;
+            height: 100%;
+        }
+
+        .ls-patcher-svg {
+            overflow: visible;
+            position: absolute;
+            width: 100%;
+            height: 100%;
+        }
+
+
+        /* debug */
+        .ls-patcher {
             width: 400px;
             height: 400px;
             outline: 1px solid var(--accent);
-            overflow: hidden;
+            overflow: visible;
+            position: fixed;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .ls-patcher-node {
+            background: red;
+            outline: 1px solid red;
+            outline: 2;
         }
     </style>
 
     <script>
+        function generateRandomNodes(count, density) {
+            if(!density) density = count / 100;
+
+            const nodes = [];
+            for(let i = 0; i < count; i++){
+                nodes.push({
+                    label: `Node ${i}`,
+                    x: Math.random() * (800 * density) - (400 * density),
+                    y: Math.random() * (800 * density) - (400 * density)
+                });
+            }
+            return nodes;
+        }
+
         const patcher = new LS.Patcher({
             parent: document.body,
             nodes: [
+                { label: "Node 0", x: 0, y: 0 },
                 { label: "Node 1", x: 100, y: 100 },
                 { label: "Node 2", x: 300, y: 100 },
-                { label: "Node 3", x: 200, y: 300 }
+                { label: "Node 3", x: 200, y: 300 },
+                { label: "Node 4", x: 300, y: -300},
+                ...generateRandomNodes(1000, 1)
             ]
         });
     </script>
