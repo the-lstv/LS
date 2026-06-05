@@ -31,10 +31,6 @@
                 background-color: var(--accent-30);
             }
 
-            &:focus {
-                outline: 3px solid var(--accent-mix-10);
-            }
-
             &:focus-visible {
                 outline: 3px solid currentColor;
             }
@@ -109,7 +105,7 @@
         font-size: x-small;
     }
 
-    [state="loading"].loading-right::after, [state="loading"]:not(.loading-right)::before {
+    [data-ls-state="loading"].loading-right::after, [data-ls-state="loading"]:not(.loading-right)::before {
         content: "";
         --border-width: calc(1em / 8);
         border: var(--border-width) solid currentColor;
@@ -130,7 +126,7 @@
         z-index: 500000;
     }
 
-    #{$buttonLike}[state="loading"]:not(.loading-right)::before {
+    #{$buttonLike}[data-ls-state="loading"]:not(.loading-right)::before {
         margin-left: 0;
         position: static;
 
@@ -139,7 +135,7 @@
         // top: calc(50% - (1em / 2));
     }
 
-    #{$buttonLike}[state="loading"].loading-right::after {
+    #{$buttonLike}[data-ls-state="loading"].loading-right::after {
         float: right;
         margin-left: auto;
         position: static;
@@ -149,12 +145,12 @@
         // top: calc(50% - (1em / 2));
     }
 
-    #{$buttonLike}[state="loading"] {
+    #{$buttonLike}[data-ls-state="loading"] {
         pointer-events: none;
         user-select: none;
     }
 
-    #{$buttonLike}[state="loading"]:not(.loading-right) > i:first-child {
+    #{$buttonLike}[data-ls-state="loading"]:not(.loading-right) > i:first-child {
         display: none;
     }
 

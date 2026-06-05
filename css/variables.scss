@@ -5,27 +5,27 @@
     Text inputs (input[type="text"], textarea, etc).
     Yes, this is actually the shortest way to write this.
 */
-$textInput: ':is(input:not([type]), input[type="text"], input[type="search"], input[type="email"], input[type="url"], input[type="tel"], input[type="password"], input[type="number"], textarea, .ls-text-input)';
+$textInput: ':is(input:not([type]), input[type="text"], input[type="search"], input[type="email"], input[type="url"], input[type="tel"], input[type="password"], input[type="number"], textarea, .ls-text-input):not(.ls-ignore)';
 
 /*
     Buttons.
 */
-$button: ':is(button, input[type="button"], input[type="submit"], input[type="reset"], ls-button, .ls-button)';
+$button: ':is(button, input[type="button"], input[type="submit"], input[type="reset"], ls-button, .ls-button):not(.ls-ignore)';
 
 /*
     Things that are select-like (select, ls-select, etc).
 */
-$select: ':is(select, ls-select, .ls-select .ls-select-handle)';
+$select: ':is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)';
 
 /*
     Things that are interactive controls (buttons, inputs, textareas, selects, etc).
 */
-$control: ':is(#{$button}, input, textarea, #{$select})';
+$control: ':is(#{$button}, input, textarea, #{$select}):not(.ls-ignore)';
 
 /*
     Things that look and behave like buttons.
 */
-$buttonLike: ':is(#{$button}, #{$select})';
+$buttonLike: ':is(#{$button}, #{$select}):not(.ls-ignore)';
 
 
 
@@ -64,18 +64,42 @@ $buttonLike: ':is(#{$button}, #{$select})';
     );
 }
 
-@function generate-tone-oklch($color, $tone, $saturation: 40) {
-    $lightness: ($tone / 100) * 0.8 + 0.1;
+// @function generate-tone($color, $tone, $chroma-scale: 100) {
+//     $l: ($tone / 100) * 0.8 + 0.1;
 
-    $oklch: oklch(
-        $lightness ($saturation / 400) (color.channel($color, "hue", $space: oklch))
-    );
+//     $c: color.channel($color, "chroma", $space: oklch);
+//     $h: color.channel($color, "hue", $space: oklch);
 
-    // @return $oklch;
+//     $c: $c * ($chroma-scale / 100);
 
-    @return rgb(
-        math.floor(color.channel($oklch, "red", $space: rgb)),
-        math.floor(color.channel($oklch, "green", $space: rgb)),
-        math.floor(color.channel($oklch, "blue", $space: rgb))
-    );
-}
+//     $c: math.min($c, 0.4);
+
+//     // @return color.to-space(
+//     //     oklch($l $c $h),
+//     //     rgb
+//     // );
+
+//     $oklch: oklch($l $c $h);
+
+//     @return rgb(
+//         math.floor(color.channel($oklch, "red", $space: rgb)),
+//         math.floor(color.channel($oklch, "green", $space: rgb)),
+//         math.floor(color.channel($oklch, "blue", $space: rgb))
+//     );
+// }
+
+// @function generate-tone($color, $tone, $saturation: 40) {
+//     $lightness: ($tone / 100) * 0.8 + 0.1;
+
+//     $oklch: oklch(
+//         $lightness ($saturation / 400) (color.channel($color, "hue", $space: oklch))
+//     );
+
+//     // @return $oklch;
+
+//     @return rgb(
+//         math.floor(color.channel($oklch, "red", $space: rgb)),
+//         math.floor(color.channel($oklch, "green", $space: rgb)),
+//         math.floor(color.channel($oklch, "blue", $space: rgb))
+//     );
+// }

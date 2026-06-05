@@ -1,5 +1,15 @@
 LS.WebSocket = class WebSocketWrapper extends LS.EventEmitter {
     #options;
+
+    static defaults = LS.Util.staticDefaults({
+        autoReconnect: true,
+        reconnectInterval: 2000,
+        autoConnect: true,
+        delayMessages: true,
+        protocols: null,
+        initialPayload: null
+    });
+
     constructor(url, options = {}){
         super();
 
@@ -17,14 +27,7 @@ LS.WebSocket = class WebSocketWrapper extends LS.EventEmitter {
 
         if(typeof options !== "object" || options === null || typeof options === "undefined") options = {};
 
-        this.#options = LS.Util.defaults({
-            autoReconnect: true,
-            reconnectInterval: 2000,
-            autoConnect: true,
-            delayMessages: true,
-            protocols: null,
-            initialPayload: null
-        }, options);
+        this.#options = this.constructor.defaults(options);
 
         this.queue = [];
         this.url = url;

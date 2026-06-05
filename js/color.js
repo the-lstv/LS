@@ -1,9 +1,21 @@
 /**
- * Extensive color library and theme utilities
+ * Author: Lukas (thelstv)
+ * Copyright: (c) https://lstv.space
+ *
+ * Last modified: 2026
+ *
+ * @description Extensive color library and theme utilities
+ * @copyright 2024 Lukas (thelstv) <https://lstv.space>
+ * @see https://github.com/thelstv/LS
+ * @license GPL-3.0
+ * 
  * TODO: Split advanced color features into a separate module, this has grown too big
- */
+*/
 
+(() => {
 const fast = LS.Util.fast;
+const fasth2i = fast.h2i;
+const fasttwoh2i = fast.twoh2i;
 
 LS.Color = class Color {
     constructor(r, g, b, a) {
@@ -31,38 +43,72 @@ LS.Color = class Color {
     }
 
     // Direct Buffer Access
+
+    /**
+     * Get or set red channel value (0-255)
+     */
     get r() { return this.data[this.offset] }
     set r(value) { this.data[this.offset] = value }
-
+    
+    /**
+     * Get or set green channel value (0-255)
+     */
     get g() { return this.data[this.offset + 1] }
     set g(value) { this.data[this.offset + 1] = value }
-
+    
+    /**
+     * Get or set blue channel value (0-255)
+     */
     get b() { return this.data[this.offset + 2] }
     set b(value) { this.data[this.offset + 2] = value }
-
+    
+    
+    /**
+     * Get or set alpha channel value (0-1)
+     */
     get a() { return this.data[this.offset + 3] / 255 }
     set a(value) { this.data[this.offset + 3] = Math.round(value * 255) }
 
+    /**
+     * Get the color as an integer in 0xRRGGBB format
+     */
     get int(){
         return ((this.data[this.offset] << 16) | (this.data[this.offset + 1] << 8) | this.data[this.offset + 2]) >>> 0;
     }
 
+    /**
+     * Get the color as an integer in 0xAARRGGBB format
+     */
     get hexInt() {
         return (this.data[this.offset] << 16) | (this.data[this.offset + 1] << 8) | this.data[this.offset + 2] | (1 << 24);
     }
 
+    /**
+     * Get the color as a hex string in #RRGGBB format
+     */
     get hex() {
         return "#" + this.hexInt.toString(16).slice(1);
     }
 
+    /**
+     * Get the color as rgb(r, g, b) string
+     */
     get rgb() {
         return `rgb(${this.data[this.offset]}, ${this.data[this.offset + 1]}, ${this.data[this.offset + 2]})`;
     }
 
+    /**
+     * Get the color as rgba(r, g, b, a) string
+     */
     get rgba() {
         return `rgba(${this.data[this.offset]}, ${this.data[this.offset + 1]}, ${this.data[this.offset + 2]}, ${this.data[this.offset + 3] / 255})`;
     }
 
+    /**
+     * Get the color as an HSL array [hue (0-360), saturation (0-100), lightness (0-100)]
+     * @param {array} out Optional array to store the result in
+     * @returns {array} HSL array
+     */
     getHSL(out = [0, 0, 0]) {
         const data = this.data;
         const o = this.offset;
@@ -95,10 +141,16 @@ LS.Color = class Color {
         return out;
     }
 
+    /**
+     * Get the color as an HSL array
+     */
     get hsl() {
         return this.getHSL([0, 0, 0]);
     }
 
+    /**
+     * Get the color as an HSB array
+     */
     get hsb() {
         let r = this.data[this.offset] / 255;
         let g = this.data[this.offset + 1] / 255;
@@ -137,18 +189,33 @@ LS.Color = class Color {
         return [h, s, v];
     }
 
+    /**
+     * Get the color as an RGBA array with alpha normalized to 0-1
+     */
     get color() {
         return [this.data[this.offset], this.data[this.offset + 1], this.data[this.offset + 2], this.data[this.offset + 3] / 255];
     }
 
+    /**
+     * Get the color as an RGBA array with alpha in 0-255
+     */
     get pixel() {
         return [this.data[this.offset], this.data[this.offset + 1], this.data[this.offset + 2], this.data[this.offset + 3]];
     }
 
+    /**
+     * Get the value of a specific channel (0 = red, 1 = green, 2 = blue, 3 = alpha)
+     */
     browse(channel = 0) {
         return this.data[this.offset + channel];
     }
 
+    /**
+     * Copy the color values to a target array at the given offset
+     * @param {*} target Target array to copy the color into
+     * @param {*} offset Optional offset in the target array
+     * @returns Target array with copied color values
+     */
     copyTo(target, offset = 0) {
         target[offset] = this.data[this.offset];
         target[offset + 1] = this.data[this.offset + 1];
@@ -157,14 +224,23 @@ LS.Color = class Color {
         return target;
     }
 
+    /**
+     * Get the color as an RGBA array with values normalized to 0-1 and rounded to the nearest float32 representation (useful for WebGL shaders)
+     */
     get floatPixel() {
         return [Math.fround(this.data[this.offset] / 255), Math.fround(this.data[this.offset + 1] / 255), Math.fround(this.data[this.offset + 2] / 255), Math.fround(this.data[this.offset + 3] / 255)];
     }
 
+    /**
+     * Get the perceived brightness of the color using the Rec. 709 formula
+     */
     get luma() {
         return 0.2126 * this.data[this.offset] + 0.7152 * this.data[this.offset + 1] + 0.0722 * this.data[this.offset + 2];
     }
 
+    /**
+     * Get the perceived brightness of the color using the HSP color model
+     */
     get brightness() {
         return Math.sqrt(
             0.299 * (this.data[this.offset] * this.data[this.offset]) +
@@ -173,17 +249,52 @@ LS.Color = class Color {
         );
     }
 
+    /**
+     * Get a binary value representing whether the color is closer to black (0) or white (1) based on its brightness, using a threshold of 127.5
+     */
     get bit() {
         return this.brightness >= 127.5 ? 1 : 0;
     }
 
+    /**
+     * Get a boolean value indicating whether the color is considered dark (true) or light (false) based on its brightness, using a threshold of 127.5
+     */
     get isDark() {
         return this.brightness < 127.5;
     }
 
+    /**
+     * Set the hue of the color while preserving saturation and lightness
+     * @param {*} hue New hue value (0-360)
+     * @returns {Color} Self
+     */
     hue(hue) {
         let [h, s, l] = this.hsl;
         h = Math.max(Math.min(hue, 360), 0);
+        this.setHSL(h, s, l);
+        return this;
+    }
+
+    /**
+     * Set the saturation of the color while preserving hue and lightness
+     * @param {*} percent New saturation value (0-100)
+     * @returns {Color} Self
+     */
+    saturation(percent) {
+        let [h, s, l] = this.hsl;
+        s = Math.max(Math.min(percent, 100), 0);
+        this.setHSL(h, s, l);
+        return this;
+    }
+
+    /**
+     * Set the lightness of the color while preserving hue and saturation
+     * @param {*} percent New lightness value (0-100)
+     * @returns {Color} Self
+     */
+    lightness(percent) {
+        let [h, s, l] = this.hsl;
+        l = Math.max(Math.min(percent, 100), 0);
         this.setHSL(h, s, l);
         return this;
     }
@@ -230,26 +341,24 @@ LS.Color = class Color {
         return this;
     }
 
-    saturation(percent) {
-        let [h, s, l] = this.hsl;
-        s = Math.max(Math.min(percent, 100), 0);
-        this.setHSL(h, s, l);
-        return this;
-    }
-
-    lightness(percent) {
-        let [h, s, l] = this.hsl;
-        l = Math.max(Math.min(percent, 100), 0);
-        this.setHSL(h, s, l);
-        return this;
-    }
-
+    /**
+     * Sets the tone of the color by adjusting its hue, saturation, and lightness
+     * @param {*} hue New hue value (0-360)
+     * @param {*} saturation New saturation value (0-100)
+     * @param {*} lightness New lightness value (0-100)
+     * @returns {Color} Self
+     */
     tone(hue, saturation, lightness) {
         let [h, s, l] = this.hsl;
         this.setHSL(hue || h, (s / 100) * saturation, typeof lightness === "number" ? lightness : l);
         return this;
     }
 
+    /**
+     * Lightens the color by increasing its lightness by the given percentage (0-100)
+     * @param {*} percent Percentage to lighten the color by
+     * @return {Color} Self
+     */
     lighten(percent) {
         let [h, s, l] = this.hsl;
         l = Math.max(Math.min(l + percent, 100), 0);
@@ -257,6 +366,11 @@ LS.Color = class Color {
         return this;
     }
 
+    /**
+     * Saturates the color by increasing its saturation by the given percentage (0-100)
+     * @param {*} percent Percentage to saturate the color by
+     * @return {Color} Self
+     */
     saturate(percent) {
         let [h, s, l] = this.hsl;
         s = Math.max(Math.min(s + percent, 100), 0);
@@ -264,6 +378,11 @@ LS.Color = class Color {
         return this;
     }
 
+    /**
+     * Darkens the color by decreasing its lightness by the given percentage (0-100)
+     * @param {*} percent Percentage to darken the color by
+     * @return {Color} Self
+     */
     darken(percent) {
         let [h, s, l] = this.hsl;
         l = Math.max(Math.min(l - percent, 100), 0);
@@ -271,6 +390,11 @@ LS.Color = class Color {
         return this;
     }
 
+    /**
+     * Shifts the hue of the color by the given degrees (positive or negative)
+     * @param {*} deg Degrees to shift the hue by
+     * @return {Color} Self
+     */
     hueShift(deg) {
         let [h, s, l] = this.hsl;
         h = (h + deg) % 360;
@@ -281,6 +405,11 @@ LS.Color = class Color {
     /**
      * Multiplies each channel by the given factor
      * Provide null to skip a channel
+     * @param {number|null} factorR Factor to multiply the red channel by (or null to skip)
+     * @param {number|null} factorG Factor to multiply the green channel by (or null to skip)
+     * @param {number|null} factorB Factor to multiply the blue channel by (or null to skip)
+     * @param {number|null} factorA Factor to multiply the alpha channel by (or null to skip)
+     * @return {Color} Self
      */
     multiply(factorR, factorG, factorB, factorA) {
         const d = this.data, o = this.offset;
@@ -295,6 +424,11 @@ LS.Color = class Color {
     /**
      * Divides each channel by the given factor
      * Provide null to skip a channel
+     * @param {number|null} factorR Factor to divide the red channel by (or null to skip)
+     * @param {number|null} factorG Factor to divide the green channel by (or null to skip)
+     * @param {number|null} factorB Factor to divide the blue channel by (or null to skip)
+     * @param {number|null} factorA Factor to divide the alpha channel by (or null to skip)
+     * @return {Color} Self
      */
     divide(factorR, factorG, factorB, factorA) {
         const d = this.data, o = this.offset;
@@ -306,6 +440,14 @@ LS.Color = class Color {
         );
     }
 
+    /**
+     * Adds the given color values to the current color
+     * @param {number} r2 Red value to add (0-255)
+     * @param {number} g2 Green value to add (0-255)
+     * @param {number} b2 Blue value to add (0-255)
+     * @param {number} a2 Alpha value to add (0-1)
+     * @return {Color} Self
+     */
     add(r2, g2, b2, a2) {
         let color = new Color(r2, g2, b2, a2);
         const d = this.data, o = this.offset;
@@ -317,6 +459,14 @@ LS.Color = class Color {
         );
     }
 
+    /**
+     * Subtracts the given color values from the current color
+     * @param {number} r2 Red value to subtract (0-255)
+     * @param {number} g2 Green value to subtract (0-255)
+     * @param {number} b2 Blue value to subtract (0-255)
+     * @param {number} a2 Alpha value to subtract (0-1)
+     * @return {Color} Self
+     */
     subtract(r2, g2, b2, a2) {
         let color = new Color(r2, g2, b2, a2);
         const d = this.data, o = this.offset;
@@ -330,6 +480,9 @@ LS.Color = class Color {
 
     /**
      * Mixes this color with another one by the given weight (0 to 1)
+     * @param {Color|array|number|string} val Color to mix with (can be a Color instance, an array of RGBA values, or any valid color input)
+     * @param {number} weight Weight to mix by (0 to 1)
+     * @return {Color} Self
      */
     mix(val, weight = 0.5) {
         let r2, g2, b2, a2;
@@ -356,6 +509,8 @@ LS.Color = class Color {
 
     /**
      * Sets the alpha channel to a value
+     * @param {number} v Alpha value to set (0-1)
+     * @return {Color} Self
      */
     alpha(v) {
         this.data[this.offset + 3] = Math.min(Math.max(v, 0), 1) * 255;
@@ -368,6 +523,14 @@ LS.Color = class Color {
         return l - a * Math.max(-1, Math.min(t, 1));
     }
 
+    /**
+     * Sets the color in HSL format
+     * @param {number} h Hue (0-360)
+     * @param {number} s Saturation (0-100)
+     * @param {number} l Lightness (0-100)
+     * @param {number} alpha Alpha (0-1)
+     * @return {Color} Self
+     */
     setHSL(h, s, l, alpha) {
         let hsl;
         if (h == null || Number.isNaN(h)) h = (hsl ??= this.hsl)[0];
@@ -393,6 +556,14 @@ LS.Color = class Color {
         return this;
     }
 
+    /**
+     * Sets the color in HSB/HSV format
+     * @param {number} h Hue (0-360)
+     * @param {number} s Saturation (0-100)
+     * @param {number} b Brightness/Value (0-100)
+     * @param {number} alpha Alpha (0-1)
+     * @return {Color} Self
+     */
     setHSB(h, s, b, alpha) {
         let hsb; // Defer calculation if we don't need it
         if(h === null || typeof h === "undefined" || isNaN(h)) h = hsb? hsb[0]: (hsb = this.hsb)[0];
@@ -437,6 +608,12 @@ LS.Color = class Color {
 
     /**
      * Sets the color channels and clamps them to valid ranges
+     * Provide null or NaN to skip a channel
+     * @param {number|null} r Red value to set (0-255)
+     * @param {number|null} g Green value to set (0-255)
+     * @param {number|null} b Blue value to set (0-255)
+     * @param {number|null} a Alpha value to set (0-1)
+     * @return {Color} Self
      */
     setClamped(r, g, b, a) {
         const d = this.data, o = this.offset;
@@ -457,6 +634,7 @@ LS.Color = class Color {
 
     /**
      * Sets the color from any valid input
+     * Accepts the same inputs as the Color.parse() method
      */
     set(r, g, b, a) {
         Color.parse(r, g, b, a, this.data, this.offset);
@@ -465,6 +643,8 @@ LS.Color = class Color {
 
     /**
      * Sets the color from a hex string, faster for hex inputs than the generic set() method
+     * @param {string} hex Hex color string in #RRGGBB or #RGB format
+     * @return {Color} Self
      */
     setHex(hex) {
         Color.parseHex(hex, this.data, this.offset);
@@ -473,21 +653,27 @@ LS.Color = class Color {
 
     /**
      * Creates a copy of this color, optionally into a provided target and offset
+     * @param {Uint8Array|Array} target Optional target array to copy the color into (if not provided, a new array will be created)
+     * @param {number} offset Optional offset in the target array (default is 0)
+     * @returns {Color} New Color instance with copied values
      */
     clone(target = undefined, offset = 0) {
         const c = new Color(target, offset);
-        c.copyTo(c.data, c.offset);
+        this.copyTo(c.data, c.offset);
         return c;
     }
 
+    /** Returns a string representation of the color, which is the rgba() format */
     toString() {
         return this.rgba;
     }
 
+    /** Returns an array representation of the color in [r, g, b, a] format with alpha in 0-255 */
     toArray() {
         return [this.data[this.offset], this.data[this.offset+1], this.data[this.offset+2], this.data[this.offset+3]];
     }
 
+    /** Returns a JSON representation of the color with r, g, b, a properties (alpha in 0-1) */
     toJSON() {
         return {
             r: this.data[this.offset],
@@ -559,7 +745,7 @@ LS.Color = class Color {
      * @returns {ImageData}
      */
     toImageData() {
-        if(!Color.context) Color._createProcessingCanvas();
+        if(!Color.context) Color.#createProcessingCanvas();
         const imageData = Color.context.createImageData(1, 1);
         this.copyTo(imageData.data);
         return imageData;
@@ -581,6 +767,7 @@ LS.Color = class Color {
 
     /**
      * Sets the sitewide accent from this color
+     * @returns {Color} Self
      */
     applyAsAccent() {
         if(!LS.isWeb) return;
@@ -590,6 +777,8 @@ LS.Color = class Color {
 
     /**
      * Creates or updates a sitewide named accent
+     * @param {string} name Name of the accent to create or update (default is "default")
+     * @returns {Color} Self
      */
     toAccent(name = "default") {
         if(!LS.isWeb) return;
@@ -599,6 +788,7 @@ LS.Color = class Color {
 
     /**
      * Generates a CSS accent from this color
+     * @return {string} CSS color string that can be used in accent-color properties
      */
     toAccentCSS() {
         return Color.generate(this);
@@ -608,6 +798,8 @@ LS.Color = class Color {
 
     /**
      * Set offset by pixel index
+     * @param {number} index Pixel index to set the offset to (0-based)
+     * @returns {Color} Self
      */
     at(index) {
         this.offset = index * 4;
@@ -616,21 +808,35 @@ LS.Color = class Color {
 
     /**
      * Set offset by raw index (snapped to pixel index)
+     * @param {number} index Raw index to set the offset to
+     * @returns {Color} Self
      */
     setOffset(index) {
+        // Why 
         this.at(Math.floor(index / 4));
         return this;
     }
 
+    /**
+     * Move to the next pixel by incrementing the offset by 4
+     * @param {number} by Number of pixels to move forward (default is 1)
+     * @returns {Color} Self
+     */
     next(by = 1) {
         this.offset += by * 4;
         return this;
     }
 
+    /**
+     * Returns the pixel count
+     */
     get pixelCount() {
         return this.data.length / 4;
     }
 
+    /**
+     * Returns whether the current offset is at or beyond the last pixel
+     */
     get atEnd() {
         return this.offset +4 >= this.data.length;
     }
@@ -667,11 +873,10 @@ LS.Color = class Color {
 
     static #settingAccent = null;
     static #settingTheme = null;
+    static autoSchemeEnabled = false;
     static {
-        this.events = new LS.EventEmitter(this);
-
+        this.events = new LS.EventEmitter;
         this.colors = new Map;
-        this.themes = new Set([ "light", "dark", "amoled" ]);
 
         if(LS.isWeb) {
             // Style tag to manage
@@ -683,18 +888,42 @@ LS.Color = class Color {
 
             if(window.matchMedia) {
                 window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', thing => {
-                    this.emit("scheme-changed", [thing.matches]);
+                    if(this.autoSchemeEnabled) {
+                        this.setAdaptiveTheme();
+                    }
+
+                    this.events.emit("scheme-changed", [thing.matches]);
                 });
             }
 
-            if(LS.__colorInitOptions) {
-                if(LS.__colorInitOptions.theme) this.setTheme(LS.__colorInitOptions.theme);
-                if(LS.__colorInitOptions.accent) this.setAccent(LS.__colorInitOptions.accent);
-                if(LS.__colorInitOptions.autoScheme) this.autoScheme(LS.__colorInitOptions.adaptiveTheme);
-                if(LS.__colorInitOptions.autoAccent) this.autoAccent();
-                delete LS.__colorInitOptions;
+            if(LS.__deferedColorOptions) {
+                this.initOptions(LS.__deferedColorOptions);
+                delete LS.__deferedColorOptions;
             }
         }
+    }
+
+    static initOptions(options) {
+        if(options.theme) this.setTheme(options.theme, false, false);
+        if(options.accent) this.setAccent(options.accent, false, false);
+        if(options.autoAccent) this.autoAccent();
+
+        if(options.autoScheme) {
+            this.autoSchemeEnabled = true;
+            this.setAdaptiveTheme();
+        }
+    }
+
+    static on(event, listener) {
+        this.events.on(event, listener);
+    }
+
+    static once(event, listener) {
+        this.events.once(event, listener);
+    }
+
+    static off(event, listener) {
+        this.events.off(event, listener);
     }
 
     /**
@@ -719,8 +948,11 @@ LS.Color = class Color {
      * @param {Array} target
      * @param {number} offset
      * @returns {Array} Target array with parsed color
+     * @throws {Error} If the input string cannot be parsed as a color
+     * 
      * @example
-     * Color.parse("#ff0000"); // Note: if you only need to parse hex colors, use Color.parseHex for better performance
+     * // Note: if you only parse hex colors, use Color.parseHex for better performance
+     * Color.parse("#ff0000");
      * Color.parse("rgba(255, 0, 0, 0.5)");
      * Color.parse("hsl(120, 100%, 50%)");
      * Color.parse("hsb(120, 100%, 100%)");
@@ -729,6 +961,7 @@ LS.Color = class Color {
      * Color.parse({ r: 255, g: 0, b: 0 });
      * Color.parse(new Color());
      * Color.parse(255, 0, 0, 0.5);
+     * Color.parse(0xff0000);
      */
 
     static parse(r, g, b, a, target, offset = 0) {
@@ -816,7 +1049,7 @@ LS.Color = class Color {
             // As a last resort, we use fillStyle to let the browser parse any valid CSS color
             else {
                 if(!Color.context) {
-                    Color._createProcessingCanvas();
+                    Color.#createProcessingCanvas();
                 }
 
                 Color.context.fillStyle = "#000000"; // If the following fails, this ensures we don't fallback to the last successful color
@@ -863,11 +1096,11 @@ LS.Color = class Color {
     }
 
     /**
-     * Fast hex code parsing. Uses fast.twoh2i, which is zero-allocation and more than 15x faster than parseInt.
+     * Parses a hex code string to a RGB array.
      * Pretty much as fast as JavaScript can realistically get.
      * 
-     * Note: invalid hex characters result in -1. To validate, check if the result array doesn't contain -1 in any channel.
-     * This library will automatically treat such as 0 after clamping; you may or may not want that behavior (eg. #ggg => #000, and the opposite for typed arrays!).
+     * Note: invalid hex characters result in -1 rather than an error. To validate, check for -1 in any channel. Invalid string length will throw an error, however.
+     * This library will automatically treat such as 0 after clamping; you may or may not want that behavior (eg. #ggg => #000, and the opposite for typed arrays as there -1 flips to 255!).
      * https://jsbm.dev/YUQagaiMDfxOv
      * 
      * Note: This does not check the first character for '#', it assumes it's already checked
@@ -886,17 +1119,17 @@ LS.Color = class Color {
         target ??= [0, 0, 0, 255];
 
         if (len <= 5) {
-            const fasth2i = fast.h2i; // Single hex digit
+            // Single hex digit
             target[offset] = fasth2i(hex.charCodeAt(1)) * 0x11;
             target[offset + 1] = fasth2i(hex.charCodeAt(2)) * 0x11;
             target[offset + 2] = fasth2i(hex.charCodeAt(3)) * 0x11;
             if(len === 5) target[offset + 3] = fasth2i(hex.charCodeAt(4)) * 0x11;
         } else {
-            const fasth2i = fast.twoh2i; // Two hex digits
-            target[offset] = fasth2i(hex.charCodeAt(1), hex.charCodeAt(2));
-            target[offset + 1] = fasth2i(hex.charCodeAt(3), hex.charCodeAt(4));
-            target[offset + 2] = fasth2i(hex.charCodeAt(5), hex.charCodeAt(6));
-            if(len === 9) target[offset + 3] = fasth2i(hex.charCodeAt(7), hex.charCodeAt(8));
+            // Two hex digits
+            target[offset] = fasttwoh2i(hex.charCodeAt(1), hex.charCodeAt(2));
+            target[offset + 1] = fasttwoh2i(hex.charCodeAt(3), hex.charCodeAt(4));
+            target[offset + 2] = fasttwoh2i(hex.charCodeAt(5), hex.charCodeAt(6));
+            if(len === 9) target[offset + 3] = fasttwoh2i(hex.charCodeAt(7), hex.charCodeAt(8));
         }
         return target;
     }
@@ -918,18 +1151,42 @@ LS.Color = class Color {
         return true;
     }
 
+    /**
+     * Creates a color from HSL values.
+     * @param {number} h - Hue (0-360)
+     * @param {number} s - Saturation (0-1)
+     * @param {number} l - Lightness (0-1)
+     * @returns {Color} The created color
+     */
     static fromHSL(h, s, l) {
         return new Color().setHSL(h, s, l);
     }
 
+    /**
+     * Creates a color from HSB/HSV values.
+     * @param {number} h - Hue (0-360)
+     * @param {number} s - Saturation (0-1)
+     * @param {number} b - Brightness/Value (0-1)
+     * @returns {Color} The created color
+     */
     static fromHSB(h, s, b) {
         return new Color().setHSB(h, s, b);
     }
 
+    /**
+     * Creates a color from a hex string.
+     * @param {string} hex - The hex string in the format #RGB, #RGBA, #RRGGBB or #RRGGBBAA
+     * @returns {Color} The created color
+     */
     static fromHex(hex) {
         return new Color(Color.parseHex(hex));
     }
 
+    /**
+     * Creates a color from a 32-bit integer.
+     * @param {number} int - The integer in the format 0xRRGGBB
+     * @returns {Color} The created color
+     */
     static fromInt(int) {
         let r = (int >> 16) & 0xFF;
         let g = (int >> 8) & 0xFF;
@@ -937,32 +1194,136 @@ LS.Color = class Color {
         return new Color(r, g, b);
     }
 
+    /**
+     * Creates a color from a pixel array.
+     * @param {Array} pixel - The pixel array in the format [r, g, b, a]
+     * @returns {Color} The created color
+     */
     static fromPixel(pixel) {
         return new Color(pixel[0], pixel[1], pixel[2], pixel[3] / 255);
     }
 
+    /**
+     * Creates a colorview from a buffer. This does not copy and reflects changes to the buffer.
+     * @param {*} buffer Buffer containing color data
+     * @param {*} offset Offset into the buffer
+     * @returns {Color} The created color instance
+     */
+    static fromBuffer(buffer, offset = 0) {
+        return new Color(buffer, offset);
+    }
+
+    /**
+     * Creates a color from an image by sampling pixels to obtain a representative color.
+     * @param {*} image Image element to sample
+     * @param {*} sampleGap Gap between sampled pixels
+     * @param {*} maxResolution Maximum resolution of the processed image
+     * @returns {Color} The created color instance
+     */
+    static fromImage(image, sampleGap = 16, maxResolution = 200){
+        if(!(image instanceof HTMLImageElement)) {
+            throw new TypeError("The first argument must be an image element");
+        }
+
+        image.crossOrigin = "Anonymous";
+
+        sampleGap += sampleGap % 4;
+
+        let pixelIndex = -4,
+            sum = [0, 0, 0],
+            sampleCount = 0
+        ;
+
+        if(!Color.canvas) {
+            Color.#createProcessingCanvas();
+        }
+
+        // Set willReadFrequently for better performance on some browsers
+        // This forces CPU, and since we only process small amounts of data, read speeds are more important than GPU acceleration
+        if (Color.context && Color.context.getImageData) {
+            Color.context.willReadFrequently = true;
+        }
+
+        if (!Color.context) return new Color(0, 0, 0);
+
+        const scale = Math.min(1, maxResolution / Math.max(image.naturalWidth, image.naturalHeight));
+
+        Color.canvas.width = Math.ceil(image.naturalWidth * scale);
+        Color.canvas.height = Math.ceil(image.naturalHeight * scale);
+
+        Color.context.drawImage(image, 0, 0, Color.canvas.width, Color.canvas.height);
+
+        let imageData;
+        try {
+            imageData = Color.context.getImageData(0, 0, Color.canvas.width, Color.canvas.height);
+        } catch (error) {
+            console.error(error);
+            return new Color(0, 0, 0);
+        }
+
+        for (let i = imageData.data.length; (pixelIndex += sampleGap) < i; ) {
+            ++sampleCount
+            sum[0] += imageData.data[pixelIndex]
+            sum[1] += imageData.data[pixelIndex + 1]
+            sum[2] += imageData.data[pixelIndex + 2]
+        }
+    
+        return new Color((sum[0] = ~~(sum[0] / sampleCount)), (sum[1] = ~~(sum[1] / sampleCount)), (sum[2] = ~~(sum[2] / sampleCount)));
+    }
+
+    /**
+     * Creates a color (not a ColorView) from a Uint8Array.
+     * @param {Uint8Array} data - The array containing color data
+     * @param {number} offset - The starting index in the array
+     * @param {boolean} alpha - Whether to include alpha channel
+     * @returns {Color} The created color
+     * 
+     * @note This cleates a standalone color instance with the color data copied in. If you want a view into the array, use the constructor directly: new Color(data, offset), or fromBuffer.
+     */
     static fromUint8(data, offset = 0, alpha = true) {
         return new Color(data[offset], data[offset + 1], data[offset + 2], alpha ? data[offset + 3] / 255 : 1);
     }
 
+    /**
+     * Creates a color from an object with r, g, b, and a properties.
+     * @param {Object} obj - The object containing color properties
+     * @returns {Color} The created color
+     */
     static fromObject(obj) {
         return new Color(obj.r, obj.g, obj.b, obj.a);
     }
 
+    /**
+     * Creates a color from an array of color values.
+     * @param {Array} arr - The array containing color values in the format [r, g, b, a]
+     * @returns {Color} The created color
+     */
     static fromArray(arr) {
         return new Color(arr[0], arr[1], arr[2], arr[3]);
     }
 
+    /**
+     * Creates a color from a named CSS color.
+     * @param {string} name - The name of the CSS color (case-insensitive)
+     * @returns {Color} The created color
+     */
     static fromNamed(name) {
+        name = name.toLowerCase();
         if(Color.namedColors.has(name)) {
             return Color.fromArray(Color.namedColors.get(name));
         }
         throw new Error("Unknown color name: " + name);
     }
 
+    /**
+     * Creates a color from a CSS color string.
+     * @param {string} colorString - The CSS color string
+     * @returns {Color} The created color
+     * @experimental
+     */
     static fromCSS(colorString) {
         if(!Color.context) {
-            Color._createProcessingCanvas();
+            Color.#createProcessingCanvas();
         }
 
         Color.context.fillStyle = "#000000";
@@ -972,14 +1333,26 @@ LS.Color = class Color {
         return new Color(Color.context.fillStyle);
     }
 
+    /**
+     * Creates a random color using a pseudorandom number generator.
+     * @returns {Color} The created random color
+     */
     static random() {
         return new Color(Math.floor(Math.random() * 256), Math.floor(Math.random() * 256), Math.floor(Math.random() * 256));
     }
 
+    /**
+     * Creates a random color using a cryptographically secure random number generator. Requires crypto.
+     * @returns {Color} The created random color
+     */
     static trueRandom() {
         return new Color([...crypto.getRandomValues(new Uint8Array(3))]);
     }
 
+    /**
+     * Checks if the user has a light color scheme preference.
+     * @return {boolean} True if the user prefers a light color scheme, false otherwise
+     */
     static get lightModePreffered() {
         return window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
     }
@@ -1057,11 +1430,13 @@ LS.Color = class Color {
             this.colors.set(name, accent);
         }
 
-        if (accent.ruleIndex === undefined) {
-            const selector = `[ls-accent="${CSS.escape(name)}"]`;
-            const index = this.sheet.cssRules.length;
-            this.sheet.insertRule(`${selector}{}`, index);
-            accent.ruleIndex = index;
+        if (!accent.selector) {
+            const safeName = typeof CSS !== "undefined" && typeof CSS.escape === "function"
+                ? CSS.escape(String(name))
+                : String(name).replace(/\\/g, "\\\\").replace(/"/g, "\\\"");
+            accent.selector = `[ls-accent="${safeName}"]`;
+            const ruleIndex = this.sheet.insertRule(`${accent.selector} {}`, this.sheet.cssRules.length);
+            accent.ruleIndex = ruleIndex;
         }
 
         return accent;
@@ -1070,7 +1445,6 @@ LS.Color = class Color {
     static update(name, r, g, b) {
         const accent = this.ensureRule(name);
 
-        // Keep your Color handling as-is
         const color = (r instanceof Color) ? r : new Color(r, g, b);
         accent.color = color;
 
@@ -1079,7 +1453,6 @@ LS.Color = class Color {
             throw new Error(`Rule at index ${accent.ruleIndex} is not a CSSStyleRule.`);
         }
 
-        // Mutate in place; no delete/insert, no index shifting
         rule.style.cssText = this.generate(color);
 
         return accent;
@@ -1096,11 +1469,26 @@ LS.Color = class Color {
 
         if(!color) return false;
 
-        this.style.removeChild(color.style);
         this.colors.delete(name);
+
+        let cssText = "";
+        for (const entry of this.colors.values()) {
+            if (entry.selector && entry.cssText) {
+                cssText += `${entry.selector}{${entry.cssText}}`;
+            }
+        }
+        this.style.textContent = cssText;
+        return true;
     }
 
-    static setAccent(accent, store = true){
+    /**
+     * Sets the sitewide accent color.
+     * @param {*} accent Accent color
+     * @param {*} store Whether to store the accent in localStorage (default: true)
+     * @param {*} doBatch Whether to batch the change to the next animation frame (default: true)
+     * @returns {Color} Self
+     */
+    static setAccent(accent, store = true, doBatch = true){
         if(this.#settingAccent) {
             this.#settingAccent = accent;
             return this;
@@ -1109,45 +1497,65 @@ LS.Color = class Color {
         this.#settingAccent = accent;
 
         // Changes are defered until the body is available and batched to the next animation frame
-        LS.once("ready", () => {
-            LS.Context.requestAnimationFrame(() => {
-                if(!this.#settingAccent) return;
+        if(!LS.ready) {
+            LS.once("ready", () => this.#applyPendingAccent(store));
+            return this;
+        }
 
-                document.body.classList.add("no-transitions");
+        if(!doBatch) {
+            this.#applyPendingAccent(store);
+            return this;
+        }
 
-                if(typeof this.#settingAccent !== "string" || (this.#settingAccent.startsWith("#") || this.#settingAccent.startsWith("rgb") || this.#settingAccent.startsWith("hsl"))) {
-                    const color = new Color(this.#settingAccent);
-
-                    this.#settingAccent = color.hex;
-                    Color.update('custom', color);
-                    document.body.setAttribute("ls-accent", "custom");
-                } else {
-                    document.body.setAttribute("ls-accent", this.#settingAccent);
-                }
-
-                this.emit("accent-changed", [this.#settingAccent]);
-
-                if(store) {
-                    if(accent === "white") {
-                        localStorage.removeItem("ls-accent");
-                    } else {
-                        localStorage.setItem("ls-accent", this.#settingAccent);
-                    }
-                }
-
-                this.#settingAccent = null;
-
-                LS.Context.setTimeout(() => {
-                    if(this.#settingAccent) return;
-                    document.body.classList.remove("no-transitions");
-                }, 0);
-            });
-        });
-
+        // Queue for next animation frame
+        LS.Context.requestAnimationFrame(() => this.#applyPendingAccent(store));
         return this;
     }
 
-    static setTheme(theme, store = true){
+    static #applyPendingAccent(store) {
+        if(!this.#settingAccent) return;
+
+        let accent = this.#settingAccent;
+
+        document.body.classList.add("no-transitions");
+
+        if(typeof accent !== "string" || (accent[0] === "#" || accent.startsWith("rgb") || accent.startsWith("hsl"))) {
+            const color = accent instanceof Color ? accent : new Color(accent);
+
+            accent = color.hex;
+
+            Color.update('custom', color);
+            document.body.setAttribute("ls-accent", "custom");
+        } else {
+            document.body.setAttribute("ls-accent", accent);
+        }
+
+        this.events.emit("accent-changed", [accent]);
+
+        if(store) {
+            if(accent === "white") {
+                localStorage.removeItem("ls-accent");
+            } else {
+                localStorage.setItem("ls-accent", accent);
+            }
+        }
+
+        this.#settingAccent = null;
+
+        LS.Context.setTimeout(() => {
+            if(this.#settingAccent) return;
+            document.body.classList.remove("no-transitions");
+        }, 0);
+    }
+
+    /**
+     * Sets the sitewide theme.
+     * @param {string} theme Name of the theme to set
+     * @param {boolean} store Whether to store the theme in localStorage (default: true)
+     * @param {boolean} doBatch Whether to batch the change to the next animation frame (default: true)
+     * @returns {Color} Self
+     */
+    static setTheme(theme, store = true, doBatch = true){
         if(this.#settingTheme) {
             this.#settingTheme = theme;
             return this;
@@ -1156,35 +1564,49 @@ LS.Color = class Color {
         this.#settingTheme = theme;
 
         // Changes are defered until the body is available and batched to the next animation frame
-        LS.once("ready", () => {
-            LS.Context.requestAnimationFrame(() => {
-                if(!this.#settingTheme) return;
-                document.body.setAttribute("ls-theme", this.#settingTheme);
-                document.body.classList.add("no-transitions");
-                this.emit("theme-changed", [this.#settingTheme]);
+        if(!LS.ready) {
+            LS.once("ready", () => this.#applyPendingTheme(store));
+            return this;
+        }
 
-                if(store) localStorage.setItem("ls-theme", this.#settingTheme);
+        if(!doBatch) {
+            this.#applyPendingTheme(store);
+            return this;
+        }
 
-                this.#settingTheme = null;
-
-                LS.Context.setTimeout(() => {
-                    if(this.#settingTheme) return;
-                    document.body.classList.remove("no-transitions");
-                }, 0);
-            });
-        });
-
+        LS.Context.requestAnimationFrame(() => this.#applyPendingTheme(store));
         return this;
     }
 
-    static setAdaptiveTheme(amoled){
-        Color.setTheme(localStorage.getItem("ls-theme") || (this.lightModePreffered? "light": amoled? "amoled" : "dark"), false);
+    static #applyPendingTheme(store) {
+        if(!this.#settingTheme) return;
+        const theme = this.#settingTheme;
+
+        document.body.setAttribute("ls-theme", theme);
+        document.body.classList.add("no-transitions");
+        this.events.emit("theme-changed", [theme]);
+
+        if(store) localStorage.setItem("ls-theme", theme);
+
+        this.#settingTheme = null;
+
+        LS.Context.setTimeout(() => {
+            if(this.#settingTheme) return;
+            document.body.classList.remove("no-transitions");
+        }, 0);
+    }
+
+    static setAdaptiveTheme(){
+        Color.setTheme(localStorage.getItem("ls-theme") || (this.lightModePreffered? "light": "dark"), false);
         return this;
     }
 
-    static autoScheme(amoled){
-        this.setAdaptiveTheme(amoled);
-        this.on("scheme-changed", () => this.setAdaptiveTheme(amoled));
+    /**
+     * @deprecated
+     */
+    static autoScheme(){
+        this.setAdaptiveTheme();
+        this.autoSchemeEnabled = true;
         return this;
     }
 
@@ -1197,71 +1619,7 @@ LS.Color = class Color {
         return this;
     }
 
-    static all(){
-        return [...this.colors.keys()];
-    }
-
-    static randomAccent(){
-        let colors = this.all();
-        return colors[Math.floor(Math.random() * colors.length)];
-    }
-
-    static fromBuffer(buffer, offset = 0) {
-        return new Color(buffer, offset);
-    }
-
-    static fromImage(image, sampleGap = 16, maxResolution = 200){
-        if(!(image instanceof HTMLImageElement)) {
-            throw new TypeError("The first argument must be an image element");
-        }
-
-        image.crossOrigin = "Anonymous";
-
-        sampleGap += sampleGap % 4;
-
-        let pixelIndex = -4,
-            sum = [0, 0, 0],
-            sampleCount = 0
-        ;
-
-        if(!Color.canvas) {
-            Color._createProcessingCanvas();
-        }
-
-        // Set willReadFrequently for better performance on some browsers
-        // This forces software rendering, and since we only process small amounts of data, read speeds are more important
-        if (Color.context && Color.context.getImageData) {
-            Color.context.willReadFrequently = true;
-        }
-
-        if (!Color.context) return new Color(0, 0, 0);
-
-        const scale = Math.min(1, maxResolution / Math.max(image.naturalWidth, image.naturalHeight));
-
-        Color.canvas.width = Math.ceil(image.naturalWidth * scale);
-        Color.canvas.height = Math.ceil(image.naturalHeight * scale);
-
-        Color.context.drawImage(image, 0, 0, Color.canvas.width, Color.canvas.height);
-
-        let imageData;
-        try {
-            imageData = Color.context.getImageData(0, 0, Color.canvas.width, Color.canvas.height);
-        } catch (error) {
-            console.error(error);
-            return new Color(0, 0, 0);
-        }
-
-        for (let i = imageData.data.length; (pixelIndex += sampleGap) < i; ) {
-            ++sampleCount
-            sum[0] += imageData.data[pixelIndex]
-            sum[1] += imageData.data[pixelIndex + 1]
-            sum[2] += imageData.data[pixelIndex + 2]
-        }
-    
-        return new Color((sum[0] = ~~(sum[0] / sampleCount)), (sum[1] = ~~(sum[1] / sampleCount)), (sum[2] = ~~(sum[2] / sampleCount)));
-    }
-
-    static _createProcessingCanvas() {
+    static #createProcessingCanvas() {
         if(!Color.canvas) {
             const canvas = document.createElement('canvas');
             Color.canvas = canvas;
@@ -1269,6 +1627,9 @@ LS.Color = class Color {
         }
     }
 
+    /**
+     * A map of named CSS colors to their RGB values.
+     */
     static namedColors = new Map([
         ["aliceblue", [240, 248, 255]],
         ["antiquewhite", [250, 235, 215]],
@@ -1421,3 +1782,5 @@ LS.Color = class Color {
         ["transparent", [0, 0, 0, 0]]
     ]);
 };
+
+})();

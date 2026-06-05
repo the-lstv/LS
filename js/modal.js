@@ -12,18 +12,16 @@
     }
 
     LS.LoadComponent(class Modal extends LS.Component {
-        static DEFAULTS = {
+        static defaults = LS.Util.staticDefaults({
             styled: true,
             fadeInDuration: 300,
             fadeOutDuration: 300
-        }
+        });
 
         constructor(options = {}, template = {}) {
             super();
 
-            this.options = LS.Util.defaults(this.constructor.DEFAULTS, options);
-            this.isOpen = false;
-
+            this.options = this.constructor.defaults(options);
             this.container = this.constructor.TEMPLATE({
                 inner: this.options.content || null,
 
@@ -35,18 +33,8 @@
                 closeModal
             }).root;
 
+            this.isOpen = false;
             this.container.lsComponent = this;
-
-            if(template.onOpen) {
-                this.on("open", template.onOpen);
-            }
-
-            if(template.onClose) {
-                this.on("close", template.onClose);
-            }
-
-            template = null;
-
             this.container.style.display = "none";
 
             if (this.options.styled !== false) {
@@ -57,6 +45,16 @@
             if (this.options.height) {
                 this.container.style.height = typeof this.options.height === "number" ? this.options.height + "px" : this.options.height;
             }
+
+            if(template.onOpen) {
+                this.on("open", template.onOpen);
+            }
+
+            if(template.onClose) {
+                this.on("close", template.onClose);
+            }
+
+            template = null;
 
             LS.Stack.container.add(this.container);
 
@@ -73,7 +71,7 @@
             return this.options.shade !== false;
         }
 
-        open() {
+        open(options = {}) {
             if (this.isOpen || this.destroyed) return;
             this.previousFocus = document.activeElement;
             this.isOpen = true;
@@ -89,10 +87,10 @@
             this.container.classList.add("open");
             this.container.classList.add("ls-top-modal");
 
-            LS.Context.setTimeout(() => {
+            if(options.focus !== false) this.setTimeout(() => {
                 if(!this.isOpen || this.destroyed) return;
 
-                const focusable = this.container.querySelector("input, button, select, textarea, [tabindex]:not([tabindex='-1'])");
+                const focusable = options.focusTarget instanceof HTMLElement ? options.focusTarget : this.container.querySelector(typeof options.focusTarget === "string" ? options.focusTarget : "input, button, select, textarea, [tabindex]:not([tabindex='-1'])");
                 if (focusable) {
                     focusable.focus();
                 } else {
@@ -118,7 +116,7 @@
             this.container.classList.remove("ls-top-modal");
             LS.Stack.remove(this);
 
-            this.ctx.setTimeout(() => {
+            this.setTimeout(() => {
                 if(this.isOpen || this.destroyed) return;
 
                 if (LS.Stack.length === 0) {
@@ -198,7 +196,7 @@
             return LS.Modal.build(options, modalOptions);
         }
 
-        static TEMPLATE(d){'use strict';var e0=document.createElement("div");e0.tabIndex="0";e0.className="ls-modal";if(!!(d.inner)){e0.appendChild(LS.__dynamicInnerToNode(d.inner));}else{if(!!(d.title)){var e1=document.createElement("h2");e1.className="ls-modal-title";e1.append(LS.__dynamicInnerToNode(d.title));e0.appendChild(e1);}if(!!(d.content)){var e2=document.createElement("div");e2.className="ls-modal-body";e2.append(LS.__dynamicInnerToNode(d.content));e0.appendChild(e2);}if(!!(d.buttons)){var e3=document.createElement("div");e3.className="ls-modal-footer";var a4=d.buttons||[];for(const i5 of a4){var e6=document.createElement("button");e6.textContent=(i5.label) || ("Button");e6.onclick=(i5.onClick) || (i5.onclick) || (d.closeModal);e6.setAttribute("ls-accent",(i5.accent) || (null));e6.className=["ls-modal-button",i5.class].filter(Boolean).join(" ");e3.appendChild(e6);}e0.appendChild(e3);}}var __rootValue=e0;return{root:__rootValue};}
+        static TEMPLATE(d){'use strict';var e0=document.createElement("div");e0.tabIndex="0";e0.className="ls-modal";if(!!(d.inner)){e0.appendChild(LS.toNode(d.inner));}else{if(!!(d.title)){var e1=document.createElement("h2");e1.className="ls-modal-title";e1.append(LS.toNode(d.title));e0.appendChild(e1);}if(!!(d.content)){var e2=document.createElement("div");e2.className="ls-modal-body";e2.append(LS.toNode(d.content));e0.appendChild(e2);}if(!!(d.buttons)){var e3=document.createElement("div");e3.className="ls-modal-footer";var a4=d.buttons||[];for(const i5 of a4){var e6=document.createElement("button");e6.textContent=(i5.label) || ("Button");e6.onclick=(i5.onClick) || (i5.onclick) || (d.closeModal);e6.setAttribute("ls-accent",(i5.accent) || (null));e6.className=["ls-modal-button",i5.class].filter(Boolean).join(" ");e3.appendChild(e6);}e0.appendChild(e3);}}var __rootValue=e0;return{root:__rootValue};}
 
         // static TEMPLATE = /* @BUILD compile-template */ LS.CompileTemplate((data, logic) => ({
         //     class: "ls-modal",
@@ -224,6 +222,13 @@
 
         static build(template = {}, modalOptions = {}) {
             return new LS.Modal(modalOptions, template);
+        }
+
+        static closeFromElement(element) {
+            const modal = element.closest(".ls-modal");
+            if (modal && modal.lsComponent instanceof LS.Modal) {
+                modal.lsComponent.close();
+            }
         }
     }, { name: "Modal", global: true })
 })();

@@ -6,20 +6,38 @@
  */
 
 LS.LoadComponent(class Range extends LS.Component {
+    static PRESET_PROGRESS = {
+        slider: false,
+        style: "ls-progress",
+        tooltip: false,
+        dots: false
+    };
+
     constructor(target = null, options = {}) {
         super();
+
+        if(typeof target === "object" && !(target instanceof HTMLElement)) {
+            options = target;
+            target = null;
+        }
 
         this.options = Object.assign({
             slider: true,
             style: null,
             vertical: false,
-            tooltip: false
+            tooltip: false,
+            dots: true
         }, options);
 
         this.element = target || LS.Create("ls-range");
-        this.dots = LS.Create({ class: "ls-range-dots" }).addTo(this.element);
+        this.element.lsRange = this;
+
+        if(this.options.dots) {
+            this.dots = LS.Create({ class: "ls-range-dots" }).addTo(this.element);
+        }
+
         this.handle = this.options.slider === false? null : LS.Create({ class: "ls-range-handle" }).addTo(this.element);
-        this.element.appendChild(LS.Create({ class: "ls-range-progress", inner: (this.bar = LS.Create({ class: "ls-range-bar" })) }));
+        this.element.appendChild(LS.Create({ class: "ls-range-progressbar", inner: (this.bar = LS.Create({ class: "ls-range-bar" })) }));
 
         this.element.classList.add("ls-range");
 
@@ -31,7 +49,7 @@ LS.LoadComponent(class Range extends LS.Component {
             this.element.classList.add("ls-range-vertical");
         }
 
-        if(this.options.slider === false) {
+        if(!this.options.slider) {
             this.element.classList.add("ls-range-no-slider");
         }
 
@@ -44,8 +62,8 @@ LS.LoadComponent(class Range extends LS.Component {
         this.element.setAttribute("role", "slider");
         this.element.setAttribute("aria-orientation", this.options.vertical? "vertical" : "horizontal");
 
-        const min = this.toNumber(this.element.getAttribute("min"), 0);
-        const max = this.toNumber(this.element.getAttribute("max"), 100);
+        const min = this.element.hasAttribute("min") ? this.toNumber(this.element.getAttribute("min"), 0) : 0;
+        const max = this.element.hasAttribute("max") ? this.toNumber(this.element.getAttribute("max"), 100) : 100;
         this._min = Math.min(min, max);
         this._max = Math.max(min, max);
         this._step = this.normalizeStep(this.element.getAttribute("step"));
@@ -53,38 +71,40 @@ LS.LoadComponent(class Range extends LS.Component {
         this.element.setAttribute("aria-valuemin", this._min);
         this.element.setAttribute("aria-valuemax", this._max);
 
-        let box;
-        this.touchHandle = new LS.Util.TouchHandle(this.element, {
-            onStart: (event) => {
-                this.element.focus();
-                box = this.element.getBoundingClientRect();
-            },
-
-            onMove: (event) => {
-                const percentage = this.options.vertical
-                    ? Math.min(1, Math.max(0, 1 - ((event.y - box.top) / box.height)))
-                    : Math.min(1, Math.max(0, (event.x - box.left) / box.width));
-                this.value = this.min + percentage * (this.max - this.min);
-
-                if(this.options.tooltip) {
-                    LS.Tooltips.position(this.handle).set(String(this.value)).show();
+        if(this.options.slider) {
+            let box;
+            this.touchHandle = new LS.Util.TouchHandle(this.element, {
+                onStart: (event) => {
+                    this.element.focus();
+                    box = this.element.getBoundingClientRect();
+                },
+    
+                onMove: (event) => {
+                    const percentage = this.options.vertical
+                        ? Math.min(1, Math.max(0, 1 - ((event.y - box.top) / box.height)))
+                        : Math.min(1, Math.max(0, (event.x - box.left) / box.width));
+                    this.value = this.min + percentage * (this.max - this.min);
+    
+                    if(this.options.tooltip) {
+                        LS.Tooltips.position(this.handle).set(String(this.value)).show();
+                    }
+    
+                    this.quickEmit("input", this.value);
+                },
+    
+                onEnd: (event) => {
+                    if(this.options.tooltip) {
+                        LS.Tooltips.hide();
+                    }
+                    this.quickEmit("change", this.value);
                 }
+            });
 
-                this.quickEmit("input", this.value);
-            },
+            this.onKeyDown = this.#handleKeyDown.bind(this);
+            this.element.addEventListener("keydown", this.onKeyDown);
+        }
 
-            onEnd: (event) => {
-                if(this.options.tooltip) {
-                    LS.Tooltips.hide();
-                }
-                this.quickEmit("change", this.value);
-            }
-        });
-
-        this.onKeyDown = this.#handleKeyDown.bind(this);
-        this.element.addEventListener("keydown", this.onKeyDown);
-
-        if(typeof ResizeObserver !== "undefined") {
+        if(this.options.dots && typeof ResizeObserver !== "undefined") {
             this.resizeObserver = new ResizeObserver(() => this.renderDots());
             this.resizeObserver.observe(this.element);
         }
@@ -250,49 +270,42 @@ LS.LoadComponent(class Range extends LS.Component {
      * Needs work.
      */
     renderDots() {
-        if(!this.step || this.max <= this.min) {
-            if(this._renderedDotCount !== 0) {
-                this.dots.innerHTML = "";
-                this._renderedDotCount = 0;
-            }
-
+        if(!this.options.dots) {
             return;
         }
 
-        const steps = Math.floor((this.max - this.min) / this.step);
-        const dotCount = steps + 1;
-        const width = this.element.clientWidth || this.element.getBoundingClientRect().width;
+        let dotCount = 0;
 
-        if(width <= 0) {
-            if(this._renderedDotCount !== 0) {
-                this.dots.innerHTML = "";
-                this._renderedDotCount = 0;
+        if (this.step && this.max > this.min) {
+            const width = this.element.clientWidth || this.element.getBoundingClientRect().width;
+
+            if (width > 0) {
+                const steps = Math.floor((this.max - this.min) / this.step);
+                const candidateCount = steps + 1;
+                const maxDots = Math.floor(width / this._dotDensity) + 1;
+
+                if (candidateCount > 1 && candidateCount <= maxDots) {
+                    dotCount = candidateCount;
+                }
             }
+        }
 
+        if (this._renderedDotCount === dotCount) {
             return;
         }
 
-        const maxDots = Math.floor(width / this._dotDensity) + 1;
-
-        if(dotCount <= 1 || dotCount > maxDots) {
-            if(this._renderedDotCount !== 0) {
-                this.dots.innerHTML = "";
-                this._renderedDotCount = 0;
-            }
-
-            return;
-        }
-
-        if(this._renderedDotCount === dotCount) {
+        if (dotCount === 0) {
+            this.dots.textContent = "";
+            this._renderedDotCount = 0;
             return;
         }
 
         const fragment = document.createDocumentFragment();
 
-        for(let index = 0; index < dotCount; index++) {
+        for (let i = 0; i < dotCount; i++) {
             const dot = document.createElement("span");
-            if(index !== 0 && index !== dotCount - 1) {
-                dot.classList.add("ls-range-dot");
+            if (i !== 0 && i !== dotCount - 1) {
+                dot.className = "ls-range-dot";
             }
             fragment.appendChild(dot);
         }
@@ -305,10 +318,13 @@ LS.LoadComponent(class Range extends LS.Component {
         const range = this.max - this.min;
         const percentage = range > 0? (this._value - this.min) / range : 0;
         this.element.style.setProperty("--range-value", percentage * 100 + "%");
-        this.renderDots();
+
+        if(this.options.dots) queueMicrotask? queueMicrotask(() => this.renderDots()): this.renderDots();
     }
 
     destroy() {
+        if(this.destroyed) return;
+
         if(this.resizeObserver) {
             this.resizeObserver.disconnect();
         }
@@ -317,7 +333,16 @@ LS.LoadComponent(class Range extends LS.Component {
             this.element.removeEventListener("keydown", this.onKeyDown);
         }
 
-        this.touchHandle.destroy();
+        if(this.touchHandle) {
+            this.touchHandle.destroy();
+        }
+
+        this.element.remove();
+        this.element.lsRange = null;
+        this.element = null;
+        this.bar = null;
+
+        super.destroy();
     }
 }, { global: true, name: "Range" });
 
@@ -346,11 +371,16 @@ customElements.define('ls-range', class LSRange extends HTMLElement {
     }
 
     connectedCallback() {
+        if(this.lsRange) {
+            return;
+        }
+
         this.lsRange = new LS.Range(this, {
             slider: this.getBooleanAttribute("slider", true),
             style: this.getAttribute("style-class") || this.getAttribute("range-style") || null,
             vertical: this.getBooleanAttribute("vertical", false),
-            tooltip: this.getBooleanAttribute("tooltip", false)
+            tooltip: this.getBooleanAttribute("tooltip", false),
+            dots: this.getBooleanAttribute("dots", true)
         });
 
         const onConnected = this.getAttribute("onconnected");
@@ -457,5 +487,12 @@ customElements.define('ls-range', class LSRange extends HTMLElement {
 
     get tooltip() {
         return this.getBooleanAttribute("tooltip", false);
+    }
+
+    dispose() {
+        if(this.lsRange) {
+            this.lsRange.destroy();
+            this.lsRange = null;
+        }
     }
 });

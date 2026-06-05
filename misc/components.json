@@ -17,6 +17,8 @@
         "reactive",
         "resize",
         "shortcutmanager",
+        "multipane",
+        "layout",
         "tabs",
         "timeline",
         "toast",

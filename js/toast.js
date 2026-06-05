@@ -1,4 +1,4 @@
-LS.LoadComponent(class Toast extends LS.DestroyableComponent {
+LS.LoadComponent(class Toast extends LS.Component {
     constructor(content, options = {}){
         super();
 
@@ -17,10 +17,11 @@ LS.LoadComponent(class Toast extends LS.DestroyableComponent {
         this.closeCallback = options.onClose;
 
         this.setTimeout(() => {
-            this.element.class("open");
+            // this.element.class("open");
+            if(LS.Animation) LS.Animation.fadeIn(this.element, 400, "upBackward");
         }, 1);
 
-        this.setTimeout(() => {
+        if(options.timeout > 0) this.setTimeout(() => {
             this.close();
         }, options.timeout || 5000);
     }
@@ -30,7 +31,7 @@ LS.LoadComponent(class Toast extends LS.DestroyableComponent {
     }
 
     close(){
-        this.element.class("open", 0);
+        if(LS.Animation) LS.Animation.fadeOut(this.element, 150, "upBackward");
         this.constructor.openToasts.delete(this);
 
         if(this.closeCallback) this.closeCallback();
@@ -40,7 +41,7 @@ LS.LoadComponent(class Toast extends LS.DestroyableComponent {
             this.element.remove();
             this.element = null;
             super.destroy();
-        }, 150);
+        }, LS.Animation? 150 : 0);
     }
 
     static {

@@ -3,17 +3,21 @@
 .idea
 .github
 
-
 # Backend related
 versions/
-
 
 # Being worked on
 misc/demos
 *.test.html
 *.bench.html
 
-
 # ?
 app.conf
 ls-reference.md
+
+node_modules
+pnpm-*
+
+*.patch
+*.log
+*.backup

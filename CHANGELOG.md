@@ -1,9 +1,54 @@
-## Planned
-- Documentation
-- Migrate the rest of components
-- Improve accessibility & edge cases
+## Version 6.0.0-alpha.0
+Major update (2026 release)!
+- **New components**: `LS.Icons`, `LS.Multipane`, `LS.Layout`, `LS.WindowManager`, `LS.CommandPalette`, `LS.ColorPicker`, `LS.Tree`, `LS.i18n`
+- LS.Create now supports Emmet abbreviations! (eg. LS.Create("#myId") instead of LS.Create("div", { id: "myId" }))
+- Added LS.Util.parseEmmet
+- Added UI effects!
+- Added sanitize option to LS.Create
+- Optimized startup and reduced overhead
+- Added LS.Icons support
+- Added LS.Util.staticDefaults
+- LS now has it's own [icon library](https://github.com/the-lstv/ls-icons)!
+- Tabs: tab list can now be reordered by dragging with the reordableList option
+- Tabs: tabs.add now returns the tab ID
+- Enhancements to the default tab handle style
+- LS.Tabs change event is now change instead of changed
+- Deprecated the ambiguous LS.Color.autoScheme() in favor of LS.Color.autoSchemeEnabled
+- Renamed LS.LoadComponent -> LS.register, LS.GetComponent -> LS.getComponentByName, and LS.UnregisterComponent -> LS.unregisterComponent for consistency (methods starting with lowercase).
+- API changes: ESM export is now available (using the mjs extension), and browser compatibility level can be specified (?compat=legacy|modern|latest)
+- General improvements
+- EventEmitter.alias is now EventEmitter.aliasEvent for clarity
+- Enhancements to LS.ImageCropper
+- Enhancements to LS.Toast (smoother animations, responsive)
+- Enhancements to LS.Range (vertical support & ability to use as a progress bar)
+- Enhancements to LS.Knob
+- Enhancements to modal behavior
+- LS.Util.clone now supports advanced filtering and object mapping/transformation capabilities
+- Added tools, grid snapping, and other enhancements to LS.Timeline
 
-Upcomming 6.0.0 (2026 major release)
+< work in progress >
+
+**Misc**
+- Introduced a GUI for generating CDN Links: https://lstv.space/tools/ls-loader
+- Documentation is *finally* here (yeah after 6 major releases)
+
+**Breaking changes:**
+- Removed legacy TinyFramework (LS.Tiny, Q, O, S, N, M). Now entirely under the LS namespace! (Temporarily, a "enableV5Compat" option exists that restores this.)
+- Removed shared event listeners for lastKey, shiftDown, controlDown, mouseDown!
+- Removed legacyEvents from TouchHandle API!
+- Removed LS.Util.map
+- Removed TinyFactory's isInView, isEntirelyInView, on, off, get, getAll, attr, delAttr, wrapIn and clear methods!
+- Removed enforceContextSafety option, replaced with experimental Context.debugEnforceContextSafety() and Context.debugWarnContextSafety() methods intended for debugging purposes.
+- Every component now extends LS.Context & DestroyableComponent is deprecated.
+- No v5compat component will exist unlike v4compat, but this isn't a problem since the API differences aren't that major and it's mostly solved with aliases.
+- LS.Native is deprecated in favor of a future API
+- Removed LS.Color.all and LS.Color.randomAccent methods
+- [state] attribute is now [data-ls-state]
+
+### Version 5.3.0 (farewell update, before v6)
+- Polishes, optimizations & bug fixes
+- Stable enhancements adapted from 6.0.0-beta without any breaking changes.
+- Fix LS.Color.copyTo not working (it was copying from the copy...)
 
 ### Version 5.2.9 (polish update)
 - Breaking: LS.ShortcutManager and LS.CompileTemplate are now separate components, don't forget to include them! (this is to reduce core size)
@@ -13,7 +58,7 @@ Upcomming 6.0.0 (2026 major release)
 - TouchHandle can now set multiple targets
 - Added an "enforceContextSafety" init option that disables global access to certain features without a scope. Use with extreme caution.
 - Fixed some potential memory leaks and made LS.Resize a bit more efficient and easier to use by sharing one handle.
-- Added fast utilities (LS.Util.fast)
+- Added special utilities (LS.Util.fast)
 - Heavily optimized LS.Color.parseHex (now the fastest implementation!)
 - Other minor fixes, optimizations and improvements
 - Added LS.Range (Slider component) (also works as LS.Progress)
@@ -81,8 +126,10 @@ Major update (2025 release)!
 - Major changes to the event system and other APIs
 - Licence of the project changed to GPLv3
 
-
 ---
+
+### Version 4.1.0 (yearly LTS maintenance update)
+- Brought some small optimizations & fixes from v5 to v4.
 
 ### Version 4.0.2
 - Selector fixes.
@@ -93,7 +140,8 @@ Major update (2025 release)!
 - Add version information to LS.version and LS.v
 
 ## Version 4.0.0 (legacy)
-V4 is not a major release, but rather a "LTS" version of v3.6.5. It is now deprecated, but favored over the older 3.6.5 that it is based on.<br>
+V4 is not a major release, but rather a "LTS" version of v3.6.5.<br>
+It is deprecated but favored over the older 3.6.5 that it is based on, intended to keep old projects running.<br>
 It has also been upgraded to the new distribution format & file structure with latest API compatibility, moving from the old magical preprocessor, so it can be used reliably where needed.<br>
 > [!NOTE]
 > What is now v5 should have actually been v4, but because I am a genius, I've released a minor v3.6.5 update as the v4.0.0 on accident. <br>

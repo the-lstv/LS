@@ -4,6 +4,8 @@
  * 
  * Based on the original LSv3 implementation.
  * 
+ * @deprecated
+ * 
  * @author lstv.space
  * @license GPL-3.0
  */

@@ -1,0 +1,148 @@
+[
+  {
+    "type": "directory",
+    "name": "docs",
+    "contents": [
+      {
+        "type": "directory",
+        "name": "components",
+        "contents": [
+          {
+            "type": "file",
+            "name": "animation2.md",
+            "meta": null
+          },
+          {
+            "type": "file",
+            "name": "animation.md",
+            "meta": null
+          },
+          {
+            "type": "file",
+            "name": "automationgraph.md",
+            "meta": null
+          },
+          {
+            "type": "file",
+            "name": "color.md",
+            "meta": null
+          },
+          {
+            "type": "file",
+            "name": "compiletemplate.md",
+            "meta": null
+          },
+          {
+            "type": "file",
+            "name": "dragdrop.md",
+            "meta": null
+          },
+          {
+            "type": "file",
+            "name": "gl.md",
+            "meta": null
+          },
+          {
+            "type": "file",
+            "name": "imagecropper.md",
+            "meta": null
+          },
+          {
+            "type": "file",
+            "name": "index.md",
+            "meta": null
+          },
+          {
+            "type": "file",
+            "name": "knob.md",
+            "meta": null
+          },
+          {
+            "type": "file",
+            "name": "layout.md",
+            "meta": null
+          },
+          {
+            "type": "file",
+            "name": "menu.md",
+            "meta": null
+          },
+          {
+            "type": "file",
+            "name": "modal.md",
+            "meta": null
+          },
+          {
+            "type": "file",
+            "name": "multipane.md",
+            "meta": null
+          },
+          {
+            "type": "file",
+            "name": "network.md",
+            "meta": null
+          },
+          {
+            "type": "file",
+            "name": "node.md",
+            "meta": null
+          },
+          {
+            "type": "file",
+            "name": "patcher.md",
+            "meta": null
+          },
+          {
+            "type": "file",
+            "name": "range.md",
+            "meta": null
+          },
+          {
+            "type": "file",
+            "name": "reactive.md",
+            "meta": null
+          },
+          {
+            "type": "file",
+            "name": "resize.md",
+            "meta": null
+          },
+          {
+            "type": "file",
+            "name": "shortcutmanager.md",
+            "meta": null
+          },
+          {
+            "type": "file",
+            "name": "tabs.md",
+            "meta": null
+          },
+          {
+            "type": "file",
+            "name": "timeline.md",
+            "meta": null
+          },
+          {
+            "type": "file",
+            "name": "toast.md",
+            "meta": null
+          },
+          {
+            "type": "file",
+            "name": "tooltips.md",
+            "meta": null
+          }
+        ]
+      },
+      {
+        "type": "file",
+        "name": "files.json"
+      },
+      {
+        "type": "file",
+        "name": "index.md",
+        "meta": null
+      }
+    ]
+  }
+]

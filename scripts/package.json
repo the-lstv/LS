@@ -1,0 +1,11 @@
+{
+  "name": "scripts",
+  "version": "1.0.0",
+  "description": "Scripts related to distribution & documentation of the LS framework.",
+  "author": "lstv.space",
+  "packageManager": "pnpm@10.29.2",
+  "dependencies": {
+    "acorn": "^8.16.0",
+    "highlight.js": "^11.11.1"
+  }
+}

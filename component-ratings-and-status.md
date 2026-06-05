@@ -13,39 +13,46 @@ The goal is to have all built-in components reach the highest quality rating so 
 - **★★★☆☆ (3/5)** — Functional but experimental/incomplete. May change often, may have edge-case bugs.
 - **★★☆☆☆ (2/5)** — Needs refactor or rewrite. Often migrated from older versions and not yet fully adapted.
 - **★☆☆☆☆ (1/5)** — Low quality / unfinished. Always avoid in production.
+- **☆☆☆☆☆ (-/-)** — Work in progress, not rated yet.
 
 **Builtin** = part of LS core and is not a separate component.
 
 | Component  | Quality Rating | Notes |
 |----------------|-----------------|----------------|
-| LS.Color/ColorView | ★★★★★ (5/5)
+| LS.Color/ColorView | ★★★★★ (5/5) | Maybe does a bit too much
 | LS.EventEmitter (builtin) | ★★★★★ (5/5)
 | LS.Modal | ★★★★☆ (4/5) | Solid, fast, simple. May need some small tweaks.
-| LS.Reactive | ★★★★☆ (4/5) | Solid code, but needs design rework
 | LS.Resize | ★★★★☆ (4/5) | Code needs cleanup, but functional and extensive
 | LS.ShortcutManager (builtin) | ★★★★☆ (4/5) | Needs API solidification
-| LS.Tabs | ★★★★☆ (4/5)
-| LS.Toast | ★★★★☆ (4/5)
+| LS.Toast | ★★★★☆ (4/5) | Simple
+| LS.Tooltips | ★★★★☆ (4/5) | Simple
+| LS.Multipane | ★★★★☆ (4/5) | Not bad but lacks some features.
 | LS.Stack/StackItem | ★★★★☆ (4/5) | Simple
-| LS.Tooltips | ★★★★☆ (4/5) | Recently updated
-| LS.Knob | ★★★★☆ (4/5) | Extensive feature set, pretty robust, but needs a few touches
+| LS.Knob | ★★★★☆ (4/5) | Extensive feature set, pretty robust
 | LS.Timeline | ★★★★☆ (4/5) | Recently migrated and stable, bugs may still show up
-| LS.Tiny | ★★★★☆ (4/5) | Deprecated remenant of older LS versions, but in parts still used widely
+| LS.Reactive | ★★★☆☆ (3/5) | Solid code for what it does, but needs a strategy redesign
+| LS.Tabs | ★★★☆☆ (3/5) | Not terrible but could be better.
 | LS.AutomationGraph | ★★★☆☆ (3/5) | Recently migrated, possibly unstable
-| LS.GL | ★★★☆☆ (3/5) | Highly experimental, will be rewritten to WebGL/GPU later
 | LS.Context (builtin) | ★★★☆☆ (3/5) | Experimental/too opinionated
 | LS.CompileTemplate (builtin) | ★★★☆☆ (3/5) | Experimental
 | LS.GLMultiShader | ★★★☆☆ (3/5) | Incomplete
 | LS.Range | ★★★☆☆ (3/5) | Functional, but code review needed
 | LS.ImageCropper | ★★★☆☆ (3/5) | Spaghetti/rushed but functional
 | LS.Animation | ★★★☆☆ (3/5) | Incomplete (being rewritten)
-| LS.Animation2 | ☆☆☆☆☆ (-/5) | Incomplete
 | LS.Menu | ★★★☆☆ (3/5) | In early development, messy code
-| LS.DragDrop | ★★☆☆☆ (2/5) | Recently migrated from v3, needs refactoration
+| LS.DragDrop | ★★☆☆☆ (2/5) | Recently migrated from v3, needs refactoration, but is more or less useless now.
 | LS.Network | ★★☆☆☆ (2/5) | Just a WebSocket wrapper as of now
-| LS.Node | ★★☆☆☆ (2/5) | Doesn't really do anything yet
-| LS.Tree | ★☆☆☆☆ (1/5) | Unfinished, unrelated code mixed in
-| LS.Native | ★☆☆☆☆ (1/5) | Unfinished, very experimental and poor code
+| LS.GL | ★★☆☆☆ (2/5) | Outdated mixed code, will be rewritten with pure WebGL/GPU later
+| LS.Tree | ★☆☆☆☆ (1/5) | Very unfinished, work in progress
+| LS.Node | ★☆☆☆☆ (1/5) | Doesn't really do anything yet
+| LS.Native | ★☆☆☆☆ (1/5) | Deprecated
+| LS.TimelineGL | ☆☆☆☆☆ (?) | Work in progress
+| LS.Animation2 | ☆☆☆☆☆ (?) | Incomplete
+| LS.Layout | ☆☆☆☆☆ (?) | Incomplete
+| LS.Patcher | ☆☆☆☆☆ (?) | Incomplete
+| LS.WindowManager | ☆☆☆☆☆ (?) | Incomplete
+| LS.CommandPalette | ☆☆☆☆☆ (?) | Incomplete
+| LS.ColorPicker | ☆☆☆☆☆ (?) | Incomplete
 
 ## Migration Status
 Migration progress of older LS v3 components into v5.  
@@ -53,12 +60,10 @@ Components marked **Not Started** are not available yet and may be rejected.
 
 | Component | Progress |
 |---|---|
-| LS.AutomationGraph | In Progress
 | LS.Patchbay | In Progress
 | LS.List | Not Started
 | LS.Sheet | Not Started
 | LS.Workspace | Not Started
-| LS.Native | Not Started
 | LS.GraphGL | Not Started (worst code 😭)
 
 ## Deleted Components

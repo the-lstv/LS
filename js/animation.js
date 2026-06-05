@@ -13,6 +13,14 @@
         right: 'translateX(-10px)',
         forward: 'scale(1.1)',
         backward: 'scale(0.9)',
+        upForward: 'translateY(10px) scale(1.1)',
+        upBackward: 'translateY(10px) scale(0.9)',
+        downForward: 'translateY(-10px) scale(1.1)',
+        downBackward: 'translateY(-10px) scale(0.9)',
+        leftForward: 'translateX(10px) scale(1.1)',
+        leftBackward: 'translateX(10px) scale(0.9)',
+        rightForward: 'translateX(-10px) scale(1.1)',
+        rightBackward: 'translateX(-10px) scale(0.9)'
     };
 
     const activeAnimations = new WeakMap();

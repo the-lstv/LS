@@ -1,8 +1,6 @@
-LS.LoadComponent(class Tooltips extends LS.DestroyableComponent {
+LS.LoadComponent(class Tooltips extends LS.Component {
     constructor(){
-        super({
-            cleanupRating: "full"
-        });
+        super();
 
         this.container = this.createElement({ class: "ls-tooltip-layer" });
         this.contentElement = this.createElement({ class:"ls-tooltip-content" });

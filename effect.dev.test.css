@@ -1,0 +1,30 @@
+:root {
+    --spring: linear(0, 0.0018, 0.007 1.17%, 0.0334, 0.0758, 0.1306 5.54%, 0.2505 8.16%, 0.6477 16.03%, 0.7622 18.65%, 0.8498, 0.9229 23.32%, 0.9878 25.94%, 1.0308 28.27%, 1.0643 30.9%, 1.0791, 1.0886 34.39%, 1.094, 1.0944 38.48%, 1.0903 40.81%, 1.0814 43.43%, 1.0362 53.05%, 1.0184 57.42%, 1.0059, 0.9976 65.58%, 0.9925 70.25%, 0.991 75.79%, 0.9996 99.98%);
+}
+
+button::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: scaleX(0.8);
+    opacity: 0;
+    transition: .4s transform var(--spring), .4s opacity var(--spring) !important;
+    border-radius: inherit;
+    background-color: var(--accent-mix-40);
+    background-image: repeating-linear-gradient(45deg, var(--accent-mix-20), var(--accent-mix-20) 5px, var(--accent-mix-80) 5px, var(--accent-mix-80) 10px);
+    animation: bp 1s linear infinite;
+    z-index: 2;
+}
+
+button:active::after {
+    opacity: .8;
+    transform: none;
+}
+
+button:active::after {
+}
+
+@keyframes bp {
+    from { background-position: -7px 0 }
+    to { background-position: 7px 0 }
+}

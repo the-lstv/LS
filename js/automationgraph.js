@@ -1,6 +1,6 @@
 /**
  * Automation graph component for LS.
- * Migrated from v3 - still work in progress.
+ * Migrated from v3.
  * 
  * @author lstv.space
  * @license GPL-3.0
@@ -60,7 +60,11 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
             width: 460,
             height: 100,
             value: 0, // Initial value
-            rightClickToCreate: true
+            rightClickToCreate: true,
+            snapToColumns: 0,
+            allowAltUnsnap: false,
+            bounds: true,
+            stretch: false
         }, options);
 
         const minTime = Number.isFinite(this.options.minTime) ? this.options.minTime : 0;
@@ -91,6 +95,17 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
             this.options.value = this.options.minValue;
         }
         this.options.value = Math.max(this.options.minValue, Math.min(this.options.maxValue, this.options.value));
+
+        if (!Number.isFinite(this.options.snapToColumns) || this.options.snapToColumns < 0) {
+            this.options.snapToColumns = 0;
+        }
+
+        this.options.allowAltUnsnap = this.options.allowAltUnsnap !== false;
+        if (this.options.bounds !== "expand") {
+            this.options.bounds = this.options.bounds !== false;
+        }
+
+        this.options.stretch = this.options.stretch === true;
 
         this.gradientId = `ls-automation-gradient-${++this.constructor.gradientIndex}`;
 
@@ -249,6 +264,8 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
             onStart: (event) => {
                 const item = event.domEvent.target.__automationItem;
                 const type = event.domEvent.target.__automationHandleType;
+                
+                this.handle.options.pointerLock = type === 'center';
 
                 if(!item) {
                     this.focusedItem = null;
@@ -297,13 +314,26 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
                 const rect = this.element.getBoundingClientRect();
                 const relX = e.clientX - rect.left;
                 const relY = e.clientY - rect.top;
-                const time = Math.max(this.options.minTime, Math.min(this.options.maxTime, this.x2t(relX)));
+                let time = this.x2t(relX);
+                const snapStep = this.options.snapToColumns;
+                const shouldSnap = snapStep > 0 && !(this.options.allowAltUnsnap && e.altKey);
+
+                if (shouldSnap) {
+                    time = Math.round(time / snapStep) * snapStep;
+                }
+
+                if (this.options.bounds === true) {
+                    time = Math.max(this.options.minTime, Math.min(this.options.maxTime, time));
+                }
                 
                 let value;
                 if (e.shiftKey || (window.M && window.M.ShiftDown)) {
                     value = this.getValueAtTime(time);
                 } else {
-                    value = Math.max(this.options.minValue, Math.min(this.options.maxValue, this.y2v(relY)));
+                    value = this.y2v(relY);
+                    if (this.options.bounds === true) {
+                        value = Math.max(this.options.minValue, Math.min(this.options.maxValue, value));
+                    }
                 }
 
                 const newItem = this.add({ time, value, type: this.constructor.POINT_TYPES.LINEAR });
@@ -339,6 +369,20 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
     updateScale(scale) {
         if (!Number.isFinite(scale) || scale <= 0 || scale === this.scale) return;
         this.scale = scale;
+        this.frameScheduler.schedule();
+    }
+
+    updateSnapToColumns(columns = 0) {
+        const snap = Number(columns);
+        this.options.snapToColumns = Number.isFinite(snap) && snap > 0 ? snap : 0;
+    }
+
+    updateBounds(bounds = true) {
+        this.options.bounds = bounds === "expand" ? "expand" : bounds !== false;
+    }
+
+    updateStretch(stretch = false) {
+        this.options.stretch = stretch === true;
         this.frameScheduler.schedule();
     }
 
@@ -408,6 +452,14 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
 
     // time to x
     t2x(t) {
+        if (this.options.stretch) {
+            const range = this.options.maxTime - this.options.minTime;
+            const width = Number.isFinite(this.options.width) && this.options.width > 0 ? this.options.width : 1;
+            if (range > 0) {
+                return ((t - this.options.minTime) / range) * width;
+            }
+        }
+
         const scale = this.scale > 0 ? this.scale : 1;
         return (t - this.options.minTime) * scale;
     }
@@ -426,6 +478,14 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
 
     // x to time
     x2t(x) {
+        if (this.options.stretch) {
+            const range = this.options.maxTime - this.options.minTime;
+            const width = Number.isFinite(this.options.width) && this.options.width > 0 ? this.options.width : 1;
+            if (range > 0 && width > 0) {
+                return this.options.minTime + (x / width) * range;
+            }
+        }
+
         const scale = this.scale > 0 ? this.scale : 1;
         return (x / scale) + this.options.minTime;
     }
@@ -445,15 +505,21 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
     #normalizeItem(item) {
         if (!item || typeof item !== "object") return false;
 
+        const clampBounds = this.options.bounds === true;
+
         if (!Number.isFinite(item.time)) {
             item.time = this.options.minTime;
         }
-        item.time = Math.max(this.options.minTime, Math.min(this.options.maxTime, item.time));
+        if (clampBounds) {
+            item.time = Math.max(this.options.minTime, Math.min(this.options.maxTime, item.time));
+        }
 
         if (!Number.isFinite(item.value)) {
             item.value = this.options.value;
         }
-        item.value = Math.max(this.options.minValue, Math.min(this.options.maxValue, item.value));
+        if (clampBounds) {
+            item.value = Math.max(this.options.minValue, Math.min(this.options.maxValue, item.value));
+        }
 
         if (!Number.isFinite(item.curvature)) {
             item.curvature = 0;
@@ -508,23 +574,39 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
     }
 
     #createCenterHandle(item) {
+        const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+
+        const hitArea = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        hitArea.setAttribute("r", "10");
+        hitArea.setAttribute("fill", "transparent");
+        hitArea.style.cursor = "ns-resize";
+        hitArea.__automationItem = item;
+        hitArea.__automationHandleType = 'center';
+
         const handle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
         handle.classList.add("ls-automation-center-handle");
         handle.setAttribute("r", "4");
         handle.setAttribute("fill", "none");
         handle.setAttribute("stroke-width", "1");
         handle.setAttribute("stroke", "var(--accent)");
-        handle.style.cursor = "ns-resize";
-        handle.__automationItem = item;
-        handle.__automationHandleType = 'center';
+        handle.style.pointerEvents = "none";
 
-        handle.addEventListener('dblclick', (e) => {
+        group.style.cursor = "ns-resize";
+        group.__automationItem = item;
+        group.__automationHandleType = 'center';
+        group._visualNode = handle;
+
+        group.appendChild(hitArea);
+        group.appendChild(handle);
+
+        group.addEventListener('dblclick', (e) => {
             e.stopPropagation();
             e.preventDefault();
             item.curvature = 0;
             this.frameScheduler.schedule();
         });
-        return handle;
+
+        return group;
     }
 
     #render() {
@@ -608,8 +690,7 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
                     this.handleGroup.appendChild(item._centerHandleNode);
                 }
 
-                item._centerHandleNode.setAttribute("cx", pathData.center.x);
-                item._centerHandleNode.setAttribute("cy", pathData.center.y);
+                item._centerHandleNode.setAttribute("transform", `translate(${pathData.center.x} ${pathData.center.y})`);
             } else {
                 if (item._centerHandleNode) {
                     item._centerHandleNode.remove();
@@ -784,26 +865,62 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
             const relX = x - rect.left;
             const relY = y - rect.top;
             const shiftDown = !!(event.domEvent && event.domEvent.shiftKey) || (window.M && window.M.ShiftDown);
+            const altDown = !!(event.domEvent && event.domEvent.altKey);
+            const snapStep = this.options.snapToColumns;
+            const shouldSnap = snapStep > 0 && !(this.options.allowAltUnsnap && altDown);
+
+            let proposedTime = this.x2t(relX);
+            let proposedValue = this.y2v(relY);
+
+            if (shouldSnap) {
+                const pointerTime = this.x2t(relX);
+                const deltaFromStart = pointerTime - this._dragState.startTime;
+                proposedTime = this._dragState.startTime + (Math.round(deltaFromStart / snapStep) * snapStep);
+            }
+
+            const minOverflow = Math.max(0, this.options.minTime - proposedTime);
+            const maxOverflow = Math.max(0, proposedTime - this.options.maxTime);
+            const lowOverflow = Math.max(0, this.options.minValue - proposedValue);
+            const highOverflow = Math.max(0, proposedValue - this.options.maxValue);
+
+            if (this.options.bounds === "expand" && (minOverflow > 0 || maxOverflow > 0 || lowOverflow > 0 || highOverflow > 0)) {
+                this.emit("expand", [{
+                    minTime: minOverflow,
+                    maxTime: maxOverflow,
+                    minValue: lowOverflow,
+                    maxValue: highOverflow,
+                    item,
+                    sourceEvent: event.domEvent
+                }]);
+            }
             
             if (item === this.startPoint) {
                 // Start point only moves vertically
-                item.value = Math.max(this.options.minValue, Math.min(this.options.maxValue, this.y2v(relY)));
+                if (this.options.bounds === true) {
+                    item.value = Math.max(this.options.minValue, Math.min(this.options.maxValue, proposedValue));
+                } else {
+                    item.value = proposedValue;
+                }
             } else {
                 // Constrain time to neighbors
                 const index = this.items.indexOf(item);
-                let minT = this.options.minTime;
-                let maxT = this.options.maxTime;
-                
+                let minT = this.options.bounds === true ? this.options.minTime : -Infinity;
+                let maxT = this.options.bounds === true ? this.options.maxTime : Infinity;
+
                 if (index > 0) minT = this.items[index - 1].time;
                 if (index < this.items.length - 1) maxT = this.items[index + 1].time;
-                
-                item.time = Math.max(minT, Math.min(maxT, this.x2t(relX)));
+
+                item.time = Math.max(minT, Math.min(maxT, proposedTime));
                 
                 // Check for shift key to lock value
                 if (shiftDown) {
                     item.value = this._dragState.startValue;
                 } else {
-                    item.value = Math.max(this.options.minValue, Math.min(this.options.maxValue, this.y2v(relY)));
+                    if (this.options.bounds === true) {
+                        item.value = Math.max(this.options.minValue, Math.min(this.options.maxValue, proposedValue));
+                    } else {
+                        item.value = proposedValue;
+                    }
                 }
             }
             
@@ -950,6 +1067,11 @@ LS.LoadComponent(class AutomationGraph extends LS.Component {
     sortItems() {
         this.items = this.items.filter(item => this.#normalizeItem(item));
         this.items.sort((a, b) => a.time - b.time);
+
+        if (this.options.bounds !== true) {
+            this.__needsSort = false;
+            return;
+        }
 
         let previousTime = this.options.minTime;
         for (const item of this.items) {

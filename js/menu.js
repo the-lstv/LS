@@ -6,6 +6,8 @@
  * @license GPL-3.0
  */
 
+// todo: virtual scrolling perhaps & reuse more nodes
+
 LS.LoadComponent(class Menu extends LS.Component {
     static index = 0;
     static groups = {};
@@ -151,7 +153,7 @@ LS.LoadComponent(class Menu extends LS.Component {
 
         options = options || {};
 
-        this.container = (isElement ? element : N({
+        this.container = (isElement ? element : LS.Create({
             class: "ls-menu"
         }));
 
@@ -187,7 +189,7 @@ LS.LoadComponent(class Menu extends LS.Component {
 
         if (this.options.topLayer) {
             LS.once("ready", () => {
-                this.container.addTo(LS._topLayer.querySelector('.ls-dropdown-layer') || N({
+                this.container.addTo(LS._topLayer.querySelector('.ls-dropdown-layer') || LS.Create({
                     class: "ls-dropdown-layer"
                 }).addTo(LS._topLayer));
             });
@@ -1003,9 +1005,10 @@ LS.LoadComponent(class Menu extends LS.Component {
         } else {
             if (this.selectedItem) {
                 this.focus(this.selectedItem);
-            } else {
-                this.navigate(1);
             }
+            //  else {
+            //     this.navigate(1);
+            // }
         }
 
         if (this.isOpen) return;
@@ -1207,7 +1210,7 @@ customElements.define('ls-select', class LSSelect extends HTMLElement {
     #generateMenu() {
         let selectedOption = null;
 
-        this.label = this.querySelector('.ls-select-label') || N({
+        this.label = this.querySelector('.ls-select-label') || LS.Create({
             class: "ls-select-label"
         });
 
@@ -1317,8 +1320,11 @@ customElements.define('ls-select', class LSSelect extends HTMLElement {
             this.menu = null;
         }
 
-        this.content.remove();
-        this.content = null;
+        if(this.content) {
+            this.content.remove();
+            this.content = null;
+        }
+
         this.label = null;
         this.__pendingValue = null;
     }
