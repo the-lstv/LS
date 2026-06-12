@@ -192,18 +192,34 @@ LS.LoadComponent(class Tree extends LS.Component {
      * }
      * @param {Array} data - The tree data to load.
      * @param {Object} parent - The parent node to which the data should replaced, otherwise the whole tree will be replaced.
+     * @param {Object} options - Additional options for loading data.
+     * @param {boolean} options.lazy - Lazy load (skips existing node IDs and avoids full tree reset)
      */
-    loadData(data, parent = null) {
+    loadData(data, parent = null, options = {}) {
         if(parent) {
             return this.replaceChildren(parent, data);
         } else {
             // Reset everything
-            this.reset();
+            if(!options.lazy) this.reset();
         }
 
         this.#pendingDataRefresh = true;
         for(let item of data) {
+            if(options.lazy && this.nodeMap.has(item.id)) {
+                continue;
+            }
+
             this.addNode(item, parent);
+        }
+
+        if(options.lazy) {
+            // Remove any nodes that are not in the new data
+            const newIds = new Set(data.map(item => item.id));
+            for(let nodeId of this.nodeMap.keys()) {
+                if(!newIds.has(nodeId)) {
+                    this.removeNode(nodeId);
+                }
+            }
         }
     }
 
