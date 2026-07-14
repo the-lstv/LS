@@ -7,6 +7,7 @@
  */
 
 // todo: virtual scrolling perhaps & reuse more nodes
+// (optimize nodes in general & reduce weight)
 
 LS.LoadComponent(class Menu extends LS.Component {
     static index = 0;
@@ -133,6 +134,7 @@ LS.LoadComponent(class Menu extends LS.Component {
      * @property {boolean} options.ephemeral If true, the menu is destroyed when closed
      * @property {boolean} options.searchable If true, the menu has a search box to filter items
      * @property {string} options.group If set, only one menu in the group can be open at a time
+     * @property {string} options.animationDirection If LS.Animation is available, the menu will animate, and this controls the direction ("down" is default).
      */
     constructor(element, options = null) {
         super();
@@ -267,40 +269,6 @@ LS.LoadComponent(class Menu extends LS.Component {
         this.frameScheduler = null;
 
         this.container.addEventListener('keydown', (e) => this.#handleKeyDown(e));
-    }
-
-    #ensureSearchElements() {
-        if (!this.options.searchable || this.searchInput) return;
-
-        this.searchInput = LS.Create("input", {
-            type: "text",
-            class: "ls-menu-search",
-            placeholder: "Search...",
-            attributes: {
-                autocomplete: "off"
-            }
-        });
-
-        this.searchContainer = LS.Create("div", {
-            class: "ls-menu-search-container",
-            inner: this.searchInput
-        });
-
-        this.searchInput.addEventListener('input', () => {
-            this.#filterItems(this.searchInput.value);
-        });
-
-        this.searchInput.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                this.navigate(1);
-            } else if (e.key === 'Enter') {
-                e.preventDefault();
-                if (this.focusedItem) {
-                    this.#handleItemClick(this.focusedItem);
-                }
-            }
-        });
     }
 
     #render() {
@@ -880,11 +848,11 @@ LS.LoadComponent(class Menu extends LS.Component {
         this.render();
     }
 
-    toggle() {
+    toggle(x = undefined, y = undefined, positionOptions = undefined) {
         if (this.isOpen) {
             this.close();
         } else {
-            this.open();
+            this.open(x, y, positionOptions);
         }
     }
 
@@ -897,7 +865,40 @@ LS.LoadComponent(class Menu extends LS.Component {
             }
         }
 
-        this.#ensureSearchElements();
+        // ? the fuck is this ai slop
+        // need to rewrite half of this component
+        if (this.options.searchable && !this.searchInput) {
+            this.searchInput = LS.Create("input", {
+                type: "text",
+                class: "ls-menu-search",
+                placeholder: "Search...",
+                attributes: {
+                    autocomplete: "off"
+                }
+            });
+    
+            this.searchContainer = LS.Create("div", {
+                class: "ls-menu-search-container",
+                inner: this.searchInput
+            });
+    
+            this.searchInput.addEventListener('input', () => {
+                this.#filterItems(this.searchInput.value);
+            });
+    
+            this.searchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    this.navigate(1);
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (this.focusedItem) {
+                        this.#handleItemClick(this.focusedItem);
+                    }
+                }
+            });
+        }
+
         this.render(true);
         this.container.style.zIndex = ++this.constructor.zIndexCounter;
 
@@ -907,9 +908,12 @@ LS.LoadComponent(class Menu extends LS.Component {
             let anchorRect = positionOptions && positionOptions.anchorRect ? positionOptions.anchorRect : null;
             const viewportPadding = 8;
 
-            if (posX === undefined || posY === undefined) {
-                if (this.options.adjacentElement) {
-                    const rect = this.options.adjacentElement.getBoundingClientRect();
+            // Optional
+            const adjacentElement = (posX instanceof Element)? posX: this.options.adjacentElement;
+
+            if (posX === undefined || posY === undefined || posX instanceof Element) {
+                if (adjacentElement) {
+                    const rect = adjacentElement.getBoundingClientRect();
                     anchorRect = anchorRect || rect;
                     posX = rect.left;
                     posY = rect.bottom;
@@ -928,7 +932,7 @@ LS.LoadComponent(class Menu extends LS.Component {
                 if (!this.options.inheritAdjacentWidth) {
                     this.container.style.minWidth = '';
                 } else {
-                    const width = this.options.adjacentElement ? this.options.adjacentElement.getBoundingClientRect().width : null;
+                    const width = adjacentElement ? adjacentElement.getBoundingClientRect().width : null;
                     if (width) {
                         this.container.style.minWidth = width + 'px';
                     }
@@ -992,7 +996,7 @@ LS.LoadComponent(class Menu extends LS.Component {
         }
 
         if (LS.Animation) {
-            LS.Animation.fadeIn(this.container, 200, "down");
+            LS.Animation.fadeIn(this.container, 200, this.options.animationDirection || "down");
         } else {
             this.container.style.display = 'block';
         }
@@ -1035,7 +1039,7 @@ LS.LoadComponent(class Menu extends LS.Component {
         this.emit("close");
 
         if (LS.Animation) {
-            LS.Animation.fadeOut(this.container, 200, "down");
+            LS.Animation.fadeOut(this.container, 200, this.options.animationDirection || "down");
         } else {
             this.container.style.display = 'none';
         }

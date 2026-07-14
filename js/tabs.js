@@ -260,7 +260,7 @@ LS.LoadComponent(class Tabs extends LS.Component {
     #renderList(){
         if(!this.list || !this.options.list) return;
 
-        if(!this.#listButtons.length && this.options.listButtons) {
+        if(this.options.listButtons) {
             let listButtons = this.options.listButtons;
 
             if(listButtons === true) {

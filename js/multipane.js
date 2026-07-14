@@ -21,63 +21,69 @@
                 tag: "layout-item",
                 class: 'layout-slot',
                 inner: [
-                    this.__header = LS.Create({ class: "layout-slot-header", inner: [
-                        [
-                            { tag: "svg", attributes: {
-                                xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 256 256",
-                                width: "16", height: "16",
-                                fill: "currentColor"
-                            }, innerHTML: `<path d="M108,60A16,16,0,1,1,92,44,16,16,0,0,1,108,60Zm56,16a16,16,0,1,0-16-16A16,16,0,0,0,164,76ZM92,112a16,16,0,1,0,16,16A16,16,0,0,0,92,112Zm72,0a16,16,0,1,0,16,16A16,16,0,0,0,164,112ZM92,180a16,16,0,1,0,16,16A16,16,0,0,0,92,180Zm72,0a16,16,0,1,0,16,16A16,16,0,0,0,164,180Z"></path>` }, this.__titleElement = LS.Create({ tag: "span", inner: "Empty slot" })
-                        ],
-                        [
-                            { tag: "button", class: "square clear small layout-slot-close-button", inner: { tag: "i", class: "bi-x-lg" }, onclick: () => {
-                                this.set(null);
-                            } }
+                    this.__header = LS.Create({
+                        class: "layout-slot-header", inner: [
+                            [
+                                {
+                                    tag: "svg", attributes: {
+                                        xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 256 256",
+                                        width: "16", height: "16",
+                                        fill: "currentColor"
+                                    }, innerHTML: `<path d="M108,60A16,16,0,1,1,92,44,16,16,0,0,1,108,60Zm56,16a16,16,0,1,0-16-16A16,16,0,0,0,164,76ZM92,112a16,16,0,1,0,16,16A16,16,0,0,0,92,112Zm72,0a16,16,0,1,0,16,16A16,16,0,0,0,164,112ZM92,180a16,16,0,1,0,16,16A16,16,0,0,0,92,180Zm72,0a16,16,0,1,0,16,16A16,16,0,0,0,164,180Z"></path>`
+                                }, this.__titleElement = LS.Create({ tag: "span", inner: "Empty slot" })
+                            ],
+                            [
+                                {
+                                    tag: "button", class: "square clear small layout-slot-close-button", inner: { tag: "i", class: "bi-x-lg" }, onclick: () => {
+                                        this.set(null);
+                                    }
+                                }
+                            ]
                         ]
-                    ]}),
+                    }),
                     this.__emptyMessage
                 ]
             });
 
             this.container._slotInstance = this;
 
-            if(options.minSize) {
+            if (options.minSize) {
                 this.container.style.minWidth = options.minSize.width + 'px';
                 this.container.style.minHeight = options.minSize.height + 'px';
             }
 
-            if(options.maxSize) {
+            if (options.maxSize) {
                 this.container.style.maxWidth = options.maxSize.width + 'px';
                 this.container.style.maxHeight = options.maxSize.height + 'px';
             }
 
-            if(options.width) {
-                this.container.style.width = options.width + (typeof options.width === "number"? 'px': '');
+            if (options.width) {
+                this.container.style.width = options.width + (typeof options.width === "number" ? 'px' : '');
             }
 
-            if(options.height) {
-                this.container.style.height = options.height + (typeof options.height === "number"? 'px': '');
+            if (options.height) {
+                this.container.style.height = options.height + (typeof options.height === "number" ? 'px' : '');
             }
         }
 
         set(view) {
             const oldView = this.currentView;
-            
-            for(const child of this.container.children) {
-                if(child === this.__header || child.classList.contains('ls-resize-handle')) continue;
+
+            for (const child of this.container.children) {
+                if (child === this.__header || child.classList.contains('ls-resize-handle')) continue;
                 child.remove();
             }
 
-            if(oldView) {
+            if (oldView) {
                 oldView.currentSlot = null;
             }
 
             this.currentView = view;
 
-            if(!view || view.destroyed) {
+            if (!view || view.destroyed) {
                 this.container.appendChild(this.__emptyMessage);
                 this.__titleElement.innerText = "Empty slot";
-                if(view && view.destroyed) {
+                if (view && view.destroyed) {
                     console.warn(`Slot.set: cannot set destroyed view ${view.constructor.name} to slot ${this.name}`);
                     view.currentSlot = null;
                     return;
@@ -89,7 +95,7 @@
             view.currentSlot = this;
 
             view.on?.('destroy', () => {
-                if(this.currentView === view) {
+                if (this.currentView === view) {
                     this.set(null);
                 }
             });
@@ -123,7 +129,7 @@
      * Base class for all views
      */
     class View extends LS.EventEmitter {
-        constructor({ container, name, title } = {}) { 
+        constructor({ container, name, title } = {}) {
             super();
 
             this.container = container;
@@ -140,12 +146,12 @@
 
         // Subclasses should override with their own destruction logic, but DON'T forget to call super.destroy()
         destroy() {
-            if(this.destroyed) return;
+            if (this.destroyed) return;
             this.emit('destroy');
             this.container.remove();
             this.events.clear();
             this.destroyed = true;
-            if(this.currentSlot) {
+            if (this.currentSlot) {
                 this.currentSlot.set(null);
             }
         }
@@ -153,170 +159,119 @@
 
     LS.LoadComponent(class Multipane extends LS.Component {
         static PRESETS = {
-            /**
-             * |   | | |
-             * |   |---|
-             * |   |   |
-             */
-            'default': {
-                title: "Default",
-                direction: 'row',
-                inner: [
-                    {
-                        inner: {
-                            direction: 'column',
-                            inner: [
-                                { type: 'slot', resize: { height: "70%" } },
-                                { type: 'slot' }
-                            ]
+            default: {
+                /**
+                * |       |
+                * |       |
+                * |       |
+                */
+                default: {
+                    id: "default",
+                    title: "Default",
+                    direction: 'column',
+                    inner: [
+                        { type: 'slot' }
+                    ]
+                },
+
+                /**
+                 * |   | | |
+                 * |   |---|
+                 * |   |   |
+                 */
+                basic: {
+                    id: "basic",
+                    title: "Basic",
+                    direction: 'row',
+                    inner: [
+                        {
+                            inner: {
+                                direction: 'column',
+                                inner: [
+                                    { type: 'slot', resize: { height: "70%" } },
+                                    { type: 'slot' }
+                                ]
+                            }
+                        },
+                        {
+                            inner: {
+                                direction: 'column',
+                                inner: [{ direction: "row", inner: [{ type: 'slot' }, { type: 'slot' }] }, { type: 'slot' }]
+                            }
                         }
-                    },
-                    {
-                        inner: {
-                            direction: 'column',
-                            inner: [{ direction: "row", inner: [{ type: 'slot' }, { type: 'slot' }] }, { type: 'slot' }]
-                        }
-                    }
-                ]
-            },
+                    ]
+                },
 
-            /**
-            * |       |
-            * |-------|
-            * |       |
-            */
-            'editor-focused': {
-                title: "Dual horizontal",
-                direction: 'column',
-                inner: [
-                    { type: 'slot', resize: { height: "70%" } },
-                    {
-                        direction: 'row',
-                        inner: [
-                            { type: 'slot', resize: { width: "50%" } },
-                            { type: 'slot' }
-                        ]
-                    }
-                ]
-            },
-
-            /**
-            * |   |   |
-            * |   |   |
-            * |   |   |
-            */
-            'output-focused': {
-                title: "Output Focused",
-                direction: 'row',
-                inner: [
-                    { type: 'slot', resize: { width: "40%" } },
-                    {
-                        direction: 'column',
-                        inner: [
-                            { type: 'slot', resize: { height: "60%" } },
-                            { type: 'slot' }
-                        ]
-                    }
-                ]
-            },
-
-            /**
-            * |       |
-            * |-------|
-            * |       |
-            * |-------|
-            * |       |
-            */
-            'vertical-compiler': {
-                title: "Vertical",
-                direction: 'column',
-                inner: [
-                    { type: 'slot', resize: { height: "50%" } },
-                    { type: 'slot', resize: { height: "25%" } },
-                    { type: 'slot' }
-                ]
-            },
-
-            /**
-            * |     |  |
-            * |-----|--|
-            * |     |  |
-            */
-            'ast-sidebar': {
-                title: "AST Sidebar",
-                direction: 'row',
-                inner: [
-                    {
-                        direction: 'column',
-                        inner: [
-                            { type: 'slot', resize: { height: "60%" } },
-                            { type: 'slot' }
-                        ]
-                    },
-                    { type: 'slot', resize: { width: 300 } }
-                ]
-            },
-
-            /**
-            * | |   | |
-            * | |   | |
-            * | |   | |
-            */
-            'three-column-compiler': {
-                title: "Three Columns",
-                direction: 'row',
-                inner: [
-                    { type: 'slot', resize: { width: "35%" } },
-                    { type: 'slot', resize: { width: "35%" } },
-                    { type: 'slot' }
-                ]
-            },
-
-            /**
-            * |   |   |
-            * |-------|
-            * |   |   |
-            * |-------|
-            * |   |   |
-            */
-            'four-panel': {
-                title: "Four Panel",
-                direction: 'column',
-                inner: [
-                    { inner: [{ type: 'slot', resize: { width: "50%" } }, { type: 'slot' }], resize: { height: "50%" } },
-                    { inner: [{ type: 'slot', resize: { width: "50%" } }, { type: 'slot' }], resize: { height: "50%" } }
-                ]
-            },
-
-            /**
-            * |       |
-            * |       |
-            * |       |
-            */
-            'editor-only': {
-                title: "Editor only",
-                direction: 'column',
-                inner: [
-                    { type: 'slot' }
-                ]
-            },
-
-            /**
-            * |       |
-            * |       |
-            * |       |
-            */
-            'single': {
-                title: "Single",
-                direction: 'column',
-                inner: [
-                    { type: 'slot' }
-                ]
-            },
+                /**
+                * |   |   |
+                * |-------|
+                * |   |   |
+                * |-------|
+                * |   |   |
+                */
+                "four-panel": {
+                    id: "four-panel",
+                    title: "Four Panel",
+                    direction: 'column',
+                    inner: [
+                        { inner: [{ type: 'slot', resize: { width: "50%" } }, { type: 'slot' }], resize: { height: "50%" } },
+                        { inner: [{ type: 'slot', resize: { width: "50%" } }, { type: 'slot' }], resize: { height: "50%" } }
+                    ]
+                },
+            }
         };
 
         static View = View;
         static Slot = Slot;
+
+        static registerPresets(group, presets) {
+            if (!presets || typeof group === "object") {
+                presets = group;
+            } else {
+                presets = { [group]: presets };
+            }
+
+            if (!presets || typeof presets !== "object" || Array.isArray(presets)) {
+                return;
+            }
+
+            for (const [group, groupPresets] of Object.entries(presets)) {
+                if (!groupPresets || typeof groupPresets !== "object" || Array.isArray(groupPresets)) {
+                    continue;
+                }
+
+                if (!this.PRESETS[group]) {
+                    this.PRESETS[group] = {};
+                }
+
+                for (const [id, preset] of Object.entries(groupPresets)) {
+                    this.PRESETS[group][id] = { id, group, ...preset };
+                }
+            }
+        }
+
+        static getPreset(id) {
+            if (typeof id !== "string" || !id) {
+                return null;
+            }
+
+            const [group, presetId] = id.split(':');
+            if (presetId) {
+                return this.PRESETS[group]?.[presetId] || null;
+            }
+
+            if (this.PRESETS.default?.[group]) {
+                return this.PRESETS.default[group];
+            }
+
+            for (const groupPresets of Object.values(this.PRESETS)) {
+                if (groupPresets[group]) {
+                    return groupPresets[group];
+                }
+            }
+
+            return null;
+        }
 
         /**
          * Main Layout Manager
@@ -345,7 +300,7 @@
         static cloneSchema(schema) {
             function replacer(key, value) {
                 if (value instanceof Slot) {
-                    return { type: 'slot', view: value.expectedView, ...value.options? { options: value.options }: {}, ...value.resize? { resize: value.resize }: {} };
+                    return { type: 'slot', view: value.expectedView, ...value.options ? { options: value.options } : {}, ...value.resize ? { resize: value.resize } : {} };
                 }
                 return value;
             }
@@ -393,36 +348,36 @@
         }
 
         setSchema(schema) {
-            if(typeof schema === "string") {
-                schema = this.constructor.PRESETS[schema];
+            if (typeof schema === "string") {
+                schema = LS.Multipane.getPreset(schema);
             }
 
-            if(!schema || (typeof schema !== "object")) {
-                if(this.__schemaLoaded) {
+            if (!schema || (typeof schema !== "object")) {
+                if (this.__schemaLoaded) {
                     console.error("LS.Multipane.setSchema: valid schema is required");
                     return false;
                 }
 
                 console.warn("LS.Multipane.setSchema: invalid schema provided, using default");
-                schema = this.constructor.PRESETS['default'];
+                schema = LS.Multipane.getPreset('default');
             }
 
             // Make a deep copy of the schema and set it as the current working schema
             schema = this.constructor.cloneSchema(schema);
             this.schema = schema;
 
-            for(const child of this.container.children) {
+            for (const child of this.container.children) {
                 child.remove();
             }
 
-            for(const slot of this.slots) {
-                if(slot.container) {
+            for (const slot of this.slots) {
+                if (slot.container) {
                     LS.Resize.remove(slot.container); // Removes any resize handlers
-                    if(slot.destroy) slot.destroy();
+                    if (slot.destroy) slot.destroy();
                 }
             }
 
-            for(const item of this.destroyables) {
+            for (const item of this.destroyables) {
                 item.destroy();
             }
             this.destroyables.clear();
@@ -437,12 +392,16 @@
 
         getAvailableLayouts() {
             const layouts = [];
-            for (const key in this.constructor.PRESETS) {
-                layouts.push({
-                    name: key,
-                    title: this.constructor.PRESETS[key].title || key,
-                    schema: this.constructor.cloneSchema(this.constructor.PRESETS[key])
-                });
+            for (const [group, groupPresets] of Object.entries(this.constructor.PRESETS)) {
+                for (const [id, preset] of Object.entries(groupPresets)) {
+                    layouts.push({
+                        name: group === "default" ? id : `${group}:${id}`,
+                        group,
+                        id,
+                        title: preset.title || id,
+                        schema: this.constructor.cloneSchema(preset)
+                    });
+                }
             }
             return layouts;
         }
@@ -464,9 +423,9 @@
                     styled: false
                 });
 
-                if(schema.tabs) {
+                if (schema.tabs) {
                     let i = 0;
-                    for(const tabData of schema.tabs) {
+                    for (const tabData of schema.tabs) {
                         let title = tabData.title || `Tab ${i + 1}`;
                         let contentNode;
 
@@ -475,7 +434,7 @@
                         } else {
                             contentNode = this._processSchema(tabData);
                         }
-                        
+
                         tabs.add(title, contentNode);
                         i++;
                     }
@@ -487,17 +446,17 @@
             }
 
             const direction = schema.direction || "row";
-            const container = LS.Create({ tag: "layout-item", class: 'layout-' + direction, ...schema.tilt? { style: `transform:rotate(${schema.tilt}deg)` }: {} });
+            const container = LS.Create({ tag: "layout-item", class: 'layout-' + direction, ...schema.tilt ? { style: `transform:rotate(${schema.tilt}deg)` } : {} });
 
-            if(Array.isArray(schema.inner)) {
+            if (Array.isArray(schema.inner)) {
                 let i = 0;
                 for (const item of schema.inner) {
                     const child = this._processSchema(item);
                     container.appendChild(child);
 
-                    if(i !== schema.inner.length - 1) {
+                    if (i !== schema.inner.length - 1) {
                         LS.Resize.set(child, {
-                            sides: direction === 'column'? ['bottom']: ['right'],
+                            sides: direction === 'column' ? ['bottom'] : ['right'],
                             siblibngs: true, // TODO
 
                             // Snapping
@@ -519,7 +478,7 @@
                             }
                         });
 
-                        if(!item.resize) child.style[direction === 'column'? 'height': 'width'] = (100 / schema.inner.length) + '%';
+                        if (!item.resize) child.style[direction === 'column' ? 'height' : 'width'] = (100 / schema.inner.length) + '%';
                     }
 
                     i++;
@@ -536,7 +495,7 @@
                 schema: this.constructor.cloneSchema(this.schema)
             }
 
-            return asString? JSON.stringify(exported): exported;
+            return asString ? JSON.stringify(exported) : exported;
         }
 
         importLayout(data) {
@@ -555,7 +514,7 @@
 
         // TODO:
         destroy() {
-            if(this.destroyed) return;
+            if (this.destroyed) return;
 
             for (const slot of this.slots) {
                 if (slot.container) {
