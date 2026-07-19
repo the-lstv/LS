@@ -232,5 +232,10 @@
   padding: 20px 25px;
   padding-bottom: 0;
 }
+.ls-modal-styled .ls-modal-input {
+  display: block;
+  width: 100%;
+  margin-top: 8px !important;
+}
 
 /*# sourceMappingURL=flat.css.map */

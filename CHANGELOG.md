@@ -25,6 +25,7 @@ Major update (2026 release)!
 - Enhancements to modal behavior
 - LS.Util.clone now supports advanced filtering and object mapping/transformation capabilities
 - Added tools, grid snapping, and other enhancements to LS.Timeline
+- Added LS.Modal.alert, LS.Modal.confirm and LS.Modal.prompt helpers for quick modals
 
 < work in progress >
 

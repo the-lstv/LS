@@ -107,11 +107,15 @@ LS.LoadComponent(class Tabs extends LS.Component {
             options.icon = LS.Create("i", { class: options.icon });
         }
 
-        const tab = { id, element: content, title: options.title || options.label || content.getAttribute("tab-title") || content.getAttribute("title") || id, icon: options.icon || null, handle: null, reorderHandle: null };
+        const tab = { id, element: content, title: options.title || options.label || content.getAttribute("tab-title") || content.getAttribute("title") || id, icon: options.icon || null, handle: null, reorderHandle: null, userData: options.userData || null };
 
         this.tabs.set(id, tab);
         this.order.push(id);
         this.container.add(content);
+
+        if(options.active || options.activate || this.activeTab === null) {
+            this.set(id);
+        }
 
         content.classList.add("ls-tab-content");
         this.renderList();
@@ -260,7 +264,8 @@ LS.LoadComponent(class Tabs extends LS.Component {
     #renderList(){
         if(!this.list || !this.options.list) return;
 
-        if(this.options.listButtons) {
+        if(this.options.listButtons && !this.__listButtonsInitialized) {
+            this.__listButtonsInitialized = true;
             let listButtons = this.options.listButtons;
 
             if(listButtons === true) {
@@ -272,13 +277,14 @@ LS.LoadComponent(class Tabs extends LS.Component {
             }
 
             if(Array.isArray(listButtons)) {
-                for(const item of listButtons) {
+                for(let i = 0; i < listButtons.length; i++) {
+                    const item = listButtons[i];
                     const button = item instanceof Element ? item : LS.toNode(item);
 
                     if(!button) continue;
 
                     const onClick = () => {
-                        this.emit("button", [button]);
+                        this.emit("button", [button, i]);
                     };
 
                     button.addEventListener("click", onClick);

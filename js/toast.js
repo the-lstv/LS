@@ -18,10 +18,10 @@ LS.LoadComponent(class Toast extends LS.Component {
 
         this.setTimeout(() => {
             // this.element.class("open");
-            if(LS.Animation) LS.Animation.fadeIn(this.element, 400, "upBackward");
+            if(LS.Animation) LS.Animation.fadeIn(this.element, "upBackward", 400);
         }, 1);
 
-        if(options.timeout > 0) this.setTimeout(() => {
+        if(options.timeout > 0 || options.timeout === undefined) this.setTimeout(() => {
             this.close();
         }, options.timeout || 5000);
     }

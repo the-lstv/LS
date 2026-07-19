@@ -5,7 +5,7 @@
  * Last modified: 2026
  *
  * @description Extensive color library and theme utilities
- * @copyright 2024 Lukas (thelstv) <https://lstv.space>
+ * @copyright 2026 Lukas (thelstv) <https://lstv.space>
  * @see https://github.com/thelstv/LS
  * @license GPL-3.0
  * 

@@ -1736,6 +1736,8 @@
              * Very experimental - may not always be reliable for complex objects and as of now ignores functions and prototypes (maybe I'll expand it later).
              * https://jsbm.dev/wFkz6UCGJevxw
              * 
+             * Note: Klona is a bit faster in Firefox. In V8, this wins. I will check that out later.
+             * 
              * Filter modes:
              * - LS.Util.FILTER_MODE_REMOVE (default): Removes the key from the cloned object if the filter returns a falsy value.
              * - LS.Util.FILTER_MODE_MAP: Also removes the key on a falsy value, but accepts a { newKey, newValue, cloneValue } object to rename/modify the key and value in the cloned object.
@@ -1743,6 +1745,8 @@
              *   It also allows deciding whether the new value should be cloned or not.
              * 
              * @param {*} obj Object to clone
+             * @param {function} filter Optional filter function that receives (key, value) and returns a truthy value to keep the key, or a falsy value to remove it. In FILTER_MODE_MAP, it can also return an object with newKey/newValue/cloneValue.
+             * @param {number} filterMode Optional filter mode, either LS.Util.FILTER_MODE_REMOVE (default) or LS.Util.FILTER_MODE_MAP.
              * @returns Cloned object
              * @experimental
              * 

@@ -132,6 +132,10 @@
         constructor({ container, name, title } = {}) {
             super();
 
+            if(!container) {
+                container = LS.Create();
+            }
+
             this.container = container;
             this.container.classList.add('editor-view');
             this.__name = name || null;

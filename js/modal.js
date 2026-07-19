@@ -101,7 +101,7 @@
             this.container.style.zIndex = LS.Stack.length;
 
             if (LS.Animation && this.options.animate !== false) {
-                LS.Animation.fadeIn(this.container, this.options.fadeInDuration || 300, this.options.fadeInDirection || 'forward');
+                LS.Animation.fadeIn(this.container, this.options.fadeInDirection || 'forward', this.options.fadeInDuration);
             }
 
             this.emit("open");
@@ -136,7 +136,7 @@
             }, 0);
 
             if (LS.Animation && this.options.animate !== false) {
-                LS.Animation.fadeOut(this.container, this.options.fadeOutDuration || 300, this.options.fadeOutDirection || 'backward');
+                LS.Animation.fadeOut(this.container, this.options.fadeOutDirection || 'backward', this.options.fadeOutDuration);
             }
 
             if (this.options.ephemeral) {
@@ -160,7 +160,7 @@
                 LS.Context.setTimeout(() => {
                     this.container.remove();
                     this.container = null;
-                }, this.options.fadeOutDuration || 300);
+                }, this.options.fadeOutDuration);
             } else {
                 this.container.remove();
                 this.container = null;
@@ -194,6 +194,148 @@
             modalOptions.ephemeral = true;
             modalOptions.open = true;
             return LS.Modal.build(options, modalOptions);
+        }
+
+        /**
+         * A simple non-blocking confirm dialog helper that simulates the confirm() dialog.
+         * @param {*} message The message to display in the modal
+         * @param {*} options Optional settings for the modal
+         * @returns {Promise<boolean>} Resolves to true if confirmed, false if cancelled.
+         */
+        static confirm(message, options = {}) {
+            let resolved = false;
+            return new Promise((resolve, reject) => {
+                const modal = LS.Modal.build({
+                    title: options.title || "Confirm",
+                    content: message,
+                    buttons: [
+                        {
+                            class: "elevated",
+                            label: options.cancelLabel || "Cancel"
+                        },
+                        {
+                            label: options.okLabel || "OK",
+                            onClick: function() {
+                                resolved = true;
+                                if (typeof options.onOk === "function") {
+                                    options.onOk();
+                                }
+                                resolve(true);
+                                modal.close();
+                            }
+                        }
+                    ]
+                }, {
+                    closeable: options.closeable === true,
+                    shade: options.shade !== false,
+                    width: options.width || "400px",
+                    height: options.height || null,
+                    animate: options.animate !== false,
+                    open: true,
+                    ephemeral: true
+                });
+
+                modal.once("destroy", () => {
+                    if (resolved) return;
+                    if (typeof options.onCancel === "function") {
+                        options.onCancel();
+                    }
+                    resolve(false);
+                });
+            });
+        }
+
+        /**
+         * A simple non-blocking prompt dialog helper that simulates the prompt() dialog.
+         * @param {*} message The message to display in the modal
+         * @param {*} options Optional settings for the modal
+         * @returns {Promise<string|null>} Resolves to the user's input or null if cancelled.
+         */
+        static prompt(message, value, options = {}) {
+            let resolved = false;
+
+            const inputField = document.createElement("input");
+            inputField.type = "text";
+            inputField.value = value || options.defaultValue || "";
+            inputField.className = "ls-modal-input";
+            
+            if (options.placeholder) {
+                inputField.placeholder = options.placeholder;
+            }
+
+            return new Promise((resolve, reject) => {
+                const modal = LS.Modal.build({
+                    title: options.title || "Prompt",
+                    content: [message, inputField],
+                    buttons: [
+                        {
+                            class: "elevated",
+                            label: options.cancelLabel || "Cancel"
+                        },
+                        {
+                            label: options.okLabel || "OK",
+                            onClick: function() {
+                                resolved = true;
+                                if (typeof options.onOk === "function") {
+                                    options.onOk(inputField.value);
+                                }
+                                resolve(inputField.value);
+                                modal.close();
+                            }
+                        }
+                    ]
+                }, {
+                    closeable: options.closeable === true,
+                    shade: options.shade !== false,
+                    width: options.width || "400px",
+                    height: options.height || null,
+                    animate: options.animate !== false,
+                    open: true,
+                    ephemeral: true,
+                    focusTarget: inputField
+                });
+
+                modal.once("destroy", () => {
+                    if (resolved) return;
+                    if (typeof options.onCancel === "function") {
+                        options.onCancel();
+                    }
+                    resolve(null);
+                });
+            });
+        }
+
+        /**
+         * A simple non-blocking alert dialog helper that simulates the alert() dialog.
+         * @param {*} message The message to display in the modal
+         * @param {*} options Optional settings for the modal
+         * @returns {Promise<void>} Resolves when the alert is closed.
+         */
+        static alert(message, options = {}) {
+            return new Promise((resolve) => {
+                const modal = LS.Modal.build({
+                    title: options.title || "Alert",
+                    content: message,
+                    buttons: [
+                        { label: options.okLabel || "OK" }
+                    ]
+                }, {
+                    closeable: options.closeable === true,
+                    shade: options.shade !== false,
+                    width: options.width || "400px",
+                    height: options.height || null,
+                    animate: options.animate !== false,
+                    open: true,
+                    ephemeral: true
+                });
+
+                modal.once("destroy", () => {
+                    if (typeof options.onOk === "function") {
+                        options.onOk();
+                    }
+                    resolve();
+                });
+            });
         }
 
         static TEMPLATE(d){'use strict';var e0=document.createElement("div");e0.tabIndex="0";e0.className="ls-modal";if(!!(d.inner)){e0.appendChild(LS.toNode(d.inner));}else{if(!!(d.title)){var e1=document.createElement("h2");e1.className="ls-modal-title";e1.append(LS.toNode(d.title));e0.appendChild(e1);}if(!!(d.content)){var e2=document.createElement("div");e2.className="ls-modal-body";e2.append(LS.toNode(d.content));e0.appendChild(e2);}if(!!(d.buttons)){var e3=document.createElement("div");e3.className="ls-modal-footer";var a4=d.buttons||[];for(const i5 of a4){var e6=document.createElement("button");e6.textContent=(i5.label) || ("Button");e6.onclick=(i5.onClick) || (i5.onclick) || (d.closeModal);e6.setAttribute("ls-accent",(i5.accent) || (null));e6.className=["ls-modal-button",i5.class].filter(Boolean).join(" ");e3.appendChild(e6);}e0.appendChild(e3);}}var __rootValue=e0;return{root:__rootValue};}

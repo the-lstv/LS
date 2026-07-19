@@ -134,7 +134,7 @@ LS.LoadComponent(class Menu extends LS.Component {
      * @property {boolean} options.ephemeral If true, the menu is destroyed when closed
      * @property {boolean} options.searchable If true, the menu has a search box to filter items
      * @property {string} options.group If set, only one menu in the group can be open at a time
-     * @property {string} options.animationDirection If LS.Animation is available, the menu will animate, and this controls the direction ("down" is default).
+     * @property {string} options.animationDirection If LS.Animation is available, the menu will animate, and this controls the direction
      */
     constructor(element, options = null) {
         super();
@@ -996,7 +996,7 @@ LS.LoadComponent(class Menu extends LS.Component {
         }
 
         if (LS.Animation) {
-            LS.Animation.fadeIn(this.container, 200, this.options.animationDirection || "down");
+            LS.Animation.fadeIn(this.container, this.options.animationDirection || "right");
         } else {
             this.container.style.display = 'block';
         }
@@ -1039,7 +1039,7 @@ LS.LoadComponent(class Menu extends LS.Component {
         this.emit("close");
 
         if (LS.Animation) {
-            LS.Animation.fadeOut(this.container, 200, this.options.animationDirection || "down");
+            LS.Animation.fadeOut(this.container, this.options.animationDirection || "right");
         } else {
             this.container.style.display = 'none';
         }
