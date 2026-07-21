@@ -131,48 +131,6 @@
         }
     }
 
-    /**
-     * View class
-     * Base class for all views
-     */
-    class View extends LS.EventEmitter {
-        constructor({ container, name, title } = {}) {
-            super();
-
-            if(!container) {
-                container = LS.Create();
-            }
-
-            this.container = container;
-            this.container.classList.add('editor-view');
-            this.__name = name || null;
-            this.title = title || null;
-
-            this.currentSlot = null;
-        }
-
-        get isConnected() {
-            return (this.container && this.container.isConnected && this.currentSlot && this.container.parentElement === this.currentSlot.container);
-        }
-
-        // Subclasses should override with their own destruction logic, but DON'T forget to call super.destroy()
-        destroy() {
-            this.emit('destroy');
-            this.events.clear();
-
-            if(this.container) {
-                this.container.remove();
-                this.container = null;
-            }
-
-            if (this.currentSlot) {
-                this.currentSlot.set(null);
-            }
-
-            this.destroyed = true;
-        }
-    }
-
     LS.LoadComponent(class Multipane extends LS.Component {
         static PRESETS = {
             default: {
@@ -237,7 +195,7 @@
             }
         };
 
-        static View = View;
+        static View = LS.View;
         static Slot = Slot;
 
         static registerPresets(group, presets) {
@@ -326,8 +284,8 @@
 
         add(...views) {
             for (const view of views) {
-                if (!(view instanceof View)) {
-                    console.error("LS.Multipane.add: view must be an instance of View");
+                if (!(view instanceof LS.View)) {
+                    console.error("LS.Multipane.add: view must be an instance of LS.View");
                     return;
                 }
 
@@ -388,7 +346,9 @@
 
             for (const slot of this.slots) {
                 if (slot.container) {
-                    LS.Resize.remove(slot.container); // Removes any resize handlers
+                    if(LS.Resize) {
+                        LS.Resize.remove(slot.container); // Removes any resize handlers
+                    }
                     if (slot.destroy) slot.destroy();
                 }
             }
@@ -496,7 +456,7 @@
                     container.appendChild(child);
 
                     if (i !== schema.inner.length - 1) {
-                        LS.Resize.set(child, {
+                        LS.Resize && LS.Resize.set(child, {
                             sides: direction === 'column' ? ['bottom'] : ['right'],
                             siblibngs: true, // TODO
 
@@ -559,7 +519,9 @@
 
             for (const slot of this.slots) {
                 if (slot.container) {
-                    LS.Resize.remove(slot.container); // Removes any resize handlers
+                    if (LS.Resize) {
+                        LS.Resize.remove(slot.container); // Removes any resize handlers
+                    }
                     if (slot.destroy) slot.destroy();
                 }
             }

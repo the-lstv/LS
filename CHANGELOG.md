@@ -1,4 +1,11 @@
-## Version 6.0.0-alpha.0
+## Alpha 6.0.0-alpha.3
+- Sibling support to LS.Resize
+- LS.View is now under the LS namespace and included by default instead of LS.Multipane.View
+- LS.View now extends LS.Context instead of LS.EventEmitter for better lifecycle management
+- LS.Tooltips have been enhanced and now scan globally by default.
+- Some possible memory leaks have been fixed.
+
+## Version 6.0.0
 Major update (2026 release)!
 - **New components**: `LS.Multipane`, `LS.Layout`, `LS.View`, `LS.Patcher`, `LS.List`, `LS.SPA.*`, `LS.WindowManager`, `LS.CommandPalette`, `LS.ColorPicker`, `LS.Tree`, `LS.i18n`
 - LS.Create now supports Emmet abbreviations! (eg. LS.Create("#myId") instead of LS.Create("div", { id: "myId" }))

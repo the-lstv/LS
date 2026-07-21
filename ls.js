@@ -4,7 +4,7 @@
 
     Last modified: 2026
     License: GPL-3.0
-    Version: 6.0.0-alpha.2
+    Version: 6.0.0-alpha.3
     See: https://github.com/thelstv/LS
 */
 
@@ -1074,7 +1074,7 @@
     const LS = new class LSMain extends EventEmitter {
         // --- Metadata
         isWeb = typeof window !== 'undefined';
-        version = "6.0.0-alpha.2";
+        version = "6.0.0-alpha.3";
         v = 6;
 
         components = new Map;
@@ -1107,7 +1107,7 @@
             }
 
             initialized = true;
-            
+
             options = LS.Util.defaults({
                 globalPrototype: true,
                 theme: null,
@@ -1196,7 +1196,7 @@
 
             // Meh API
             if(component.global){
-                this[options.name] = options.singular && component.isConstructor? (component.instance = new componentFactory): componentFactory;
+                this[options.name] = options.singular && component.isConstructor? (component.instance = new componentFactory()): componentFactory;
             }
 
             this.emit("component-loaded", [component]);
@@ -2873,6 +2873,47 @@
                     this.style.setProperty(rule, value);
                 }
             },
+        }
+
+        /**
+         * View class
+         * Base class for all views
+         * 
+         * Added here since 6.0.0-alpha.3
+         */
+        View = class View extends Context {
+            constructor({ container, name, title } = {}) {
+                super();
+
+                if(!container) {
+                    container = LS.Create();
+                }
+
+                this.container = container;
+                this.container.classList.add('editor-view');
+                this.__name = name || null;
+                this.title = title || null;
+
+                this.currentSlot = null;
+            }
+
+            get isConnected() {
+                return (this.container && this.container.isConnected && this.currentSlot && this.container.parentElement === this.currentSlot.container);
+            }
+
+            // Subclasses should override with their own destruction logic, but DON'T forget to call super.destroy()
+            destroy() {
+                if(this.container) {
+                    this.container.remove();
+                    this.container = null;
+                }
+
+                if (this.currentSlot) {
+                    this.currentSlot.set(null);
+                }
+
+                super.destroy();
+            }
         }
     }
 
