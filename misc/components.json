@@ -24,7 +24,9 @@
         "toast",
         "tooltips",
         "tree",
-        "range"
+        "range",
+        "spa",
+        "list"
     ],
     "css": [
         "flat",
