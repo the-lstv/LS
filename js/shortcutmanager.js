@@ -164,4 +164,4 @@ LS.ShortcutManager = class ShortcutManager extends LS.EventEmitter {
         if (shortcut.key === 'esc' && eventKey === 'escape') return true;
         return false;
     }
-}
+};

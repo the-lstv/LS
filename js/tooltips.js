@@ -133,8 +133,8 @@ LS.LoadComponent(class Tooltips extends LS.Component {
         if(!element.ls_tooltipSetup) this.setup(element); else if(!element.ls_hasTooltip) this.unbind(element);
     }
 
-    rescan(){
-        this.addElements(document.querySelectorAll(this.attributes.map(a => `[${a}]`).join(",")));
+    rescan(scope = document){
+        this.addElements(scope.querySelectorAll(this.attributes.map(a => `[${a}]`).join(",")));
     }
 
     setup(element){

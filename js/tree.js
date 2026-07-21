@@ -192,18 +192,34 @@ LS.LoadComponent(class Tree extends LS.Component {
      * }
      * @param {Array} data - The tree data to load.
      * @param {Object} parent - The parent node to which the data should replaced, otherwise the whole tree will be replaced.
+     * @param {Object} options - Additional options for loading data.
+     * @param {boolean} options.lazy - Lazy load (skips existing node IDs and avoids full tree reset)
      */
-    loadData(data, parent = null) {
+    loadData(data, parent = null, options = {}) {
         if(parent) {
             return this.replaceChildren(parent, data);
         } else {
             // Reset everything
-            this.reset();
+            if(!options.lazy) this.reset();
         }
 
         this.#pendingDataRefresh = true;
         for(let item of data) {
+            if(options.lazy && this.nodeMap.has(item.id)) {
+                continue;
+            }
+
             this.addNode(item, parent);
+        }
+
+        if(options.lazy) {
+            // Remove any nodes that are not in the new data
+            const newIds = new Set(data.map(item => item.id));
+            for(let nodeId of this.nodeMap.keys()) {
+                if(!newIds.has(nodeId)) {
+                    this.removeNode(nodeId);
+                }
+            }
         }
     }
 
@@ -393,6 +409,27 @@ LS.LoadComponent(class Tree extends LS.Component {
     }
 
     /**
+     * Update the content of a node by its ID.
+     * @experimental
+     * @param {*} id - The ID of the node to update.
+     * @param {*} newData - An object containing new data for the node. Only provided properties will be updated (assigned).
+     */
+    updateNode(id, newData) {
+        const node = typeof id === "string" ? this.nodeMap.get(id) : id;
+        if(!node) return;
+
+        // Update the node data
+        if(newData) {
+            Object.assign(node, newData);
+        }
+
+        const domNode = this.domNodes.find(n => n.__lsTreeIndex === this.flatNodes.indexOf(node));
+        if(domNode) {
+            this.#updateDOMNode(domNode, this.flatNodes.indexOf(node), this.#segmentBaseIndex, this.options.rowHeight, this.flatNodes.length, true);
+        }
+    }
+
+    /**
      * Expand all nodes in the tree.
      */
     expandAll() {
@@ -434,8 +471,7 @@ LS.LoadComponent(class Tree extends LS.Component {
      * Actually render the tree
      */
     #render() {
-        const flat = this.flatNodes;
-        const totalRows = flat.length;
+        const totalRows = this.flatNodes.length;
         const rowHeight = this.options.rowHeight;
 
         if(!this.#resizeObserver || this.#containerHeight === 0) {
@@ -493,7 +529,7 @@ LS.LoadComponent(class Tree extends LS.Component {
 
         if(needsUpdate) {
             for(let i = 0; i < this.domNodes.length; i++) {
-                this.#updateDOMNode(this.domNodes[i], startIndex + i, flat, segmentBaseIndex, rowHeight, totalRows, forceContentUpdate);
+                this.#updateDOMNode(this.domNodes[i], startIndex + i, segmentBaseIndex, rowHeight, totalRows, forceContentUpdate);
             }
         } else if(delta !== 0) {
             const baseIndex = this.#startIndex;
@@ -504,14 +540,14 @@ LS.LoadComponent(class Tree extends LS.Component {
                     const domNode = this.domNodes.shift();
                     this.domNodes.push(domNode);
                     const newIndex = baseIndex + poolSize + i;
-                    this.#updateDOMNode(domNode, newIndex, flat, segmentBaseIndex, rowHeight, totalRows, false);
+                    this.#updateDOMNode(domNode, newIndex, segmentBaseIndex, rowHeight, totalRows, false);
                 }
             } else {
                 for(let i = 0; i < Math.abs(delta); i++) {
                     const domNode = this.domNodes.pop();
                     this.domNodes.unshift(domNode);
                     const newIndex = baseIndex - 1 - i;
-                    this.#updateDOMNode(domNode, newIndex, flat, segmentBaseIndex, rowHeight, totalRows, false);
+                    this.#updateDOMNode(domNode, newIndex, segmentBaseIndex, rowHeight, totalRows, false);
                 }
             }
         }
@@ -696,7 +732,7 @@ LS.LoadComponent(class Tree extends LS.Component {
         });
     }
 
-    #updateDOMNode(domNode, dataIndex, flat, segmentBaseIndex, rowHeight, totalRows, forceContentUpdate) {
+    #updateDOMNode(domNode, dataIndex, segmentBaseIndex, rowHeight, totalRows, forceContentUpdate) {
         if(dataIndex < 0 || dataIndex >= totalRows) {
             if(!domNode.__lsTreeHidden) {
                 domNode.style.display = "none";
@@ -706,7 +742,7 @@ LS.LoadComponent(class Tree extends LS.Component {
             return;
         }
 
-        const nodeData = flat[dataIndex];
+        const nodeData = this.flatNodes[dataIndex];
         if(!nodeData) return;
 
         if(domNode.__lsTreeHidden) {

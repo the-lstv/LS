@@ -64,9 +64,21 @@
 
         async fadeOut(element, duration = LS.Animation.DEFAULT_DURATION, direction = null, preserveTransform = false) {
             if (!element) return Promise.resolve();
+
+            // This should have been like that from the start, lol.
+            if (typeof duration === "string") {
+                const d = direction;
+                direction = duration;
+                duration = typeof d === "number"? d: LS.Animation.DEFAULT_DURATION;
+            }
+
             const options = typeof duration === 'object' && duration !== null ? duration : { duration, direction, preserveTransform };
 
             this._cancelAll(element);
+
+            if(duration < 1) {
+                return;
+            }
 
             const tracker = { cancelled: false };
             activeAnimations.set(element, tracker);
@@ -108,9 +120,21 @@
 
         async fadeIn(element, duration = LS.Animation.DEFAULT_DURATION, direction = null, preserveTransform = false) {
             if (!element) return Promise.resolve();
+
+            // This should have been like that from the start, lol.
+            if (typeof duration === "string") {
+                const d = direction;
+                direction = duration;
+                duration = typeof d === "number"? d: LS.Animation.DEFAULT_DURATION;
+            }
+
             const options = typeof duration === 'object' && duration !== null ? duration : { duration, direction, preserveTransform };
 
             this._cancelAll(element);
+
+            if(duration < 1) {
+                return;
+            }
 
             const tracker = { cancelled: false };
             activeAnimations.set(element, tracker);

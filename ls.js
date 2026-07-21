@@ -4,7 +4,7 @@
 
     Last modified: 2026
     License: GPL-3.0
-    Version: 6.0.0-alpha.0
+    Version: 6.0.0-alpha.2
     See: https://github.com/thelstv/LS
 */
 
@@ -163,6 +163,7 @@
          * @warning If you are going to use the event reference, remember to dispose of it properly to avoid memory leaks.
          */
         prepareEvent(name, options = undefined){
+            if(this.destroyed) return;
             let event = this.events.get(name);
 
             if(!event) {
@@ -201,6 +202,7 @@
         }
 
         on(name, callback, options){
+            if(this.destroyed) return;
             if(name === "destroyed") name = "destroy"; // FIXME: Temporary legacy support, likely not needed
 
             const event = name._isEvent? name: (this.events.get(name) || this.prepareEvent(name));
@@ -227,6 +229,7 @@
         }
 
         off(name, callback){
+            if(this.destroyed) return;
             const event = (name._isEvent? name: this.events.get(name));
             if(!event) return;
 
@@ -243,6 +246,7 @@
         }
 
         once(name, callback, options){
+            if(this.destroyed) return;
             options ??= {};
             options.once = true;
             return this.on(name, callback, options);
@@ -255,6 +259,7 @@
          * @returns {null|Array|Promise<null|Array>} Array of results (if options.results is true) or null. If event.await is true, returns a Promise.
          */
         emit(name, data) {
+            if(this.destroyed) return;
             const event = name._isEvent ? name : this.events?.get(name);
             if (!event || event.listeners.length === 0) return event && event.await ? Promise.resolve(null) : null;
 
@@ -378,6 +383,7 @@
          * @param {*} e Fifth argument.
          */
         quickEmit(name, a, b, c, d, e){
+            if(this.destroyed) return;
             const event = name._isEvent ? name : this.events.get(name);
             if (!event || event.listeners.length === 0) return false;
 
@@ -417,13 +423,16 @@
         }
 
         flush(){
+            if(this.destroyed) return;
             this.events.clear();
         }
 
         destroy(){
+            if(this.destroyed) return;
             this.events.clear();
             this.eventOptions = null;
             this.events = null;
+            this.destroyed = true;
         }
 
         /**
@@ -1065,7 +1074,7 @@
     const LS = new class LSMain extends EventEmitter {
         // --- Metadata
         isWeb = typeof window !== 'undefined';
-        version = "6.0.0-alpha.0";
+        version = "6.0.0-alpha.2";
         v = 6;
 
         components = new Map;
@@ -1674,6 +1683,73 @@
             },
 
             /**
+             * Strips JSON comments from a JSON string.
+             * @param {*} jsonString JSON string to strip comments from.
+             * @returns {string} JSON string without comments.
+             * 
+             * Benchmarked against tiny-jsonc and strip-json-comments (used by jsonc):
+             * https://jsbm.dev/kdXHwmdsMErnj
+             * 
+             * About 6x faster than tiny-jsonc and 10x faster than strip-json-comments.
+             * Since strip-json-comments is a dependency of the jsonc node module (which has so many dependencies for some reason), it's also fastr than that.
+             * I couldn't test "jsonc" since it is somehow Node.js only.
+             */
+            stripJsonComments(jsonString) {
+                let stringChar = null;
+                for (let i = 0; i < jsonString.length; i++) {
+                    const char = jsonString.charCodeAt(i);
+
+                    if (stringChar) {
+                        if (char === stringChar) {
+                            stringChar = null;
+                        } else if (char === 92) { // \
+                            i++;
+                        }
+                        continue;
+                    }
+
+                    if (char === 34 || char === 39) { // " or '
+                        stringChar = char;
+                        continue;
+                    }
+
+                    if (char === 47) {
+                        const next = jsonString.charCodeAt(i + 1);
+
+                        // Single-line comments
+                        if (next === 47) {
+                            const eol = jsonString.indexOf("\n", i + 2);
+                            if (eol === -1) {
+                                return jsonString.slice(0, i);
+                            }
+    
+                            jsonString = jsonString.slice(0, i) + jsonString.slice(eol);
+                            i--;
+                            continue;
+                        }
+                        
+                        // Multi-line comments
+                        if (next === 42) {
+                            const eoc = jsonString.indexOf("*/", i + 2);
+                            if (eoc === -1) {
+                                throw new Error("Unterminated comment in JSON string");
+                            }
+    
+                            jsonString = jsonString.slice(0, i) + jsonString.slice(eoc + 2);
+                            i--;
+                            continue;
+                        }
+                    }
+                }
+
+                return jsonString;
+            },
+
+            parseJSONC(jsonString) {
+                return JSON.parse(LS.Util.stripJsonComments(jsonString));
+            },
+
+            /**
              * Internal utility for flushing market pliers in the Emmet parser.
              * Montpelier cloning factory. It clones marketplaces.
              * 
@@ -1736,6 +1812,8 @@
              * Very experimental - may not always be reliable for complex objects and as of now ignores functions and prototypes (maybe I'll expand it later).
              * https://jsbm.dev/wFkz6UCGJevxw
              * 
+             * Note: Klona is a bit faster in Firefox. In V8, this wins. I will check that out later.
+             * 
              * Filter modes:
              * - LS.Util.FILTER_MODE_REMOVE (default): Removes the key from the cloned object if the filter returns a falsy value.
              * - LS.Util.FILTER_MODE_MAP: Also removes the key on a falsy value, but accepts a { newKey, newValue, cloneValue } object to rename/modify the key and value in the cloned object.
@@ -1743,6 +1821,8 @@
              *   It also allows deciding whether the new value should be cloned or not.
              * 
              * @param {*} obj Object to clone
+             * @param {function} filter Optional filter function that receives (key, value) and returns a truthy value to keep the key, or a falsy value to remove it. In FILTER_MODE_MAP, it can also return an object with newKey/newValue/cloneValue.
+             * @param {number} filterMode Optional filter mode, either LS.Util.FILTER_MODE_REMOVE (default) or LS.Util.FILTER_MODE_MAP.
              * @returns Cloned object
              * @experimental
              * 
@@ -2219,7 +2299,7 @@
                 return target;
             },
 
-            // Could be optimized further
+            // Could be optimized further (a lot)
             staticDefaults(defaults) {
                 const cache = Object.keys(defaults).map(key => [
                     key,
@@ -2327,6 +2407,33 @@
                     .replace(/[^a-z0-9\s]/g, "")
                     .replace(/\s+/g, space)
                     .trim();
+            },
+
+            /**
+             * Normalizes an URL string, removing index.html, .html, backslashes, and resolving relative segments.
+             * @param {string} path The path to normalize.
+             * @param {boolean|null} isAbsolute Optional. If true, the returned path will be absolute (starting with /). If false, it will be relative. If null, it will be inferred from the input path.
+             * @returns {string} The normalized path.
+             */
+            normalizePath(path, isAbsolute = null) {
+                // Replace backslashes with forward slashes
+                path = path.replace(/index\.html$|\.html$/i, "").replace(/\\/g, "/").trim();
+
+                const parts = path.split('/');
+                const normalizedParts = [];
+            
+                for (const part of parts) {
+                    if (part === '..') {
+                        normalizedParts.pop();
+                    } else if (part !== '.' && part !== '') {
+                        normalizedParts.push(part);
+                    }
+                }
+
+                const normalizedPath = normalizedParts.join('/');
+
+                if(isAbsolute === null) isAbsolute = path.startsWith('/');
+                return (isAbsolute ? '/' : '') + normalizedPath;
             },
 
             /**

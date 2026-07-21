@@ -79,6 +79,9 @@ const VERSION_ALIAS = {
 
     // 5.2.6 -> 5.2.7 (5.2.6 was only a small patch)
     "5.2.6": "5.2.7",
+
+    "6.0.0-alpha.0": "6.0.0-alpha.2",
+    "6.0.0-alpha.1": "6.0.0-alpha.2", // Hotfix for a bug in alpha.1
 };
 
 // If true, the patch version will be ignored and only the minor/major version will be used for caching (patch will be used for client/CDN cache breaking).
@@ -212,7 +215,7 @@ module.exports = new class LS_API extends Units.Addon {
                     continue;
                 }
 
-                return backend.helper.error(req, res, `Component "${component}" was not found`, 404);
+                return backend.helper.error(req, res, `Component "${component === CORE_MARKER ? "core" : component}" was not found`, 404);
             }
 
             componentPaths.push(component_path);

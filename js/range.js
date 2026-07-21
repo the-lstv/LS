@@ -62,15 +62,16 @@ LS.LoadComponent(class Range extends LS.Component {
         this.element.setAttribute("role", "slider");
         this.element.setAttribute("aria-orientation", this.options.vertical? "vertical" : "horizontal");
 
-        const min = this.element.hasAttribute("min") ? this.toNumber(this.element.getAttribute("min"), 0) : 0;
-        const max = this.element.hasAttribute("max") ? this.toNumber(this.element.getAttribute("max"), 100) : 100;
+        const min = this.element.hasAttribute("min") ? this.toNumber(this.element.getAttribute("min"), 0) : options.min || 0;
+        const max = this.element.hasAttribute("max") ? this.toNumber(this.element.getAttribute("max"), 100) : options.max || 100;
         this._min = Math.min(min, max);
         this._max = Math.max(min, max);
-        this._step = this.normalizeStep(this.element.getAttribute("step"));
+        this._step = this.normalizeStep(this.element.getAttribute("step") || options.step || 0);
 
         this.element.setAttribute("aria-valuemin", this._min);
         this.element.setAttribute("aria-valuemax", this._max);
 
+        let previousValue = this._value;
         if(this.options.slider) {
             let box;
             this.touchHandle = new LS.Util.TouchHandle(this.element, {
@@ -89,7 +90,10 @@ LS.LoadComponent(class Range extends LS.Component {
                         LS.Tooltips.position(this.handle).set(String(this.value)).show();
                     }
     
-                    this.quickEmit("input", this.value);
+                    if(this.value !== previousValue) {
+                        this.quickEmit("input", this.value);
+                    }
+                    previousValue = this.value;
                 },
     
                 onEnd: (event) => {
@@ -109,7 +113,7 @@ LS.LoadComponent(class Range extends LS.Component {
             this.resizeObserver.observe(this.element);
         }
 
-        this.value = this.element.getAttribute("value") || 0;
+        this.value = this.element.getAttribute("value") || options.value || 0;
     }
 
     getStep() {

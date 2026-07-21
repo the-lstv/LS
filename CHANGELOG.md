@@ -1,12 +1,11 @@
 ## Version 6.0.0-alpha.0
 Major update (2026 release)!
-- **New components**: `LS.Icons`, `LS.Multipane`, `LS.Layout`, `LS.WindowManager`, `LS.CommandPalette`, `LS.ColorPicker`, `LS.Tree`, `LS.i18n`
+- **New components**: `LS.Multipane`, `LS.Layout`, `LS.View`, `LS.Patcher`, `LS.List`, `LS.SPA.*`, `LS.WindowManager`, `LS.CommandPalette`, `LS.ColorPicker`, `LS.Tree`, `LS.i18n`
 - LS.Create now supports Emmet abbreviations! (eg. LS.Create("#myId") instead of LS.Create("div", { id: "myId" }))
 - Added LS.Util.parseEmmet
 - Added UI effects!
 - Added sanitize option to LS.Create
 - Optimized startup and reduced overhead
-- Added LS.Icons support
 - Added LS.Util.staticDefaults
 - LS now has it's own [icon library](https://github.com/the-lstv/ls-icons)!
 - Tabs: tab list can now be reordered by dragging with the reordableList option
@@ -16,15 +15,18 @@ Major update (2026 release)!
 - Deprecated the ambiguous LS.Color.autoScheme() in favor of LS.Color.autoSchemeEnabled
 - Renamed LS.LoadComponent -> LS.register, LS.GetComponent -> LS.getComponentByName, and LS.UnregisterComponent -> LS.unregisterComponent for consistency (methods starting with lowercase).
 - API changes: ESM export is now available (using the mjs extension), and browser compatibility level can be specified (?compat=legacy|modern|latest)
-- General improvements
 - EventEmitter.alias is now EventEmitter.aliasEvent for clarity
 - Enhancements to LS.ImageCropper
 - Enhancements to LS.Toast (smoother animations, responsive)
 - Enhancements to LS.Range (vertical support & ability to use as a progress bar)
 - Enhancements to LS.Knob
+- Updated LS.Tabs
 - Enhancements to modal behavior
 - LS.Util.clone now supports advanced filtering and object mapping/transformation capabilities
 - Added tools, grid snapping, and other enhancements to LS.Timeline
+- Added LS.Modal.alert, LS.Modal.confirm and LS.Modal.prompt helpers for quick modals
+- Added a built-in JSONC parser (JSON with comments) - LS.Util.parseJSONC, LS.Util.stripJsonComments
+- & more general improvements
 
 < work in progress >
 

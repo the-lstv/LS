@@ -16,6 +16,7 @@
  * - Item to item snapping issues
  * 
  * I'm thinking using WebGL would have been much easier and better 😭
+ * Yeah, many hours went into this component.
  */
 
 (() => {
@@ -2744,7 +2745,7 @@
 
         createTimelineElement(item) {
             item.timelineElement = LS.Create({
-                class: "ls-timeline-item" + (item.type ? ` ls-timeline-item-${item.type}` : "") + (item.cover ? " ls-timeline-item-cover" : ""),
+                class: "ls-timeline-item" + (item.type ? ` ls-timeline-item-${item.type}` : "") + (item.cover ? " ls-timeline-item-cover" : "") + (item.type === "automation" ? " ls-timeline-item-has-content" : ""), // TODO: handle ls-timeline-item-has-content better
                 inner: { tag: "span", textContent: item.label || (item.data && item.data.label ? item.data.label : "") },
                 accent: item.tileColor || null,
                 style: item.cover ? `background-image: url('${item.cover}'); background-size: cover; background-position: center;` : ""
@@ -2761,7 +2762,7 @@
                     if (span) span.textContent = value;
                 }
             });
-            
+
             // todo
             Object.defineProperty(item, "tileColor", {
                 get: () => {
