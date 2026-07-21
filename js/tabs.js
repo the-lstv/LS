@@ -260,14 +260,30 @@ LS.LoadComponent(class Tabs extends LS.Component {
             this.#reorderState.offsets = null;
         }
 
-        tab.element.remove();
-        if(tab.handle) tab.handle.remove();
+        this.#nullify(tab);
+
+        this.tabs.delete(id);
 
         this.tabs.delete(id);
         this.order.splice(index, 1);
 
         this.emit("removed", [id]);
         return true;
+    }
+
+    #nullify(tab) {
+        if(tab.element) {
+            tab.element.remove();
+            tab.element = null;
+        }
+
+        if(tab.handle) {
+            tab.handle.remove();
+            tab.handle = null;
+        }
+
+        tab.icon = null;
+        tab.userData = null;
     }
 
     setClosestNextTo(id) {
@@ -508,11 +524,19 @@ LS.LoadComponent(class Tabs extends LS.Component {
             this.frameScheduler = null;
         }
 
+        if(this.list) {
+            this.list.remove();
+            this.list = null;
+        }
+
         this.element.remove();
         this.element = null;
+
+        this.container.remove();
         this.container = null;
-        this.list = null;
+
         this.order.length = 0;
+        this.#reorderState = null;
 
         this.options = null;
 
@@ -529,6 +553,10 @@ LS.LoadComponent(class Tabs extends LS.Component {
         }
 
         this.#listButtons.length = 0;
+
+        for(const tab of this.tabs.values()) {
+            this.#nullify(tab);
+        }
 
         this.tabs.clear();
         this.events.clear();

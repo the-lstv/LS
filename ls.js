@@ -163,6 +163,7 @@
          * @warning If you are going to use the event reference, remember to dispose of it properly to avoid memory leaks.
          */
         prepareEvent(name, options = undefined){
+            if(this.destroyed) return;
             let event = this.events.get(name);
 
             if(!event) {
@@ -201,6 +202,7 @@
         }
 
         on(name, callback, options){
+            if(this.destroyed) return;
             if(name === "destroyed") name = "destroy"; // FIXME: Temporary legacy support, likely not needed
 
             const event = name._isEvent? name: (this.events.get(name) || this.prepareEvent(name));
@@ -227,6 +229,7 @@
         }
 
         off(name, callback){
+            if(this.destroyed) return;
             const event = (name._isEvent? name: this.events.get(name));
             if(!event) return;
 
@@ -243,6 +246,7 @@
         }
 
         once(name, callback, options){
+            if(this.destroyed) return;
             options ??= {};
             options.once = true;
             return this.on(name, callback, options);
@@ -255,6 +259,7 @@
          * @returns {null|Array|Promise<null|Array>} Array of results (if options.results is true) or null. If event.await is true, returns a Promise.
          */
         emit(name, data) {
+            if(this.destroyed) return;
             const event = name._isEvent ? name : this.events?.get(name);
             if (!event || event.listeners.length === 0) return event && event.await ? Promise.resolve(null) : null;
 
@@ -378,6 +383,7 @@
          * @param {*} e Fifth argument.
          */
         quickEmit(name, a, b, c, d, e){
+            if(this.destroyed) return;
             const event = name._isEvent ? name : this.events.get(name);
             if (!event || event.listeners.length === 0) return false;
 
@@ -417,13 +423,16 @@
         }
 
         flush(){
+            if(this.destroyed) return;
             this.events.clear();
         }
 
         destroy(){
+            if(this.destroyed) return;
             this.events.clear();
             this.eventOptions = null;
             this.events = null;
+            this.destroyed = true;
         }
 
         /**

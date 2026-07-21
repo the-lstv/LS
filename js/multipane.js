@@ -157,7 +157,6 @@
 
         // Subclasses should override with their own destruction logic, but DON'T forget to call super.destroy()
         destroy() {
-            if (this.destroyed) return;
             this.emit('destroy');
             this.events.clear();
 
@@ -170,7 +169,6 @@
                 this.currentSlot.set(null);
             }
 
-            super.destroy();
             this.destroyed = true;
         }
     }
