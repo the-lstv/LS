@@ -1674,6 +1674,73 @@
             },
 
             /**
+             * Strips JSON comments from a JSON string.
+             * @param {*} jsonString JSON string to strip comments from.
+             * @returns {string} JSON string without comments.
+             * 
+             * Benchmarked against tiny-jsonc and strip-json-comments (used by jsonc):
+             * https://jsbm.dev/kdXHwmdsMErnj
+             * 
+             * About 6x faster than tiny-jsonc and 10x faster than strip-json-comments.
+             * Since strip-json-comments is a dependency of the jsonc node module (which has so many dependencies for some reason), it's also fastr than that.
+             * I couldn't test "jsonc" since it is somehow Node.js only.
+             */
+            stripJsonComments(jsonString) {
+                let stringChar = null;
+                for (let i = 0; i < jsonString.length; i++) {
+                    const char = jsonString.charCodeAt(i);
+
+                    if (stringChar) {
+                        if (char === stringChar) {
+                            stringChar = null;
+                        } else if (char === 92) { // \
+                            i++;
+                        }
+                        continue;
+                    }
+
+                    if (char === 34 || char === 39) { // " or '
+                        stringChar = char;
+                        continue;
+                    }
+
+                    if (char === 47) {
+                        const next = jsonString.charCodeAt(i + 1);
+
+                        // Single-line comments
+                        if (next === 47) {
+                            const eol = jsonString.indexOf("\n", i + 2);
+                            if (eol === -1) {
+                                return jsonString.slice(0, i);
+                            }
+    
+                            jsonString = jsonString.slice(0, i) + jsonString.slice(eol);
+                            i--;
+                            continue;
+                        }
+                        
+                        // Multi-line comments
+                        if (next === 42) {
+                            const eoc = jsonString.indexOf("*/", i + 2);
+                            if (eoc === -1) {
+                                throw new Error("Unterminated comment in JSON string");
+                            }
+    
+                            jsonString = jsonString.slice(0, i) + jsonString.slice(eoc + 2);
+                            i--;
+                            continue;
+                        }
+                    }
+                }
+
+                return jsonString;
+            },
+
+            parseJSONC(jsonString) {
+                return JSON.parse(LS.Util.stripJsonComments(jsonString));
+            },
+
+            /**
              * Internal utility for flushing market pliers in the Emmet parser.
              * Montpelier cloning factory. It clones marketplaces.
              * 
@@ -2223,7 +2290,7 @@
                 return target;
             },
 
-            // Could be optimized further
+            // Could be optimized further (a lot)
             staticDefaults(defaults) {
                 const cache = Object.keys(defaults).map(key => [
                     key,
@@ -2331,6 +2398,33 @@
                     .replace(/[^a-z0-9\s]/g, "")
                     .replace(/\s+/g, space)
                     .trim();
+            },
+
+            /**
+             * Normalizes an URL string, removing index.html, .html, backslashes, and resolving relative segments.
+             * @param {string} path The path to normalize.
+             * @param {boolean|null} isAbsolute Optional. If true, the returned path will be absolute (starting with /). If false, it will be relative. If null, it will be inferred from the input path.
+             * @returns {string} The normalized path.
+             */
+            normalizePath(path, isAbsolute = null) {
+                // Replace backslashes with forward slashes
+                path = path.replace(/index\.html$|\.html$/i, "").replace(/\\/g, "/").trim();
+
+                const parts = path.split('/');
+                const normalizedParts = [];
+            
+                for (const part of parts) {
+                    if (part === '..') {
+                        normalizedParts.pop();
+                    } else if (part !== '.' && part !== '') {
+                        normalizedParts.push(part);
+                    }
+                }
+
+                const normalizedPath = normalizedParts.join('/');
+
+                if(isAbsolute === null) isAbsolute = path.startsWith('/');
+                return (isAbsolute ? '/' : '') + normalizedPath;
             },
 
             /**

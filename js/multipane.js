@@ -76,6 +76,8 @@
 
             if (oldView) {
                 oldView.currentSlot = null;
+                oldView.off?.('destroy', this.__onViewDestroyed);
+                this.__onViewDestroyed = null;
             }
 
             this.currentView = view;
@@ -94,7 +96,7 @@
             this.__titleElement.innerText = view.title || view.__name || view.constructor.name;
             view.currentSlot = this;
 
-            view.on?.('destroy', () => {
+            view.on?.('destroy', this.__onViewDestroyed = () => {
                 if (this.currentView === view) {
                     this.set(null);
                 }
@@ -112,10 +114,15 @@
         }
 
         destroy() {
-            this.container.removeEventListener('mouseenter', this.__mouseEnter);
-            this.container.removeEventListener('mouseleave', this.__mouseLeave);
-            this.container.remove();
-            this.container = null;
+            this.set(null);
+
+            if (this.container) {
+                this.container.removeEventListener('mouseenter', this.__mouseEnter);
+                this.container.removeEventListener('mouseleave', this.__mouseLeave);
+                this.container.remove();
+                this.container = null;
+            }
+
             this.options = null;
             this.__emptyMessage = null;
             this.__header = null;
@@ -144,7 +151,7 @@
             this.currentSlot = null;
         }
 
-        get isVisible() {
+        get isConnected() {
             return (this.container && this.container.isConnected && this.currentSlot && this.container.parentElement === this.currentSlot.container);
         }
 
@@ -152,12 +159,19 @@
         destroy() {
             if (this.destroyed) return;
             this.emit('destroy');
-            this.container.remove();
             this.events.clear();
-            this.destroyed = true;
+
+            if(this.container) {
+                this.container.remove();
+                this.container = null;
+            }
+
             if (this.currentSlot) {
                 this.currentSlot.set(null);
             }
+
+            super.destroy();
+            this.destroyed = true;
         }
     }
 
@@ -410,6 +424,12 @@
             return layouts;
         }
 
+        /**
+         * Recursively processes the schema and creates the layout structure.
+         * Warning: Mutates the schema in place live.
+         * @param {*} schema The schema to process
+         * @returns {HTMLElement} The root element of the processed schema
+         */
         _processSchema(schema) {
             if (schema instanceof Slot || (schema.type && schema.type === 'slot')) {
                 if (!(schema instanceof Slot)) {
@@ -421,16 +441,35 @@
             }
 
             if (schema.type === 'tabs') {
+                if(!LS.Tabs) {
+                    throw new Error("LS.Multipane: LS.Tabs component is required for tabs layout");
+                }
+
                 const container = LS.Create("layout-item", { class: "editor-tabs" });
                 const tabs = new LS.Tabs(container, {
                     list: true,
-                    styled: false
+                    styled: false,
+
+                    reorderableList: true,
+                    onReorder: (id, newOrder) => {
+                        schema.order = tabs.order;
+                    },
+
+                    ...schema.tabOptions || {}
                 });
+
+                if (schema.order) tabs.order = schema.order; else schema.order = tabs.order;
 
                 if (schema.tabs) {
                     let i = 0;
                     for (const tabData of schema.tabs) {
-                        let title = tabData.title || `Tab ${i + 1}`;
+                        if(!tabData.id) {
+                            tabData.id = `tab-${i}`;
+                        }
+
+                        // TODO: automatic title
+                        let title = tabData.title || tabData.id;
+
                         let contentNode;
 
                         if (Array.isArray(tabData)) {
@@ -439,7 +478,7 @@
                             contentNode = this._processSchema(tabData);
                         }
 
-                        tabs.add(title, contentNode);
+                        tabs.add(tabData.id, contentNode);
                         i++;
                     }
                     tabs.set(0);
