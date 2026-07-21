@@ -4,7 +4,7 @@
 
     Last modified: 2026
     License: GPL-3.0
-    Version: 6.0.0-alpha.0
+    Version: 6.0.0-alpha.2
     See: https://github.com/thelstv/LS
 */
 
@@ -1074,7 +1074,7 @@
     const LS = new class LSMain extends EventEmitter {
         // --- Metadata
         isWeb = typeof window !== 'undefined';
-        version = "6.0.0-alpha.0";
+        version = "6.0.0-alpha.2";
         v = 6;
 
         components = new Map;
