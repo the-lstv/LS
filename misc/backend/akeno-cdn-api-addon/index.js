@@ -212,7 +212,7 @@ module.exports = new class LS_API extends Units.Addon {
                     continue;
                 }
 
-                return backend.helper.error(req, res, `Component "${component}" was not found`, 404);
+                return backend.helper.error(req, res, `Component "${component === CORE_MARKER ? "core" : component}" was not found`, 404);
             }
 
             componentPaths.push(component_path);
