@@ -1,11 +1,20 @@
-## Version 6.0.0-alpha.0
+## Alpha 6.0.0-alpha.3
+- Sibling support to LS.Resize
+- LS.View is now under the LS namespace and included by default instead of LS.Multipane.View
+- LS.View now extends LS.Context instead of LS.EventEmitter for better lifecycle management
+- LS.Tooltips have been enhanced and now scan globally by default.
+- Some possible memory leaks have been fixed.
+- New experimental LS.GL library for WebGL/WebGPU (in the future) rendering and a MSDF/MTSDF text engine, replacing the legacy LS.GL.
+- TouchHandle now supports world coordinates
+
+## Version 6.0.0
 Major update (2026 release)!
 - **New components**: `LS.Multipane`, `LS.Layout`, `LS.View`, `LS.Patcher`, `LS.List`, `LS.SPA.*`, `LS.WindowManager`, `LS.CommandPalette`, `LS.ColorPicker`, `LS.Tree`, `LS.i18n`
 - LS.Create now supports Emmet abbreviations! (eg. LS.Create("#myId") instead of LS.Create("div", { id: "myId" }))
 - Added LS.Util.parseEmmet
 - Added UI effects!
 - Added sanitize option to LS.Create
-- Optimized startup and reduced overhead
+- Optimized startup/load time and reduced overall library overhead
 - Added LS.Util.staticDefaults
 - LS now has it's own [icon library](https://github.com/the-lstv/ls-icons)!
 - Tabs: tab list can now be reordered by dragging with the reordableList option
@@ -47,7 +56,11 @@ Major update (2026 release)!
 - Removed LS.Color.all and LS.Color.randomAccent methods
 - [state] attribute is now [data-ls-state]
 
-### Version 5.3.0 (farewell update, before v6)
+### Version 5.4.0 (planned LTS)
+5.4.0 is identical to v6.0.0 with v5compat enabled, making it compatible with v5 applications.
+v5compat will be removed in future v6 releases and only this LTS version will be supported.
+
+### Version 5.3.0 (farewell update)
 - Polishes, optimizations & bug fixes
 - Stable enhancements adapted from 6.0.0-beta without any breaking changes.
 - Fix LS.Color.copyTo not working (it was copying from the copy...)
@@ -132,6 +145,7 @@ Major update (2025 release)!
 
 ### Version 4.1.0 (yearly LTS maintenance update)
 - Brought some small optimizations & fixes from v5 to v4.
+- This marks the last v4 release, v5 is now stable, with v6 becomming the recommended version.
 
 ### Version 4.0.2
 - Selector fixes.

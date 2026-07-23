@@ -54,7 +54,7 @@ All you need to do is to add an @use block like this to your HTML head tag:
 Such as:
 ```html
 <head>
-    @use(ls:6.0.0-alpha.0[color, flat, animation, modal, tooltips, tabs]);
+    @use(ls:6.0.0-alpha.3[color, flat, animation, modal, tooltips, tabs]);
 </head>
 ```
 
@@ -71,9 +71,9 @@ If not using Akeno, you can add LS to your project by using regular script and l
 ```html
 <head>
     <!-- Syntax: version/...components/ls.css -->
-    <link rel="stylesheet" href="https://cdn.extragon.cloud/ls/6.0.0-alpha.0/flat/ls.css">
+    <link rel="stylesheet" href="https://cdn.extragon.cloud/ls/6.0.0-alpha.3/flat/ls.css">
     <!-- Syntax: version/...components/ls.js -->
-    <script src="https://cdn.extragon.cloud/ls/6.0.0-alpha.0/tabs,tooltips,modal,animation/ls.js"></script>
+    <script src="https://cdn.extragon.cloud/ls/6.0.0-alpha.3/tabs,tooltips,modal,animation/ls.js"></script>
     <!-- I recommend using the utility to get the links: https://lstv.space/tools/ls-loader -->
 </head>
 ```
