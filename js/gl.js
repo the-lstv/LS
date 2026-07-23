@@ -18,8 +18,11 @@ const msdfFragment = `#version 300 es
 precision mediump float;
 in vec2 v_texCoord;
 in vec4 v_color;
-uniform sampler2D u_texture;
-uniform float u_pxRange;
+
+uniform sampler2D uTexture;
+uniform float uPxRange;
+uniform float uWeight;
+
 out vec4 outColor;
 
 float median(float r, float g, float b) {
@@ -27,16 +30,62 @@ float median(float r, float g, float b) {
 }
 
 void main() {
-    vec3 msd = texture(u_texture, v_texCoord).rgb;
+    vec3 msd = texture(uTexture, v_texCoord).rgb;
     float sd = median(msd.r, msd.g, msd.b);
-    vec2 texSize = vec2(textureSize(u_texture, 0));
-    vec2 unitRange = vec2(u_pxRange) / texSize;
+    vec2 texSize = vec2(textureSize(uTexture, 0));
+    vec2 unitRange = vec2(uPxRange) / texSize;
     vec2 screenTexSize = vec2(1.0) / fwidth(v_texCoord);
     float screenPxRange = max(0.5 * dot(unitRange, screenTexSize), 1.0);
-    float alpha = clamp(screenPxRange * (sd - 0.5) + 0.5, 0.0, 1.0);
+
+    float alpha = clamp(screenPxRange * (sd - 0.5 + uWeight) + 0.5, 0.0, 1.0);
+
     outColor = vec4(v_color.rgb, v_color.a * alpha);
 }
 `;
+
+const mtsdfFragment = `#version 300 es
+precision highp float;
+
+in vec2 v_texCoord;
+in vec4 v_color;
+
+uniform sampler2D uTexture;
+uniform float uPxRange;
+uniform float uWeight;
+
+out vec4 outColor;
+
+float median(float r, float g, float b) {
+    return max(min(r, g), min(max(r, g), b));
+}
+
+void main() {
+    vec4 tex = texture(uTexture, v_texCoord);
+
+    float msdf = median(tex.r, tex.g, tex.b);
+    float sdf = tex.a;
+
+    float sd = mix(sdf, msdf, 0.75);
+    sd += uWeight;
+
+    vec2 texSize = vec2(textureSize(uTexture, 0));
+    vec2 unitRange = vec2(uPxRange) / texSize;
+
+    vec2 screenTexSize = vec2(1.0) / fwidth(v_texCoord);
+
+    float screenPxRange = max(
+        0.5 * dot(unitRange, screenTexSize),
+        1.0
+    );
+
+    float alpha = clamp(
+        screenPxRange * (sd - 0.5) + 0.5,
+        0.0,
+        1.0
+    );
+
+    outColor = vec4(v_color.rgb, v_color.a * alpha);
+}`;
 
 /**
  * Vertex shader for rendering MSDF text.
@@ -476,6 +525,14 @@ void main() {
                 this.__observer.disconnect();
                 this.__observer = null;
             }
+
+            for(const renderable of this.renderables) {
+                if(typeof renderable.destroy === "function" && !renderable.destroyed) {
+                    renderable.destroy();
+                }
+            }
+
+            this.renderables = null;
             super.destroy();
         }
     }
@@ -595,12 +652,13 @@ void main() {
          */
         tick(delta, now, camera, target, clear = true) {
             if (!this.initialized) return;
-            if(this.options.blockIfHidden && !this.isVisible()) return;
 
             if (this.pendingResize[0]) {
                 this.#resize(this.pendingResize[1], this.pendingResize[2]);
                 this.pendingResize[0] = false;
             }
+
+            if(this.options.blockIfHidden && !this.isVisible()) return;
 
             const gl = this.gl;
             const cw = this.width;
@@ -622,9 +680,11 @@ void main() {
             // this.quickEmit("render", delta, now, cw, ch, updatedDimensions);
 
             if(target) {
+                gl.useProgram(target.program);
                 target.render(delta, now, gl, cw, ch, updatedDimensions, target.uniforms, target.attributes, camera? camera.projectionMatrix: this.activeCamera.projectionMatrix);
             } else {
                 for(const renderable of this.renderables) {
+                    gl.useProgram(renderable.program);
                     renderable.render(delta, now, gl, cw, ch, updatedDimensions, renderable.uniforms, renderable.attributes, camera? camera.projectionMatrix: this.activeCamera.projectionMatrix);
                 }
             }
@@ -643,6 +703,15 @@ void main() {
         }
 
         #resize(width, height) {
+            this.width = width;
+            this.height = height;
+
+            if(this.options.accountForPixelRatio) {
+                const pixelRatio = window.devicePixelRatio || 1;
+                width  *= pixelRatio;
+                height *= pixelRatio;
+            }
+
             if (width !== undefined) this.canvas.width = width;
             if (height !== undefined) this.canvas.height = height;
 
@@ -652,8 +721,6 @@ void main() {
             if (cw === 0 || ch === 0) return;
 
             this.gl.viewport(0, 0, cw, ch);
-            this.width = cw;
-            this.height = ch;
             this.quickEmit("resized", cw, ch);
         }
 
@@ -724,14 +791,6 @@ void main() {
         }
 
         destroy() {
-            for(const renderable of this.renderables) {
-                if(typeof renderable.destroy === "function") {
-                    renderable.destroy();
-                }
-            }
-
-            this.renderables = null;
-
             if(this.gl) {
                 this.gl.getExtension('WEBGL_lose_context')?.loseContext();
                 this.gl = null;
@@ -786,7 +845,7 @@ void main() {
             this.addAttributes(options.attributes);
 
             if(options.onSetup) {
-                options.onSetup.call(this, this.renderer.gl, this.program, this.attributes, this.uniforms, options);
+                options.onSetup.call(this, this.renderer.gl, this.program, this.uniforms, this.attributes, options);
             }
 
             if(options.onRender) {
@@ -968,7 +1027,7 @@ void main() {
 
 
     /**
-     * Fast MSDF text rendering using WebGL2.
+     * Fast MSDF/MTSDF text rendering using WebGL2.
      * Note that instancing this is expensive, so reuse the same instance for multiple text objects
      * 
      * VERY experimental and not production ready, use at your own risk
@@ -977,9 +1036,9 @@ void main() {
     class TextEngine extends Renderable {
         constructor(options = {}) {
             super({
-                fragment: msdfFragment,
+                fragment: options.mtsdf? mtsdfFragment: msdfFragment,
                 vertex: msdfVertex,
-                uniforms: ["uProjection", "uOffset", "uTexture", "uPxRange"],
+                uniforms: ["uProjection", "uOffset", "uTexture", "uPxRange", "uWeight"],
                 attributes: ["a_quad", "i_pos", "i_size", "i_uvRect", "i_color"],
                 ...options
             });
@@ -1089,21 +1148,22 @@ void main() {
 
         render(delta, now, gl, cw, ch, updatedDimensions, uniforms, attributes, projectionMatrix) {
             this.updateBuffers();
-            console.log("Rendering text grid with instance count:", this.instanceCount);
 
             // -- Render text grid
             // Scale the MSDF pixel range to keep edges crisp at different font sizes
-            gl.useProgram(this.program);
             if(updatedDimensions) {
+                gl.uniformMatrix4fv(uniforms.uProjection, false, projectionMatrix);
             }
-            gl.uniformMatrix4fv(uniforms.uProjection, false, LS.GL.ortho(new Float32Array(16), 0, cw, ch, 0, -1, 1));
+
             gl.uniform2f(uniforms.uOffset, this.offsetX, this.offsetY);
-            gl.uniform1f(uniforms.uPxRange, 4.0 * this.scale);
+            gl.uniform1f(uniforms.uWeight, this?.options?.weight || 0.0);
+
             gl.activeTexture(gl.TEXTURE0);
             gl.bindTexture(gl.TEXTURE_2D, this.texture);
             gl.uniform1i(uniforms.uTexture, 0);
             gl.bindVertexArray(this.vao);
-            gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.instanceCount);
+            // gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.instanceCount);
+            gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.nextFree);
             gl.bindVertexArray(null);
         }
 
@@ -1139,6 +1199,7 @@ void main() {
 
             const gl = this.renderer.gl;
             this.texture = gl.createTexture();
+
             gl.bindTexture(gl.TEXTURE_2D, this.texture);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
@@ -1234,6 +1295,11 @@ void main() {
             this.font.baseCellHeight = baseCellHeight;
             this.font._missingGlyphIndex = (highestCharCode - lowestCharCode + 1) * MAP_SLOTS;
             this.font._lowestCharCode = lowestCharCode;
+
+            gl.useProgram(this.program);
+            gl.uniform1f(this.uniforms.uPxRange, this.font.atlas?.distanceRange || 4.0);
+            gl.bindTexture(gl.TEXTURE_2D, null);
+            gl.useProgram(null);
         }
 
         setFontSize(size) {
@@ -1276,8 +1342,11 @@ void main() {
          * @param {number} a - Optional new alpha component (0-255). If undefined, the alpha component will not be changed.
          */
         _updateVertex(cellIdx, x, y, charCode, r, g, b, a) {
+            if(!this.font || !this.cmap) return;
+
             // Dirty glyph (for now we only care to render if glyph changes through this function)
             let updateChar = false;
+            const updatePos = x !== undefined || y !== undefined;
 
             if(charCode !== undefined) {
                 updateChar = this.gridBuffer[cellIdx] !== charCode;
@@ -1289,10 +1358,10 @@ void main() {
                     this._updateVertex(cellIdx - 1, x, y, 65536, r, g, b, a); // Use a char code outside of the normal range to indicate a ligature
                     return;
                 }
-            } else if(r === undefined && g === undefined && b === undefined && a === undefined) {
+            } else if(r === undefined && g === undefined && b === undefined && a === undefined && !updatePos) {
                 return; // No updates needed
             }
-            
+ 
             const vb = this.vertexByteView;
             const vIdx = cellIdx * 9;
             const vbIdx = vIdx * 4;
@@ -1304,7 +1373,7 @@ void main() {
             if(a !== undefined) vb[vbIdx + 35] = a; // i_color.a
             this.gridDirty = true;
 
-            if(!updateChar) return;
+            if(!updateChar && !updatePos) return;
 
             const map = this.cmap;
 
@@ -1323,17 +1392,18 @@ void main() {
             // const height = map[glyphIdx + 14];
             const x0 = x + map[glyphIdx + 11];
             const y0 = y + map[glyphIdx + 12];
+            const halfWidth = map[glyphIdx + 13];
+            const halfHeight = map[glyphIdx + 14];
 
             const uWidth = map[glyphIdx + 9] - u0;
             const vHeight = map[glyphIdx + 10] - v0;
-            const halfWidth = map[glyphIdx + 13];
-            const halfHeight = map[glyphIdx + 14];
 
             const v = this.vertexData;
             v[vIdx] = x0 + halfWidth;       // i_pos.x (center)
             v[vIdx + 1] = y0 + halfHeight;  // i_pos.y (center)
             v[vIdx + 2] = halfWidth;        // i_size.x (half width)
             v[vIdx + 3] = halfHeight;       // i_size.y (half height)
+
             v[vIdx + 4] = u0;               // uv.x
             v[vIdx + 5] = v0;               // uv.y
             v[vIdx + 6] = uWidth;           // uv.w
@@ -1418,6 +1488,10 @@ void main() {
             let x = this.options.x || 0;
             let y = this.options.y || 0;
 
+            if(r && typeof r !== 'number') {
+                [r, g, b, a] = LS.Color.parse(r, g, b, a);
+            }
+
             let idx = this.startIdx;
             for (let i = 0; i < this.size; i++) {
                 const charCode = i < len ? text.charCodeAt(i) : 0;
@@ -1434,6 +1508,26 @@ void main() {
                     x = 0;
                     y += this.engine.cellHeight * this.engine.lineHeight;
                 }
+            }
+        }
+
+        writeTextAt(text, startIdx = 0, len, x, y, r = 255, g = 255, b = 255, a = 255) {
+            if(r && typeof r !== 'number') {
+                [r, g, b, a] = LS.Color.parse(r, g, b, a);
+            }
+
+            let idx = this.startIdx + startIdx;
+            for (let i = 0; i < len; i++) {
+                const charCode = i < text.length ? text.charCodeAt(i) : 0;
+                this.setChar(idx, x, y, charCode, r, g, b, a);
+                idx++;
+
+                if(idx > this.startIdx + this.size) {
+                    console.warn("TextBlock overflow: text exceeds reserved size, truncating. (Reserved size: " + this.size + ", text length: " + text.length + ")");
+                    break;
+                }
+
+                x += this.engine.cellWidth;
             }
         }
 
@@ -1535,6 +1629,29 @@ void main() {
 
         // Experimental
         TextEngine,
+
+        // Shader presets
+        shaders: {
+            msdfVertex,
+            msdfFragment,
+            mtsdfFragment,
+
+            basic_fullscreen_vertex: `#version 300 es
+
+out vec2 vUV;
+
+const vec2 positions[3] = vec2[](
+    vec2(-1.0, -1.0),
+    vec2( 3.0, -1.0),
+    vec2(-1.0,  3.0)
+);
+
+void main() {
+    vec2 pos = positions[gl_VertexID];
+    vUV = pos * 0.5 + 0.5;
+    gl_Position = vec4(pos, 0.0, 1.0);
+}`
+        },
 
         /**
          * Creates a new LS.Color instance from the given color input. The input can be any valid LS.Color input.

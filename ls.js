@@ -1908,8 +1908,53 @@
             },
 
             /**
-             * TouchHandle API; fast, powerful and very useful for any kind of UI where a mouse drag motion happens.
-             * Compatible with any pointer type, pointerLock, and reliably handles browser setup.
+             * TouchHandle is a fast, powerful, responsive and very flexible event API for any kind of action where a pointer (mouse, touch, pen etc.) drag motion happens.
+             * Compatible with any pointer type, seamless pointerLock integration, and reliably handles the correct browser setup.
+             * It's event object provides many common helpful properties for effectively calculating motion, and abstracts all pointer types.
+             * 
+             * @param {Element} element Element to attach the touch handle to. Can be null if you want to add targets later, which allows multiple targets as well.
+             * @param {Object} options Options for the touch handle.
+             * @param {boolean} options.disablePointerEvents Whether to disable pointer events on the document while dragging (to prevent accidental interaction with other elements). Default is true.
+             * @param {boolean} options.pointerLock Whether to use pointer lock for mouse input. Default is false.
+             * @param {boolean} options.calculateWorld Whether to calculate the world rectangle (relative position to a target rather than viewport). Default is false, or true if options.world is provided.
+             * @param {Element|Object} options.world Element/rectangle object {top, left, bottom, right} to use as the world reference for worldX/worldY coordinates. If not set, the current target element will be used if calculateWorld is true, otherwise worldX/worldY will be the same as x/y.
+             * @param {boolean} options.alwaysRecalculateWorld Whether to recalculate the world rectangle on every move event. Default is false (only calculated on start).
+             * @param {string} options.cursor CSS cursor to use while dragging. Default is "grabbing". Can be changed by setting the `cursor` property of the TouchHandle instance at any time.
+             * @param {string} options.exclude CSS selector to exclude certain elements from starting the drag. If the event target matches this selector, the drag will not start.
+             * @param {boolean} options.detached Whether to start detached (not attached to any element). Default is false.
+             * @param {Array} options.targets Array of additional elements to listen for drag events on. Default is null (only the initial element is used).
+             * @param {Array} options.startEvents Array of additional events to listen for to start the drag. Default is null (only pointerdown is used).
+             * @param {Array} options.buttons Array of mouse buttons to accept (0 = left, 1 = middle, 2 = right). Default is all buttons.
+             * @param {boolean} options.frameTimed Whether to emit move events on animation frames instead of every pointermove event. Default is false.
+             * @param {boolean} options.fluentFrames Whether to emit move events on every animation frame, even if the pointer hasn't moved. Default is false. Requires options.frameTimed to be true.
+             * @param {function} options.onStart Optional callback function to call when the drag starts. Receives an event object (see below).
+             * @param {function} options.onMove Optional callback to call when the drag moves. Receives an event object (see below).
+             * @param {function} options.onEnd Optional callback to call when the drag ends. Receives an event object (see below).
+             * 
+             * Emits: "start", "move", "end" events with the event object. Emits "destroy" when the TouchHandle is destroyed.
+             * 
+             * Event shape:
+             * ```
+             * {
+             *   domEvent: Event, // The original DOM event
+             *   cancel: function, // Call this to cancel the drag
+             *   cancelled: boolean, // True if the drag has been cancelled
+             *   isTouch: boolean, // True if the event is from a touch input
+             *   dx: number, // Delta x position (since last event)
+             *   dy: number, // Delta y position (since last event)
+             *   x: number, // Current x position (relative to the viewport)
+             *   y: number, // Current y position (relative to the viewport)
+             *   offsetX: number, // Offset x position (difference since start)
+             *   offsetY: number, // Offset y position (difference since start)
+             *   startX: number, // Start x position (first event position)
+             *   startY: number, // Start y position (first event position)
+             *   worldX: number, // Current x position (relative to the world or same as x if no world is set)
+             *   worldY: number, // Current y position (relative to the world or same as y if no world is set)
+             *   worldRect: object // The rectangle representing the bounds of the world element, if enabled, otherwise null
+             * }
+             * ```
+             * 
+             * Note: the event object is always reused for performance, so make a copy of the properties you need to keep.
              */
             TouchHandle: class TouchHandle extends EventEmitter {
                 constructor(element, options = {}) {
@@ -1919,6 +1964,9 @@
                         buttons: [0, 1, 2],
                         disablePointerEvents: true,
                         frameTimed: false,
+                        fluentFrames: false,
+                        calculateWorld: !!(options.world),
+                        alwaysRecalculateWorld: false,
                         ...options
                     };
 
@@ -1942,6 +1990,8 @@
                     this.latestMoveEvent = null;
                     this.activePointerId = null;
 
+                    this.world = this.options.world || null;
+
                     this._moveEventRef = this.prepareEvent("move");
                     this.prepareEvent("start", { deopt: true });
                     this.prepareEvent("end", { deopt: true });
@@ -1960,6 +2010,9 @@
                         dy: 0,
                         offsetX: 0,
                         offsetY: 0,
+                        worldX: 0,
+                        worldY: 0,
+                        worldRect: null,
                         startX: 0,
                         startY: 0,
                         cancel: this.cancel,
@@ -2016,6 +2069,10 @@
                     }
                 }
 
+                /**
+                 * Attaches the touch handle to the configured targets and sets up necessary event listeners.
+                 * @returns {void}
+                 */
                 attach() {
                     if(this.attached) return;
 
@@ -2031,9 +2088,14 @@
                     this.attached = true;
                 }
 
-                detach(destroying = false) {
+                /**
+                 * Detaches the touch handle from the configured targets and removes event listeners.
+                 * ! This is not the same as destroying - after this, the touch handle is still alive and can be re-attached. Use `destroy()` to clean up!
+                 * @returns {void}
+                 */
+                detach(_destroying = false) {
                     if (this.attached) {
-                        this.onRelease(destroying? { type: "destroy" } : {});
+                        this.onRelease(_destroying? { type: "destroy" } : {});
                         document.removeEventListener("pointercancel", this.onRelease);
 
                         for (const target of this.targets) {
@@ -2052,11 +2114,24 @@
                     return this._cursor;
                 }
 
+                /**
+                 * Sets the CSS cursor style to use while dragging. If set to null or an empty string, the default cursor will be restored.
+                 * @param {string|null} value CSS cursor value to set, or null/empty string to use default.
+                 */
                 set cursor(value) {
                     this._cursor = value;
                     if (this.seeking) {
                         document.documentElement.style.cursor = value || "";
                     }
+                }
+
+                /**
+                 * Cancels the current drag operation, if any. This will prevent any further move events from being emitted and will stop the drag.
+                 * Can be called from within the onStart, onMove, or onEnd callbacks to cancel the drag.
+                 * @returns {void}
+                 */
+                cancel() {
+                    this._eventData.cancelled = true;
                 }
 
                 onStart(event) {
@@ -2082,12 +2157,17 @@
 
                     this.activePointerId = event.pointerId;
 
+                    this.worldRect = this.options.calculateWorld? this.world instanceof Element ? this.world.getBoundingClientRect() : (this.world || event.target.getBoundingClientRect()) : null;
+
                     this._eventData.x = x;
                     this._eventData.y = y;
                     this._eventData.dx = 0;
                     this._eventData.dy = 0;
                     this._eventData.offsetX = 0;
                     this._eventData.offsetY = 0;
+                    this._eventData.worldX = this.worldRect? x - this.worldRect.left: x;
+                    this._eventData.worldY = this.worldRect? y - this.worldRect.top : y;
+                    this._eventData.worldRect = this.worldRect;
                     this._eventData.startX = x;
                     this._eventData.startY = y;
                     this._eventData.domEvent = event;
@@ -2187,10 +2267,16 @@
                         }
                     }
 
+                    if (this.options.calculateWorld && this.options.alwaysRecalculateWorld) {
+                        this.worldRect = this.world instanceof Element ? this.world.getBoundingClientRect() : (this.world || event.target.getBoundingClientRect());
+                    }
+
                     this._eventData.dx = x - prevX;
                     this._eventData.dy = y - prevY;
                     this._eventData.offsetX = x - this._eventData.startX;
                     this._eventData.offsetY = y - this._eventData.startY;
+                    this._eventData.worldX = this.worldRect ? x - this.worldRect.left : x;
+                    this._eventData.worldY = this.worldRect ? y - this.worldRect.top  : y;
                     this._eventData.x = x;
                     this._eventData.y = y;
                     this._eventData.domEvent = event;
@@ -2236,15 +2322,13 @@
                         captureTarget.releasePointerCapture(event.pointerId);
                     }
                     this._eventData.domEvent = null;
+                    this._eventData.worldRect = null;
+                    this.worldRect = null;
                 }
 
                 onPointerLockChange() {
                     const lockEl = document.pointerLockElement;
                     this.pointerLockActive = !!lockEl && lockEl === this.activeTarget;
-                }
-
-                cancel() {
-                    this._eventData.cancelled = true;
                 }
 
                 cleanupDragState() {
@@ -2272,6 +2356,10 @@
                     document.removeEventListener("pointerup", this.onRelease);
                 }
 
+                /**
+                 * Destroys the TouchHandle instance, detaching it from all targets and cleaning up event listeners. After calling this method, the instance cannot be used again. Do this when you are done.
+                 * @returns {boolean} True if the instance was successfully destroyed, false otherwise (if the method is called on an already destroyed instance).
+                 */
                 destroy() {
                     if (this.destroyed) return false;
 
@@ -2279,6 +2367,10 @@
                     this.clearTargets();
                     this._moveEventRef = null;
                     super.destroy();
+                    this.options.onStart = null;
+                    this.options.onMove = null;
+                    this.options.onEnd = null;
+                    this.options.world = null;
                     this.options = null;
                     this._eventData = null;
                     this.destroyed = true;

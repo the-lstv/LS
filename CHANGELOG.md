@@ -4,6 +4,8 @@
 - LS.View now extends LS.Context instead of LS.EventEmitter for better lifecycle management
 - LS.Tooltips have been enhanced and now scan globally by default.
 - Some possible memory leaks have been fixed.
+- New experimental LS.GL library for WebGL/WebGPU (in the future) rendering and a MSDF/MTSDF text engine, replacing the legacy LS.GL.
+- TouchHandle now supports world coordinates
 
 ## Version 6.0.0
 Major update (2026 release)!
