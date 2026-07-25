@@ -1355,7 +1355,7 @@
                         } else if (dragType === "slice" || dragType === "slice-delete" || dragType === "erase" || dragType === "delete") {
                             const threshold = 50;
                             const maxSpeed = 15;
-                            
+
                             edgeScrollSpeedX = 0;
                             edgeScrollSpeedY = 0;
                             if (cursorX < threshold) {

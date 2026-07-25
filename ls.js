@@ -1935,6 +1935,8 @@
              * @param {function} options.onStart Optional callback function to call when the drag starts. Receives an event object (see below).
              * @param {function} options.onMove Optional callback to call when the drag moves. Receives an event object (see below).
              * @param {function} options.onEnd Optional callback to call when the drag ends. Receives an event object (see below).
+             * @param {boolean} options.inertia Whether to enable dragging inertia (momentum). Default is false.
+             * @param {number} options.inertiaFriction Friction coefficient for inertia. Default is 0.92 (lower values = more friction).
              * 
              * Emits: "start", "move", "end" events with the event object.
              * Emits "destroy" when the TouchHandle is destroyed.
@@ -1977,6 +1979,8 @@
                         fluentFrames: false,
                         calculateWorld: !!(options.world),
                         alwaysRecalculateWorld: false,
+                        inertia: false,
+                        inertiaFriction: 0.92,
                         ...options
                     };
 
@@ -2002,6 +2006,11 @@
 
                     // Edgescroll can be enabled/disabled at any time
                     this.edgeScroll = !!this.options.edgeScroll;
+
+                    // Inertia can be enabled/disabled at any time
+                    this.inertia = !!this.options.inertia;
+                    this.velocityX = 0;
+                    this.velocityY = 0;
 
                     this.world = this.options.world || null;
 
@@ -2206,6 +2215,11 @@
                     // Prevent default to stop text selection, etc.
                     if (event.cancelable) event.preventDefault();
 
+                    if(this.inertia) {
+                        this.velocityX = 0;
+                        this.velocityY = 0;
+                    }
+
                     target.classList.add("is-dragging");
                     target.setPointerCapture(event.pointerId);
 
@@ -2292,9 +2306,9 @@
                 processEdgeScroll() {
                     if (!this.edgeScroll || !this.worldRect) return;
 
-                    const margin = this.options.edgeScrollMargin || 32;
+                    const margin = this.options.edgeScrollMargin || 24;
                     const anchor = this.options.edgeScrollAnchor || 0;
-                    const speed = this.options.edgeScrollSpeed || 10;
+                    const speed = this.options.edgeScrollSpeed   || 16;
 
                     let scrollX = 0;
                     let scrollY = 0;
@@ -2321,6 +2335,7 @@
 
                     if(scrollX !== 0 || scrollY !== 0) {
                         this.quickEmit("scroll", scrollX, scrollY, this._eventData);
+                        if(this.options.onScroll) this.options.onScroll(scrollX, scrollY, this._eventData);
                     }
                 }
 
@@ -2359,6 +2374,11 @@
                     this._eventData.domEvent = event;
                     this._eventData.isTouch = isTouch;
                     this._eventData.hasMoved = true;
+
+                    if(this.inertia) {
+                        this.velocityX = this._eventData.dx;
+                        this.velocityY = this._eventData.dy;
+                    }
 
                     if (this.options.calculateWorld) {
                         this._calculateWorld(this.options.alwaysRecalculateWorld);
@@ -2423,6 +2443,10 @@
                         document.exitPointerLock();
                     }
 
+                    if(this.inertia) {
+                        this.processInertia();
+                    }
+
                     if (isDestroy) {
                         if (this.options.onDestroy) {
                             this.options.onDestroy(this._eventData);
@@ -2435,6 +2459,7 @@
                     if (captureTarget && typeof event.pointerId === "number" && captureTarget.hasPointerCapture(event.pointerId)) {
                         captureTarget.releasePointerCapture(event.pointerId);
                     }
+
                     this._eventData.domEvent = null;
                     this._eventData.worldRect = null;
                     this._eventData.hasMoved = true;
@@ -2442,6 +2467,25 @@
                     this._eventData.scrollDeltaX = 0;
                     this._eventData.scrollDeltaY = 0;
                     this.worldRect = null;
+                }
+
+                processInertia() {
+                    if (Math.abs(this.velocityX) < 0.5 && Math.abs(this.velocityY) < 0.5) {
+                        return; // No significant velocity to process
+                    }
+
+                    this.quickEmit("scroll", -this.velocityX, -this.velocityY, this._eventData);
+                    if(this.options.onScroll) this.options.onScroll(-this.velocityX, -this.velocityY, this._eventData);
+
+                    this.velocityX *= this.options.inertiaFriction;
+                    this.velocityY *= this.options.inertiaFriction;
+
+                    requestAnimationFrame(() => this.processInertia());
+                }
+
+                stopInertia() {
+                    this.velocityX = 0;
+                    this.velocityY = 0;
                 }
 
                 onPointerLockChange() {
@@ -2483,6 +2527,7 @@
 
                     this.detach(true);
                     this.clearTargets();
+                    this.stopInertia();
                     this._moveEventRef = null;
                     super.destroy();
                     this.options.onStart = null;

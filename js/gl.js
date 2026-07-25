@@ -18,10 +18,12 @@ const msdfFragment = `#version 300 es
 precision mediump float;
 in vec2 v_texCoord;
 in vec4 v_color;
+in float v_weight;
+
+flat in uint v_style;
 
 uniform sampler2D uTexture;
 uniform float uPxRange;
-uniform float uWeight;
 
 out vec4 outColor;
 
@@ -37,7 +39,7 @@ void main() {
     vec2 screenTexSize = vec2(1.0) / fwidth(v_texCoord);
     float screenPxRange = max(0.5 * dot(unitRange, screenTexSize), 1.0);
 
-    float alpha = clamp(screenPxRange * (sd - 0.5 + uWeight) + 0.5, 0.0, 1.0);
+    float alpha = clamp(screenPxRange * (sd - 0.5 + v_weight) + 0.5, 0.0, 1.0);
 
     outColor = vec4(v_color.rgb, v_color.a * alpha);
 }
@@ -48,10 +50,12 @@ precision highp float;
 
 in vec2 v_texCoord;
 in vec4 v_color;
+in float v_weight;
+
+flat in uint v_style;
 
 uniform sampler2D uTexture;
 uniform float uPxRange;
-uniform float uWeight;
 
 out vec4 outColor;
 
@@ -66,7 +70,7 @@ void main() {
     float sdf = tex.a;
 
     float sd = mix(sdf, msdf, 0.75);
-    sd += uWeight;
+    sd += v_weight;
 
     vec2 texSize = vec2(textureSize(uTexture, 0));
     vec2 unitRange = vec2(uPxRange) / texSize;
@@ -106,9 +110,11 @@ const vec2 positions[6] = vec2[](
 );
 
 in vec2 i_pos;
-in vec2 i_size;
 in vec4 i_uvRect;
 in vec4 i_color;
+in vec2 i_size;
+in uint i_weight;
+in uint i_style;
 
 uniform mat4 uProjection;
 uniform vec2 uOffset;
@@ -120,6 +126,8 @@ uniform mat4 modelViewMatrix;
 
 out vec2 v_texCoord;
 out vec4 v_color;
+flat out uint v_style;
+out float v_weight;
 
 void main() {
     vec2 pos = i_pos + (positions[gl_VertexID] * i_size);
@@ -134,6 +142,8 @@ void main() {
 
     v_texCoord = uv;
     v_color = i_color;
+    v_style = i_style;
+    v_weight = float(i_weight);
 }
 `;
 
@@ -344,16 +354,16 @@ void main() {
         return source.slice(firstNewline + 1);
     }
 
-    function getShader(parent, type, ...keys) {
+    function getShader(renderer, type, ...keys) {
         for (const key of keys) {
             if(!key) continue;
 
-            if (type === parent.gl.VERTEX_SHADER && parent.vertexShaders.has(key)) {
-                return { shader: parent.vertexShaders.get(key), key };
+            if (type === renderer.gl.VERTEX_SHADER && renderer.vertexShaders.has(key)) {
+                return { shader: renderer.vertexShaders.get(key), key };
             }
 
-            if (type === parent.gl.FRAGMENT_SHADER && parent.fragmentShaders.has(key)) {
-                return { shader: parent.fragmentShaders.get(key), key };
+            if (type === renderer.gl.FRAGMENT_SHADER && renderer.fragmentShaders.has(key)) {
+                return { shader: renderer.fragmentShaders.get(key), key };
             }
         }
         return null;
@@ -365,26 +375,26 @@ void main() {
      * The shader is cached in the parent renderer for future use.
      * 
      * @experimental
-     * @param {*} parent - The parent renderer
+     * @param {*} renderer - The parent renderer
      * @param {*} type - The shader type (gl.VERTEX_SHADER or gl.FRAGMENT_SHADER)
      * @param {*} source - The shader source code
      * @returns The compiled shader or null if compilation failed
      */
-    function compileShader(parent, type, source) {
-        if (!(parent instanceof WebGLRenderer)) throw new Error("Parent is not a LS.GL.WebGLRenderer instance.");
-        if (!parent.gl) throw new Error("Parent does not have a WebGL context.");
+    function compileShader(renderer, type, source) {
+        if (!(renderer instanceof WebGLRenderer)) throw new Error("Parent is not a LS.GL.WebGLRenderer instance.");
+        if (!renderer.gl) throw new Error("Parent does not have a WebGL context.");
 
         const shaderHash = cyrb64(source);
-        const foundShader = getShader(parent, type, shaderHash);
+        const foundShader = getShader(renderer, type, shaderHash);
         if (foundShader) {
             // // If the shader was found by source, we can store it under the name if provided
             // if(foundShader.key !== name) {
-            //     parent[type === parent.gl.VERTEX_SHADER? "vertexShaders": "fragmentShaders"].set(name, foundShader.shader);
+            //     renderer[type === renderer.gl.VERTEX_SHADER? "vertexShaders": "fragmentShaders"].set(name, foundShader.shader);
             // }
             return { shader: foundShader.shader, hash: shaderHash };
         }
 
-        const gl = parent.gl;
+        const gl = renderer.gl;
         const shader = gl.createShader(type);
         gl.shaderSource(shader, source);
         gl.compileShader(shader);
@@ -394,30 +404,30 @@ void main() {
             return null;
         }
 
-        parent[type === gl.VERTEX_SHADER? "vertexShaders": "fragmentShaders"].set(shaderHash, shader);
+        renderer[type === gl.VERTEX_SHADER? "vertexShaders": "fragmentShaders"].set(shaderHash, shader);
         return { shader, hash: shaderHash };
     }
 
     /**
      * For WebGLRenderer.
      * Creates a shader program from vertex and fragment sources.
-     * @param {*} parent - The parent renderer
+     * @param {*} renderer - The parent renderer
      * @param {*} vertex - The vertex shader source code or vertex shader object
      * @param {*} fragment - The fragment shader source code or fragment shader object
      * @returns The compiled shader program or null if compilation failed
      */
-    function createProgram(parent, vertex, fragment) {
-        if (!(parent instanceof WebGLRenderer)) throw new Error("Parent is not a LS.GL.WebGLRenderer instance.");
-        if (!parent.gl) throw new Error("Parent does not have a WebGL context.");
+    function createProgram(renderer, vertex, fragment) {
+        if (!(renderer instanceof WebGLRenderer)) throw new Error("Parent is not a LS.GL.WebGLRenderer instance.");
+        if (!renderer.gl) throw new Error("Parent does not have a WebGL context.");
 
-        const gl = parent.gl;
+        const gl = renderer.gl;
         const program = gl.createProgram();
 
         if(vertex.shader) vertex = vertex.shader;
         if(fragment.shader) fragment = fragment.shader;
 
-        vertex =   vertex   instanceof WebGLShader ? vertex   : compileShader(parent, gl.VERTEX_SHADER, vertex)?.shader;
-        fragment = fragment instanceof WebGLShader ? fragment : compileShader(parent, gl.FRAGMENT_SHADER, fragment)?.shader;
+        vertex =   vertex   instanceof WebGLShader ? vertex   : compileShader(renderer, gl.VERTEX_SHADER, vertex)?.shader;
+        fragment = fragment instanceof WebGLShader ? fragment : compileShader(renderer, gl.FRAGMENT_SHADER, fragment)?.shader;
 
         if (!vertex || !fragment) {
             console.error("Failed to create shaders for program.");
@@ -566,6 +576,8 @@ void main() {
             this.lastRenderWidth = 0;
             this.lastRenderHeight = 0;
 
+            this.dimensionsVersion = 0;
+
             this.vertexShaders = new Map();
             this.fragmentShaders = new Map();
 
@@ -683,6 +695,7 @@ void main() {
                 this.lastRenderHeight = ch;
                 this.activeCamera.update(0, cw, ch, 0, -1, 1); // TODO: ? this isn't right what
                 gl.viewport(0, 0, cw, ch);
+                this.dimensionsVersion++;
             }
 
             // Update buffers and such
@@ -708,6 +721,12 @@ void main() {
 
             if(renderable.__bindVAO && renderable.vao) {
                 gl.bindVertexArray(renderable.vao);
+            }
+
+            if(!renderable.dimensionsUpToDate || renderable.dimensionsUpToDate !== this.dimensionsVersion) {
+                // Ensure the renderable is informed of the current dimensions
+                renderable.dimensionsUpToDate = this.dimensionsVersion;
+                updateDimensions = true;
             }
 
             gl.useProgram(renderable.program);
@@ -810,6 +829,33 @@ void main() {
             gl.deleteProgram(program);
         }
 
+        /**
+         * Sets the scissor box for clipping rendering.
+         * Flips the y-coordinate so you can use the proper expected top-left origin coordinates.
+         * @param {*} x
+         * @param {*} y 
+         * @param {*} width - If undefined, will use the remaining width of the canvas from x
+         * @param {*} height - If undefined, will use the remaining height of the canvas from y
+         */
+        scissor(x, y, width, height) {
+            if(width === undefined) {
+                width = this.width - x;
+            }
+
+            if(height === undefined) {
+                height = this.height - y;
+            }
+
+            const gl = this.gl;
+            gl.enable(gl.SCISSOR_TEST);
+            gl.scissor(x, this.height - y - height, width, height);
+        }
+
+        endScissor() {
+            const gl = this.gl;
+            gl.disable(gl.SCISSOR_TEST);
+        }
+
         destroy() {
             if(this.gl) {
                 this.gl.getExtension('WEBGL_lose_context')?.loseContext();
@@ -865,6 +911,8 @@ void main() {
             this.attributes = {};
             this.addUniforms(options.uniforms);
             this.addAttributes(options.attributes);
+
+            this.dimensionsUpToDate = false;
 
             if(options.bindVAO) {
                 this.vao = gl.createVertexArray();
@@ -1090,7 +1138,6 @@ void main() {
     class WebGLMSDFFont {
         constructor(options = {}) {
             this.options = options;
-            this.scale = options.scale || 1;
             this.loaded = false;
 
             const src = options.fontSrc || ('./assets/fonts/' + (options.fontName || 'JetBrainsMono'));
@@ -1126,7 +1173,7 @@ void main() {
             ]);
 
             // Number of floats per character in the cmap
-            const MAP_SLOTS = 15;
+            const MAP_SLOTS = 13;
 
             const baseFontSize = fontData.atlas.size || 24;
             const metrics = fontData.metrics || {};
@@ -1193,12 +1240,8 @@ void main() {
                 map[(code - lowestCharCode) * MAP_SLOTS + 10] = v1;
 
                 // Scale based
-                map[(code - lowestCharCode) * MAP_SLOTS + 11] = xOff * this.scale;
-                map[(code - lowestCharCode) * MAP_SLOTS + 12] = yOff * this.scale;
-                // map[(code - lowestCharCode) * MAP_SLOTS + 13] = gw * this.scale;
-                // map[(code - lowestCharCode) * MAP_SLOTS + 14] = gh * this.scale;
-                map[(code - lowestCharCode) * MAP_SLOTS + 13] = (gw * this.scale) * 0.5;
-                map[(code - lowestCharCode) * MAP_SLOTS + 14] = (gh * this.scale) * 0.5;
+                map[(code - lowestCharCode) * MAP_SLOTS + 11] = xOff;
+                map[(code - lowestCharCode) * MAP_SLOTS + 12] = yOff;
             }
 
             // Font metrics
@@ -1207,6 +1250,7 @@ void main() {
             const baseCellHeight = baseFontSize;
 
             this.cmap = map;
+            this.stride = MAP_SLOTS;
             this.atlas = fontData.atlas;
             this.baseCellWidth = baseCellWidth;
             this.baseCellHeight = baseCellHeight;
@@ -1261,13 +1305,13 @@ void main() {
      * VERY experimental and not production ready, use at your own risk.
      * @experimental
      */
-    class TextEngine extends Renderable {
+    class WebGLTextEngine extends Renderable {
         constructor(options = {}) {
             super({
                 fragment: options.mtsdf? mtsdfFragment: msdfFragment,
                 vertex: msdfVertex,
-                uniforms: ["uProjection", "uOffset", "uTexture", "uPxRange", "uWeight"],
-                attributes: ["i_pos", "i_size", "i_uvRect", "i_color"],
+                uniforms: ["uProjection", "uOffset", "uTexture", "uPxRange"],
+                attributes: ["i_pos", "i_size", "i_weight", "i_style", "i_uvRect", "i_color"],
                 bindVAO: true,
                 ...options
             });
@@ -1276,15 +1320,27 @@ void main() {
             if(!(this.font instanceof WebGLMSDFFont)) throw new Error("TextEngine requires a WebGLMSDFFont instance in options.font.");
 
             this.instanceCount = 0;
-            this.bufferDirty = false;
+            this.__lowestDirty = 0;
+            this.__highestDirty = 0;
 
-            this.fontSize = 16;
-            this.scale = 1;
+            this.defaultFontSize = 16;
+
             this.cellWidth = 0;
             this.cellHeight = 0;
 
             this.offsetX = 0;
             this.offsetY = 0;
+
+            this.cellSize  = 0;
+            this.cellSizeF = 0;
+
+            if(typeof options.manualRendering === "undefined") {
+                // Default to manual rendering (text won't be auto-rendered in the main render loop)
+                // Depends on how you plan to use the TextEngine.
+                // - If you want to render text automatically as a regular renderable, set manualRendering to false.
+                // - If you want to control when and where the text is rendered individually, set manualRendering to true.
+                options.manualRendering = true;
+            }
 
             this.lineHeight = 1.2; // Line height multiplier for vertical spacing
 
@@ -1300,29 +1356,25 @@ void main() {
             }
 
             gl.useProgram(program);
-
             gl.bindVertexArray(this.vao);
 
             this.vertexBuffer = gl.createBuffer();
             gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer);
 
-            const stride = (8 * 4) + (4 * 1); // 8 floats (32 bytes, position) + 4 unsigned bytes (4 bytes, color) per instance
             gl.enableVertexAttribArray(attributes.i_pos);
-            gl.vertexAttribPointer(attributes.i_pos, 2, gl.FLOAT, false, stride, 0);
             gl.vertexAttribDivisor(attributes.i_pos, 1);
-
             gl.enableVertexAttribArray(attributes.i_size);
-            gl.vertexAttribPointer(attributes.i_size, 2, gl.FLOAT, false, stride, 8);
             gl.vertexAttribDivisor(attributes.i_size, 1);
-
             gl.enableVertexAttribArray(attributes.i_uvRect);
-            gl.vertexAttribPointer(attributes.i_uvRect, 4, gl.FLOAT, false, stride, 16);
             gl.vertexAttribDivisor(attributes.i_uvRect, 1);
-
+            gl.enableVertexAttribArray(attributes.i_weight);
+            gl.vertexAttribDivisor(attributes.i_weight, 1);
+            gl.enableVertexAttribArray(attributes.i_style);
+            gl.vertexAttribDivisor(attributes.i_style, 1);
             gl.enableVertexAttribArray(attributes.i_color);
-            gl.vertexAttribPointer(attributes.i_color, 4, gl.UNSIGNED_BYTE, true, stride, 32);
             gl.vertexAttribDivisor(attributes.i_color, 1);
 
+            this._setArrayOffset(0, true);
             this.setBufferSize(options.bufferSize || 2048);
 
             // TODO: reuse texture across multiple TextEngine instances for the same renderer
@@ -1330,7 +1382,10 @@ void main() {
             this.font.setUniforms(gl, uniforms);
 
             if(!this.lineHeight) this.lineHeight = options.lineHeight || this.font.metrics.lineHeight || 1.2;
-            this.setFontSize(this.fontSize);
+
+            this.baseScale = 16 / this.font.atlas.size;
+            this.cellWidth = this.font.baseCellWidth * this.baseScale;
+            this.cellHeight = this.font.baseCellHeight * this.baseScale;
 
             gl.bindVertexArray(null);
             gl.bindBuffer(gl.ARRAY_BUFFER, null);
@@ -1339,39 +1394,43 @@ void main() {
 
         setBufferSize(numCells) {
             // Backing buffers to remember grid state for resizing & skipping updates
-            this.gridBuffer = new Uint16Array(numCells);
-
-            // Per-instance data: i_pos(2), i_size(2), i_uvRect(4), i_color(1) (color is stored as 4 bytes)
-            this.vertexData = new Float32Array(numCells * 9);
-            this.vertexByteView = new Uint8Array(this.vertexData.buffer);
+            this.gridBuffer      = new Uint16Array(numCells);
+            this.vertexData      = new Float32Array(numCells * this.cellSizeF);
+            this.vertexByteView  = new Uint8Array  (this.vertexData.buffer);
+            this.vertexShortView = new Uint16Array (this.vertexData.buffer);
 
             const gl = this.renderer.gl;
             gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer);
             gl.bufferData(gl.ARRAY_BUFFER, this.vertexData, gl.DYNAMIC_DRAW);
 
             this.instanceCount = numCells;
-            this.bufferDirty = false;
+            this.__lowestDirty = this.instanceCount;
+            this.__highestDirty = 0;
+            this.nextFree = 0;
         }
 
         clear() {
             if (!this.gridBuffer) return;
             this.gridBuffer.fill(0);
             this.vertexData.fill(0);
-            this.bufferDirty = true;
+            this.__lowestDirty = 0;
+            this.__highestDirty = this.instanceCount;
             this.nextFree = 0;
         }
 
         setOptions(newOptions) {
-            if (newOptions.fontSize) {
-                this.setFontSize(newOptions.fontSize);
-            }
-
             if (newOptions.fontSrc && this.gl) {
                 this.loadFont(newOptions.fontSrc);
+            }
+
+            if (typeof newOptions.manualRendering !== "undefined") {
+                this.manualRendering = newOptions.manualRendering;
             }
         }
 
         render(delta, now, gl, cw, ch, updatedDimensions, uniforms, attributes, projectionMatrix) {
+            // if(this.manualRendering || this.nextFree === 0) return;
+            if(this.nextFree === 0) return;
             this.updateBuffers();
 
             // -- Render text grid
@@ -1381,7 +1440,6 @@ void main() {
             }
 
             gl.uniform2f(uniforms.uOffset, this.offsetX, this.offsetY);
-            gl.uniform1f(uniforms.uWeight, this?.options?.weight || 0.0);
 
             gl.activeTexture(gl.TEXTURE0);
             gl.bindTexture(gl.TEXTURE_2D, this.font.texture);
@@ -1389,8 +1447,182 @@ void main() {
             gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.nextFree);
         }
 
+        renderRange(startIdx, endIdx) {
+            if(endIdx <= startIdx) return;
+            const gl = this.renderer.gl;
+
+            // TODO: Check if the program is already in use to avoid unnecessary state changes
+            // if (this.renderer.gl.getParameter(gl.CURRENT_PROGRAM) !== this.program) {
+            // }
+
+            gl.useProgram(this.program);
+            gl.bindVertexArray(this.vao);
+
+            const projectionMatrix = this.renderer.activeCamera?.projectionMatrix;
+            const uniforms = this.uniforms;
+
+            this.updateBuffers();
+            this._setArrayOffset(startIdx);
+
+            gl.uniformMatrix4fv(uniforms.uProjection, false, projectionMatrix);
+
+            gl.uniform2f(uniforms.uOffset, this.offsetX, this.offsetY);
+
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, this.font.texture);
+            gl.uniform1i(uniforms.uTexture, 0);
+            gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, endIdx - startIdx);
+
+            gl.bindVertexArray(null);
+            gl.useProgram(null);
+        }
+
+        /**
+         * Sets the vertex attribute pointers for the instanced rendering
+         */
+        _setArrayOffset(startIdx = 0, force = false) {
+            if(!force && startIdx === this.__lastArrayOffset) return;
+            this.__lastArrayOffset = startIdx;
+
+            // Shift the whole array since why have a proper range draw call
+            const gl = this.renderer.gl;
+
+            const attributes = this.attributes;
+            const stride = (8 * 4) + (2 * 2) + (4 * 1);
+
+            this.cellSize = stride;      // Number of bytes per instance
+            this.cellSizeF = stride / 4; // Number of floats per instance
+
+            let offset = 0;
+            gl.vertexAttribPointer (attributes.i_pos,    2, gl.FLOAT,          false, stride, startIdx * stride);
+            offset += 8;
+
+            gl.vertexAttribPointer (attributes.i_size,   2, gl.FLOAT,          false, stride, startIdx * stride + offset);
+            offset += 8;
+
+            gl.vertexAttribPointer (attributes.i_uvRect, 4, gl.FLOAT,          false, stride, startIdx * stride + offset);
+            offset += 16;
+
+            gl.vertexAttribIPointer(attributes.i_weight, 1, gl.UNSIGNED_SHORT,        stride, startIdx * stride + offset);
+            offset += 2;
+
+            gl.vertexAttribIPointer(attributes.i_style,  1, gl.UNSIGNED_SHORT,        stride, startIdx * stride + offset);
+            offset += 2;
+
+            gl.vertexAttribPointer (attributes.i_color,  4, gl.UNSIGNED_BYTE,  true,  stride, startIdx * stride + offset);
+        }
+
+        /**
+         * Updates the vertex data for a single cell in the grid. Does not clamp values or check bounds.
+         * @param {number} cellIdx - Index of the cell to update
+         * @param {number} x - X position of the cell
+         * @param {number} y - Y position of the cell
+         * @param {number} charCode - Optional new character code for the cell. If undefined, the character will not be changed.
+         * 
+         * @param {number} r - Optional new red color component (0-255). If undefined, the red component will not be changed.
+         * @param {number} g - Optional new green color component (0-255). If undefined, the green component will not be changed.
+         * @param {number} b - Optional new blue color component (0-255). If undefined, the blue component will not be changed.
+         * @param {number} a - Optional new alpha component (0-255). If undefined, the alpha component will not be changed.
+         * 
+         * @param {number} size - Optional new size for the cell.
+         * @param {number} style - Optional new style for the cell.
+         * @param {number} weight - Optional new weight for the cell.
+         * 
+         * @returns {number} The xadvance value for the character, which can be used for cursor movement.
+         */
+        _updateVertex(cellIdx, x, y, charCode, r, g, b, a, size, style, weight) {
+            if(!this.font || !this.font.cmap) return;
+ 
+            const f32Idx = cellIdx * this.cellSizeF;
+
+            // Should be optimized, kind of sucks we have to do a lookup for every character
+            const map = this.font.cmap;
+            let glyphIdx = this.font._missingGlyphIndex;
+            if (glyphIdx >= map.length) glyphIdx = 0;
+            if (charCode >= this.font._lowestCharCode) {
+                const idx = (charCode - this.font._lowestCharCode) * this.font.stride;
+                if (idx >= 0 && idx < map.length) glyphIdx = idx;
+            }
+
+            const xadvance = (map[glyphIdx + 6] || this.font.baseCellWidth) * size;
+
+            // Dirty glyph (for now we only care to render if glyph changes through this function)
+
+            let updateChar = false;
+            const updatePos = x !== undefined || y !== undefined || size !== undefined;
+            const updateColor = r !== undefined || g !== undefined || b !== undefined || a !== undefined;
+            const updateStyle = style !== undefined || weight !== undefined;
+
+            if(charCode !== undefined) {
+                updateChar = this.gridBuffer[cellIdx] !== charCode;
+                this.gridBuffer[cellIdx] = charCode;
+
+                // if(charCode === 61 && this.gridBuffer[cellIdx - 1] === 62) {
+                //     // Handle => ligature as an example
+                //     // TODO
+                //     this._updateVertex(cellIdx - 1, x, y, 65536, r, g, b, a, size, style, weight); // Use a char code outside of the normal range to indicate a ligature
+                //     return;
+                // }
+            } else if(!updateColor && !updatePos && !updateStyle) {
+                return xadvance; // No updates needed
+            }
+
+            // Update color
+            if(updateColor) {
+                const u8 = this.vertexByteView;
+                const u8Idx = f32Idx * 4;
+                if(r !== undefined)      u8 [u8Idx + 36] = r; // i_color.r
+                if(g !== undefined)      u8 [u8Idx + 37] = g; // i_color.g
+                if(b !== undefined)      u8 [u8Idx + 38] = b; // i_color.b
+                if(a !== undefined)      u8 [u8Idx + 39] = a; // i_color.a
+            }
+
+            // Update weight and style
+            if(updateStyle) {
+                const u16 = this.vertexShortView;
+                const u16Idx = f32Idx * 2;
+                if(weight !== undefined) u16[u16Idx + 16] = weight;  // i_weight
+                if(style !== undefined)  u16[u16Idx + 17] = style;   // i_style
+    
+                this.__lowestDirty = Math.min(this.__lowestDirty || f32Idx - this.cellSizeF, f32Idx - this.cellSizeF);
+                this.__highestDirty = Math.max(this.__highestDirty || f32Idx + this.cellSizeF, f32Idx + this.cellSizeF);
+            }
+
+            if(!updateChar && !updatePos) return xadvance;
+
+            const f32 = this.vertexData;
+
+            // Update UVs if the character has changed
+            if(updateChar) {
+                const u0 = map[glyphIdx + 7];
+                const v0 = map[glyphIdx + 8];
+                const uWidth = map[glyphIdx + 9] - u0;
+                const vHeight = map[glyphIdx + 10] - v0;
+                      f32[f32Idx + 4] = u0;               // uv.x
+                      f32[f32Idx + 5] = v0;               // uv.y
+                      f32[f32Idx + 6] = uWidth;           // uv.w
+                      f32[f32Idx + 7] = vHeight;          // uv.h
+            }
+
+            // Update position and size if needed
+            if(updatePos) {
+                const scale = size / this.font.atlas.size;
+                const x0 = x + map[glyphIdx + 11]            * scale;
+                const y0 = y + map[glyphIdx + 12]            * scale;
+                const halfWidth =  (map[glyphIdx + 2]) * 0.5 * scale;
+                const halfHeight = (map[glyphIdx + 3]) * 0.5 * scale;
+                    f32[f32Idx] =     x0 + halfWidth;   // i_pos.x (center)
+                    f32[f32Idx + 1] = y0 + halfHeight;  // i_pos.y (center)
+                    f32[f32Idx + 2] = halfWidth;        // i_size.x (half width)
+                    f32[f32Idx + 3] = halfHeight;       // i_size.y (half height)
+            }
+
+            // Return the advance for cursor movement
+            return xadvance;
+        }
+
         updateBuffers() {
-            if (!this.bufferDirty) return;
+            if (this.__lowestDirty >= this.__highestDirty) return;
             const gl = this.renderer.gl;
 
             gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer);
@@ -1408,119 +1640,32 @@ void main() {
             }
 
             this.__lowestDirty = this.__lowestDirty || 0;
-            this.__highestDirty = this.__highestDirty || this.nextFree * 9;
-            this.bufferDirty = false;
+            this.__highestDirty = this.__highestDirty || this.nextFree * this.cellSizeF;
         }
 
-        setFontSize(size) {
-            this.fontSize = size;
-            if (this.font) {
-                this.scale = size / this.font.atlas.size;
-                this.cellWidth = this.font.baseCellWidth * this.scale;
-                this.cellHeight = this.font.baseCellHeight * this.scale;
-                this._rebuildGlyphScale();
+        drawText(text, x, y, color = [255, 255, 255, 255]) {
+            if (!this.font || !this.font.cmap) return;
 
-                // Rebuild all vertices with the new scale
-                if (this.gridBuffer) {
-                    for (let i = 0; i < this.gridBuffer.length; i++) {
-                        this._updateVertex(i);
-                    }
+            [r, g, b, a] = color instanceof LS.Color || Array.isArray(color)? color : LS.Color.parse(color);
+
+            let cursorX = x;
+            let cursorY = y;
+
+            for (let i = 0; i < text.length; i++) {
+                const charCode = text.charCodeAt(i);
+                const cellIdx = this.nextFree++;
+
+                if (cellIdx >= this.instanceCount) {
+                    console.warn("TextEngine buffer overflow. Increase bufferSize.");
+                    break;
                 }
+
+                const advance = this._updateVertex(cellIdx, cursorX, cursorY, charCode, r, g, b, a, this.defaultFontSize, 0);
+
+                // Advance cursor based on character width
+                const glyphIdx = (charCode - this.font._lowestCharCode) * this.font.stride;
+                cursorX += advance;
             }
-        }
-
-        _rebuildGlyphScale() {
-            if (!this.font) return;
-            for (let charCode = this.font._lowestCharCode; charCode < this.font._lowestCharCode + this.font.cmap.length / 15; charCode++) {
-                const glyphIdx = (charCode - this.font._lowestCharCode) * 15;
-                this.font.cmap[glyphIdx + 11] = (this.font.cmap[glyphIdx + 4] || 0) * this.scale;  // xOff
-                this.font.cmap[glyphIdx + 12] = (this.font.cmap[glyphIdx + 5] || 0) * this.scale;  // yOff
-                this.font.cmap[glyphIdx + 13] = (this.font.cmap[glyphIdx + 2] * this.scale) * 0.5; // gw
-                this.font.cmap[glyphIdx + 14] = (this.font.cmap[glyphIdx + 3] * this.scale) * 0.5; // gh
-            }
-        }
-
-        /**
-         * Updates the vertex data for a single cell in the grid. Does not clamp values or check bounds.
-         * @param {number} cellIdx - Index of the cell to update
-         * @param {number} x - X position of the cell
-         * @param {number} y - Y position of the cell
-         * @param {number} charCode - Optional new character code for the cell. If undefined, the character will not be changed.
-         * @param {number} r - Optional new red color component (0-255). If undefined, the red component will not be changed.
-         * @param {number} g - Optional new green color component (0-255). If undefined, the green component will not be changed.
-         * @param {number} b - Optional new blue color component (0-255). If undefined, the blue component will not be changed.
-         * @param {number} a - Optional new alpha component (0-255). If undefined, the alpha component will not be changed.
-         */
-        _updateVertex(cellIdx, x, y, charCode, r, g, b, a) {
-            if(!this.font || !this.font.cmap) return;
-
-            // Dirty glyph (for now we only care to render if glyph changes through this function)
-            let updateChar = false;
-            const updatePos = x !== undefined || y !== undefined;
-
-            if(charCode !== undefined) {
-                updateChar = this.gridBuffer[cellIdx] !== charCode;
-                this.gridBuffer[cellIdx] = charCode;
-
-                if(charCode === 61 && this.gridBuffer[cellIdx - 1] === 62) {
-                    // Handle => ligature as an example
-                    // TODO
-                    this._updateVertex(cellIdx - 1, x, y, 65536, r, g, b, a); // Use a char code outside of the normal range to indicate a ligature
-                    return;
-                }
-            } else if(r === undefined && g === undefined && b === undefined && a === undefined && !updatePos) {
-                return; // No updates needed
-            }
- 
-            const vb = this.vertexByteView;
-            const vIdx = cellIdx * 9;
-            const vbIdx = vIdx * 4;
-
-            // Update color if provided
-            if(r !== undefined) vb[vbIdx + 32] = r; // i_color.r
-            if(g !== undefined) vb[vbIdx + 33] = g; // i_color.g
-            if(b !== undefined) vb[vbIdx + 34] = b; // i_color.b
-            if(a !== undefined) vb[vbIdx + 35] = a; // i_color.a
-
-            this.__lowestDirty = Math.min(this.__lowestDirty || vIdx - 9, vIdx - 9);
-            this.__highestDirty = Math.max(this.__highestDirty || vIdx + 9, vIdx + 9);
-            this.bufferDirty = true;
-
-            if(!updateChar && !updatePos) return;
-
-            const map = this.font.cmap;
-
-            let glyphIdx = this.font._missingGlyphIndex;
-            if (glyphIdx >= map.length) glyphIdx = 0;
-            if (charCode >= this.font._lowestCharCode) {
-                const idx = (charCode - this.font._lowestCharCode) * 15;
-                if (idx >= 0 && idx < map.length) glyphIdx = idx;
-            }
-
-            const u0 = map[glyphIdx + 7];
-            const v0 = map[glyphIdx + 8];
-            // const u1 = map[glyphIdx + 9];
-            // const v1 = map[glyphIdx + 10];
-            // const width = map[glyphIdx + 13];
-            // const height = map[glyphIdx + 14];
-            const x0 = x + map[glyphIdx + 11];
-            const y0 = y + map[glyphIdx + 12];
-            const halfWidth = map[glyphIdx + 13];
-            const halfHeight = map[glyphIdx + 14];
-
-            const uWidth = map[glyphIdx + 9] - u0;
-            const vHeight = map[glyphIdx + 10] - v0;
-
-            const v = this.vertexData;
-            v[vIdx] = x0 + halfWidth;       // i_pos.x (center)
-            v[vIdx + 1] = y0 + halfHeight;  // i_pos.y (center)
-            v[vIdx + 2] = halfWidth;        // i_size.x (half width)
-            v[vIdx + 3] = halfHeight;       // i_size.y (half height)
-
-            v[vIdx + 4] = u0;               // uv.x
-            v[vIdx + 5] = v0;               // uv.y
-            v[vIdx + 6] = uWidth;           // uv.w
-            v[vIdx + 7] = vHeight;          // uv.h
         }
 
         /**
@@ -1590,6 +1735,9 @@ void main() {
             this.startIdx = engine.nextFree;
             engine.nextFree += size;
 
+            this.__clippedStartIdx = this.startIdx;
+            this.__clippedEndIdx = this.startIdx + size;
+
             if(typeof text === 'string' && text.length > 0) {
                 this.setText(text);
             }
@@ -1602,8 +1750,11 @@ void main() {
          * @param {*} g Green color component (0-255)
          * @param {*} b Blue color component (0-255)
          * @param {*} a Alpha component (0-255)
+         * @param {*} size Font size
+         * @param {*} style Font style
+         * @param {*} weight Font weight
          */
-        setText(text, r = 255, g = 255, b = 255, a = 255) {
+        setText(text, r = 255, g = 255, b = 255, a = 255, size = this.engine.defaultFontSize, style = 0, weight = 0) {
             const len = text.length;
             let x = this.options.x || 0;
             let y = this.options.y || 0;
@@ -1615,7 +1766,7 @@ void main() {
             let idx = this.startIdx;
             for (let i = 0; i < this.size; i++) {
                 const charCode = i < len ? text.charCodeAt(i) : 0;
-                this.setChar(idx, x, y, charCode, r, g, b, a);
+                const advance = this.setChar(idx, x, y, charCode, r, g, b, a, size, style, weight);
                 idx++;
 
                 if(idx > this.startIdx + this.size) {
@@ -1623,7 +1774,7 @@ void main() {
                     break;
                 }
 
-                x += this.engine.cellWidth;
+                x += advance;
                 if (charCode === 10) { // Newline
                     x = 0;
                     y += this.engine.cellHeight * this.engine.lineHeight;
@@ -1631,7 +1782,7 @@ void main() {
             }
         }
 
-        writeTextAt(text, startIdx = 0, len, x, y, r = 255, g = 255, b = 255, a = 255) {
+        writeTextAt(text, startIdx = 0, len, x, y, r = 255, g = 255, b = 255, a = 255, size = this.engine.defaultFontSize, style = 0, weight = 0) {
             if(r && typeof r !== 'number') {
                 [r, g, b, a] = LS.Color.parse(r, g, b, a);
             }
@@ -1639,7 +1790,7 @@ void main() {
             let idx = this.startIdx + startIdx;
             for (let i = 0; i < len; i++) {
                 const charCode = i < text.length ? typeof text === 'number' ? text : typeof text === 'string' ? text.charCodeAt(i) : text[i] : 0;
-                this.setChar(idx, x, y, charCode, r, g, b, a);
+                const advance = this.setChar(idx, x, y, charCode, r, g, b, a, size, style, weight);
                 idx++;
 
                 if(idx > this.startIdx + this.size) {
@@ -1647,7 +1798,7 @@ void main() {
                     break;
                 }
 
-                x += this.engine.cellWidth;
+                x += advance;
             }
         }
 
@@ -1662,6 +1813,13 @@ void main() {
                 }
                 this.setChar(i, undefined, undefined, 0, 0, 0, 0, 0);
             }
+        }
+
+        clip(startIdx = 0, len = this.size) {
+            startIdx = Math.max(0, Math.floor(startIdx));
+            len = Math.max(0, Math.floor(len));
+            this.__clippedStartIdx = this.startIdx + startIdx;
+            this.__clippedEndIdx = Math.min(this.startIdx + startIdx + len, this.startIdx + this.size);
         }
 
         /**
@@ -1688,6 +1846,13 @@ void main() {
             for (let i = 0; i < this.size; i++) {
                 yield i;
             }
+        }
+
+        /**
+         * Renders the text block to the screen. This should be called after all updates to the text block have been made.
+         */
+        render() {
+            this.engine.renderRange(this.__clippedStartIdx, this.__clippedEndIdx);
         }
 
         changeColor(r = 255, g = 255, b = 255, a = 255) {
@@ -1719,8 +1884,11 @@ void main() {
          * @param {number} g - Green color component (0-255)
          * @param {number} b - Blue color component (0-255)
          * @param {number} a - Alpha component (0-255)
+         * @param {number} size - Font size
+         * @param {number} style - Font style
+         * @param {number} weight - Font weight
          */
-        setChar(index, x, y, charCode, r = 255, g = 255, b = 255, a = 255) {
+        setChar(index, x, y, charCode, r = 255, g = 255, b = 255, a = 255, size = this.engine.defaultFontSize, style = 0, weight = 0) {
             const cellIdx = this.startIdx + index;
             if (cellIdx < this.startIdx || cellIdx >= this.startIdx + this.size) {
                 console.warn(`TextBlock.setChar: Index ${index} is out of bounds for reserved size ${this.size}.`);
@@ -1733,7 +1901,7 @@ void main() {
             if (b < 0) b = 0; else if (b > 255) b = 255;
             if (a < 0) a = 0; else if (a > 255) a = 255;
 
-            this.engine._updateVertex(cellIdx, x, y, charCode, r, g, b, a);
+            return this.engine._updateVertex(cellIdx, x, y, charCode, r, g, b, a, size, style, weight);
         }
     }
 
@@ -1752,8 +1920,8 @@ void main() {
         static I16 = Int16Array;
         static I32 = Int32Array;
 
-        constructor(parent, data, cellSize = 1, usage) {
-            if(!(parent instanceof WebGLRenderer)) {
+        constructor(renderer, data, cellSize = 1, usage) {
+            if(!(renderer instanceof WebGLRenderer)) {
                 throw new Error("GPUBuffer constructor expects a WebGLRenderer instance as the first argument.");
             }
  
@@ -1765,8 +1933,8 @@ void main() {
                 throw new Error("GPUBuffer constructor expects a typed array constructor, an ArrayBuffer, a number (size), or an array as the second argument.");
             }
 
-            this.parent = parent;
-            this.gl = parent.gl;
+            this.renderer = renderer;
+            this.gl = renderer.gl;
 
             this.byteSize = this.data.BYTES_PER_ELEMENT;
             this.cellSize = cellSize || 1;
@@ -1781,7 +1949,7 @@ void main() {
             this.__lowestDirty = 0;
             this.__highestDirty = this.data.length;
 
-            parent.once('destroy', this.__parentDestroyed = () => this.delete());
+            renderer.once('destroy', this.__parentDestroyed = () => this.delete());
         }
 
         bindToAttribute(location, size = this.cellSize, type, normalized = false, stride = 0, offset = 0, divisor = 1) {
@@ -1908,7 +2076,7 @@ void main() {
             }
 
             this.gl = null;
-            this.parent = null;
+            this.renderer = null;
             this.__lowestDirty = 0;
             this.__highestDirty = 0;
             this.byteSize = 0;
@@ -1916,7 +2084,7 @@ void main() {
             this.instanceSize = 0;
             this.usage = null;
 
-            this.parent.off('destroy', this.__parentDestroyed);
+            this.renderer.off('destroy', this.__parentDestroyed);
             this.destroyed = true;
         }
     }
@@ -1943,11 +2111,33 @@ void main() {
         WebGLBuffer,
         WebGLMSDFFont,
 
+        // Experimental
+        WebGLTextEngine,
+
+        /**
+         * Creates a new LS.Color instance from the given color input. The input can be any valid LS.Color input.
+         * @param {LS.Color|string|Array|Object|number} r - The red component of the color or an LS.Color instance, any valid CSS color string, array, object, or a hex number.
+         * @param {number} g - The green component of the color.
+         * @param {number} b - The blue component of the color.
+         * @param {number} a - The alpha component of the color.
+         * @returns {Array} The color as a vec4 array [r, g, b, a] with values in the range [0, 1].
+         */
+        colorToVec4: (r, g, b, a = 1) => {
+            if(r instanceof LS.Color) return r.floatPixel;
+
+            // Parse the color
+            [r, g, b, a] = LS.Color.parse(r, g, b, a);
+
+            // Return the color as a vec4
+            return [Math.fround(r / 255), Math.fround(g / 255), Math.fround(b / 255), Math.fround(a / 255)];
+        },
+
+        createRenderer(options = {}) {
+            return new WebGLRenderer(options);
+        },
+
         // Misc utilities
         cyrb64,
-
-        // Experimental
-        TextEngine,
 
         // Shader presets
         shaders: {
@@ -1989,6 +2179,35 @@ void main() {
     vUV = pos * 0.5 + 0.5;
     gl_Position = vec4(pos, 0.0, 1.0);
 }`,
+            basic_quad: `#version 300 es
+
+// Simple quad
+const vec2 positions[6] = vec2[](
+    vec2(-1.0, -1.0),
+    vec2( 1.0, -1.0),
+    vec2(-1.0,  1.0),
+
+    vec2(-1.0,  1.0),
+    vec2( 1.0, -1.0),
+    vec2( 1.0,  1.0)
+);
+
+out vec2 vUV;
+
+uniform vec2 uOffset;
+uniform vec2 uScale;
+
+void main() {
+    vec2 local = positions[gl_VertexID];
+
+    // local coordinates for fragment shader
+    vUV = local * 0.5 + 0.5;
+
+    vec2 pos = local * uScale + uOffset;
+    pos.y = -pos.y;
+
+    gl_Position = vec4(pos, 0.0, 1.0);
+}`,
 
             // Simple hello world shader
             basic_fullscreen_fragment: `#version 300 es
@@ -2018,28 +2237,6 @@ layout(location = 0) in vec2 aPosition;
 void main() {
     gl_Position = vec4(aPosition, 0.0, 1.0);
 }`
-        },
-
-        /**
-         * Creates a new LS.Color instance from the given color input. The input can be any valid LS.Color input.
-         * @param {LS.Color|string|Array|Object|number} r - The red component of the color or an LS.Color instance, any valid CSS color string, array, object, or a hex number.
-         * @param {number} g - The green component of the color.
-         * @param {number} b - The blue component of the color.
-         * @param {number} a - The alpha component of the color.
-         * @returns {Array} The color as a vec4 array [r, g, b, a] with values in the range [0, 1].
-         */
-        colorToVec4: (r, g, b, a = 1) => {
-            if(r instanceof LS.Color) return r.floatPixel;
-
-            // Parse the color
-            [r, g, b, a] = LS.Color.parse(r, g, b, a);
-
-            // Return the color as a vec4
-            return [Math.fround(r / 255), Math.fround(g / 255), Math.fround(b / 255), Math.fround(a / 255)];
-        },
-
-        createRenderer(options = {}) {
-            return new WebGLRenderer(options);
         },
 
         get animation() {
