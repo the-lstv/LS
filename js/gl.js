@@ -116,6 +116,8 @@ in vec2 i_size;
 in uint i_weight;
 in uint i_style;
 
+in float glyphDepth;
+
 uniform mat4 uProjection;
 uniform vec2 uOffset;
 
@@ -130,13 +132,19 @@ flat out uint v_style;
 out float v_weight;
 
 void main() {
-    vec2 pos = i_pos + (positions[gl_VertexID] * i_size);
+    vec2 pos = (i_pos + (positions[gl_VertexID] * i_size)) + uOffset;
 
 #ifdef USE_THREE_MATRICES
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(pos + uOffset, 0.0, 1.0);
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, glyphDepth, 1.0);
 #else
-    gl_Position = uProjection * vec4(pos + uOffset, 0.0, 1.0);
+    // gl_Position = uProjection * vec4(pos, glyphDepth, 1.0);
+
+    vec4 p = uProjection * vec4(pos, 0.0, 1.0);
+    p.z = glyphDepth;
+    gl_Position = p;
 #endif
+
+
 
     vec2 uv = i_uvRect.xy + (positions[gl_VertexID] * 0.5 + 0.5) * i_uvRect.zw;
 
@@ -530,13 +538,17 @@ void main() {
             };
         }
 
-        createRenderable(options = {}, append = true) {
+        createRenderable(options = {}, append = false) {
             options.parent = this;
             const renderable = new Renderable(options);
             if (append) {
                 this.renderables.push(renderable);
             }
             return renderable;
+        }
+
+        addRenderable(renderable) {
+            this.renderables.push(renderable);
         }
 
         destroy() {
@@ -593,6 +605,10 @@ void main() {
         /**
          * Schedules a render call for the next frame.
          * This is a non-blocking call and will not immediately render.
+         * 
+         * ! Note: This uses the default frame scheduler.
+         * 
+         * ! Are you looking for manual rendering? Use renderOne() or tick()
          */
         render() {
             if (!this.initialized) return;
@@ -613,9 +629,9 @@ void main() {
             // WebGL2 context
             this.gl = options.gl || this.canvas.getContext('webgl2', {
                 antialias: options.antialias !== false,
-                alpha: options.alpha !== false,
-                depth: options.depth !== false,
-                stencil: options.stencil !== false,
+                alpha:     options.alpha !== false,
+                depth:     options.depth !== false,
+                stencil:   options.stencil !== false,
                 preserveDrawingBuffer: options.preserveDrawingBuffer === true
             });
 
@@ -671,7 +687,7 @@ void main() {
         /**
          * Main render loop
          */
-        tick(delta, now, camera, target, clear = true) {
+        tick(delta, now, camera, target = null, clear = true) {
             if (!this.initialized) return;
 
             if (this.pendingResize[0]) {
@@ -710,7 +726,29 @@ void main() {
             }
         }
 
-        renderOne(renderable, delta, now, camera, clear = false, updateDimensions = false) {
+        renderOne(renderable, delta = 0, now = null, camera = null, clear = false, updateDimensions = false) {
+            if(!renderable) return;
+
+            if(renderable.render === undefined && (renderable.renderable || renderable.renderables)) {
+                if(typeof renderable.viewport === "object" || typeof renderable.rect === "object") {
+                    this.viewport(renderable.viewport || renderable.rect);
+                }
+
+                renderable = renderable.renderable || renderable.renderables;
+            }
+
+            if(Array.isArray(renderable)) {
+                for(const r of renderable) {
+                    this.renderOne(r, delta, now, camera, clear, updateDimensions);
+                }
+                return;
+            }
+
+            if(renderable?.destroyed || renderable.render === undefined) {
+                console.warn("Renderable has been destroyed or doesn't provide a render method.");
+                return;
+            }
+
             const gl = this.gl;
             const cw = this.width;
             const ch = this.height;
@@ -729,12 +767,35 @@ void main() {
                 updateDimensions = true;
             }
 
-            gl.useProgram(renderable.program);
-            renderable.render(delta, now, gl, cw, ch, updateDimensions, renderable.uniforms, renderable.attributes, camera? camera.projectionMatrix: this.activeCamera.projectionMatrix);
+            if(renderable.useProgram !== false && renderable.program !== undefined) {
+                gl.useProgram(renderable.program);
+            }
+
+            renderable.render(delta || 0, now || performance.now(), gl, cw, ch, updateDimensions, renderable.uniforms, renderable.attributes, camera? camera.projectionMatrix: this.activeCamera.projectionMatrix);
 
             if(renderable.__bindVAO && renderable.vao) {
                 gl.bindVertexArray(null);
             }
+        }
+
+        renderMany(renderables, delta = 0, now = null, camera = null, clear = false) {
+            if(!Array.isArray(renderables)) throw new Error("renderMany expects an array of renderables.");
+            for(const renderable of renderables) {
+                this.renderOne(renderable, delta, now, camera, clear);
+                clear = false; // Only clear on the first renderable
+            }
+        }
+
+        viewport(x, y, width, height) {
+            if(typeof x === "object" && x !== null) {
+                width = x.width;
+                height = x.height;
+                y = x.y;
+                x = x.x;
+            }
+
+            const gl = this.gl;
+            gl.viewport(x, y, width, height);
         }
 
         #resize(width, height) {
@@ -857,11 +918,6 @@ void main() {
         }
 
         destroy() {
-            if(this.gl) {
-                this.gl.getExtension('WEBGL_lose_context')?.loseContext();
-                this.gl = null;
-            }
-
             if(this.canvas && !this.options.canvas) {
                 this.canvas.remove();
                 this.canvas = null;
@@ -891,6 +947,12 @@ void main() {
             this.pendingResize = null;
             this.options = null;
             super.destroy();
+
+            // Destroy the WebGL context last to ensure all resources are cleaned up first
+            if(this.gl) {
+                this.gl.getExtension('WEBGL_lose_context')?.loseContext();
+                this.gl = null;
+            }
         }
     }
 
@@ -988,11 +1050,16 @@ void main() {
          * Extra helper that creates a managed buffer and binds it to the attribute location.
          * @param {*} attributeKey - The key of the attribute to bind the buffer to
          * @param {*} data - The data to upload to the buffer, or size - SIZE WILL BE MULTIPLIED BY cellSize IN THIS METHOD FOR CONVENIENCE
-         * @param {*} cellSize - The number of components per vertex attribute (1, 2, 3, or 4)
+         * @param {*} cellSize - The number of components per vertex attribute (1, 2, 3, or 4),
+         * @param {*} type - The data type of each component in the array (gl.FLOAT, gl.INT, etc.)
+         * @param {*} normalized - Whether integer data values should be normalized when being cast to a float
+         * @param {*} stride - The offset in bytes between the beginning of consecutive vertex attributes
+         * @param {*} offset - The offset in bytes of the first component in the vertex attribute array
+         * @param {*} divisor - The number of instances that will pass between updates of the attribute
          * @param {*} usage - The usage pattern hint of the data store (gl.STREAM_DRAW, gl.STATIC_DRAW or gl.DYNAMIC_DRAW)
          * @returns {WebGLBuffer|null} The created buffer, or null if the attribute was not found
          */
-        createBufferForAttribute(attributeKey, data, cellSize = 1, usage = this.renderer.gl.DYNAMIC_DRAW) {
+        createBufferForAttribute(attributeKey, data, cellSize = 1, type = null, normalized = false, stride = 0, offset = 0, divisor = 1, usage = this.renderer.gl.DYNAMIC_DRAW) {
             const location = typeof attributeKey === "string" ? this.getAttributeLocation(attributeKey) : attributeKey;
             if(location === null || location === -1) {
                 console.warn(`Attribute "${attributeKey}" not found in program.`);
@@ -1003,8 +1070,8 @@ void main() {
                 data = data * cellSize;
             }
 
-            const buffer = this.renderer.createBuffer(data, cellSize, usage);
-            buffer.bindToAttribute(location);
+            const buffer = this.renderer.createBuffer(data, cellSize, usage || this.renderer.gl.DYNAMIC_DRAW);
+            buffer.bindToAttribute(location, cellSize, type, normalized, stride, offset, divisor);
             return buffer;
         }
 
@@ -1022,7 +1089,6 @@ void main() {
             if(this.uniforms) {
                 for(const key in this.uniforms) {
                     this.uniforms[key] = null;
-                    console.log(`Destroyed uniform: ${key}`);
                 }
                 this.uniforms = null;
             }
@@ -1030,7 +1096,6 @@ void main() {
             if(this.attributes) {
                 for(const key in this.attributes) {
                     this.attributes[key] = null;
-                    console.log(`Destroyed attribute: ${key}`);
                 }
                 this.attributes = null;
             }
@@ -1254,7 +1319,8 @@ void main() {
             this.atlas = fontData.atlas;
             this.baseCellWidth = baseCellWidth;
             this.baseCellHeight = baseCellHeight;
-            this._missingGlyphIndex = (highestCharCode - lowestCharCode + 1) * MAP_SLOTS;
+            // this._missingGlyphIndex = (highestCharCode - lowestCharCode + 1) * MAP_SLOTS;
+            this._missingGlyphIndex = (32 - lowestCharCode) * MAP_SLOTS; // Use space character as missing glyph
             this._lowestCharCode = lowestCharCode;
 
             this.image = image;
@@ -1299,10 +1365,11 @@ void main() {
     }
 
     /**
-     * Fast MSDF/MTSDF text rendering using WebGL2.
+     * MSDF/MTSDF text rendering using WebGL2.
      * Note that instancing this is expensive, so I recommend reusing the same instance for multiple text objects.
      * 
      * VERY experimental and not production ready, use at your own risk.
+     * Has gotten quite slow so more optimization is needed at some point but I am not doing that now.
      * @experimental
      */
     class WebGLTextEngine extends Renderable {
@@ -1311,7 +1378,7 @@ void main() {
                 fragment: options.mtsdf? mtsdfFragment: msdfFragment,
                 vertex: msdfVertex,
                 uniforms: ["uProjection", "uOffset", "uTexture", "uPxRange"],
-                attributes: ["i_pos", "i_size", "i_weight", "i_style", "i_uvRect", "i_color"],
+                attributes: ["i_pos", "i_size", "i_weight", "i_style", "i_uvRect", "i_color", "glyphDepth"],
                 bindVAO: true,
                 ...options
             });
@@ -1373,7 +1440,8 @@ void main() {
             gl.vertexAttribDivisor(attributes.i_style, 1);
             gl.enableVertexAttribArray(attributes.i_color);
             gl.vertexAttribDivisor(attributes.i_color, 1);
-
+            gl.enableVertexAttribArray(attributes.glyphDepth);
+            gl.vertexAttribDivisor(attributes.glyphDepth, 1);
             this._setArrayOffset(0, true);
             this.setBufferSize(options.bufferSize || 2048);
 
@@ -1488,7 +1556,7 @@ void main() {
             const gl = this.renderer.gl;
 
             const attributes = this.attributes;
-            const stride = (8 * 4) + (2 * 2) + (4 * 1);
+            const stride = (8 * 4) + (2 * 2) + (4 * 1) + (4 * 1);
 
             this.cellSize = stride;      // Number of bytes per instance
             this.cellSizeF = stride / 4; // Number of floats per instance
@@ -1510,6 +1578,9 @@ void main() {
             offset += 2;
 
             gl.vertexAttribPointer (attributes.i_color,  4, gl.UNSIGNED_BYTE,  true,  stride, startIdx * stride + offset);
+            offset += 4;
+
+            gl.vertexAttribPointer (attributes.glyphDepth, 1, gl.FLOAT,        false, stride, startIdx * stride + offset);
         }
 
         /**
@@ -1530,7 +1601,7 @@ void main() {
          * 
          * @returns {number} The xadvance value for the character, which can be used for cursor movement.
          */
-        _updateVertex(cellIdx, x, y, charCode, r, g, b, a, size, style, weight) {
+        _updateVertex(cellIdx, x, y, charCode, r, g, b, a, size, style, weight, depth) {
             if(!this.font || !this.font.cmap) return;
  
             const f32Idx = cellIdx * this.cellSizeF;
@@ -1538,13 +1609,13 @@ void main() {
             // Should be optimized, kind of sucks we have to do a lookup for every character
             const map = this.font.cmap;
             let glyphIdx = this.font._missingGlyphIndex;
-            if (glyphIdx >= map.length) glyphIdx = 0;
+            // if (glyphIdx >= map.length) glyphIdx = 0;
             if (charCode >= this.font._lowestCharCode) {
                 const idx = (charCode - this.font._lowestCharCode) * this.font.stride;
                 if (idx >= 0 && idx < map.length) glyphIdx = idx;
             }
 
-            const xadvance = (map[glyphIdx + 6] || this.font.baseCellWidth) * size;
+            const xadvance = (this.font._missingGlyphIndex === glyphIdx && charCode !== 32)? 0: (map[glyphIdx + 6] || this.font.baseCellWidth) * size;
 
             // Dirty glyph (for now we only care to render if glyph changes through this function)
 
@@ -1586,6 +1657,11 @@ void main() {
     
                 this.__lowestDirty = Math.min(this.__lowestDirty || f32Idx - this.cellSizeF, f32Idx - this.cellSizeF);
                 this.__highestDirty = Math.max(this.__highestDirty || f32Idx + this.cellSizeF, f32Idx + this.cellSizeF);
+            }
+
+            if(depth !== undefined) {
+                const f32 = this.vertexData;
+                f32[f32Idx + 10] = depth; // glyphDepth
             }
 
             if(!updateChar && !updatePos) return xadvance;
@@ -1641,31 +1717,6 @@ void main() {
 
             this.__lowestDirty = this.__lowestDirty || 0;
             this.__highestDirty = this.__highestDirty || this.nextFree * this.cellSizeF;
-        }
-
-        drawText(text, x, y, color = [255, 255, 255, 255]) {
-            if (!this.font || !this.font.cmap) return;
-
-            [r, g, b, a] = color instanceof LS.Color || Array.isArray(color)? color : LS.Color.parse(color);
-
-            let cursorX = x;
-            let cursorY = y;
-
-            for (let i = 0; i < text.length; i++) {
-                const charCode = text.charCodeAt(i);
-                const cellIdx = this.nextFree++;
-
-                if (cellIdx >= this.instanceCount) {
-                    console.warn("TextEngine buffer overflow. Increase bufferSize.");
-                    break;
-                }
-
-                const advance = this._updateVertex(cellIdx, cursorX, cursorY, charCode, r, g, b, a, this.defaultFontSize, 0);
-
-                // Advance cursor based on character width
-                const glyphIdx = (charCode - this.font._lowestCharCode) * this.font.stride;
-                cursorX += advance;
-            }
         }
 
         /**
@@ -1763,14 +1814,14 @@ void main() {
                 [r, g, b, a] = LS.Color.parse(r, g, b, a);
             }
 
-            let idx = this.startIdx;
+            let idx = 0;
             for (let i = 0; i < this.size; i++) {
                 const charCode = i < len ? text.charCodeAt(i) : 0;
                 const advance = this.setChar(idx, x, y, charCode, r, g, b, a, size, style, weight);
                 idx++;
 
                 if(idx > this.startIdx + this.size) {
-                    console.warn("TextBlock overflow: text exceeds reserved size, truncating. (Reserved size: " + this.size + ", text length: " + len + ")");
+                    // console.warn("TextBlock overflow: text exceeds reserved size, truncating. (Reserved size: " + this.size + ", text length: " + len + ")");
                     break;
                 }
 
@@ -1782,19 +1833,19 @@ void main() {
             }
         }
 
-        writeTextAt(text, startIdx = 0, len, x, y, r = 255, g = 255, b = 255, a = 255, size = this.engine.defaultFontSize, style = 0, weight = 0) {
+        writeTextAt(text, startIdx = 0, len, x, y, r = 255, g = 255, b = 255, a = 255, size = this.engine.defaultFontSize, style = 0, weight = 0, depth = 0) {
             if(r && typeof r !== 'number') {
                 [r, g, b, a] = LS.Color.parse(r, g, b, a);
             }
 
-            let idx = this.startIdx + startIdx;
+            let idx = startIdx;
             for (let i = 0; i < len; i++) {
                 const charCode = i < text.length ? typeof text === 'number' ? text : typeof text === 'string' ? text.charCodeAt(i) : text[i] : 0;
-                const advance = this.setChar(idx, x, y, charCode, r, g, b, a, size, style, weight);
+                const advance = this.setChar(idx, x, y, charCode, r, g, b, a, size, style, weight, depth);
                 idx++;
 
                 if(idx > this.startIdx + this.size) {
-                    console.warn("TextBlock overflow: text exceeds reserved size, truncating. (Reserved size: " + this.size + ", text length: " + text.length + ")");
+                    // console.warn("TextBlock overflow: text exceeds reserved size, truncating. (Reserved size: " + this.size + ", text length: " + text.length + ")");
                     break;
                 }
 
@@ -1852,6 +1903,7 @@ void main() {
          * Renders the text block to the screen. This should be called after all updates to the text block have been made.
          */
         render() {
+            if(this.__clippedStartIdx >= this.__clippedEndIdx) return;
             this.engine.renderRange(this.__clippedStartIdx, this.__clippedEndIdx);
         }
 
@@ -1887,11 +1939,11 @@ void main() {
          * @param {number} size - Font size
          * @param {number} style - Font style
          * @param {number} weight - Font weight
+         * @param {number} depth - Glyph depth
          */
-        setChar(index, x, y, charCode, r = 255, g = 255, b = 255, a = 255, size = this.engine.defaultFontSize, style = 0, weight = 0) {
+        setChar(index, x, y, charCode, r = 255, g = 255, b = 255, a = 255, size = this.engine.defaultFontSize, style = 0, weight = 0, depth = 0) {
             const cellIdx = this.startIdx + index;
             if (cellIdx < this.startIdx || cellIdx >= this.startIdx + this.size) {
-                console.warn(`TextBlock.setChar: Index ${index} is out of bounds for reserved size ${this.size}.`);
                 return;
             }
 
@@ -1901,7 +1953,7 @@ void main() {
             if (b < 0) b = 0; else if (b > 255) b = 255;
             if (a < 0) a = 0; else if (a > 255) a = 255;
 
-            return this.engine._updateVertex(cellIdx, x, y, charCode, r, g, b, a, size, style, weight);
+            return this.engine._updateVertex(cellIdx, x, y, charCode, r, g, b, a, size, style, weight, depth);
         }
     }
 
@@ -1924,9 +1976,12 @@ void main() {
             if(!(renderer instanceof WebGLRenderer)) {
                 throw new Error("GPUBuffer constructor expects a WebGLRenderer instance as the first argument.");
             }
+
+            this.isUInt = data instanceof Uint8Array || data instanceof Uint16Array || data instanceof Uint32Array;
+            this.isInt = data instanceof Int8Array || data instanceof Int16Array || data instanceof Int32Array;
  
-            if(typeof data === 'function') {
-                this.data = data(this.size);
+            if(this.isInt || this.isUInt || data instanceof Float32Array || data instanceof Float64Array) {
+                this.data = data;
             } else if(data instanceof ArrayBuffer || typeof data === 'number' || data instanceof Array) {
                 this.data = new this.constructor.F32(data);
             } else {
@@ -1952,22 +2007,30 @@ void main() {
             renderer.once('destroy', this.__parentDestroyed = () => this.delete());
         }
 
-        bindToAttribute(location, size = this.cellSize, type, normalized = false, stride = 0, offset = 0, divisor = 1) {
+        bindToAttribute(location, size = this.cellSize, type = null, normalized = false, stride = 0, offset = 0, divisor = 1) {
             if(typeof location !== 'number' || location < 0) {
-                throw new Error("bindToAttribute expects a valid attribute location (non-negative integer) as the first argument.");
+                throw new Error("bindToAttribute expects a valid attribute location (non-negative integer) as the first argument. Got: " + location);
             }
 
             if(typeof size !== 'number' || size <= 0) {
-                throw new Error("bindToAttribute expects a valid size (positive integer) as the second argument.");
+                throw new Error("bindToAttribute expects a valid size (positive integer) as the second argument. Got: " + size);
             }
 
             if(typeof type !== 'number') {
-                type = this.gl.FLOAT; // Default to FLOAT if not provided
+                type = this.isInt? this.gl.INT : this.isUInt? this.gl.UNSIGNED_INT : this.gl.FLOAT;
             }
 
             this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffer);
             this.gl.enableVertexAttribArray(location);
-            this.gl.vertexAttribPointer(location, size, type, normalized, stride, offset);
+
+            // while (this.gl.getError() !== this.gl.NO_ERROR) {}
+            if((this.isInt || this.isUInt) && normalized === false) {
+                console.log(location, size, type, normalized, stride, offset, divisor);
+                this.gl.vertexAttribIPointer(location, size, type, stride, offset);
+            } else {
+                this.gl.vertexAttribPointer(location, size, type, normalized, stride, offset);
+            }
+            // console.log(this.gl.getError());
 
             // verify that it is active:
             const isEnabled = this.gl.getVertexAttrib(location, this.gl.VERTEX_ATTRIB_ARRAY_ENABLED);
@@ -2021,6 +2084,8 @@ void main() {
             }
 
             if(from >= to) return;
+
+            // console.log("Updating buffer from", from, "to", to);
 
             this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffer);
 
@@ -2089,6 +2154,8 @@ void main() {
         }
     }
 
+    const sharedColorConversionBuffer = new Uint8Array(4);
+
     LS.LoadComponent({
         v: 2,
         version: "2.0.0-alpha.0",
@@ -2106,7 +2173,7 @@ void main() {
         getShader,
 
         // WebGLRenderer class
-        Renderer: WebGLRenderer,
+        WebGLRenderer,
         Renderable,
         WebGLBuffer,
         WebGLMSDFFont,
@@ -2126,10 +2193,10 @@ void main() {
             if(r instanceof LS.Color) return r.floatPixel;
 
             // Parse the color
-            [r, g, b, a] = LS.Color.parse(r, g, b, a);
+            LS.Color.parse(r, g, b, a, sharedColorConversionBuffer);
 
             // Return the color as a vec4
-            return [Math.fround(r / 255), Math.fround(g / 255), Math.fround(b / 255), Math.fround(a / 255)];
+            return [Math.fround(sharedColorConversionBuffer[0] / 255), Math.fround(sharedColorConversionBuffer[1] / 255), Math.fround(sharedColorConversionBuffer[2] / 255), Math.fround(sharedColorConversionBuffer[3] / 255)];
         },
 
         createRenderer(options = {}) {
@@ -2195,15 +2262,17 @@ const vec2 positions[6] = vec2[](
 out vec2 vUV;
 
 uniform vec2 uOffset;
-uniform vec2 uScale;
+uniform vec2 uSize;
+uniform vec2 uResolution;
 
 void main() {
     vec2 local = positions[gl_VertexID];
 
-    // local coordinates for fragment shader
+    // local coordinates for fragment shader(?)
     vUV = local * 0.5 + 0.5;
 
-    vec2 pos = local * uScale + uOffset;
+    vec2 pos = vUV * (uSize / uResolution) + (uOffset / uResolution);
+    pos = pos * 2.0 - 1.0;
     pos.y = -pos.y;
 
     gl_Position = vec4(pos, 0.0, 1.0);

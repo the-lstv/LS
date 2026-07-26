@@ -17,6 +17,8 @@
  * 
  * I'm thinking using WebGL would have been much easier and better 😭
  * Yeah, many hours went into this component.
+ * 
+ * Update: I did make a WebGL version. All this effort for nothing 🥲
  */
 
 (() => {
@@ -218,6 +220,7 @@
 
             // ???
             // Why is this not a method and why does it use the slowest solution possible
+            // SLOP code
             const getRowIndexAtClientY = (clientY) => {
                 if (!this.rowElements.length) return 0;
 

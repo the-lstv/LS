@@ -11,6 +11,33 @@
         }
     }
 
+    /**
+     * Allows to use HTML string content in the modal safely
+     */
+    function safeContent(content) {
+        if (content instanceof HTMLElement) {
+            return content;
+        } else if (typeof content === "string") {
+            const ltIndex = content.indexOf("<");
+            if(!(ltIndex !== -1 && content.indexOf(">", ltIndex) !== -1)) {
+                // Plain text
+                return content;
+            } else {
+                // We are likely dealing with a HTML value
+
+                // Temporary container
+                const temp = document.createElement('span');
+                temp.innerHTML = content;
+
+                // Sanitize
+                LS.Util.sanitize(temp);
+                return temp;
+            }
+        } else {
+            return content;
+        }
+    }
+
     LS.LoadComponent(class Modal extends LS.Component {
         static defaults = LS.Util.staticDefaults({
             styled: true,
@@ -27,7 +54,7 @@
 
                 // Template
                 title: template.title || null,
-                content: template.content || null,
+                content: safeContent(template.content || null),
                 buttons: template.buttons || null,
 
                 closeModal
@@ -207,7 +234,7 @@
             return new Promise((resolve, reject) => {
                 const modal = LS.Modal.build({
                     title: options.title || "Confirm",
-                    content: message,
+                    content: safeContent(message),
                     buttons: [
                         {
                             class: "elevated",
@@ -266,7 +293,7 @@
             return new Promise((resolve, reject) => {
                 const modal = LS.Modal.build({
                     title: options.title || "Prompt",
-                    content: [message, inputField],
+                    content: [safeContent(message), inputField],
                     buttons: [
                         {
                             class: "elevated",
@@ -315,7 +342,7 @@
             return new Promise((resolve) => {
                 const modal = LS.Modal.build({
                     title: options.title || "Alert",
-                    content: message,
+                    content: safeContent(message),
                     buttons: [
                         { label: options.okLabel || "OK" }
                     ]

@@ -5,7 +5,10 @@
 - LS.Tooltips have been enhanced and now scan globally by default.
 - Some possible memory leaks have been fixed.
 - New experimental LS.GL library for WebGL/WebGPU (in the future) rendering and a MSDF/MTSDF text engine, replacing the legacy LS.GL.
+- LS.TimelineGL (WebGL-based) has been introduced as a drop-in replacement for the deprecated LS.Timeline (DOM-based). The DOM version is now deprecated, all future improvements will be made to the WebGL version.
 - TouchHandle now offers built-in world coordinate transformations, edge scrolling and inertia for panning applications.
+- Some changes to the design language
+- Modals now allow safe HTML content
 
 ## Version 6.0.0
 Major update (2026 release)!

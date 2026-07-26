@@ -900,6 +900,11 @@ LS.Color = class Color {
                 this.initOptions(LS.__deferedColorOptions);
                 delete LS.__deferedColorOptions;
             }
+
+            this.currentAccent = [0, 0, 0, 255];
+            LS.once("ready", () => {
+                this.getAccentColorValueOf(document.body, this.currentAccent);
+            });
         }
     }
 
@@ -1531,6 +1536,7 @@ LS.Color = class Color {
         }
 
         this.events.emit("accent-changed", [accent]);
+        LS.Color.getAccentColorValueOf(document.body, LS.Color.currentAccent);
 
         if(store) {
             if(accent === "white") {
@@ -1546,6 +1552,10 @@ LS.Color = class Color {
             if(this.#settingAccent) return;
             document.body.classList.remove("no-transitions");
         }, 0);
+    }
+
+    static getAccentColorValueOf(element, target) {
+        return LS.Color.parse(getComputedStyle(element).getPropertyValue("--accent-40"), null, null, null, target);
     }
 
     /**
@@ -1782,5 +1792,4 @@ LS.Color = class Color {
         ["transparent", [0, 0, 0, 0]]
     ]);
 };
-
 })();

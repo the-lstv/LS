@@ -1916,13 +1916,12 @@
              * @param {Object} options Options for the touch handle.
              * @param {boolean} options.disablePointerEvents Whether to disable pointer events on the document while dragging (to prevent accidental interaction with other elements). Default is true.
              * @param {boolean} options.pointerLock Whether to use pointer lock for mouse input. Default is false.
-             * @param {boolean} options.calculateWorld Whether to calculate the world rectangle (relative position to a target rather than viewport). Default is false, or true if options.world is provided.
-             * @param {Element|Object} options.world Element/rectangle object {top, left, bottom, right} to use as the world reference for worldX/worldY coordinates. If not set, the current target element will be used if calculateWorld is true, otherwise worldX/worldY will be the same as x/y.
-             * @param {boolean} options.alwaysRecalculateWorld Whether to recalculate the world rectangle on every move event. Default is false (only calculated on start).
-             * @param {Function} options.transformWorldRect Optional function to apply transformations to the world position after it is calculated. Should return [x, y]
-             * @param {boolean} options.edgeScroll Whether to enable edge scrolling when the pointer is near the edge of the world rectangle. Default is false.
-             * @param {number} options.edgeScrollMargin Margin in pixels from the edge of the world rectangle to start edge scrolling. Default is 32.
-             * @param {number} options.edgeScrollAnchor Anchor point for edge scrolling (0 to 1, 1 being outside the world rectangle).
+             * @param {boolean} options.calculateBounds Whether to calculate the bounds rectangle (relative position to a target rather than viewport). Default is false, or true if options.boundsTarget is provided.
+             * @param {Element|Object} options.boundsTarget Element/rectangle object {x, y, width, height} relative to the viewport to use as the bounds reference for boundX/boundY. Default is the target.
+             * @param {Function} options.transformBounds Optional function to apply transformations to the bounds position after it is calculated. Receives the bounds rectangle {x, y, width, height} and should return a new rectangle object.
+             * @param {boolean} options.alwaysRecalculateBounds Whether to recalculate the bounds rectangle on every move event. Default is false (only calculated on start).
+             * @param {boolean} options.edgeScroll Whether to enable edge scrolling when the pointer is near the edge of the bounds rectangle. Default is false.
+             * @param {number} options.edgeScrollMargin Margin in pixels from the edge of the bounds rectangle to start edge scrolling. Default is 32.
              * @param {number} options.edgeScrollSpeed Max speed of edge scrolling in pixels per frame. Default is 10.
              * @param {string} options.cursor CSS cursor to use while dragging. Default is "grabbing". Can be changed by setting the `cursor` property of the TouchHandle instance at any time.
              * @param {string} options.exclude CSS selector to exclude certain elements from starting the drag. If the event target matches this selector, the drag will not start.
@@ -1930,17 +1929,20 @@
              * @param {Array} options.targets Array of additional elements to listen for drag events on. Default is null (only the initial element is used).
              * @param {Array} options.startEvents Array of additional events to listen for to start the drag. Default is null (only pointerdown is used).
              * @param {Array} options.buttons Array of mouse buttons to accept (0 = left, 1 = middle, 2 = right). Default is all buttons.
-             * @param {boolean} options.frameTimed Whether to emit move events on animation frames instead of every pointermove event. Default is false.
+             * @param {boolean} options.frameTimed Whether to emit move events on animation frames instead of every pointermove event. Default is false, but I strongly recommend setting it to true for smoother performance.
              * @param {boolean} options.fluentFrames If true, the move callback will continue calling on every frame while the drag is active, even if the pointer hasn't actually moved. Default is false. Requires options.frameTimed to be true. Useful for continuous updates like edge scrolling.
              * @param {function} options.onStart Optional callback function to call when the drag starts. Receives an event object (see below).
              * @param {function} options.onMove Optional callback to call when the drag moves. Receives an event object (see below).
              * @param {function} options.onEnd Optional callback to call when the drag ends. Receives an event object (see below).
              * @param {boolean} options.inertia Whether to enable dragging inertia (momentum). Default is false.
              * @param {number} options.inertiaFriction Friction coefficient for inertia. Default is 0.92 (lower values = more friction).
+             * @param {boolean} options.handleWheel Whether to handle wheel events for scrolling. Default is false.
+             * @param {boolean} options.handleHover Whether to handle hovering (pointermove without dragging). Default is false.
              * 
              * Emits: "start", "move", "end" events with the event object.
              * Emits "destroy" when the TouchHandle is destroyed.
              * Emits "scroll" with scroll x/y values when edge scrolling occurs (if enabled).
+             * Emits "hover" with the event object when hovering occurs (if enabled).
              * 
              * Event shape:
              * ```
@@ -1957,9 +1959,9 @@
              *   offsetY: number, // Offset y position (difference since start)
              *   startX: number, // Start x position (first event position)
              *   startY: number, // Start y position (first event position)
-             *   worldX: number, // Current x position (relative to the world or same as x if no world is set)
-             *   worldY: number, // Current y position (relative to the world or same as y if no world is set)
-             *   worldRect: object, // The rectangle representing the bounds of the world element, if enabled, otherwise null
+             *   boundX: number, // Current x position (relative to the bounds target, if enabled)
+             *   boundY: number, // Current y position (relative to the bounds target, if enabled)
+             *   boundingRect: object, // The rectangle representing the bounds of the bounds target, if enabled, otherwise null
              *   hasMoved: boolean, // Only useful when used with fluentFrames: will be false if the event didn't come from an actual pointermove event, but was emitted on a frame
              *   scrollDeltaX: number, // Amount scrolled in x direction since last event (if edge scrolling is enabled)
              *   scrollDeltaY: number, // Amount scrolled in y direction since last event (if edge scrolling is enabled)
@@ -1977,8 +1979,8 @@
                         disablePointerEvents: true,
                         frameTimed: !!(options.fluentFrames),
                         fluentFrames: false,
-                        calculateWorld: !!(options.world),
-                        alwaysRecalculateWorld: false,
+                        calculateBounds: !!(options.boundsTarget),
+                        alwaysRecalculateBounds: false,
                         inertia: false,
                         inertiaFriction: 0.92,
                         ...options
@@ -2012,7 +2014,7 @@
                     this.velocityX = 0;
                     this.velocityY = 0;
 
-                    this.world = this.options.world || null;
+                    this.boundsTarget = this.options.boundsTarget || element;
 
                     this._moveEventRef = this.prepareEvent("move");
                     this.prepareEvent("start", { deopt: true });
@@ -2021,6 +2023,10 @@
                     this.onStart = this.onStart.bind(this);
                     this.onMove = this.onMove.bind(this);
                     this.onRelease = this.onRelease.bind(this);
+
+                    if(this.options.handleWheel) this.onScroll = this.onScroll.bind(this);
+                    if(this.options.handleHover) this.onHover = this.onHover.bind(this);
+
                     this.cancel = this.cancel.bind(this);
                     this.onPointerLockChange = this.onPointerLockChange.bind(this);
                     this.frameHandler = this.frameHandler.bind(this);
@@ -2032,9 +2038,12 @@
                         dy: 0,
                         offsetX: 0,
                         offsetY: 0,
-                        worldX: 0,
-                        worldY: 0,
-                        worldRect: null,
+                        boundX: 0,
+                        boundY: 0,
+                        boundingRect: null,
+                        // worldX: 0,
+                        // worldY: 0,
+                        // worldRect: null,
                         startX: 0,
                         startY: 0,
                         scrollDeltaX: 0,
@@ -2081,6 +2090,14 @@
                             target.addEventListener(evt, this.onStart);
                         }
                     }
+
+                    if(this.options.handleWheel) {
+                        target.addEventListener("wheel", this.onScroll, { passive: false });
+                    }
+
+                    if(this.options.handleHover) {
+                        target.addEventListener("pointermove", this.onHover, { passive: false });
+                    }
                 }
 
                 #detachTargetListeners(target) {
@@ -2093,6 +2110,14 @@
                         for (const evt of this.options.startEvents) {
                             target.removeEventListener(evt, this.onStart);
                         }
+                    }
+
+                    if(this.options.handleWheel) {
+                        target.removeEventListener("wheel", this.onScroll);
+                    }
+
+                    if(this.options.handleHover) {
+                        target.removeEventListener("pointermove", this.onHover);
                     }
                 }
 
@@ -2200,8 +2225,8 @@
                     this._eventData.isTouch = isTouch;
                     this._eventData.hasMoved = false;
 
-                    if(this.options.calculateWorld) {
-                        this._calculateWorld(true);
+                    if(this.options.calculateBounds) {
+                        this._calculateBounds(true);
                     }
 
                     this.emit("start", [this._eventData]);
@@ -2261,6 +2286,8 @@
                 onMove(event) {
                     if (this._eventData.cancelled || event.pointerId !== this.activePointerId) return;
 
+                    this.__isHovering = false;
+
                     // If frametimed, schedule the move to be processed on the next animation frame instead of processing it immediately.
                     // This discards any intermediate move events that happen before the next frame.
                     if (this.options.frameTimed) {
@@ -2272,8 +2299,44 @@
                     this.processMove(event);
                 }
 
+                onHover(event) {
+                    if (!this.options.handleHover || this.seeking || this._eventData.cancelled) return;
+
+                    this.__isHovering = true;
+
+                    // If frametimed, schedule the move to be processed on the next animation frame instead of processing it immediately.
+                    // This discards any intermediate move events that happen before the next frame.
+                    if (this.options.frameTimed) {
+                        this.latestMoveEvent = event;
+                        this.scheduleMove();
+                        return;
+                    }
+
+                    this.processMove(event);
+                }
+
+                onScroll(event) {
+                    if (this.options.handleWheel) {
+                        event.preventDefault();
+                        this._eventData.scrollDeltaX = event.deltaX;
+                        this._eventData.scrollDeltaY = event.deltaY;
+                        this._eventData.domEvent = event;
+                        this.quickEmit("scroll", event.deltaX, event.deltaY, this._eventData, true);
+                        if(this.options.onScroll) this.options.onScroll(event.deltaX, event.deltaY, this._eventData, true);
+                        this._eventData.domEvent = null;
+                    }
+                }
+
                 frameHandler() {
                     this.frameQueued = false;
+
+                    if(this.__isHovering) {
+                        if (this.latestMoveEvent) {
+                            this.processMove(this.latestMoveEvent);
+                            this.latestMoveEvent = null;
+                        }
+                        return;
+                    }
 
                     if(!this.seeking) return;
 
@@ -2304,25 +2367,27 @@
                 }
 
                 processEdgeScroll() {
-                    if (!this.edgeScroll || !this.worldRect) return;
+                    if (!this.edgeScroll || !this.boundingRect) return;
 
                     const margin = this.options.edgeScrollMargin || 24;
-                    const anchor = this.options.edgeScrollAnchor || 0;
                     const speed = this.options.edgeScrollSpeed   || 16;
 
                     let scrollX = 0;
                     let scrollY = 0;
 
-                    if (this._eventData.x < this.worldRect.left + margin) {
-                        scrollX = -Math.round(speed * (1 - (this._eventData.x - this.worldRect.left) / margin));
-                    } else if (this._eventData.x > this.worldRect.right - margin) {
-                        scrollX = Math.round(speed * (1 - (this.worldRect.right - this._eventData.x) / margin));
+                    const right = this.boundingRect.x + this.boundingRect.width;
+                    const bottom = this.boundingRect.y + this.boundingRect.height;
+
+                    if (this._eventData.x < this.boundingRect.x + margin) {
+                        scrollX = -Math.round(speed * (1 - (this._eventData.x - this.boundingRect.x) / margin));
+                    } else if (this._eventData.x > right - margin) {
+                        scrollX = Math.round(speed * (1 - (right - this._eventData.x) / margin));
                     }
 
-                    if (this._eventData.y < this.worldRect.top + margin) {
-                        scrollY = -Math.round(speed * (1 - (this._eventData.y - this.worldRect.top) / margin));
-                    } else if (this._eventData.y > this.worldRect.bottom - margin) {
-                        scrollY = Math.round(speed * (1 - (this.worldRect.bottom - this._eventData.y) / margin));
+                    if (this._eventData.y < this.boundingRect.y + margin) {
+                        scrollY = -Math.round(speed * (1 - (this._eventData.y - this.boundingRect.y) / margin));
+                    } else if (this._eventData.y > bottom - margin) {
+                        scrollY = Math.round(speed * (1 - (bottom - this._eventData.y) / margin));
                     }
 
                     scrollX = Math.max(-speed, Math.min(scrollX, speed));
@@ -2375,54 +2440,64 @@
                     this._eventData.isTouch = isTouch;
                     this._eventData.hasMoved = true;
 
-                    if(this.inertia) {
+                    if(this.inertia && !this.__isHovering) {
                         this.velocityX = this._eventData.dx;
                         this.velocityY = this._eventData.dy;
                     }
 
-                    if (this.options.calculateWorld) {
-                        this._calculateWorld(this.options.alwaysRecalculateWorld);
+                    if (this.options.calculateBounds) {
+                        this._calculateBounds(this.options.alwaysRecalculateBounds || this.__isHovering);
                     }
 
                     return this.fireMove();
                 }
 
-                _calculateWorld(recalculate = false) {
+                _calculateBounds(recalculate = false) {
                     if(recalculate) {
-                        this.worldRect = (this.world instanceof Element ? this.world.getBoundingClientRect() : (this.world || event.target.getBoundingClientRect()));
+                        this.boundingRect = (this.boundsTarget instanceof Element ? this.boundsTarget.getBoundingClientRect() : (this.boundsTarget || this._eventData?.domEvent?.currentTarget? (this._eventData?.domEvent?.currentTarget).getBoundingClientRect() : null));
 
-                        if(this.options.transformWorldRect) {
-                            this.worldRect = this.options.transformWorldRect(this.worldRect) || this.worldRect;
+                        if(!this.boundingRect) {
+                            this.boundingRect = { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight };
+                        }
+
+                        if(this.options.transformBounds) {
+                            this.boundingRect = this.options.transformBounds(this.boundingRect) || this.boundingRect;
                         }
                     }
 
-                    if(!this.worldRect) {
-                        this._eventData.worldX = this._eventData.x;
-                        this._eventData.worldY = this._eventData.y;
+                    if(!this.boundingRect) {
+                        this._eventData.boundX = this._eventData.x;
+                        this._eventData.boundY = this._eventData.y;
                         return;
                     }
 
                     const x = this._eventData.x;
                     const y = this._eventData.y;
 
-                    let position = [this.worldRect ? x - this.worldRect.left : x, this.worldRect ? y - this.worldRect.top : y];
+                    let position = [this.boundingRect ? x - this.boundingRect.x : x, this.boundingRect ? y - this.boundingRect.y : y];
 
-                    // if(this.options.transformWorldPosition) {
-                    //     position = this.options.transformWorldPosition(position[0], position[1], this.worldRect);
-                    // }
-
-                    this._eventData.worldX = position[0];
-                    this._eventData.worldY = position[1];
+                    this._eventData.boundX = position[0];
+                    this._eventData.boundY = position[1];
+                    this._eventData.boundingRect = this.boundingRect;
                 }
 
                 fireMove() {
                     if (this._eventData.cancelled) return;
-                    if (this.options.onMove) this.options.onMove(this._eventData);
-                    this.quickEmit(this._moveEventRef, this._eventData);
+
+                    if(this.__isHovering) {
+                        if(this.seeking) return;
+                        if(this.options.onHover) this.options.onHover(this._eventData);
+                        this.quickEmit("hover", this._eventData);
+                    } else {
+                        if (this.options.onMove) this.options.onMove(this._eventData);
+                        this.quickEmit(this._moveEventRef, this._eventData);
+                    }
+
+                    this._eventData.domEvent = null;
                 }
 
                 scheduleMove() {
-                    if(!this.seeking || this.frameQueued) {
+                    if((!this.seeking && !this.__isHovering) || this.frameQueued) {
                         // Discard
                         return;
                     }
@@ -2461,12 +2536,16 @@
                     }
 
                     this._eventData.domEvent = null;
-                    this._eventData.worldRect = null;
                     this._eventData.hasMoved = true;
                     this._eventData.cancelled = false;
                     this._eventData.scrollDeltaX = 0;
                     this._eventData.scrollDeltaY = 0;
-                    this.worldRect = null;
+
+                    // this._eventData.worldRect = null;
+                    // this.worldRect = null;
+
+                    this._eventData.boundingRect = null;
+                    this.boundingRect = null;
                 }
 
                 processInertia() {
@@ -2533,7 +2612,12 @@
                     this.options.onStart = null;
                     this.options.onMove = null;
                     this.options.onEnd = null;
-                    this.options.world = null;
+                    this.options.onScroll = null;
+                    this.options.onHover = null;
+                    this.options.boundsTarget = null;
+                    this.boundsTarget = null;
+                    this.boundingRect = null;
+                    this._cursor = null;
                     this.options = null;
                     this._eventData = null;
                     this.destroyed = true;
@@ -2564,7 +2648,7 @@
                 return function(target) {
                     if(typeof target !== "object") throw "The target must be an object";
 
-                    for (const [key, descriptor] of cache) {
+                    for (let [key, descriptor] of cache) {
                         if (!(key in target)) {
                             if(typeof descriptor.value === "object" && descriptor.value !== null) {
                                 descriptor = { ...descriptor, value: LS.Util.clone(descriptor.value) };
