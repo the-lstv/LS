@@ -7,6 +7,11 @@
  * 
  * @author lstv.space
  * @license GPL-3.0
+ * 
+ * @dependency Menu
+ * @dependency LS.Animation
+ * 
+ * @deprecated
  */
 
 /**
@@ -439,6 +444,7 @@
                 }
             };
 
+            // like seriously what the actual fuck ai
             this.__setPreviewItem = setPreviewItem;
 
             const buildItemSnapValues = (excludedItems, width = 0, dragOffset = 0, includeWidthOffsets = false) => {
@@ -1048,13 +1054,13 @@
                             && !previewGesture
                         );
     
-                        this.dragHandle.cursor = "var(--ls-timeline-cursor-move)";
+                        this.dragHandle.cursor = "var(--ls-cursor-move)";
     
                         if (rightPreviewGesture) {
                             dragType = "preview-item";
                             dragState.draggingItems = false;
                             this.__suppressContextMenuUntil = performance.now() + 500;
-                            this.dragHandle.cursor = "var(--ls-timeline-cursor-preview)";
+                            this.dragHandle.cursor = "var(--ls-cursor-preview)";
                             setPreviewItem(getItemFromElement(itemElement));
                             this.quickEmit("drag-start", dragType);
                             return;
@@ -1072,7 +1078,7 @@
                             this.__suppressContextMenuUntil = performance.now() + 500;
                             this.contextMenu.close();
                             this.itemContextMenu.close();
-                            this.dragHandle.cursor = "var(--ls-timeline-cursor-slice)";
+                            this.dragHandle.cursor = "var(--ls-cursor-slice)";
                             updateSliceLine(event.x, event.y);
                             this.quickEmit("drag-start", dragType);
                             return;
@@ -1097,7 +1103,7 @@
                             dragState.sliceStartRow = getRowIndexAtClientY(event.y);
                             dragState.sliceCurrentRow = dragState.sliceStartRow;
                             dragState.sliceStartClientX = event.x;
-                            this.dragHandle.cursor = "var(--ls-timeline-cursor-slice)";
+                            this.dragHandle.cursor = "var(--ls-cursor-slice)";
                             updateSliceLine(event.x, event.y);
                             this.quickEmit("drag-start", dragType);
                             return;
@@ -1110,14 +1116,14 @@
                             dragState.eraseStartY = event.y;
                             dragState.erasedItems = null;
                             dragState.erasedActionItems = null;
-                            this.dragHandle.cursor = "var(--ls-timeline-cursor-erase)";
+                            this.dragHandle.cursor = "var(--ls-cursor-erase)";
                             return;
                         }
     
                         if (previewGesture) {
                             dragType = "preview";
                             dragState.draggingItems = false;
-                            this.dragHandle.cursor = "var(--ls-timeline-cursor-preview)";
+                            this.dragHandle.cursor = "var(--ls-cursor-preview)";
                             setPreviewItem(getItemFromElement(itemElement));
                             this.setSeek(((event.x - rect.left) + this.offset) / this.#zoom);
                             this.quickEmit("drag-start", dragType);
@@ -1235,7 +1241,7 @@
                                 this.__suppressContextMenuUntil = performance.now() + 500;
                                 this.contextMenu.close();
                                 this.itemContextMenu.close();
-                                this.dragHandle.cursor = "var(--ls-timeline-cursor-erase)";
+                                this.dragHandle.cursor = "var(--ls-cursor-erase)";
                                 performToolAlongPath(event.x, event.y, performEraseAtPointer);
                                 this.quickEmit("drag-start", dragType);
                             }
@@ -1252,7 +1258,7 @@
                                 dragState.erasedActionItems = [];
                                 this.contextMenu.close();
                                 this.itemContextMenu.close();
-                                this.dragHandle.cursor = "var(--ls-timeline-cursor-erase)";
+                                this.dragHandle.cursor = "var(--ls-cursor-erase)";
                                 performToolAlongPath(event.x, event.y, performEraseAtPointer);
                                 this.quickEmit("drag-start", dragType);
                             }

@@ -59,36 +59,74 @@ uniform float uPxRange;
 
 out vec4 outColor;
 
-float median(float r, float g, float b) {
+float median(float r, float g, float b)
+{
     return max(min(r, g), min(max(r, g), b));
 }
 
-void main() {
-    vec4 tex = texture(uTexture, v_texCoord);
-
-    float msdf = median(tex.r, tex.g, tex.b);
-    float sdf = tex.a;
-
-    float sd = mix(sdf, msdf, 0.75);
-    sd += v_weight;
-
+float screenPxRange()
+{
     vec2 texSize = vec2(textureSize(uTexture, 0));
+
     vec2 unitRange = vec2(uPxRange) / texSize;
+    vec2 screenTexSize = 1.0 / fwidth(v_texCoord);
 
-    vec2 screenTexSize = vec2(1.0) / fwidth(v_texCoord);
-
-    float screenPxRange = max(
+    return max(
         0.5 * dot(unitRange, screenTexSize),
         1.0
     );
+}
 
-    float alpha = clamp(
-        screenPxRange * (sd - 0.5) + 0.5,
-        0.0,
-        1.0
+void main()
+{
+    vec4 tex = texture(uTexture, v_texCoord);
+
+    float msdf = median(tex.r, tex.g, tex.b);
+float sdf = tex.a;
+
+float sd = mix(msdf, sdf, 0.15);
+
+vec2 texSize = vec2(textureSize(uTexture, 0));
+vec2 unitRange = vec2(uPxRange) / texSize;
+vec2 screenTexSize = 1.0 / fwidth(v_texCoord);
+
+float screenPxRange = max(
+    0.5 * dot(unitRange, screenTexSize),
+    1.0
+);
+
+float alpha = smoothstep(
+    0.0,
+    1.0,
+    screenPxRange * (sd - 0.5) + 0.5
+);
+
+alpha = pow(alpha, 0.9);
+
+outColor = vec4(v_color.rgb, v_color.a * alpha);
+}`;
+
+/**
+ * Fragment shader for rendering bitmap text.
+ */
+const bitmapFragment = `#version 300 es
+precision highp float;
+
+in vec2 v_texCoord;
+in vec4 v_color;
+
+uniform sampler2D uTexture;
+
+out vec4 outColor;
+
+void main()
+{
+    float coverage = texture(uTexture, v_texCoord).g;
+
+    outColor = vec4(
+        v_color.rgb,
+        v_color.a * coverage
     );
-
-    outColor = vec4(v_color.rgb, v_color.a * alpha);
 }`;
 
 /**
@@ -137,8 +175,6 @@ void main() {
 #ifdef USE_THREE_MATRICES
     gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, glyphDepth, 1.0);
 #else
-    // gl_Position = uProjection * vec4(pos, glyphDepth, 1.0);
-
     vec4 p = uProjection * vec4(pos, 0.0, 1.0);
     p.z = glyphDepth;
     gl_Position = p;
@@ -635,6 +671,10 @@ void main() {
                 preserveDrawingBuffer: options.preserveDrawingBuffer === true
             });
 
+            if(!this.gl) {
+                throw new Error("Failed initializing WebGL2 context. Make sure it is supported by your environment");
+            }
+
             const gl = this.gl;
 
             gl.clearColor(...this.backgroundColor.floatPixel);
@@ -727,9 +767,11 @@ void main() {
         }
 
         renderOne(renderable, delta = 0, now = null, camera = null, clear = false, updateDimensions = false) {
-            if(!renderable) return;
+            if(!renderable || renderable.enabled === false) return;
 
-            if(renderable.render === undefined && (renderable.renderable || renderable.renderables)) {
+            const hasRenderMethod = typeof renderable.render === "function";
+
+            if(!hasRenderMethod && (renderable.renderable || renderable.renderables)) {
                 if(typeof renderable.viewport === "object" || typeof renderable.rect === "object") {
                     this.viewport(renderable.viewport || renderable.rect);
                 }
@@ -744,7 +786,7 @@ void main() {
                 return;
             }
 
-            if(renderable?.destroyed || renderable.render === undefined) {
+            if(renderable?.destroyed || !hasRenderMethod) {
                 console.warn("Renderable has been destroyed or doesn't provide a render method.");
                 return;
             }
@@ -1350,7 +1392,9 @@ void main() {
                 throw new Error("Font not loaded yet. Await loadFont() first.");
             }
 
+            console.log(this.atlas)
             gl.uniform1f(uniforms.uPxRange, this.atlas?.distanceRange || 4.0);
+            gl.uniform1f(uniforms.uGamma, 1.4);
         }
 
         destroy() {
@@ -1372,12 +1416,20 @@ void main() {
      * Has gotten quite slow so more optimization is needed at some point but I am not doing that now.
      * @experimental
      */
+
+    const fragmentsByType = {
+        msdf: msdfFragment,
+        mtsdf: mtsdfFragment,
+        // sdf: sdfFragment,
+        softmask: bitmapFragment
+    };
+
     class WebGLTextEngine extends Renderable {
         constructor(options = {}) {
             super({
-                fragment: options.mtsdf? mtsdfFragment: msdfFragment,
+                fragment: fragmentsByType[options.type || "msdf"] || msdfFragment,
                 vertex: msdfVertex,
-                uniforms: ["uProjection", "uOffset", "uTexture", "uPxRange"],
+                uniforms: ["uProjection", "uOffset", "uTexture", "uPxRange", "uGamma"],
                 attributes: ["i_pos", "i_size", "i_weight", "i_style", "i_uvRect", "i_color", "glyphDepth"],
                 bindVAO: true,
                 ...options
@@ -1446,7 +1498,7 @@ void main() {
             this.setBufferSize(options.bufferSize || 2048);
 
             // TODO: reuse texture across multiple TextEngine instances for the same renderer
-            this.font.texture = this.font.createTexture(this.renderer);
+            this.texture = this.font.createTexture(this.renderer);
             this.font.setUniforms(gl, uniforms);
 
             if(!this.lineHeight) this.lineHeight = options.lineHeight || this.font.metrics.lineHeight || 1.2;
@@ -1510,7 +1562,7 @@ void main() {
             gl.uniform2f(uniforms.uOffset, this.offsetX, this.offsetY);
 
             gl.activeTexture(gl.TEXTURE0);
-            gl.bindTexture(gl.TEXTURE_2D, this.font.texture);
+            gl.bindTexture(gl.TEXTURE_2D, this.texture);
             gl.uniform1i(uniforms.uTexture, 0);
             gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.nextFree);
         }
@@ -1537,7 +1589,7 @@ void main() {
             gl.uniform2f(uniforms.uOffset, this.offsetX, this.offsetY);
 
             gl.activeTexture(gl.TEXTURE0);
-            gl.bindTexture(gl.TEXTURE_2D, this.font.texture);
+            gl.bindTexture(gl.TEXTURE_2D, this.texture);
             gl.uniform1i(uniforms.uTexture, 0);
             gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, endIdx - startIdx);
 
@@ -2306,6 +2358,10 @@ layout(location = 0) in vec2 aPosition;
 void main() {
     gl_Position = vec4(aPosition, 0.0, 1.0);
 }`
+        },
+
+        utils: {
+            roundedBoxSDF: `float roundedBoxSDF(vec2 CenterPosition, vec2 Size, float Radius) {\nreturn length(max(abs(CenterPosition)-Size+Radius,0.0))-Radius;\n}`,
         },
 
         get animation() {

@@ -1335,7 +1335,7 @@
             // Append children or content
             const contentToAdd = inner || innerContent;
             if (contentToAdd) {
-                element.append(...LS.Util.resolveElements(contentToAdd));
+                LS.Util.resolveElements(contentToAdd, element);
             }
 
             if (i18n) {
@@ -1403,23 +1403,61 @@
 
         /**
          * Element selector utility.
-         * The current implementation doesn't include wrapping as of now.
+         * The current implementation doesn't include wrapping as of now, and so doesn't do anything special with the selector, so just using document.querySelector may now be better.
+         * 
+         * @deprecated
+         * @param {string|Element} selector - The selector or parent element to search within (otherwise search the document).
+         * @param {string} subSelector - The selector to find within the parent element.
+         * @param {boolean} one - Whether to return only the first matching element (true) or all matching elements (false).
+         * @returns {Element|NodeList|null} The selected element(s) or null if not found.
+         * 
+         * @example LS.Select("#myElement");
+         * @example LS.Select(document.body, ".myClass");
+         * @example LS.Select("#myElement", ".myClass", true);
          */
         Select(selector, subSelector, one = false){
             if(!selector) return one? null: [];
 
-            const isElement = selector instanceof Element;
-            const target = (isElement? selector : document);
-
+            // const isElement = selector instanceof Element;
+            const isElement = typeof selector !== "string";            
             if(isElement && !subSelector) return one? selector: [selector];
 
+            const target = (isElement? selector : document);
             const actualSelector = isElement? subSelector || "*" : selector || '*';
             return one? target.querySelector(actualSelector): target.querySelectorAll(actualSelector);
         }
 
+        /**
+         * Selects a single element based on the provided selector.
+         * 
+         * @param {string|Element} selector 
+         * @param {string} subSelector 
+         * @returns {Element|null} The selected element or null if not found.
+         */
         SelectOne(selector, subSelector){
             if(!selector) selector = document.body;
             return LS.Select(selector, subSelector, true);
+        }
+
+        /**
+         * Misc utility to select an element based on the provided selector.
+         * If the element does not exist, it creates a new one.
+         * 
+         * @example LS.SelectOrCreate("#myElement");
+         * @example LS.SelectOrCreate(searchElement, "#myElement");
+         * 
+         * @param {string|Element} selector - The selector or parent element to search within (otherwise search the document).
+         * @param {string} subSelector - The selector to find or create if using a root element.
+         * @returns {Element} The selected or newly created element.
+         */
+        SelectOrCreate(selector, subSelector) {
+            if(!selector) return null;
+
+            const element = LS.SelectOne(selector, subSelector);
+            if(element) return element;
+
+            const newElement = LS.Create(subSelector || selector);
+            return newElement;
         }
 
         Util = {
@@ -1798,10 +1836,33 @@
                 return Object.getOwnPropertyNames(func.prototype).length > 1;
             },
 
-            resolveElements(...array){
-                return array.flat().filter(Boolean).map(element => {
-                    return typeof element === "string" ? document.createTextNode(element) : typeof element === "object" && !(element instanceof Node) ? LS.Create(element) : element;
-                });
+            /**
+             * Internal helper for resolving elements from various input types (string, array, object, Node).
+             * @param {*} input Input to resolve into elements.
+             * @param {Array|Node} target Target to append elements to, or an array to collect them in.
+             * @returns {Array|Node} The target with resolved elements appended, or an array of resolved elements.
+             */
+            resolveElements(input, target = null) {
+                const result = target || [];
+                const isArray = Array.isArray(target);
+
+                for(const item of Array.isArray(input) ? input : [input]) {
+                    if(item === null || item === undefined) continue;
+
+                    const type = typeof item;
+
+                    if(type === "string"){
+                        const node = document.createTextNode(item);
+                        if(isArray) result.push(node); else result.appendChild(node);
+                    } else if(type === "object" && !(item instanceof Node)){
+                        const created = LS.Create(item);
+                        if(isArray) result.push(created); else result.appendChild(created);
+                    } else {
+                        if(isArray) result.push(item); else result.appendChild(item);
+                    }
+                }
+
+                return result;
             },
 
             FILTER_MODE_REMOVE: 0,
@@ -2173,7 +2234,7 @@
                 set cursor(value) {
                     this._cursor = value;
                     if (this.seeking) {
-                        document.documentElement.style.cursor = value || "";
+                        document.documentElement.style.cursor = value? (value + "!important"): "";
                     }
                 }
 
@@ -2270,7 +2331,11 @@
                     const docEl = document.documentElement;
                     docEl.classList.add("ls-dragging");
                     if (this.options.disablePointerEvents) docEl.style.pointerEvents = "none";
-
+                    
+                    // For an unknown reason, Chrome since a recent version started to overwrite the
+                    // cursor and ignores documentElement which causes weird cursor behavior, so we set it again to the element and restore it later.
+                    this.__originalCursor = target.style.cursor;
+                    target.style.cursor = this._cursor || "grabbing";
                     if (!docEl.style.cursor) docEl.style.cursor = this._cursor || "grabbing";
 
                     // Attach move/up listeners to document
@@ -2507,7 +2572,36 @@
                 }
 
                 onRelease(event) {
-                    this.cleanupDragState();
+                    this.seeking = false;
+                    this._eventData.cancelled = false;
+                    this.frameQueued = false;
+                    this.latestMoveEvent = null;
+
+                    if (this.dragTarget) {
+                        this.dragTarget.classList.remove("ls-drag-target");
+                        this.dragTarget = null;
+                    }
+
+                    const captureTarget = this.activeTarget;
+                    if(captureTarget) {
+                        if (event && typeof event.pointerId === "number" && captureTarget.hasPointerCapture(event.pointerId)) {
+                            captureTarget.releasePointerCapture(event.pointerId);
+                        }
+    
+                        captureTarget.classList.remove("is-dragging");
+                        captureTarget.style.cursor = this.__originalCursor || "";
+                        this.activeTarget = null;
+                    }
+
+                    this.__originalCursor = null;
+
+                    const docEl = document.documentElement;
+                    docEl.classList.remove("ls-dragging");
+                    docEl.style.pointerEvents = "";
+                    docEl.style.cursor = "";
+
+                    document.removeEventListener("pointermove", this.onMove);
+                    document.removeEventListener("pointerup", this.onRelease);
 
                     const isDestroy = event.type === "destroy";
 
@@ -2530,19 +2624,11 @@
                         this.options.onEnd(this._eventData);
                     }
 
-                    const captureTarget = this.activeTarget;
-                    if (captureTarget && typeof event.pointerId === "number" && captureTarget.hasPointerCapture(event.pointerId)) {
-                        captureTarget.releasePointerCapture(event.pointerId);
-                    }
-
                     this._eventData.domEvent = null;
                     this._eventData.hasMoved = true;
                     this._eventData.cancelled = false;
                     this._eventData.scrollDeltaX = 0;
                     this._eventData.scrollDeltaY = 0;
-
-                    // this._eventData.worldRect = null;
-                    // this.worldRect = null;
 
                     this._eventData.boundingRect = null;
                     this.boundingRect = null;
@@ -2570,31 +2656,6 @@
                 onPointerLockChange() {
                     const lockEl = document.pointerLockElement;
                     this.pointerLockActive = !!lockEl && lockEl === this.activeTarget;
-                }
-
-                cleanupDragState() {
-                    this.seeking = false;
-                    this._eventData.cancelled = false;
-                    this.frameQueued = false;
-                    this.latestMoveEvent = null;
-
-                    if (this.activeTarget) {
-                        this.activeTarget.classList.remove("is-dragging");
-                    }
-
-                    if (this.dragTarget) {
-                        this.dragTarget.classList.remove("ls-drag-target");
-                        this.dragTarget = null;
-                    }
-
-                    const docEl = document.documentElement;
-                    docEl.classList.remove("ls-dragging");
-                    docEl.style.pointerEvents = "";
-                    docEl.style.cursor = "";
-                    this.activeTarget = null;
-
-                    document.removeEventListener("pointermove", this.onMove);
-                    document.removeEventListener("pointerup", this.onRelease);
                 }
 
                 /**
@@ -3164,8 +3225,8 @@
              * @deprecated
              */
             add(...elements){
-                this.append(...LS.Util.resolveElements(...elements));
-                return this
+                LS.Util.resolveElements(elements.flat(), this);
+                return this;
             },
 
             /**
@@ -3173,8 +3234,8 @@
              * @deprecated
              */
             addBefore(target){
-                LS.Util.resolveElements(target).forEach(element => this.parentNode.insertBefore(element, this))
-                return this
+                LS.Util.resolveElements(target).forEach(element => this.parentNode.insertBefore(element, this));
+                return this;
             },
 
             /**
@@ -3182,8 +3243,8 @@
              * @deprecated
              */
             addAfter(target){
-                LS.Util.resolveElements(target).forEach(element => this.parentNode.insertBefore(element, this.nextSibling))
-                return this
+                LS.Util.resolveElements(target).forEach(element => this.parentNode.insertBefore(element, this.nextSibling));
+                return this;
             },
 
             /**

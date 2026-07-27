@@ -1,5 +1,5 @@
 /**
- * A (work in progress) WebGL version of the timeline component, originally using DOM.
+ * A (work in progress) WebGL hardware-accelerated version of the timeline component, originally using DOM.
  * It handles drag and drop, resizing, slicing, markers, touch controls, etc.
  * Features highly intuitive keyboard controls.
  * 
@@ -9,53 +9,23 @@
  * @author lstv.space
  * @license GPL-3.0
  * 
- * Using for AI assistance or training is strictly prohibited.
- * No AI was used to write this code.
+ * ! Using for AI assistance or training is strictly prohibited.
+ * ! No AI or AI tools were used to write this code.
+ * 
+ * TO CHECK:
+ * - Undo/redo
+ * - Automations
  */
 
 (() => {
     // For now there's a limit since all of those are pre-instanced and take that much memory
-    const MAX_RENDER_ITEMS = 1500000;
+    const MAX_RENDER_ITEMS = 2000000;
     const DEFAULT_TILE_COLOR = [104, 104, 104];
 
     function num(value, fallback = 0) {
         value = Number(value);
-        return Number.isFinite(value) ? value : fallback;
+        return Number.isFinite(value)? value: fallback;
     }
-
-    const colorConversion = new LS.Color();
-    function colorToAccent(color, tone = 40) {
-        colorConversion.set(color);
-        const hsl = colorConversion.getHSL();
-        const h = hsl[0];
-        const s = hsl[1];
-        colorConversion.setHSL(h, s, tone);
-        return colorConversion.color; // Copy
-    }
-
-    const LS_ACCENTS_MAP = new Map([
-        ["navy",          colorToAccent([40, 28, 108])],
-        ["blue",          colorToAccent([0, 133, 255])],
-        ["pastel-indigo", colorToAccent([70, 118, 181])],
-        ["lapis",         colorToAccent([34, 114, 154])],
-        ["teal",          colorToAccent([0, 128, 128])],
-        ["pastel-teal",   colorToAccent([69, 195, 205])],
-        ["aquamarine",    colorToAccent([58, 160, 125])],
-        ["green",         colorToAccent([25, 135, 84])],
-        ["lime",          colorToAccent([133, 210, 50])],
-        ["neon",          colorToAccent([173, 255, 110])],
-        ["yellow",        colorToAccent([255, 236, 32])],
-        ["orange",        colorToAccent([255, 140, 32])],
-        ["deep-orange",   colorToAccent([255, 112, 52])],
-        ["red",           colorToAccent([245, 47, 47])],
-        ["rusty-red",     colorToAccent([220, 53, 69])],
-        ["pink",          colorToAccent([230, 52, 164])],
-        ["hotpink",       colorToAccent([245, 100, 169])],
-        ["purple",        colorToAccent([155, 77, 175])],
-        ["soap",          colorToAccent([210, 190, 235])],
-        ["burple",        colorToAccent([81, 101, 246])],
-        ["white",         colorToAccent([255, 255, 255])]
-    ]);
 
     LS.LoadComponent(class TimelineGL extends LS.Component {
         /**
@@ -74,10 +44,13 @@
          * Timeline component options configuration
          * @typedef {Object} TimelineGLOptions
          * @property {HTMLElement|null} options.element - The DOM element to attach the timeline to
-         * @property {number} options.zoom - Initial zoom level (pixels per time unit)
-         * @property {number} options.offset - Initial horizontal scroll offset in pixels
+         * @property {number} options.zoom - Initial zoom level (in pixels per time unit, meaning 100 = 1 time unit has 100 pixels)
+         * @property {number} options.zoomX - Optional initial horizontal zoom level not affected by time unit
+         * @property {number} options.zoomY - Initial vertical zoom level
          * @property {number|"auto"} options.minZoom - Minimum allowed zoom level. "auto" fits content to viewport width
          * @property {number} options.maxZoom - Maximum allowed zoom level
+         * @property {number} options.scrollX - Initial horizontal scroll offset in pixels
+         * @property {number} options.scrollY - Initial vertical scroll offset in pixels
          * @property {number} options.markerSpacing - Minimum spacing between time markers in pixels
          * @property {"time"|"number"|Function} options.markerMetric - Format for time markers. "time" shows HH:MM:SS, "number" shows raw values, or custom function(time, step)
          * @property {boolean} options.allowAutomationClips - Allow creation of automation clips
@@ -107,14 +80,18 @@
          * @property {string} options.backgroundFragment - Custom fragment shader for the background
          * @property {string} options.itemFragment - Custom fragment shader for timeline items
          * @property {string} options.selectionFragment - Custom fragment shader for the selection rectangle
+         * @property {number} options.maxRows - Maximum number of rows to display in the timeline, -1 for unlimited
          */
 
         static DEFAULTS = LS.Util.staticDefaults({
             element: null,
-            zoom: 200,
-            offset: 0,
-            minZoom: 0.4,
-            maxZoom: 1400,
+            zoom: 60,
+            zoomX: null,
+            zoomY: 1,
+            scrollX: 0,
+            scrollY: 0,
+            minZoom: 0.005,
+            maxZoom: 2,
             markerSpacing: 100,
             markerMetric: "time",
             allowAutomationClips: false,
@@ -126,7 +103,12 @@
             remapAutomationTargets: true,
             framerateLimit: 90,
             tool: "select",
-            fontName: "UbuntuMono",
+
+            // There are 3 versions for font, UbuntuMono/mtsdf, UbuntuMono/softmask (bitmap), and UbuntuMono/msdf (msdf).
+            // softmask is the smallest and most efficient and also has all glyphs, and good enough quality for the timeline (when the text stays small).
+            // If you want to scale up the font or it looks blurry or pixelated, use either the mtsdf or msdf versions, which can handle larger text sizes.
+            fontName: "UbuntuMono/softmask",
+
             toolShortcuts: {
                 select: "v",
                 slice: "c",
@@ -134,6 +116,7 @@
                 erase: "e",
                 group: "g"
             },
+
             cloneFilter: null
         });
 
@@ -148,7 +131,7 @@
         #zoomY = 1;
 
         // --- UI state ---
-        #tool = "draw";
+        #tool = "select";
 
         /**
          * Timeline component options configuration
@@ -164,28 +147,37 @@
             // --- State variables
             this.selectionRect = [false, 0, 0, 0, 0];
             this.grid = this.options.grid || { w: 64, h: 45 };
-            this.timeSignature = { x: 4, y: 4 }; // Default time signature (4/4) TEMP
+            this.timeSignature = this.options.timeSignature || { x: 4, y: 4 }; // Default time signature (4/4) TEMP
             this.maxRows = this.options.maxRows || -1;
 
-            this.sidebarWidth = this.options.sidebarWidth || 84;
-            this.labelBarHeight = this.options.labelBarHeight || 32;
+            this.#seek = 0;
+            this.#duration = 0;
+            this.#scrollX = this.options.scrollX || 0;
+            this.#scrollY = this.options.scrollY || 0;
+            this.#zoomX = typeof this.options.zoomX === "number"? this.options.zoomX: (this.options.zoom || 100) / this.grid.w;
+            this.#zoomY = this.options.zoomY || 1;
+
+            this.sidebarWidth = this.options.sidebarWidth || 0;
+            this.labelBarHeight = this.options.labelBarHeight || 26;
 
             this.resizeMargin = this.options.resizeMargin || 6;
 
-            const testItems = 100;
-            this.items = [...Array(testItems)].map((_, i) => ({ start: i / 0.5, duration: 100, row: i % 30, label: `Item ${i}`, tileColor: (new LS.Color("red").lerp("blue", i / (testItems))), data: {} }));
+            // const testItems = 0;
+            // this.items = [...Array(testItems)].map((_, i) => ({ start: i / 0.5, duration: 100, row: i % 30, label: `Item ${i}`, tileColor: (new LS.Color("red").lerp("blue", i / (testItems))), data: {} }));
+            this.items = [];
             this.itemMap = new Map();
 
             this.selectedItems = [];
+            this.__focusedItemIndex = -1;
 
             this.previousItem = { start: null, duration: null, row: null };
 
             this.clipboard = [];
-            
+
             // Undo/Redo action events (history management is external)
             this.__actionEventRef = this.prepareEvent("action");
 
-            this.container = this.options.element || document.createElement("div");
+            this.container = this.options.element || this.options.container || document.createElement("div");
             this.container.classList.add("timeline-gl-container");
 
             this.__needsSort = true;
@@ -197,25 +189,37 @@
                 backgroundColor: "transparent",
                 resizeTo: this.container,
                 blockIfHidden: true,
+                firstFrame: false, // Don't render the first frame until the font is loaded
                 ...this.options.rendererOptions
             });
 
             this.container.appendChild(this.renderer.canvas);
+            this.renderer.canvas.classList.add("level-1");
 
             // -- Text engine for labels
             this.textEngine = this.options.textEngine || new LS.GL.WebGLTextEngine({
                 renderer: this.renderer,
                 fontName: this.options.fontName,
-                mtsdf: true, // TODO: the engine should extract this from the font file automatically
+                type: "softmask", // TODO: the engine should extract this from the font file automatically
 
                 // The amount of characters that can be rendered at once
                 bufferSize: 16384,
                 ...this.options.textEngineOptions
             });
 
+            if (!(this.renderer instanceof LS.GL.WebGLRenderer)) {
+                console.warn("TimelineGL: Renderer is not an instance of LS.GL.WebGLRenderer.");
+            }
+
+            if (!(this.textEngine instanceof LS.GL.WebGLTextEngine)) {
+                console.warn("TimelineGL: Text engine is not an instance of LS.GL.WebGLTextEngine.");
+            }
+
             this.textEngine.loadPromise.then(() => {
                 this.__prevScrollX = null;
                 this.__prevZoomX = null;
+
+                this.renderable.enabled = true;
 
                 this.#setupRenderables();
                 this.#setupHandle();
@@ -228,14 +232,6 @@
             this.__prevScrollY = null;
             this.__prevZoomX = null;
             this.__prevZoomY = null;
-
-            if(!(this.renderer instanceof LS.GL.WebGLRenderer)) {
-                console.warn("TimelineGL: Renderer is not an instance of LS.GL.WebGLRenderer.");
-            }
-
-            if(!(this.textEngine instanceof LS.GL.WebGLTextEngine)) {
-                console.warn("TimelineGL: Text engine is not an instance of LS.GL.WebGLTextEngine.");
-            }
 
             this.labels = this.textEngine.createText(16384 - 2048);
             this.numberLabelsX = this.textEngine.createText(1024);
@@ -256,6 +252,7 @@
                     }
                 },
 
+                enabled: false, // Wait for font
                 renderables: [],
             }
 
@@ -264,9 +261,9 @@
             }
 
             // Set initial contrast based on the current theme
-            this.contrast = LS.Color.theme === "dark" ? 1.0 : 0.6;
+            this.contrast = LS.Color.theme === "dark"? 1.0: 0.6;
             this.addExternalEventListener(LS.Color, "theme-changed", (theme) => {
-                this.contrast = theme === "dark" ? 1.0 : 0.6;
+                this.contrast = theme === "dark"? 1.0: 0.6;
                 this.renderer.render();
             });
 
@@ -280,25 +277,27 @@
             // TODO:
             this.contextMenu = new LS.Menu({
                 items: [
-                    { text: "Paste Item(s)", icon: "bi-clipboard", action: () => {
-                        if (!this.clipboard.length) return;
-                        const pastedItems = [];
-                        const idMap = new Map(); // Maps clipboard item IDs to new item IDs
-                        for (const entry of this.clipboard) {
-                            const newItem = this.cloneItem(entry.data);
-                            newItem.start = this.seek + entry.offset;
-                            newItem.row = entry.row;
-                            idMap.set(entry.data.id, newItem.id);
-                            pastedItems.push(newItem);
-                            this.add(newItem);
-                        }
-                        // Remap automation targets if enabled
-                        if (this.options.remapAutomationTargets) {
-                            this.remapAutomationTargets(pastedItems, idMap);
-                        }
+                    {
+                        text: "Paste Item(s)", icon: "bi-clipboard", action: () => {
+                            if (!this.clipboard.length) return;
+                            const pastedItems = [];
+                            const idMap = new Map(); // Maps clipboard item IDs to new item IDs
+                            for (const entry of this.clipboard) {
+                                const newItem = this.cloneItem(entry.data);
+                                newItem.start = this.seek + entry.offset;
+                                newItem.row = entry.row;
+                                idMap.set(entry.data.id, newItem.id);
+                                pastedItems.push(newItem);
+                                this.add(newItem);
+                            }
+                            // Remap automation targets if enabled
+                            if (this.options.remapAutomationTargets) {
+                                this.remapAutomationTargets(pastedItems, idMap);
+                            }
 
-                        this.renderer.render();
-                    }, get hidden() { return self.clipboard.length === 0 } },
+                            this.renderer.render();
+                        }, get hidden() { return self.clipboard.length === 0 }
+                    },
                     { type: "separator" },
                     { text: "Select All", icon: "bi-check2-all", action: () => this.selectAll() },
                     { text: "Deselect All", icon: "bi-x-lg", action: () => this.deselectAll() },
@@ -324,10 +323,6 @@
             //         this.contextMenu.open(event.clientX, event.clientY);
             //     }
             // });
-
-            this.addExternalEventListener(this.container, "pointerdown", () => {
-                this.container.focus();
-            });
         }
 
         zoomFrom(mouseX = 0, mouseY = 0, delta = 0, zoomFactorX = 1.1, zoomFactorY = 1.1) {
@@ -387,7 +382,7 @@
          */
         add(item) {
             if (this.destroyed) return;
-            if(!item.id) item.id = LS.Misc.uid();
+            if (!item.id) item.id = LS.Misc.uid();
             this.itemMap.set(item.id, item);
 
             this.items.push(item);
@@ -413,7 +408,7 @@
             if (this.destroyed) return;
             return; // TODO
 
-            const oldItems = Array.isArray(this.items) ? this.items.slice() : [];
+            const oldItems = Array.isArray(this.items)? this.items.slice(): [];
 
             if (destroyItems) {
                 for (const item of oldItems) {
@@ -450,7 +445,7 @@
         }
 
         sortItems() {
-            console.log("Sorting items!");
+            // console.log("Sorting items!");
 
             this.itemMap.clear();
 
@@ -459,7 +454,7 @@
 
             this.__needsSort = false;
 
-            if(this.items.length < 1) {
+            if (this.items.length < 1) {
                 if (0 !== this.#duration) {
                     this.#duration = 0;
                     this.quickEmit("duration-changed", this.#duration);
@@ -467,7 +462,7 @@
                 return;
             }
 
-            if(this.items.length > 1) {
+            if (this.items.length > 1) {
                 this.items.sort((a, b) => (a.start || 0) - (b.start || 0));
             }
 
@@ -548,7 +543,7 @@
             const result = [];
             // If containedOnly is true, we only care about items starting >= start.
             // If false, we need to look back to catch long items starting before the range.
-            const searchStart = containedOnly ? start : start - this.maxDuration;
+            const searchStart = containedOnly? start: start - this.maxDuration;
             const startIndex = this.binarySearch(searchStart);
 
             for (let i = startIndex; i < this.items.length; i++) {
@@ -615,16 +610,16 @@
             // Clone item
             const newItem = this.cloneItem(item);
             const originalDuration = item.duration;
-            
+
             // Update durations and start times
             const originalEndTime = item.start + item.duration;
             item.duration = normalizeSnappedTime(splitTime - item.start);
-            
+
             newItem.start = normalizeSnappedTime(splitTime);
             newItem.duration = normalizeSnappedTime(originalEndTime - splitTime);
 
             this.add(newItem);
-            
+
             // Emit action for external history management
             this.emitAction({
                 type: "cut",
@@ -634,7 +629,7 @@
                 newItemId: newItem.id,
                 newItemData: this.cloneItem(newItem)
             });
-            
+
             return newItem;
         }
 
@@ -698,14 +693,14 @@
                 tileColor: item.tileColor || null,
 
                 data: item.data && LS.Util.clone(item.data, (key, value) => {
-                    if(this.options.cloneFilter) {
+                    if (this.options.cloneFilter) {
                         const filterResult = this.options.cloneFilter(key, value, item, exportMode);
-                        if(filterResult !== undefined) {
+                        if (filterResult !== undefined) {
                             return filterResult;
                         }
                     }
 
-                    if(exportMode && typeof value.export === "function") {
+                    if (exportMode && typeof value.export === "function") {
                         return { newValue: value.export() };
                     }
 
@@ -720,13 +715,34 @@
             };
         }
 
+        cloneSelected() {
+            const clonedItems = [];
+
+            for (const item of this.selectedItems) {
+                const clonedItem = this.cloneItem(item);
+                clonedItems.push(clonedItem);
+                this.add(clonedItem);
+            }
+
+            // Emit action for external history management
+            this.emitAction({
+                type: "clone",
+                items: clonedItems.map(item => ({
+                    id: item.id,
+                    data: this.cloneItem(item)
+                }))
+            });
+
+            return clonedItems;
+        }
+
 
         /**
          * Exports the current timeline items as a new array of cloned items in a serialized format.
          * @returns {TimelineItem[]} An array of cloned timeline items
          */
         export() {
-            if(this.__needsSort) {
+            if (this.__needsSort) {
                 this.sortItems();
             }
 
@@ -737,7 +753,7 @@
 
         formatMarker(time, step) {
             const metric = this.options.markerMetric;
-            if(metric && metric !== "time") {
+            if (metric && metric !== "time") {
                 if (metric === "number") return time.toString();
                 if (typeof metric === "function") return metric(time, step);
             }
@@ -781,7 +797,7 @@
          */
         applyUndo(action) {
             if (!action || !action.type) return false;
-            
+
             switch (action.type) {
                 case "move":
                     // Restore previous positions
@@ -794,7 +810,7 @@
                     }
                     this.__needsSort = true;
                     break;
-                    
+
                 case "clone":
                 case "add":
                     // Remove the added/cloned items
@@ -805,7 +821,7 @@
                         }
                     }
                     break;
-                    
+
                 case "delete":
                     // Restore deleted items
                     for (const entry of action.items) {
@@ -816,7 +832,7 @@
                     }
                     this.__needsSort = true;
                     break;
-                    
+
                 case "resize":
                 case "slice-delete":
                     // Restore previous size
@@ -829,7 +845,7 @@
                     }
                     this.__needsSort = true;
                     break;
-                    
+
                 case "cut":
                     // Remove the new item and restore original
                     if (action.newItemId) {
@@ -842,7 +858,7 @@
                     }
                     this.__needsSort = true;
                     break;
-                    
+
                 default:
                     return false;
             }
@@ -859,7 +875,7 @@
          */
         applyRedo(action) {
             if (!action || !action.type) return false;
-            
+
             switch (action.type) {
                 case "move":
                     // Apply the move again
@@ -872,7 +888,7 @@
                     }
                     this.__needsSort = true;
                     break;
-                    
+
                 case "clone":
                 case "add":
                     // Re-add the items
@@ -884,7 +900,7 @@
                     }
                     this.__needsSort = true;
                     break;
-                    
+
                 case "delete":
                     // Delete the items again
                     for (const entry of action.items) {
@@ -894,7 +910,7 @@
                         }
                     }
                     break;
-                    
+
                 case "resize":
                 case "slice-delete":
                     // Apply resize again
@@ -907,7 +923,7 @@
                     }
                     this.__needsSort = true;
                     break;
-                    
+
                 case "cut":
                     // Re-perform the cut
                     const cutItem = this.getItemById(action.originalId);
@@ -920,7 +936,7 @@
                     }
                     this.__needsSort = true;
                     break;
-                    
+
                 default:
                     return false;
             }
@@ -953,7 +969,7 @@ void main() {
     vUV = pos * 0.5 + 0.5;
     gl_Position = vec4(pos, 0.0, 1.0);
 }`,
-            fragment: this.options.backgroundFragment ?? `#version 300 es
+                fragment: this.options.backgroundFragment?? `#version 300 es
 precision highp float;
 
 uniform vec2 offset;
@@ -964,6 +980,7 @@ uniform vec2 gridSize;
 uniform float contrast;
 
 uniform float sidebarWidth;
+uniform float labelBarHeight;
 
 in vec2 vUV;
 out vec4 fragColor;
@@ -975,8 +992,8 @@ void main() {
     // Flip the y-axis so that 0,0 is at the top left
     uv.y = resolution.y - uv.y;
     
-    if(uv.y < 32.0) {
-        if(uv.y > 30.0) {
+    if(uv.y < labelBarHeight) {
+        if(uv.y > labelBarHeight - 2.0) {
             fragColor = vec4(vec3(0.2), 0.8 * contrast);
             return;
         }
@@ -1022,7 +1039,7 @@ void main() {
 
         // if we are on a bar line, make it more visible
         if(mod(uv.x + offset.x, gridSize.x * zoom.x * timeSignature.x) < 1.0) {
-            factor = 1.0;
+            factor = 1.2;
         }
 
         fragColor = vec4(0.0, 0.0, 0.0, factor * contrast);
@@ -1033,17 +1050,17 @@ void main() {
 
     // Segments
     float cell = (uv.x + offset.x) * 1.0 / (64.0 * gridSize.x * zoom.x);
-    float segmentHighlight = step(0.5, fract(cell)) * 0.5;
+    float segmentHighlight = step(0.5, fract(cell)) * 0.45;
 
     // Rows
     float row = (uv.y + offset.y) * 1.0 / (2.0 * gridSize.y * zoom.y);
-    float rowHighlight = step(0.5, fract(row)) * (segmentHighlight > 0.0 ? 0.2 : 0.5);
+    float rowHighlight = step(0.5, fract(row)) * (segmentHighlight > 0.0? 0.2: 0.6);
 
     fragColor = vec4(0.0, 0.0, 0.0, (segmentHighlight + rowHighlight) * contrast);
 }
                 `,
 
-                uniforms: ["offset", "resolution", "zoom", "timeSignature", "gridSize", "contrast", "sidebarWidth"],
+                uniforms: ["offset", "resolution", "zoom", "timeSignature", "gridSize", "contrast", "sidebarWidth", "labelBarHeight"],
                 attributes: [],
 
                 bindVAO: true,
@@ -1054,8 +1071,9 @@ void main() {
                     gl.uniform2f(uniforms.zoom, self.#zoomX, self.#zoomY);
                     gl.uniform2f(uniforms.timeSignature, self.timeSignature.x, self.timeSignature.y);
                     gl.uniform2f(uniforms.gridSize, self.grid.w, self.grid.h);
-                    gl.uniform1f(uniforms.contrast, self.contrast ?? 1.0);
+                    gl.uniform1f(uniforms.contrast, self.contrast?? 1.0);
                     gl.uniform1f(uniforms.sidebarWidth, self.sidebarWidth);
+                    gl.uniform1f(uniforms.labelBarHeight, self.labelBarHeight);
 
                     gl.drawArrays(gl.TRIANGLES, 0, 3);
                 }
@@ -1079,17 +1097,15 @@ uniform vec2 zoom;
 out float v_size;
 out vec3 v_color;
 out vec2 v_uv;
-out vec2 v_position;
 out float v_state;
 
 const vec2 positions[6] = vec2[](
-    vec2(-1.0, -1.0),
-    vec2( 1.0, -1.0),
-    vec2(-1.0,  1.0),
-
-    vec2(-1.0,  1.0),
-    vec2( 1.0, -1.0),
-    vec2( 1.0,  1.0)
+    vec2(-0.1, -0.1),
+    vec2( 1.1, -0.1),
+    vec2(-0.1,  1.1),
+    vec2(-0.1,  1.1),
+    vec2( 1.1, -0.1),
+    vec2( 1.1,  1.1)
 );
 
 void main() {
@@ -1107,18 +1123,16 @@ void main() {
 
     v_color = a_color;
     v_size = a_size;
-    v_position = a_position;
     v_state = a_state;
 
     v_uv = positions[gl_VertexID];
 }`,
-            fragment: this.options.itemFragment ?? `#version 300 es
+                fragment: this.options.itemFragment?? `#version 300 es
 precision highp float;
 
 in float v_size;
 in vec3 v_color;
 in vec2 v_uv;
-in vec2 v_position;
 
 in float v_state;
 
@@ -1131,47 +1145,70 @@ uniform float rowHeight;
 
 uniform float sidebarWidth;
 
-float roundedBoxSDF(vec2 CenterPosition, vec2 Size, float Radius) {
-    return length(max(abs(CenterPosition)-Size+Radius,0.0))-Radius;
-}
+${LS.GL.utils.roundedBoxSDF}
 
 void main() {
-    gl_FragDepth = 1.0;
-    fragColor = vec4(0.1);
-    // // Apply non-uniform zoom
-    // vec2 size = vec2(v_size, rowHeight) * zoom;
+    // Apply non-uniform zoom
+    vec2 size = vec2(v_size, rowHeight) * zoom;
 
-    // float d = roundedBoxSDF((v_uv - 0.5) * size, size * 0.5, 4.0);
+    // Base color
+    vec3 color = v_color.rgb;
+    vec2 pos = v_uv * size;
 
-    // float aa = fwidth(d); // Anti-aliasing factor
-    // float alpha = 1.0 - smoothstep(0.0, aa * 0.5, d);
+    float d = roundedBoxSDF((v_uv - 0.5) * size, size * 0.5, 4.0);
+    float aa = fwidth(d); // Anti-aliasing factor
 
-    // // Base color
-    // vec3 color = v_color.rgb;
-    // vec2 pos = v_uv * size;
+    float alpha = 1.0 - smoothstep(0.0, aa * 0.5, d);
 
-    // // Borders & resize handles
+    if(pos.x < 6.0 || pos.x > size.x - 6.0) {
+        // Multiply by alpha here to clip for shadow/outline
+        color = mix(color, vec3(1.0), 0.3 * alpha);
+    }
 
-    // if(v_state > 0.0) {
-    //     color = mix(color, vec3(1.0), 0.2);
-    // } else {
-    //     if(pos.y < 1.0) {
-    //         fragColor = vec4(mix(color, vec3(1.0), 0.3), alpha);
-    //         return;
-    //     }
-    
-    //     if(pos.y > size.y - 1.0) {
-    //         fragColor = vec4(mix(color, vec3(0.0), 0.5), alpha);
-    //         return;
-    //     }
-    // }
+    // Borders & resize handles
+    if(v_state == 1.0) {
+        color = mix(color, vec3(1.0), 0.2 * alpha);
 
-    // if(pos.x < 6.0 || pos.x > size.x - 6.0) {
-    //     fragColor = vec4(mix(color, vec3(1.0), 0.3), alpha);
-    //     return;
-    // }
+        float outlineWidth = 2.0;
 
-    // fragColor = vec4(color, alpha);
+        float fill = 1.0 - smoothstep(0.0, aa, d);
+        float outline = 1.0 -
+            smoothstep(outlineWidth - aa,
+                    outlineWidth + aa,
+                    d);
+
+        outline -= fill;
+
+        // Shadow
+        vec2 shadowOffset = vec2(4.0, 4.0);
+
+        float shadowD = roundedBoxSDF(
+            (v_uv - 0.5) * size - shadowOffset,
+            size * 0.5,
+            4.0
+        );
+
+        float shadow = 1.0 - smoothstep(0.0, aa, shadowD);
+
+        // Compose
+        vec3 finalColor = vec3(0.0); // shadow is black
+        finalColor = mix(finalColor, color, fill);
+
+        float finalAlpha = max(shadow, max(outline, fill));
+
+        color = finalColor;
+        alpha = finalAlpha;
+    } else {
+        if(pos.y < 1.0) {
+            color = mix(color, vec3(1.0), 0.3);
+        }
+
+        if(pos.y > size.y - 1.0) {
+            color = mix(color, vec3(0.0), 0.5);
+        }
+    }
+
+    fragColor = vec4(color, alpha);
 }`,
 
                 uniforms: ["offset", "resolution", "zoom", "sidebarWidth", "rowHeight"],
@@ -1181,34 +1218,40 @@ void main() {
 
                 onSetup(gl, program, uniforms, attributes) {
                     this.positionBuffer = this.createBufferForAttribute(attributes.a_position, MAX_RENDER_ITEMS, 2);
-                    this.sizeBuffer = this.createBufferForAttribute(attributes.a_size,         MAX_RENDER_ITEMS, 1);
-                    this.colorBuffer = this.createBufferForAttribute(attributes.a_color,       new Uint8Array(MAX_RENDER_ITEMS * 3), 3, gl.UNSIGNED_BYTE, true);
-                    this.depthBuffer = this.createBufferForAttribute(attributes.depth, MAX_RENDER_ITEMS, 1);
+                    this.sizeBuffer = this.createBufferForAttribute(attributes.a_size, MAX_RENDER_ITEMS, 1);
+                    this.colorBuffer = this.createBufferForAttribute(attributes.a_color, new Uint8Array(MAX_RENDER_ITEMS * 3), 3, gl.UNSIGNED_BYTE, true);
+                    // this.depthBuffer = this.createBufferForAttribute(attributes.depth, MAX_RENDER_ITEMS, 1);
 
                     // I genuinely tried for 4 fucking hours to get this to work with a Uint8Array but webgl just decides to do random bullshit and i don't have the nerves for it
                     // So sorry not sorry we gonna waste 4 bytes for a boolean
                     // this.stateBuffer = this.createBufferForAttribute(attributes.a_state,       new Uint8Array(MAX_RENDER_ITEMS),     1);
-                    this.stateBuffer = this.createBufferForAttribute(attributes.a_state,       MAX_RENDER_ITEMS, 1);
+                    this.stateBuffer = this.createBufferForAttribute(attributes.a_state, MAX_RENDER_ITEMS, 1);
                 },
 
                 onRender(delta, now, gl, cw, ch, updatedDimensions, uniforms, attributes) {
-                    if(updatedDimensions) {
+                    if (updatedDimensions) {
                         // Ensure scroll is within bounds
                         self.scrollX = self.#scrollX;
                         self.scrollY = self.#scrollY;
                     }
 
-                    const viewWidth = cw / self.#zoomX;
+                    const scrollX = self.#scrollX;
+                    const scrollY = self.#scrollY;
+                    const zoomX = self.#zoomX;
+                    const zoomY = self.#zoomY;
 
-                    const movedX = self.__prevScrollX !== self.#scrollX || self.__prevZoomX !== self.#zoomX || updatedDimensions;
-                    const movedY = self.__prevScrollY !== self.#scrollY || self.__prevZoomY !== self.#zoomY || updatedDimensions;
+                    const viewWidth = cw / zoomX;
 
-                    const focusedItems = self.selectedItems;
-                    const focusedItemsLength = focusedItems.length;
+                    const movedX = self.__prevScrollX !== scrollX || self.__prevZoomX !== zoomX || updatedDimensions;
+                    const movedY = self.__prevScrollY !== scrollY || self.__prevZoomY !== zoomY || updatedDimensions;
+
+                    const selectedItems = self.selectedItems;
+                    const focusedItemsLength = selectedItems.length;
                     const selectedItemsChanged = self.__prevSelectedItemsLength !== focusedItemsLength;
                     self.__prevSelectedItemsLength = focusedItemsLength;
 
                     // --- Redraw items
+                    // TODO: Add a buffer so we don't have to redraw everything every time
                     if (movedX || movedY || self.__needsSort || self.__rerenderItems || selectedItemsChanged || focusedItemsLength > 0) {
                         if (self.__needsSort) {
                             self.sortItems();
@@ -1218,68 +1261,69 @@ void main() {
 
                         // First find the first visible item
                         const maxDuration = self.maxDuration;
-                        const startIndex = self.binarySearch((self.#scrollX / self.#zoomX) - maxDuration);
-                        const firstVisibleRow = Math.floor(self.#scrollY / (self.grid.h * self.#zoomY));
-                        const lastVisibleRow = Math.floor((self.#scrollY + ch) / (self.grid.h * self.#zoomY));
-
+                        const startIndex = self.binarySearch((scrollX / zoomX) - maxDuration);
+                        const firstVisibleRow = Math.floor(scrollY / (self.grid.h * zoomY));
+                        const lastVisibleRow = Math.floor((scrollY + ch) / (self.grid.h * zoomY));
                         const toRender = Math.min(self.items.length, MAX_RENDER_ITEMS);
+
+                        const a = [0, 0, 0];
 
                         let j = 0, reserved = 0;
                         for (let i = startIndex; i < toRender; i++) {
                             const item = self.items[i];
-                            if(!item) continue;
+                            if (!item) continue;
 
-                            if(focusedItems.indexOf(item) !== -1) {
-                                continue;
-                            }
+                            // Normally we should skip rendering the item here
+                            // But I forgot why it was originalyl a Set.. let's just say an array is not the best for has()
+                            // Rendering twice is ironically much faster than the check.
+                            // This is not a good solution and eventually I want to rethink how to handle selected items, technically all we need is to change the culling method
+                            // if(selectedItems.indexOf(item) !== -1) {
+                            //     continue;
+                            // }
 
-                            const [shouldBreak, itemReserved, itemsAdded] = self.__addRenderableItem(item, 0, j, reserved, firstVisibleRow, lastVisibleRow);
-                            reserved += itemReserved;
-                            j += itemsAdded;
-                            if(shouldBreak) {
-                                break;
-                            }
+                            self.__addRenderableItem(a, item, 0, j, reserved, firstVisibleRow, lastVisibleRow);
+                            reserved += a[1];
+                            j += a[2];
+                            if (a[0]) break;
                         }
 
                         for (let i = 0; i < focusedItemsLength; i++) {
-                            const item = focusedItems[i];
-                            if(!item) continue;
+                            const item = selectedItems[i];
+                            if (!item) continue;
 
-                            const [shouldBreak, itemReserved, itemsAdded] = self.__addRenderableItem(item, 1, j, reserved, firstVisibleRow, lastVisibleRow);
-                            reserved += itemReserved;
-                            j += itemsAdded;
-                            if(shouldBreak) {
-                                break;
-                            }
+                            self.__addRenderableItem(a, item, 1, j, reserved, firstVisibleRow, lastVisibleRow);
+                            reserved += a[1];
+                            j += a[2];
+                            if (a[0]) break;
                         }
 
-                        if(reserved) {
+                        if (reserved) {
                             // Clear remaining space by changing the range (faster when rendering in ranges (standalone), otherwise clear must be used to actually clear the text block)
                             self.labels.clip(0, reserved);
                         } else {
                             self.labels.clip(0, 0);
                         }
 
-                        if(j > 0) {
+                        if (j > 0) {
 
                             this.positionBuffer.update();
                             this.sizeBuffer.update();
                             this.colorBuffer.update();
                             this.stateBuffer.update();
-                            this.depthBuffer.update();
+                            // this.depthBuffer.update();
                         }
 
                         this.__visibleItems = j;
                     }
 
-                    if(this.__visibleItems > 0) {
+                    if (this.__visibleItems > 0) {
                         self.renderer.scissor(self.sidebarWidth, self.labelBarHeight);
 
-                        gl.uniform2f(uniforms.offset, self.#scrollX - self.sidebarWidth, self.#scrollY - self.labelBarHeight);
-                        gl.uniform2f(uniforms.zoom, self.#zoomX, self.#zoomY);
+                        gl.uniform2f(uniforms.offset, scrollX - self.sidebarWidth, scrollY - self.labelBarHeight);
+                        gl.uniform2f(uniforms.zoom, zoomX, zoomY);
                         gl.uniform2f(uniforms.resolution, cw, ch);
                         gl.uniform1f(uniforms.sidebarWidth, self.sidebarWidth);
-                        gl.uniform1f(uniforms.rowHeight, self.grid.h - 1.0);
+                        gl.uniform1f(uniforms.rowHeight, self.grid.h);
 
                         // fuck webgl nothing ever works
                         // it's the same cycle: 1) try to implement the simplest thing in existence that should take 2 seconds at most, 2) absolutely nothing works and shit that worked flawlessly is gone, 3) 8 hours in just give up
@@ -1289,7 +1333,7 @@ void main() {
                         // gl.depthFunc(gl.LEQUAL);
                         // gl.depthMask(true);
                         gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.__visibleItems);
-                        
+
                         // gl.depthMask(false);
                         self.labels.render();
                         // gl.disable(gl.DEPTH_TEST);
@@ -1299,34 +1343,38 @@ void main() {
 
                     let reserved = 0;
 
-                    // Redraw bar labels (markers)
+                    // -- Redraw bar labels (markers)
                     if (movedX) {
-                        self.__prevScrollX = self.#scrollX;
-                        self.__prevZoomX = self.#zoomX;
+                        self.__prevScrollX = scrollX;
+                        self.__prevZoomX = zoomX;
 
-                        const pixelsPerGrid = self.grid.w * self.#zoomX;
+                        const timeResolution = self.grid.w;
+                        const minTimeStep = 100 / zoomX;
+                        const screenScrollX = scrollX / zoomX;
 
-                        const labelSpacing = self.textEngine.cellWidth * 15; // minimum space between labels
-                        const labelStep = Math.max(1, Math.ceil(labelSpacing / pixelsPerGrid));
+                        const step = Math.pow(2, Math.ceil(Math.log2(minTimeStep)));
+                        const startTime = Math.floor(screenScrollX * (1 / step)) * step;
+                        const endTime = (screenScrollX + cw / zoomX) + step;
 
-                        const labelCount = ((self.renderer.width - self.sidebarWidth) / pixelsPerGrid);
-                        const preBuffer = Math.floor(self.sidebarWidth / pixelsPerGrid);
+                        const y = (self.labelBarHeight * 0.5) - (self.textEngine.cellHeight * 0.5);
 
-                        const y = (self.labelBarHeight / 2) - (self.textEngine.cellHeight / 2);
+                        for (let time = startTime; time <= endTime; time += step) {
+                            const t = (time * 1000 + 0.5) | 0;
+                            const tNorm = t * 0.001;
+                            if (tNorm < 0) continue;
 
-                        for (let i = 0; i < labelCount + preBuffer + 1; i++) {
-                            const tNorm = i - preBuffer + Math.floor(self.#scrollX / pixelsPerGrid);
+                            // if (tNorm % labelStep !== 0) continue;
 
-                            if (tNorm < 0 || tNorm % labelStep !== 0) continue;
-
-                            const label = self.formatMarker(tNorm, labelStep);
+                            const label = self.formatMarker(tNorm / timeResolution, step);
                             const length = label.length;
+
+                            const pos = tNorm * zoomX;
 
                             self.numberLabelsX.writeTextAt(
                                 label,
                                 reserved,
                                 length,
-                                (self.sidebarWidth - self.#scrollX % pixelsPerGrid) + (i - preBuffer) * pixelsPerGrid,
+                                pos - scrollX,
                                 y,
                                 255, 255, 255, 255
                             );
@@ -1336,7 +1384,7 @@ void main() {
                     }
 
                     // Clear remaining space by changing the range (if not drawing standalone then clear must be used to actually clear the text block)
-                    if(reserved) {
+                    if (reserved) {
                         self.numberLabelsX.clip(0, reserved || 0);
                     }
 
@@ -1345,10 +1393,10 @@ void main() {
                     // Key labels
                     reserved = 0;
                     if (movedY) {
-                        self.__prevScrollY = self.#scrollY;
-                        self.__prevZoomY = self.#zoomY;
+                        self.__prevScrollY = scrollY;
+                        self.__prevZoomY = zoomY;
 
-                        // const pixelsPerRow = self.grid.h * self.#zoomY;
+                        // const pixelsPerRow = self.grid.h * zoomY;
                         // if(pixelsPerRow > self.textEngine.cellHeight + 2) {
                         //     const labelStep = Math.max(1, Math.ceil(self.textEngine.cellHeight / pixelsPerRow));
                         //     const labelCount = ((self.renderer.height - self.labelBarHeight) / pixelsPerRow);
@@ -1357,7 +1405,7 @@ void main() {
 
                         //     // First pass: render C labels only
                         //     for (let i = 0; i < labelCount + preBuffer + 1; i++) {
-                        //         const row = i - preBuffer + Math.floor(self.#scrollY / pixelsPerRow);
+                        //         const row = i - preBuffer + Math.floor(scrollY / pixelsPerRow);
 
                         //         if (row < 0 || (self.maxRows > 0 && row >= self.maxRows) || row % labelStep !== 0) continue;
 
@@ -1368,7 +1416,7 @@ void main() {
                         //         if(isBlack) continue;
 
                         //         const y =
-                        //             (self.labelBarHeight - self.#scrollY % pixelsPerRow) +
+                        //             (self.labelBarHeight - scrollY % pixelsPerRow) +
                         //             (i - preBuffer) * pixelsPerRow +
                         //             (pixelsPerRow / 2) -
                         //             (self.textEngine.cellHeight / 2);
@@ -1403,13 +1451,13 @@ void main() {
                     // self.numberLabelsY.render();
                     // self.renderer.endScissor();
 
-                    // self.labels.setText(`Scroll: (${self.#scrollX.toFixed(2)}, ${self.#scrollY.toFixed(2)}), Zoom: (${self.#zoomX.toFixed(2)}, ${self.#zoomY.toFixed(2)})`, self.contrast < 0.8 ? "black" : "white");
+                    // self.labels.setText(`Scroll: (${scrollX.toFixed(2)}, ${scrollY.toFixed(2)}), Zoom: (${zoomX.toFixed(2)}, ${zoomY.toFixed(2)})`, self.contrast < 0.8? "black": "white");
                 }
             });
 
             this.selectionRectRenderable = this.renderer.createRenderable({
                 vertex: LS.GL.shaders.basic_quad,
-                fragment: this.options.selectionFragment ?? `#version 300 es
+                fragment: this.options.selectionFragment?? `#version 300 es
 precision highp float;
 
 in vec2 vUV;
@@ -1418,19 +1466,26 @@ out vec4 fragColor;
 uniform vec2 uSize;
 uniform vec2 uOffset;
 uniform vec2 uResolution;
-uniform uvec3 uColor; 
+uniform uvec3 uColor;
+
+${LS.GL.utils.roundedBoxSDF}
 
 void main() {
     vec2 uv = vUV * uSize;
+
     vec3 color = vec3(uColor) / 255.0;
+
+    float d = roundedBoxSDF((vUV - 0.5) * uSize, uSize * 0.5, 4.0);
+    float aa = fwidth(d); // Anti-aliasing factor
+    float alpha = 1.0 - smoothstep(0.0, aa * 0.5, d);
 
     // Border
     if(uv.x < 2.0 || uv.x > uSize.x - 2.0 || uv.y < 2.0 || uv.y > uSize.y - 2.0) {
-        fragColor = vec4(color, 1.0);
+        fragColor = vec4(color, alpha);
         return;
     }
 
-    fragColor = vec4(color, 0.2);
+    fragColor = vec4(color, 0.2 * alpha);
 }`,
                 uniforms: ["uOffset", "uSize", "uResolution", "uColor"],
                 attributes: [],
@@ -1439,18 +1494,18 @@ void main() {
 
                 // i spent SO MUCH fucking time and nerves on this bullshit
                 onRender(delta, now, gl, cw, ch, updatedDimensions, uniforms, attributes) {
-                    if(!self.selectionRect[0]) return;
-                    let x = self.selectionRect[1]  - self.#scrollX;
+                    if (!self.selectionRect[0]) return;
+                    let x = self.selectionRect[1] - self.#scrollX;
                     let y = self.selectionRect[2];
                     let x2 = self.selectionRect[3] - self.#scrollX;
                     let y2 = self.selectionRect[4];
 
                     const rowHeight = self.grid.h * self.#zoomY;
-                    const row1 = Math.floor(y  / rowHeight);
+                    const row1 = Math.floor(y / rowHeight);
                     const row2 = Math.floor(y2 / rowHeight);
 
-                    const snappedTop = Math.min(row1, row2) * rowHeight - self.#scrollY;
-                    const snappedBottom = (Math.max(row1, row2) + 1) * rowHeight - self.#scrollY;
+                    const snappedTop = Math.min(row1, row2) * rowHeight - scrollY;
+                    const snappedBottom = (Math.max(row1, row2) + 1) * rowHeight - scrollY;
 
                     gl.uniform2f(uniforms.uOffset, Math.min(x, x2) + self.sidebarWidth, snappedTop + self.labelBarHeight);
                     gl.uniform2f(uniforms.uSize, Math.abs(x2 - x), snappedBottom - snappedTop);
@@ -1469,8 +1524,23 @@ void main() {
             this.renderable.renderables.push(this.gridBackground, this.itemsRenderable, this.selectionRectRenderable);
         }
 
-        __addRenderableItem(item, state, j, reserved, firstVisibleRow, lastVisibleRow) {
+        __addRenderableItem(a, item, state, j, reserved, firstVisibleRow, lastVisibleRow) {
+            if (item.row < firstVisibleRow || item.row > lastVisibleRow) {
+                a[0] = false;
+                a[1] = 0;
+                a[2] = 0;
+                return;
+            }
+
             const computedX = item.start * this.#zoomX - this.#scrollX;
+            if (computedX > this.renderer.width) {
+                // Since items are sorted by start, all subsequent items will also be off-screen to the right
+                // However we skip this check for focused items (state = 1)
+                a[0] = state !== 1;
+                a[1] = 0;
+                a[2] = 0;
+                return;
+            }
 
             const positionBuffer = this.itemsRenderable.positionBuffer;
             const sizeBuffer = this.itemsRenderable.sizeBuffer;
@@ -1478,50 +1548,63 @@ void main() {
             const stateBuffer = this.itemsRenderable.stateBuffer;
             const depthBuffer = this.itemsRenderable.depthBuffer;
 
-            if (computedX > this.renderer.width) {
-                // Since items are sorted by start, all subsequent items will also be off-screen to the right
-                // However we skip this check for focused items (state = 1)
-                return [state !== 1, 0, 0];
-            }
-
-            if(item.row < firstVisibleRow || item.row > lastVisibleRow) {
-                return [false, 0, 0];
-            }
-
             positionBuffer.set(j * 2, item.start);
             positionBuffer.set(j * 2 + 1, item.row * this.grid.h);
 
             sizeBuffer.set(j, Math.max(1, item.duration));
 
-            if(item.tileColor && !Array.isArray(item.tileColor)) {
+            if (item.tileColor && !Array.isArray(item.tileColor)) {
                 // Parse & cache any non-array color value
                 item.tileColor = LS.Color.parse(item.tileColor);
             }
 
             const color = item.tileColor || LS.Color.currentAccent || DEFAULT_TILE_COLOR;
 
-            colorBuffer.set(j * 3,     color[0]);
-            colorBuffer.set(j * 3 + 1, color[1]);
-            colorBuffer.set(j * 3 + 2, color[2]);
+            const r = color[0];
+            const g = color[1];
+            const b = color[2];
+
+            const isDark = (r * 0.299 + g * 0.587 + b * 0.114) < 128;
+            const textColor = isDark? 235: 20;
+            const blend = 0.15; // 15% background influence
+
+            colorBuffer.set(j * 3, r);
+            colorBuffer.set(j * 3 + 1, g);
+            colorBuffer.set(j * 3 + 2, b);
 
             stateBuffer.set(j, state);
 
-            const depth = j / 1000;
+            const depth = undefined//j / 1000;
 
-            depthBuffer.set(j, depth + 0.0001);
+            // depthBuffer.set(j, depth + 0.0001);
 
             // TODO text should be properly centered
-            if(item.duration * this.#zoomX > 20) {
-                const label = (item.label || item.id || "").slice(0, (item.duration * this.#zoomX - 20) / this.textEngine.cellWidth);
-                const labelLength = label.length;
+            if (reserved < 16384 - 2048 && item.duration * this.#zoomX > 25) {
+                const slice = (item.duration * this.#zoomX - 20) / this.textEngine.cellWidth;
 
-                if(labelLength > 0) {
-                    this.labels.writeTextAt(label, reserved, labelLength, computedX + 10 + this.sidebarWidth, (((this.grid.h * 0.5) + (item.row * this.grid.h)) * this.#zoomY - this.#scrollY) + this.labelBarHeight - (10), 255, 255, 255, 255, 16, 0, 0, depth);
-                    return [false, labelLength, 1];
+                let label = item.label || item.id;
+                const labelLength = label && label.length || 0;
+                if (labelLength === 0) {
+                    a[0] = false;
+                    a[1] = 0;
+                    a[2] = 1;
+                    return;
+                }
+
+                label = label.slice(0, slice >= labelLength? labelLength: Math.max(0, slice - 1)) + (slice >= labelLength? "": "…");
+
+                if (labelLength > 0) {
+                    this.labels.writeTextAt(label, reserved, labelLength, computedX + 10 + this.sidebarWidth, (((this.grid.h * 0.5) + (item.row * this.grid.h)) * this.#zoomY - this.#scrollY) + this.labelBarHeight - (10), textColor * (1 - blend) + r * blend, textColor * (1 - blend) + g * blend, textColor * (1 - blend) + b * blend, 255, 16, 0, 0, depth);
+                    a[0] = false;
+                    a[1] = labelLength;
+                    a[2] = 1;
+                    return;
                 };
             }
 
-            return [false, 0, 1];
+            a[0] = false;
+            a[1] = 0;
+            a[2] = 1;
         }
 
         // -- Navigation
@@ -1550,7 +1633,7 @@ void main() {
 
                 // This handles scrolling, edge scrolling, and scroll inertia
                 onScroll: (deltaX, deltaY, event, isWheel) => {
-                    if(isWheel) {
+                    if (isWheel) {
                         if (event.domEvent.ctrlKey) {
                             const rect = this.renderer.canvas.getBoundingClientRect();
                             const mouseX = event.domEvent.clientX - rect.left;
@@ -1588,7 +1671,7 @@ void main() {
 
                 onStart: (event) => {
                     // Reset state
-                    const button = +event.domEvent.button ?? 0;
+                    const button = +event.domEvent.button?? 0;
                     this.touchHandle.edgeScroll = button !== 1;
                     this.renderer.canvas.style.cursor = "";
                     this.touchHandle.inertia = false;
@@ -1598,20 +1681,28 @@ void main() {
                     itemChanged = false;
                     mode = 0;
 
+                    this.renderer.canvas.focus();
+
                     if (event.boundX < 0) {
                         // Sidebar area
                         return event.cancel();
                     }
 
                     // Check if we are interacting with an item
+                    // TODO: ctrl+click to continue selecting
                     if (button === 0 && !event.domEvent.ctrlKey) {
                         const { row, time } = this.transformCoords(event.boundX, event.boundY, false);
                         const items = this.getIntersectingAt(time, row);
 
                         if (items.length > 0) {
-                            const item = this.focusedItem = items[items.length - 1];
+                            const item = items[items.length - 1];
+                            if (!event.domEvent.ctrlKey && !this.selectedItems.includes(items[items.length - 1])) {
+                                this.deselectAll();
+                            }
+
                             initial[0] = item.start;
                             initial[1] = item.duration;
+                            this.focusedItem = item;
 
                             const itemX = item.start * this.#zoomX - this.#scrollX;
                             const itemWidth = item.duration * this.#zoomX;
@@ -1627,9 +1718,16 @@ void main() {
                             } else {
                                 // Move the item
                                 mode = 1;
-                                this.touchHandle.cursor = "var(--ls-timeline-cursor-move)";
+                                this.touchHandle.cursor = "var(--ls-cursor-move)";
                             }
+
+                            // Cloning
+                            if (event.domEvent.shiftKey) {
+                                this.selectedItems = this.cloneSelected();
+                            }
+
                             console.log(`Focused item: ${item.id}, mode: ${mode}`);
+                            this.renderer.render();
                             return;
                         }
                     }
@@ -1638,7 +1736,7 @@ void main() {
                     if (button === 1) {
                         if (event.domEvent.altKey || event.domEvent.ctrlKey) {
                             this.touchHandle.cursor = "none";
-                            mode = event.domEvent.altKey ? 6 : 7;
+                            mode = event.domEvent.altKey? 6: 7;
                         } else {
                             this.touchHandle.cursor = "grabbing";
                             this.touchHandle.inertia = true;
@@ -1661,32 +1759,33 @@ void main() {
 
                         mode = 4;
 
-                        if (this.#tool === "draw") {
+                        if (this.#tool === "paint") {
                             const { row, time } = this.transformCoords(event.boundX, event.boundY, false);
-                            const start = event.domEvent?.altKey === true ? time : this._snap(time, this.grid.w);
+                            const start = event.domEvent.altKey === true? time: this._snap(time, this.grid.w);
 
-                            const paintingSize = event.domEvent?.shiftKey === true;
+                            const paintingSize = event.domEvent.shiftKey;
 
+                            this.deselectAll();
                             this.focusedItem = {
                                 start: start,
-                                duration: paintingSize ? (event.domEvent?.altKey === true ? 1 : this.grid.w) : (this.previousItem? this.previousItem.duration || this.grid.w : this.grid.w),
+                                duration: paintingSize? (event.domEvent?.altKey === true? 1: this.grid.w): (this.previousItem? this.previousItem.duration || this.grid.w: this.grid.w),
                                 row: row,
                                 id: LS.Misc.uid(),
                             };
 
                             this.items.push(this.focusedItem);
-                            this.touchHandle.cursor = "var(--ls-timeline-cursor-move)";
+                            this.touchHandle.cursor = "var(--ls-cursor-move)";
                             initial[0] = this.focusedItem.start;
                             initial[1] = this.focusedItem.duration;
                             itemChanged = true;
 
                             // Dragging the note
-                            mode = paintingSize ? 2 : 1;
+                            mode = paintingSize? 2: 1;
 
                             this.renderer.render();
                         }
                     } else if (button === 2) {
-                        this.touchHandle.cursor = "var(--ls-timeline-cursor-erase)";
+                        this.touchHandle.cursor = "var(--ls-cursor-erase)";
                         mode = 5;
                     }
                 },
@@ -1698,10 +1797,10 @@ void main() {
                     let nothingToDo = false;
 
                     const unlockedSnap = (event.domEvent && event.domEvent.altKey) || this.#zoomX > 2.0;
-                    let snapDistance = unlockedSnap ? 1 : this.grid.w;
+                    let snapDistance = unlockedSnap? 1: this.grid.w;
                     const snapOffset = initial[0] % snapDistance;
 
-                    const keepRelative = event.domEvent && !event.domEvent.shiftKey;
+                    const shiftKey = event.domEvent && event.domEvent.shiftKey;
 
                     switch (mode) {
                         // -- Panning the view
@@ -1728,7 +1827,7 @@ void main() {
 
                             let time1 = this.transformCoords(this.selectionRect[1] - this.scrollX, this.selectionRect[2] - this.scrollY, false);
                             let time2 = this.transformCoords(event.boundX, event.boundY, false);
-                            if(time1.time > time2.time) {
+                            if (time1.time > time2.time) {
                                 [time1, time2] = [time2, time1];
                             }
 
@@ -1741,29 +1840,47 @@ void main() {
                         // -- Move item
                         case 1: {
                             if (!this.focusedItem) return;
-
-                            const { row } = this.transformCoords(event.boundX, event.boundY, false);
+                            const lockY = shiftKey;
+                            let row = lockY? -1: this.transformCoords(event.boundX, event.boundY, false).row;
 
                             let start = initial[0] + (event.offsetX + edgeScrollOffset[0]) / this.#zoomX;
                             if (snapDistance > 0) {
-                                if (keepRelative) {
+                                if (shiftKey) {
                                     start = this._snap(start, snapDistance, snapOffset);
                                 } else {
                                     start = Math.round(start / snapDistance) * snapDistance;
                                 }
                             }
 
-                            if(this.selectedItems.length > 0) {
-                                const delta = start - this.focusedItem.start;
-                                const deltaRow = row - this.focusedItem.row;
-                                for(const item of this.selectedItems) {
-                                    item.start = Math.max(0, item.start + delta);
-                                    item.row = Math.max(0, item.row + deltaRow);
+                            const lowest = Math.min(...this.selectedItems.map(item => item.start));
+                            if (lowest + (start - this.focusedItem.start) < 0) {
+                                start = this.focusedItem.start - lowest;
+                            }
+
+                            if (!lockY) {
+                                const lowestRow = Math.min(...this.selectedItems.map(item => item.row));
+                                if (lowestRow + (row - this.focusedItem.row) < 0) {
+                                    row = this.focusedItem.row - lowestRow;
                                 }
                             }
 
-                            this.focusedItem.start = Math.max(0, start);
-                            this.focusedItem.row = row;
+                            if (this.selectedItems.length > 0) {
+                                const deltaStart = start - this.focusedItem.start;
+                                const deltaRow = row - this.focusedItem.row;
+
+                                for (const item of this.selectedItems) {
+                                    item.start = Math.max(0, item.start + deltaStart);
+                                    if (!lockY) {
+                                        item.row = Math.max(0, item.row + deltaRow);
+                                    }
+                                }
+
+                            }
+
+                            this.focusedItem.start = start;
+                            if (!lockY) {
+                                this.focusedItem.row = row;
+                            }
                             itemChanged = true;
                             break;
                         }
@@ -1774,18 +1891,16 @@ void main() {
                             let end = initial[0] + initial[1] + (event.offsetX + edgeScrollOffset[0]) / this.#zoomX;
 
                             if (snapDistance > 0) {
-                                const offset = keepRelative
-                                    ? (initial[0] + initial[1]) % snapDistance
-                                    : 0;
+                                const offset = !shiftKey? (initial[0] + initial[1]) % snapDistance: 0;
 
-                                if (keepRelative) {
-                                    end = this._snap(end, snapDistance, offset);
-                                } else {
+                                if (shiftKey) {
                                     end = this._snap(end, snapDistance);
+                                } else {
+                                    end = this._snap(end, snapDistance, offset);
                                 }
                             }
 
-                            this.focusedItem.duration = Math.max(1, unlockedSnap ? 1 : Math.min(this.grid.w, initial[1]), end - this.focusedItem.start);
+                            this.focusedItem.duration = Math.max(1, unlockedSnap? 1: Math.min(this.grid.w, initial[1]), end - this.focusedItem.start);
 
                             LS.Tooltips.position(event.boundingRect.left + 10, event.boundingRect.top + 10);
                             LS.Tooltips.set(`Start: ${(this.focusedItem.start / this.grid.w).toFixed(2)} steps, Length: ${(this.focusedItem.duration / this.grid.w).toFixed(2)} steps`);
@@ -1801,14 +1916,14 @@ void main() {
                             const end = initial[0] + initial[1];
 
                             if (snapDistance > 0) {
-                                if (keepRelative) {
-                                    start = this._snap(start, snapDistance, snapOffset);
-                                } else {
+                                if (shiftKey) {
                                     start = this._snap(start, snapDistance);
+                                } else {
+                                    start = this._snap(start, snapDistance, snapOffset);
                                 }
                             }
 
-                            start = Math.max(0, Math.min(start, end - (unlockedSnap ? 1 : this.grid.w)));
+                            start = Math.max(0, Math.min(start, end - (unlockedSnap? 1: this.grid.w)));
 
                             this.focusedItem.start = start;
                             this.focusedItem.duration = Math.max(1, end - start);
@@ -1826,15 +1941,12 @@ void main() {
 
                         // -- Erase item
                         case 5: {
-                            if (!this.focusedItem) return;
-
                             const { row: eraseRow, time: eraseTime } = this.transformCoords(event.boundX, event.boundY, false);
                             const itemsToErase = this.getIntersectingAt(eraseTime, eraseRow);
 
                             if (itemsToErase.length > 0) {
                                 const itemToErase = itemsToErase[itemsToErase.length - 1];
                                 this.remove(itemToErase, true);
-                                this.focusedItem = null;
                             }
                             break;
                         }
@@ -1850,11 +1962,11 @@ void main() {
                     this.previousItem.duration = this.focusedItem?.duration;
                     this.previousItem.row = this.focusedItem?.row;
 
-                    if(itemChanged) {
+                    if (itemChanged) {
                         this.sortItems();
                     }
 
-                    if(this.selectionRect[0]) {
+                    if (this.selectionRect[0]) {
                         this.selectionRect[0] = false;
                         this.renderer.render();
                     }
@@ -1879,7 +1991,7 @@ void main() {
                     const noteH = this.grid.h * this.#zoomY;
 
                     if (event.boundX > noteX + this.resizeMargin && event.boundX < noteX + noteW - this.resizeMargin) {
-                        this.renderer.canvas.style.cursor = "var(--ls-timeline-cursor-move)";
+                        this.renderer.canvas.style.cursor = "var(--ls-cursor-move)";
                     } else {
                         this.renderer.canvas.style.cursor = "ew-resize";
                     }
@@ -1888,14 +2000,14 @@ void main() {
 
             // Keyboard navigation
             // TODO
-            this.addExternalEventListener(this.container, 'keydown', (event) => {});
+            this.addExternalEventListener(this.container, 'keydown', (event) => { });
 
             this.addExternalEventListener(this.container, 'dragover', (event) => {
                 const dt = event.dataTransfer;
                 if (!dt) return;
 
                 // Only intercept when files are present
-                const types = dt.types ? Array.from(dt.types) : [];
+                const types = dt.types? Array.from(dt.types): [];
                 if (!types.includes('Files')) return;
 
                 event.preventDefault();
@@ -1913,14 +2025,16 @@ void main() {
         }
 
         get focusedItem() {
-            return this.selectedItems[0];
+            return this.selectedItems[this.__focusedItemIndex] || null;
         }
 
         set focusedItem(item) {
-            if (item === this.focusedItem) return;
-            this.selectedItems.length = 0;
-            if (item) {
-                this.selectedItems.push(item);
+            if (item === this.selectedItems[this.__focusedItemIndex]) return;
+            const index = this.selectedItems.indexOf(item);
+            if (index >= 0) {
+                this.__focusedItemIndex = index;
+            } else {
+                this.__focusedItemIndex = this.selectedItems.push(item) - 1;
             }
         }
 
@@ -1931,7 +2045,7 @@ void main() {
         // --- Getters and Setters and camera-related methods
 
         set scrollX(value) {
-            if(isNaN(value)) return;
+            if (isNaN(value)) return;
             value = Math.max(0, value);
             if (value === this.#scrollX) return;
             this.#scrollX = value;
@@ -1943,9 +2057,9 @@ void main() {
         }
 
         set scrollY(value) {
-            if(isNaN(value)) return;
+            if (isNaN(value)) return;
 
-            if(this.maxRows < 0) {
+            if (this.maxRows < 0) {
                 value = Math.max(0, value);
             } else {
                 value = Math.max(0, Math.min(Number(value), ((this.maxRows * this.grid.h) * this.#zoomY) - ((this.renderer.height - this.labelBarHeight))));
@@ -1962,8 +2076,20 @@ void main() {
         }
 
         set zoomX(value) {
-            if(isNaN(value)) return;
-            value = Math.max(0.1, Math.min(5, value));
+            if (isNaN(value)) return;
+
+            const minZoom = this.options.minZoom;
+            const timeUnit = this.grid.w;
+
+            if(minZoom === "auto") {
+                const minZoomX = (this.renderer.width - this.sidebarWidth) / this.#duration;
+                value = Math.max(minZoomX, value);
+            } else {
+                value = Math.max(minZoom, value);
+            }
+
+            value = Math.min(this.options.maxZoom * timeUnit, value);
+
             if (value === this.#zoomX) return;
             this.#zoomX = value;
             this.renderer.render();
@@ -1974,7 +2100,7 @@ void main() {
         }
 
         set zoomY(value) {
-            if(isNaN(value)) return;
+            if (isNaN(value)) return;
             value = Math.max(0.5, Math.min(5, value));
             if (value === this.#zoomY) return;
             this.#zoomY = value;
@@ -1990,7 +2116,7 @@ void main() {
         }
 
         set rowHeight(value) {
-            if(isNaN(value)) return;
+            if (isNaN(value)) return;
             value = Math.max(1, value);
             if (value === this.grid.h) return;
             this.grid.h = value;
@@ -2001,7 +2127,18 @@ void main() {
             return this.grid.h;
         }
 
-        set tool(value) {}
+        set tool(value) {
+            const previous = this.#tool;
+            value = value == null? "select": String(value);
+            if (value === previous) return;
+
+            if (this.container) {
+                this.container.setAttribute("data-tool", value);
+            }
+
+            this.#tool = value;
+            this.quickEmit("tool-changed", value, previous);
+        }
 
         get tool() {
             return this.#tool;
@@ -2031,14 +2168,14 @@ void main() {
             }
 
             if (item.id) this.itemMap.delete(item.id);
-            if(item.type === "automation" && item.__automationClip) {
+            if (item.type === "automation" && item.__automationClip) {
                 item.__automationClip?.destroy?.();
                 item.__automationClip = null;
             }
 
             this.quickEmit("item-removed", item);
 
-            if(destroy) {
+            if (destroy) {
                 this.quickEmit("item-cleanup", item);
             }
         }
@@ -2054,7 +2191,7 @@ void main() {
         }
 
         destroy() {
-            if(this.destroyed) return;
+            if (this.destroyed) return;
             this.reset(true);
 
             this.textEngine.destroy();
@@ -2083,8 +2220,8 @@ void main() {
         }
 
         // --- Legacy methods (for compatibility with TimelineDOM)
-        reserveRows() {}
-        clearUnusedRows() {}
-        addTrack() {}
+        reserveRows() { }
+        clearUnusedRows() { }
+        addTrack() { }
     }, { name: "TimelineGL", global: true });
 })();
