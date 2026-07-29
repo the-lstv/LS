@@ -44,6 +44,7 @@ LS.LoadComponent(class Tooltips extends LS.Component {
 
         this.__x = null;
         this.__y = null;
+        this.__anchor = null;
         this.__value = null;
         this.__valueChanged = false;
         this.__positionChanged = false;
@@ -64,9 +65,10 @@ LS.LoadComponent(class Tooltips extends LS.Component {
         });
     }
 
-    position(x, y){
+    position(x, y, anchor = 0.5){
         this.__x = x;
         this.__y = y;
+        this.__anchor = anchor;
         this.__positionChanged = true;
         this.render();
         return this;
@@ -138,26 +140,31 @@ LS.LoadComponent(class Tooltips extends LS.Component {
 
                 this.__pendingPosition = false;
                 let isDetached = element?.hasAttribute?.("ls-tooltip-detached") && typeof y?.clientX === "number";
-    
+
                 if(isDetached) {
                     // Follow cursor for detached tooltips
-                    this.contentElement.style.left = Math.min(Math.max(y.clientX + 12, 4), innerWidth - cbox.width) + "px";
-                    this.contentElement.style.top = Math.min(Math.max(y.clientY + 12, 4), innerHeight - cbox.height) + "px";
+                    x = y.clientX + 12;
+                    y = y.clientY + 12;
                 } else {
                     // Position relative to element or coordinate
-                    this.contentElement.style.left = (
-                        box.width ? Math.min(Math.max(box.left + (box.width / 2) - (cbox.width / 2), 4), innerWidth - (cbox.width)) : box.x
-                    ) + "px";
+                    x = box.width ? box.left + (box.width * 0.5): box.x;
+
                     this.contentElement.style.maxWidth = (innerWidth - 8) + "px";
     
-                    if(typeof y === "number") {
-                        this.contentElement.style.top = y + "px";
-                    } else {
+                    if(typeof y !== "number") {
                         let pos_top = box.top - cbox.height;
                         let pos_above_fits = pos_top >= 20;
-                        this.contentElement.style.top = `calc(${pos_above_fits ? pos_top : box.top + box.height}px ${pos_above_fits ? "-" : "+"} var(--ui-tooltip-rise, 5px))`;
+                        y = (pos_above_fits ? pos_top : box.top + box.height) + (pos_above_fits ? -5 : 5);
                     }
                 }
+
+                if(cbox.width) {
+                    const anchor = this.__anchor ?? 0.5;
+                    x -= cbox.width * anchor;
+                }
+
+                const vpPadding = 4;
+                this.contentElement.style.transform = `translate3d(${Math.min(Math.max(x, vpPadding), innerWidth - cbox.width - vpPadding)}px, ${Math.min(Math.max(y, vpPadding), innerHeight - cbox.height - vpPadding)}px, 0)`;
             }
 
             this.__positionChanged = false;
@@ -184,9 +191,9 @@ LS.LoadComponent(class Tooltips extends LS.Component {
                 this.container.classList.add("shown");
 
                 if(this.shown) {
-                    LS.Animation.fadeIn(this.contentElement, "up");
+                    LS.Animation.fadeIn(this.contentElement, "up", null, true);
                 } else {
-                    LS.Animation.fadeOut(this.contentElement, "up");
+                    LS.Animation.fadeOut(this.contentElement, "up", null, true);
                 }
             } else {
                 this.container.classList.toggle("shown", this.shown);
@@ -234,6 +241,7 @@ LS.LoadComponent(class Tooltips extends LS.Component {
             this.quickEmit("set", tooltipContent, element);
             this.__x = this.__currentTarget;
             this.__y = event;
+            this.__anchor = 0.5;
             this.__positionChanged = true;
             this.show(tooltipContent);
         }
@@ -248,6 +256,7 @@ LS.LoadComponent(class Tooltips extends LS.Component {
         if(!this.__currentTarget) return;
         this.__x = this.__currentTarget;
         this.__y = event;
+        this.__anchor = 0.5;
         this.__positionChanged = true;
         this.render();
     }
@@ -347,6 +356,7 @@ LS.LoadComponent(class Tooltips extends LS.Component {
         this.__currentTarget = null;
         this.__x = null;
         this.__y = null;
+        this.__anchor = null;
         this.__value = null;
         this.__valueChanged = null;
         this.__positionChanged = null;

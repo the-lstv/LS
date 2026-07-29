@@ -587,6 +587,13 @@ void main() {
             this.renderables.push(renderable);
         }
 
+        removeRenderable(renderable) {
+            const index = this.renderables.indexOf(renderable);
+            if (index !== -1) {
+                this.renderables.splice(index, 1);
+            }
+        }
+
         destroy() {
             if(this.__observer) {
                 this.__observer.disconnect();
@@ -642,12 +649,17 @@ void main() {
          * Schedules a render call for the next frame.
          * This is a non-blocking call and will not immediately render.
          * 
-         * ! Note: This uses the default frame scheduler.
+         * ! Note: This uses the default frame scheduler with it's own framerate limit and vsync (good in most cases, calling this function multiple times within a frame will not waste resources).
          * 
-         * ! Are you looking for manual rendering? Use renderOne() or tick()
+         * ! Are you looking for manual rendering? Use tick() or renderOne()
          */
-        render() {
+        render(now = false) {
             if (!this.initialized) return;
+
+            if (now) {
+                this.tick(0, performance.now(), this.activeCamera);
+            }
+
             this.frameScheduler.schedule();
         }
 
@@ -771,7 +783,7 @@ void main() {
 
             const hasRenderMethod = typeof renderable.render === "function";
 
-            if(!hasRenderMethod && (renderable.renderable || renderable.renderables)) {
+            if(renderable.renderables) {
                 if(typeof renderable.viewport === "object" || typeof renderable.rect === "object") {
                     this.viewport(renderable.viewport || renderable.rect);
                 }
@@ -886,10 +898,10 @@ void main() {
          */
         isVisible() {
             if (!this.canvas) return false;
-            if (document.hidden || !this.canvas.isConnected) return false;
+            if (this.width === 0 || this.height === 0 || document.hidden || !this.canvas.isConnected) return false;
             if (Element.prototype.checkVisibility && !this.canvas.checkVisibility()) return false;
-            if (this.canvas.offsetParent === null) return false;
-            if (this.canvas.clientWidth === 0 || this.canvas.clientHeight === 0) return false;
+            // if (this.canvas.offsetParent === null) return false;
+            // if (this.canvas.clientWidth === 0 || this.canvas.clientHeight === 0) return false;
             return true;
         }
 
@@ -957,6 +969,33 @@ void main() {
         endScissor() {
             const gl = this.gl;
             gl.disable(gl.SCISSOR_TEST);
+        }
+
+        destroyRenderable(renderable) {
+            if(!renderable) return;
+
+            if(renderable.renderables) {
+                for(const r of renderable.renderables) {
+                    this.destroyRenderable(r);
+                }
+            }
+
+            if(Array.isArray(renderable)) {
+                for(const r of renderable) {
+                    this.destroyRenderable(r);
+                }
+            }
+
+            if(typeof renderable.destroy === "function") {
+                renderable.destroy();
+            } else {
+                console.warn("Renderable does not have a destroy method!");
+            }
+
+            const index = this.renderables.indexOf(renderable);
+            if(index !== -1) {
+                this.renderables.splice(index, 1);
+            }
         }
 
         destroy() {
@@ -1246,11 +1285,18 @@ void main() {
         constructor(options = {}) {
             this.options = options;
             this.loaded = false;
+            this.loading = false;
+
+            this.fontData = null;
+            this.fontImage = null;
 
             const src = options.fontSrc || ('./assets/fonts/' + (options.fontName || 'JetBrainsMono'));
             this.fontSrc = src;
 
+            this.__promise = null;
+
             if(globalFontCache.has(src)) {
+                console.warn(`Font "${src}" is already loaded. Using cached version.`);
                 return globalFontCache.get(src);
             }
 
@@ -1262,13 +1308,24 @@ void main() {
          * It has to be refactored at some point.
          */
         async loadFont() {
+            if(this.loading) {
+                if(this.__promise) {
+                    await this.__promise;
+                } else {
+                    throw new Error("Font is already loading, but no promise is available.");
+                }
+            }
+
             if(this.loaded) return;
+
             const src = this.fontSrc;
             if(!src) throw new Error("Font source not specified.");
 
+            this.loading = true;
+
             const imgUrl = src + "/" + (this.options.atlasFile || "atlas.png");
 
-            const [fontData, image] = await Promise.all([
+            const [fontData, image] = await (this.__promise = Promise.all([
                 fetch(src + "/" + (this.options.fontDataFile || "font.json")).then(r => r.json()),
 
                 new Promise((resolve, reject) => {
@@ -1277,7 +1334,9 @@ void main() {
                     img.onerror = reject;
                     img.src = imgUrl;
                 })
-            ]);
+            ]));
+
+            this.__promise = null;
 
             // Number of floats per character in the cmap
             const MAP_SLOTS = 13;
@@ -1368,9 +1427,14 @@ void main() {
             this.image = image;
 
             this.loaded = true;
+            this.loading = false;
         }
 
         createTexture(renderer) {
+            if(this.destroyed) {
+                throw new Error("Font has been destroyed. Cannot create texture.");
+            }
+
             if (!this.loaded) {
                 throw new Error("Font not loaded yet. Await loadFont() first.");
             }
@@ -1388,6 +1452,10 @@ void main() {
         }
 
         setUniforms(gl, uniforms) {
+            if(this.destroyed) {
+                throw new Error("Font has been destroyed. Cannot set uniforms.");
+            }
+
             if (!this.loaded) {
                 throw new Error("Font not loaded yet. Await loadFont() first.");
             }
@@ -1405,6 +1473,11 @@ void main() {
             this._lowestCharCode = null;
             this.loaded = false;
             this.image = null;
+            this.atlas = null;
+            this.options = null;
+            this.fontData = null;
+            this.loading = false;
+            this.destroyed = true;
         }
     }
 
@@ -1809,14 +1882,12 @@ void main() {
 
             if(this.font && destroyFont) {
                 this.font.destroy();
-                this.font = null;
             }
+            this.font = null;
 
             this.gridBuffer = null;
             this.vertexData = null;
             this.vertexByteView = null;
-            this.font.cmap = null;
-            this.font = null;
 
             super.destroy();
         }

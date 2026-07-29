@@ -52,6 +52,14 @@
                 this.container.style.minHeight = options.minSize.height + 'px';
             }
 
+            if (options.minWidth) {
+                this.container.style.minWidth = options.minWidth + 'px';
+            }
+
+            if (options.minHeight) {
+                this.container.style.minHeight = options.minHeight + 'px';
+            }
+
             if (options.maxSize) {
                 this.container.style.maxWidth = options.maxSize.width + 'px';
                 this.container.style.maxHeight = options.maxSize.height + 'px';

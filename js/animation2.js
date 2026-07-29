@@ -611,9 +611,9 @@ LS.LoadComponent(class Animation extends LS.Component {
      * LS.Animation.fadeOut(element, { duration: 500, direction: 'down' }).then(() => { console.log("Faded out!"); });
      * LS.Animation.fadeOut(element, 500, 'down').then(() => { console.log("Faded out!"); });
      */
-    static fadeOut(target, duration = 300, direction = null, options = {}) {
-        if(typeof duration === 'object') {
-            options = duration;
+    static fadeOut(target, direction = null, duration = 300, options = {}) {
+        if(typeof direction === 'object') {
+            options = direction;
         }
 
         return this.global.animate(target, {
@@ -621,7 +621,7 @@ LS.LoadComponent(class Animation extends LS.Component {
             // Assumes 'transforms' map exists in scope or is not used. 
             // Providing fix: direction is just alias usage in standard CSS usually.
             transform: direction ? (TRANSFORM_ALIASES[direction] ? undefined : direction) : undefined // Simply pass undefined if not resolved, user code seems to rely on external 'transforms' object for directions
-        }, typeof duration === 'object' ? duration : {
+        }, {
             duration,
             easing: 'ease',
             cutGroup: 1,
@@ -632,15 +632,15 @@ LS.LoadComponent(class Animation extends LS.Component {
     /**
      * Helper method for quick fade in, backwards compatibile with Animation 1.x; animates opacity to 1 and moves in a direction.
      */
-    static fadeIn(target, duration = 300, direction = null, options = {}) {
-        if(typeof duration === 'object') {
-            options = duration;
+    static fadeIn(target, direction = null, duration = 300, options = {}) {
+        if(typeof direction === 'object') {
+            options = direction;
         }
 
         return this.global.animate(target, {
             opacity: 1,
             transform: direction ? (TRANSFORM_ALIASES[direction] ? undefined : direction) : undefined
-        }, typeof duration === 'object' ? duration : {
+        }, {
             duration,
             easing: 'ease',
             cutGroup: 1,

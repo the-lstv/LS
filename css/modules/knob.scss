@@ -45,6 +45,18 @@ ls-knob * {
     height: var(--gear-size);
 }
 
+.ls-knob-label {
+    position: absolute;
+    top: calc(100% + 2px);
+    white-space: nowrap;
+}
+
+ls-knob {
+    margin: 0 var(--knob-spacing, 18px);
+    margin-bottom: calc(1em + 4px);
+    font-size: small;
+}
+
 .ls-knob-digit {
     position: absolute;
     top: 50%;

@@ -45,6 +45,18 @@ ls-knob * {
   height: var(--gear-size);
 }
 
+.ls-knob-label {
+  position: absolute;
+  top: calc(100% + 2px);
+  white-space: nowrap;
+}
+
+ls-knob {
+  margin: 0 var(--knob-spacing, 18px);
+  margin-bottom: calc(1em + 4px);
+  font-size: small;
+}
+
 .ls-knob-digit {
   position: absolute;
   top: 50%;
@@ -100,6 +112,8 @@ ls-knob[preset=numeric] {
   outline: 1px solid var(--elevate-1);
   min-width: unset;
   min-height: unset;
+  /* Up arrow */
+  /* Down arrow */
 }
 ls-knob[preset=numeric]::before, ls-knob[preset=numeric]::after {
   content: "";
@@ -110,15 +124,9 @@ ls-knob[preset=numeric]::before, ls-knob[preset=numeric]::after {
   border-right: 3px solid transparent;
   transition: all 0.2s ease;
 }
-ls-knob[preset=numeric] {
-  /* Up arrow */
-}
 ls-knob[preset=numeric]::after {
   bottom: 6px;
   border-top: 5px solid var(--elevate-2);
-}
-ls-knob[preset=numeric] {
-  /* Down arrow */
 }
 ls-knob[preset=numeric]::before {
   top: 6px;

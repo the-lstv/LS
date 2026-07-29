@@ -2307,7 +2307,13 @@
                     }
 
                     target.classList.add("is-dragging");
-                    target.setPointerCapture(event.pointerId);
+
+                    const docEl = document.documentElement;
+                    docEl.classList.add("ls-dragging");
+                    
+                    if (!this.options.pointerLock) {
+                        target.setPointerCapture(event.pointerId);
+                    }
 
                     if (this.options.pointerLock) {
                         if(!this.pointerLockSet) {
@@ -2327,15 +2333,12 @@
 
                     this.dragTarget = event.target;
                     this.dragTarget.classList.add("ls-drag-target");
-
-                    const docEl = document.documentElement;
-                    docEl.classList.add("ls-dragging");
-                    if (this.options.disablePointerEvents) docEl.style.pointerEvents = "none";
                     
                     // For an unknown reason, Chrome since a recent version started to overwrite the
                     // cursor and ignores documentElement which causes weird cursor behavior, so we set it again to the element and restore it later.
                     this.__originalCursor = target.style.cursor;
                     target.style.cursor = this._cursor || "grabbing";
+                    if (this.options.disablePointerEvents) docEl.style.pointerEvents = "none";
                     if (!docEl.style.cursor) docEl.style.cursor = this._cursor || "grabbing";
 
                     // Attach move/up listeners to document
@@ -2460,8 +2463,6 @@
 
                     this._eventData.scrollDeltaX = scrollX;
                     this._eventData.scrollDeltaY = scrollY;
-                    // this._eventData.scrollOffsetX += scrollX;
-                    // this._eventData.scrollOffsetY += scrollY;
 
                     if(scrollX !== 0 || scrollY !== 0) {
                         this.quickEmit("scroll", scrollX, scrollY, this._eventData);
@@ -2577,9 +2578,14 @@
                     this.frameQueued = false;
                     this.latestMoveEvent = null;
 
+
                     if (this.dragTarget) {
                         this.dragTarget.classList.remove("ls-drag-target");
                         this.dragTarget = null;
+                    }
+
+                    if (this.pointerLockActive) {
+                        document.exitPointerLock();
                     }
 
                     const captureTarget = this.activeTarget;
@@ -2607,10 +2613,6 @@
 
                     this._eventData.domEvent = event;
                     this.emit(isDestroy ? "destroy" : "end", [this._eventData]);
-
-                    if (this.pointerLockActive) {
-                        document.exitPointerLock();
-                    }
 
                     if(this.inertia) {
                         this.processInertia();
@@ -2842,32 +2844,42 @@
              * 
              * In passive mode (default), you call schedule() whenever.
              * In active mode (start/stop methods), it works like a ticker.
+             * 
+             * Offers a FPS limiter, delta time calculation, and speed multiplier.
+             * It also has built-in framerate measurement/sampling tool.
              */
             FrameScheduler: class FrameScheduler {
                 /**
                  * @param {Function} callback - The function to call on each frame.
                  * @param {Object} [options] - Optional settings.
                  * @param {number} [options.limiter] - Minimum ms between frames (rate limit).
-                 * @param {boolean} [options.deltaTime] - If true, pass delta time to callback.
                  * @param {number} [options.speed] - Playback speed multiplier (default: 1).
+                 * @param {boolean} [options.vSync] - Uses requestAnimationFrame for vsync (default: true, recommended in most cases).
                  */
                 constructor(callback, options = {}) {
                     this.callback = callback;
                     this.queued = false;
                     this.running = false;
                     this.limiter = options.limiter || null;
-                    this.deltaTime = options.deltaTime || false;
                     this.speed = options.speed ?? 1;
+
+                    this.vSync = options.vSync !== false; // Default to true
+
+                    // Sampling for framerate measurement
+                    this.frameSamples = null;
+                    this.sampling = false;
+
+                    // Internal state
                     this._lastFrame = 0;
                     this._rafId = null;
-                    if (this.deltaTime) this._prevTimestamp = null;
+                    this._prevTimestamp = null;
                 }
 
                 #frame = (timestamp) => {
                     if (this.limiter) {
                         if (timestamp - this._lastFrame < this.limiter) {
                             // Not enough time passed, reschedule
-                            this._rafId = LS.Context.requestAnimationFrame(this.#frame);
+                            this._rafId = requestAnimationFrame(this.#frame);
                             return;
                         }
                         this._lastFrame = timestamp;
@@ -2876,14 +2888,17 @@
                     this.queued = false;
 
                     if (this.callback) {
-                        if (this.running && this.deltaTime) {
-                            const delta = this._prevTimestamp !== null ? (timestamp - this._prevTimestamp) * this.speed : 0;
+                        const delta = this._prevTimestamp !== null ? (timestamp - this._prevTimestamp) * this.speed : 0;
+
+                        if(this.sampling) {
+                            this.frameSamples.push(delta);
+                        }
+
+                        if (this.running) {
                             this._prevTimestamp = timestamp;
                             this.callback(delta, timestamp);
-                        } else if(this.deltaTime) {
-                            this.callback(0, timestamp);
                         } else {
-                            this.callback(timestamp);
+                            this.callback(0, timestamp);
                         }
                     }
 
@@ -2905,7 +2920,7 @@
                 start() {
                     if (this.running) return;
                     this.running = true;
-                    if (this.deltaTime) this._prevTimestamp = null;
+                    this._prevTimestamp = null;
                     this.schedule();
                 }
 
@@ -2918,7 +2933,18 @@
                     if (this.queued) return;
                     this.queued = true;
 
-                    this._rafId = LS.Context.requestAnimationFrame(this.#frame);
+                    if (this.vSync) {
+                        this._rafId = requestAnimationFrame(this.#frame);
+                        return;
+                    }
+
+                    if (this.limiter) {
+                        setTimeout(() => {
+                            this.#frame(performance.now());
+                        }, this.limiter);
+                    } else {
+                        this.#frame(performance.now());
+                    }
                 }
 
                 cancel() {
@@ -2929,10 +2955,34 @@
                     }
                 }
 
+                startSampling() {
+                    this.frameSamples ??= [];
+                    this.sampling = true;
+                }
+
+                stopSampling() {
+                    const samples = this.frameSamples;
+
+                    this.frameSamples = null;
+                    this.sampling = false;
+                    return samples;
+                }
+
+                measureFramerate(period = 1000) {
+                    return new Promise(resolve => {
+                        this.startSampling();
+                        setTimeout(() => {
+                            const samples = this.stopSampling();
+                            const average = samples.length / (period / 1000);
+                            resolve({ samples, average });
+                        }, period);
+                    });
+                }
+
                 destroy() {
                     this.cancel();
                     this.callback = null;
-                    if (this.deltaTime) this._prevTimestamp = null;
+                    this._prevTimestamp = null;
                 }
             },
 

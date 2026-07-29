@@ -62,8 +62,8 @@ LS.LoadComponent(class Range extends LS.Component {
         this.element.setAttribute("role", "slider");
         this.element.setAttribute("aria-orientation", this.options.vertical? "vertical" : "horizontal");
 
-        const min = this.element.hasAttribute("min") ? this.toNumber(this.element.getAttribute("min"), 0) : options.min || 0;
-        const max = this.element.hasAttribute("max") ? this.toNumber(this.element.getAttribute("max"), 100) : options.max || 100;
+        const min = this.element.hasAttribute("min") ? this.toNumber(this.element.getAttribute("min"), 0) : options.min ?? 0;
+        const max = this.element.hasAttribute("max") ? this.toNumber(this.element.getAttribute("max"), 100) : options.max ?? 100;
         this._min = Math.min(min, max);
         this._max = Math.max(min, max);
         this._step = this.normalizeStep(this.element.getAttribute("step") || options.step || 0);
@@ -78,6 +78,7 @@ LS.LoadComponent(class Range extends LS.Component {
                 onStart: (event) => {
                     this.element.focus();
                     box = this.element.getBoundingClientRect();
+                    this.quickEmit("start", this.value);
                 },
     
                 onMove: (event) => {
