@@ -62,14 +62,18 @@
             }
         },
 
-        async fadeOut(element, duration = LS.Animation.DEFAULT_DURATION, direction = null, preserveTransform = false) {
+        async fadeOut(element, direction = null, duration = LS.Animation.DEFAULT_DURATION, preserveTransform = false) {
             if (!element) return Promise.resolve();
 
             // This should have been like that from the start, lol.
-            if (typeof duration === "string") {
-                const d = direction;
-                direction = duration;
-                duration = typeof d === "number"? d: LS.Animation.DEFAULT_DURATION;
+            if (typeof direction === "number" || direction === null) {
+                const d = duration;
+                duration = direction;
+                direction = typeof d === "string"? d: null;
+            }
+
+            if (duration === null || duration === undefined) {
+                duration = LS.Animation.DEFAULT_DURATION;
             }
 
             const options = typeof duration === 'object' && duration !== null ? duration : { duration, direction, preserveTransform };
@@ -118,14 +122,18 @@
             }
         },
 
-        async fadeIn(element, duration = LS.Animation.DEFAULT_DURATION, direction = null, preserveTransform = false) {
+        async fadeIn(element, direction = null, duration = LS.Animation.DEFAULT_DURATION, preserveTransform = false) {
             if (!element) return Promise.resolve();
 
             // This should have been like that from the start, lol.
-            if (typeof duration === "string") {
-                const d = direction;
-                direction = duration;
-                duration = typeof d === "number"? d: LS.Animation.DEFAULT_DURATION;
+            if (typeof direction === "number" || direction === null) {
+                const d = duration;
+                duration = direction;
+                direction = typeof d === "string"? d: null;
+            }
+
+            if (duration === null || duration === undefined) {
+                duration = LS.Animation.DEFAULT_DURATION;
             }
 
             const options = typeof duration === 'object' && duration !== null ? duration : { duration, direction, preserveTransform };

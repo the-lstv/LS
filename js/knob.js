@@ -119,6 +119,11 @@
         constructor(element, options = {}) {
             super();
 
+            if(typeof element === "object" && element !== null && !("nodeType" in element)) {
+                options = element;
+                element = document.createElement("ls-knob");
+            }
+
             this.element = element instanceof HTMLElement ? element : typeof element === "string" ? LS.Select(element) : document.createElement("ls-knob");
             if (!this.element) throw new Error("Knob: No valid element provided");
 
@@ -271,55 +276,55 @@
             // Setup touch/mouse interaction
             this.handle = new LS.Util.TouchHandle(this.element, {
                 pointerLock: true,
-                buttons: [0]
+                buttons: [0],
+
+                onStart: (event) => {
+                    if (!this.enabled) return event.cancel();
+
+                    if (this.#shouldResetFromPointerStart(event.domEvent)) {
+                        event.cancel();
+                        this.reset();
+                        return;
+                    }
+
+                    this.#startValue = this.#value;
+                    this.#rawValue = this.#value;
+                    this.#isDragging = true;
+                    this.element.classList.add("ls-knob-active");
+                    this.#showTooltip();
+                },
+
+                onMove: (event) => {
+                    if (!this.enabled || !event.domEvent) return;
+                    // Proportional movement: scale by range so ~200px drag = full range
+                    const range = this.options.max - this.options.min;
+                    const pixelsForFullRange = 200;
+                    const delta = (-event.dy / pixelsForFullRange) * range * this.options.sensitivity;
+
+                    // Accumulate raw value for smooth interpolation
+                    const newRawValue = this.#rawValue + delta;
+                    const changed = this.#setRawValue(newRawValue);
+
+                    if (changed) {
+                        this.#emitInput();
+                    }
+                    this.#showTooltip();
+                },
+
+                onEnd: () => {
+                    this.#isDragging = false;
+                    this.element.classList.remove("ls-knob-active");
+                    this.#hideTooltip();
+                    // Sync raw value to final stepped value
+                    this.#rawValue = this.#value;
+                    if (this.#startValue !== this.#value) {
+                        this.#emitChange();
+                    }
+                }
             });
 
             this.handle.cursor = "none";
             this.handle.enabled = this.enabled;
-
-            this.handle.on("start", (event) => {
-                if (!this.enabled) return event.cancel();
-
-                if (this.#shouldResetFromPointerStart(event.domEvent)) {
-                    event.cancel();
-                    this.reset();
-                    return;
-                }
-
-                this.#startValue = this.#value;
-                this.#rawValue = this.#value;
-                this.#isDragging = true;
-                this.element.classList.add("ls-knob-active");
-                this.#showTooltip();
-            });
-
-            this.handle.on("move", (event) => {
-                if (!this.enabled || !event.domEvent) return;
-                // Proportional movement: scale by range so ~200px drag = full range
-                const range = this.options.max - this.options.min;
-                const pixelsForFullRange = 200;
-                const delta = (-event.domEvent.movementY / pixelsForFullRange) * range * this.options.sensitivity;
-
-                // Accumulate raw value for smooth interpolation
-                const newRawValue = this.#rawValue + delta;
-                const changed = this.#setRawValue(newRawValue);
-
-                if (changed) {
-                    this.#emitInput();
-                }
-                this.#showTooltip();
-            });
-
-            this.handle.on("end", () => {
-                this.#isDragging = false;
-                this.element.classList.remove("ls-knob-active");
-                this.#hideTooltip();
-                // Sync raw value to final stepped value
-                this.#rawValue = this.#value;
-                if (this.#startValue !== this.#value) {
-                    this.#emitChange();
-                }
-            });
 
             // Keyboard support
             this.element.setAttribute("tabindex", "0");

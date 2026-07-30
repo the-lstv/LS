@@ -32,6 +32,9 @@ LS.LoadComponent(class Tooltips extends LS.Component {
         this.selector = this.attributes.map(a => `[${a}]`).join(",");
 
         this.scanMode = options.scanMode || this.SCAN_GLOBAL;
+        this.animationEnabled = options.animationEnabled;
+
+        this.shown = false;
 
         this.__onMouseEnter = this._onMouseEnter.bind(this);
         this.__onMouseMove  = this._onMouseMove.bind(this);
@@ -41,9 +44,11 @@ LS.LoadComponent(class Tooltips extends LS.Component {
 
         this.__x = null;
         this.__y = null;
+        this.__anchor = null;
         this.__value = null;
         this.__valueChanged = false;
         this.__positionChanged = false;
+        this.__lastVisible = false;
 
         this.frameScheduler = new LS.Util.FrameScheduler(() => this.#render());
 
@@ -60,9 +65,10 @@ LS.LoadComponent(class Tooltips extends LS.Component {
         });
     }
 
-    position(x, y){
+    position(x, y, anchor = 0.5){
         this.__x = x;
         this.__y = y;
+        this.__anchor = anchor;
         this.__positionChanged = true;
         this.render();
         return this;
@@ -72,7 +78,7 @@ LS.LoadComponent(class Tooltips extends LS.Component {
         if(text === this.__value) return this;
         this.__value = text;
         this.__valueChanged = true;
-        this.render();
+        if(this.shown) this.render();
         return this;
     }
 
@@ -97,11 +103,11 @@ LS.LoadComponent(class Tooltips extends LS.Component {
                 // Render
                 this.contentElement.replaceChildren(...temp.childNodes);
             }
+
+            this.__positionChanged = true;
         }
 
-        if(this.__positionChanged) {
-            this.__positionChanged = false;
-
+        if(this.__positionChanged && this.shown) {
             let x = this.__x;
             let y = this.__y;
 
@@ -116,31 +122,82 @@ LS.LoadComponent(class Tooltips extends LS.Component {
                 box = x.getBoundingClientRect();
             } else if(typeof x == "number") {
                 box = { x };
-            } else {
-                return; // Early exit if position cannot be determined
             }
 
-            let cbox = this.contentElement.getBoundingClientRect();
-            let isDetached = element?.hasAttribute?.("ls-tooltip-detached") && typeof y?.clientX === "number";
+            if(box) {
+                let cbox = this.contentElement.getBoundingClientRect();
 
-            if(isDetached) {
-                // Follow cursor for detached tooltips
-                this.contentElement.style.left = Math.min(Math.max(y.clientX + 12, 4), innerWidth - cbox.width) + "px";
-                this.contentElement.style.top = Math.min(Math.max(y.clientY + 12, 4), innerHeight - cbox.height) + "px";
-            } else {
-                // Position relative to element or coordinate
-                this.contentElement.style.left = (
-                    box.width ? Math.min(Math.max(box.left + (box.width / 2) - (cbox.width / 2), 4), innerWidth - (cbox.width)) : box.x
-                ) + "px";
-                this.contentElement.style.maxWidth = (innerWidth - 8) + "px";
-
-                if(typeof y === "number") {
-                    this.contentElement.style.top = y + "px";
-                } else {
-                    let pos_top = box.top - cbox.height;
-                    let pos_above_fits = pos_top >= 20;
-                    this.contentElement.style.top = `calc(${pos_above_fits ? pos_top : box.top + box.height}px ${pos_above_fits ? "-" : "+"} var(--ui-tooltip-rise, 5px))`;
+                if(cbox.width === 0 || cbox.height === 0) {
+                    // We need to render the tooltip offscreen first to get its size
+                    this.contentElement.style.left = "0px";
+                    this.contentElement.style.top = "0px";
+                    this.contentElement.style.visibility = "hidden";
+                    this.contentElement.style.display = "block";
+                    this.container.classList.add("shown");
+                    this.__pendingPosition = true;
+                    return this.render();
                 }
+
+                this.__pendingPosition = false;
+                let isDetached = element?.hasAttribute?.("ls-tooltip-detached") && typeof y?.clientX === "number";
+
+                if(isDetached) {
+                    // Follow cursor for detached tooltips
+                    x = y.clientX + 12;
+                    y = y.clientY + 12;
+                } else {
+                    // Position relative to element or coordinate
+                    x = box.width ? box.left + (box.width * 0.5): box.x;
+
+                    this.contentElement.style.maxWidth = (innerWidth - 8) + "px";
+    
+                    if(typeof y !== "number") {
+                        let pos_top = box.top - cbox.height;
+                        let pos_above_fits = pos_top >= 20;
+                        y = (pos_above_fits ? pos_top : box.top + box.height) + (pos_above_fits ? -5 : 5);
+                    }
+                }
+
+                if(cbox.width) {
+                    const anchor = this.__anchor ?? 0.5;
+                    x -= cbox.width * anchor;
+                }
+
+                const vpPadding = 4;
+                this.contentElement.style.transform = `translate3d(${Math.min(Math.max(x, vpPadding), innerWidth - cbox.width - vpPadding)}px, ${Math.min(Math.max(y, vpPadding), innerHeight - cbox.height - vpPadding)}px, 0)`;
+            }
+
+            this.__positionChanged = false;
+        }
+
+        if(!this.shown && this.__pendingPosition) {
+            this.__pendingPosition = false;
+            this.container.classList.remove("shown");
+            this.contentElement.style.visibility = "";
+        }
+
+        if(this.shown !== this.__lastVisible) {
+            // Sadly we have to render on the next frame to ensure the CSS transition is applied correctly
+            // Otherwise it flickers
+            if(this.shown && this.__pendingPosition) {
+                return this.render();
+            }
+
+            this.contentElement.style.visibility = "visible";
+
+            this.__lastVisible = this.shown;
+
+            if(this.animationEnabled) {
+                this.container.classList.add("shown");
+
+                if(this.shown) {
+                    LS.Animation.fadeIn(this.contentElement, "up", null, true);
+                } else {
+                    LS.Animation.fadeOut(this.contentElement, "up", null, true);
+                }
+            } else {
+                this.container.classList.toggle("shown", this.shown);
+                this.contentElement.style.display = "";
             }
         }
     }
@@ -151,12 +208,14 @@ LS.LoadComponent(class Tooltips extends LS.Component {
 
     show(text = null){
         if(text) this.set(text);
-        this.container.classList.add("shown");
+        this.shown = true;
+        this.render();
         return this;
     }
-
+    
     hide(){
-        this.container.classList.remove("shown");
+        this.shown = false;
+        this.render();
         return this;
     }
 
@@ -177,17 +236,27 @@ LS.LoadComponent(class Tooltips extends LS.Component {
 
         this.__currentTarget = element;
 
-        const tooltipContent = element.getAttribute("ls-tooltip") || element.getAttribute("ls-hint") || element.getAttribute("title") || element.getAttribute("aria-label") || element.getAttribute("alt") || "";
-        this.quickEmit("set", tooltipContent, element);
+        const tooltipContent = element.getAttribute("ls-tooltip") || element.getAttribute("title") || element.getAttribute("aria-label") || element.getAttribute("alt") || "";
+        if(tooltipContent) {
+            this.quickEmit("set", tooltipContent, element);
+            this.__x = this.__currentTarget;
+            this.__y = event;
+            this.__anchor = 0.5;
+            this.__positionChanged = true;
+            this.show(tooltipContent);
+        }
 
-        if(element.ls_tooltip_isHint) return;
-        this.position(0, 0).show(tooltipContent).position(element, event);
+        const hintContent = element.getAttribute("ls-hint") || "";
+        if(hintContent) {
+            this.quickEmit("hint", hintContent, element);
+        }
     }
 
     _onMouseMove(event) {
         if(!this.__currentTarget) return;
         this.__x = this.__currentTarget;
         this.__y = event;
+        this.__anchor = 0.5;
         this.__positionChanged = true;
         this.render();
     }
@@ -287,6 +356,7 @@ LS.LoadComponent(class Tooltips extends LS.Component {
         this.__currentTarget = null;
         this.__x = null;
         this.__y = null;
+        this.__anchor = null;
         this.__value = null;
         this.__valueChanged = null;
         this.__positionChanged = null;

@@ -900,6 +900,11 @@ LS.Color = class Color {
                 this.initOptions(LS.__deferedColorOptions);
                 delete LS.__deferedColorOptions;
             }
+
+            this.currentAccent = [0, 0, 0, 255];
+            LS.once("ready", () => {
+                this.getAccentColorValueOf(document.body, this.currentAccent);
+            });
         }
     }
 
@@ -1035,6 +1040,15 @@ LS.Color = class Color {
                 } else {
                     throw new Error("Color " + r + " could not be parsed.");
                 }
+            }
+
+            else if(Color.accentColors.has(r)) {
+                [r, g, b, a] = Color.accentColors.get(r);
+                target[offset] = r;
+                target[offset + 1] = g;
+                target[offset + 2] = b;
+                target[offset + 3] = a !== undefined ? a : 255;
+                return target;
             }
 
             else if(Color.namedColors.has(r)) {
@@ -1373,18 +1387,23 @@ LS.Color = class Color {
         this.setAccent(color);
     }
 
-    static generate(r, g, b) {
+    static generate(r, g, b, hueShift = false) {
         const color = (r instanceof Color)? r.clone(): new Color(r, g, b);
         let style = '';
 
         // Cache HSL once
-        const hsl = color.getHSL();
-        const h = hsl[0];
+        let hsl = color.getHSL();
+        let h = hsl[0];
         const s = hsl[1];
         const sat = s * 0.12;
 
         // Accents: 10..90 and 35, 45, 55, 95
         for(let i = 1; i <= 9; i++){
+            if(hueShift) {
+                h += 100 / 9;
+                if(h > 360) h -= 360;
+            }
+
             const v = i * 10;
             color.setHSL(h, s, v);
             style += `--accent-${v}:${color.hex};`;
@@ -1404,10 +1423,15 @@ LS.Color = class Color {
 
         // Bases: 10..90 and 15..95
         for(let i = 1; i <= 9; i++){
+            if(hueShift) {
+                h += 100 / 9;
+                if(h > 360) h -= 360;
+            }
+
             const v = i * 10;
             const tone = color.setHSL(h, sat, v).hex;
             const midTone = color.setHSL(h, sat, v + 5).hex;
-            
+
             style += `--base-${v}:${tone};--base-${v+5}:${midTone};`;
         }
 
@@ -1531,6 +1555,7 @@ LS.Color = class Color {
         }
 
         this.events.emit("accent-changed", [accent]);
+        LS.Color.getAccentColorValueOf(document.body, LS.Color.currentAccent);
 
         if(store) {
             if(accent === "white") {
@@ -1546,6 +1571,12 @@ LS.Color = class Color {
             if(this.#settingAccent) return;
             document.body.classList.remove("no-transitions");
         }, 0);
+    }
+
+    static getAccentColorValueOf(element, target) {
+        const name = element.getAttribute("ls-accent");
+        // const level = (name === "yellow" || name === "orange") ? "10" : "40";
+        return LS.Color.parse(getComputedStyle(element).getPropertyValue("--accent-40"), null, null, null, target);
     }
 
     /**
@@ -1783,4 +1814,46 @@ LS.Color = class Color {
     ]);
 };
 
+// const colorConversion = new LS.Color();
+// function colorToAccent(color, tone = 40) {
+//     colorConversion.set(color);
+//     const hsl = colorConversion.getHSL();
+//     const h = hsl[0];
+//     const s = hsl[1];
+//     colorConversion.setHSL(h, s, tone);
+//     return colorConversion.color; // Copy
+//     return Number.isFinite(value)? value: fallback;
+// }
+// const accents = [
+//     ["navy",          [40, 28, 108]],
+//     ["blue",          [0, 133, 255]],
+//     ["pastel-indigo", [70, 118, 181]],
+//     ["lapis",         [34, 114, 154]],
+//     ["teal",          [0, 128, 128]],
+//     ["pastel-teal",   [69, 195, 205]],
+//     ["aquamarine",    [58, 160, 125]],
+//     ["green",         [25, 135, 84]],
+//     ["lime",          [133, 210, 50]],
+//     ["neon",          [173, 255, 110]],
+//     ["yellow",        [255, 236, 32]],
+//     ["orange",        [255, 140, 32]],
+//     ["deep-orange",   [255, 112, 52]],
+//     ["red",           [245, 47, 47]],
+//     ["rusty-red",     [220, 53, 69]],
+//     ["pink",          [230, 52, 164]],
+//     ["hotpink",       [245, 100, 169]],
+//     ["purple",        [155, 77, 175]],
+//     ["soap",          [210, 190, 235]],
+//     ["burple",        [81, 101, 246]],
+//     ["white",         [255, 255, 255]],
+// ];
+// const c = [];
+// for(const [name, color] of accents) {
+//     const a = colorToAccent(color);
+//     c.push([name, a]);
+// }
+// JSON.stringify(c);
+
+const LS_ACCENTS_MAP = new Map([["navy",[60,42,162,1]],["blue",[0,105,204,1]],["pastel-indigo",[57,96,147,1]],["lapis",[37,124,167,1]],["teal",[0,204,204,1]],["pastel-teal",[43,153,161,1]],["aquamarine",[54,150,116,1]],["green",[32,172,107,1]],["lime",[104,167,37,1]],["neon",[88,204,0,1]],["yellow",[204,187,0,1]],["orange",[204,99,0,1]],["deep-orange",[204,61,0,1]],["red",[195,9,9,1]],["rusty-red",[173,31,45,1]],["pink",[182,22,123,1]],["hotpink",[192,12,99,1]],["purple",[126,62,142,1]],["soap",[97,48,156,1]],["burple",[10,32,194,1]],["white",[102,102,102,1]]]);
+LS.Color.accentColors = LS_ACCENTS_MAP;
 })();

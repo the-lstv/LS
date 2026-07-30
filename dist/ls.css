@@ -4,7 +4,7 @@
 
     Last modified: 2026
     License: GPL-3.0
-    Version: 6.0.0-alpha.0
+    Version: 6.0.0-alpha.3
     See: https://github.com/thelstv/LS
 */
 /*
@@ -512,16 +512,16 @@ button.ls-toast-close.ls-toast-close.ls-toast-close {
 .ls-tooltip-content {
   position: absolute;
   background: var(--surface-1);
-  padding: 2px 14px;
+  padding: 4px 12px;
   border: 1px solid var(--ui-border);
-  box-shadow: inset 0 1px 0 0 var(--ui-element);
+  box-shadow: inset 0 1px 0 0 var(--ui-element), 0px 8px 20px 0 rgba(0, 0, 0, 0.3294117647);
   border-radius: var(--border-radius);
   white-space: pre-wrap;
 }
 
 .ls-tooltip-content kbd {
   background: var(--surface-3);
-  padding: 0 6px;
+  padding: 0 5px;
   border-radius: var(--border-radius);
   font-size: smaller;
 }

@@ -1335,7 +1335,7 @@
             // Append children or content
             const contentToAdd = inner || innerContent;
             if (contentToAdd) {
-                element.append(...LS.Util.resolveElements(contentToAdd));
+                LS.Util.resolveElements(contentToAdd, element);
             }
 
             if (i18n) {
@@ -1403,23 +1403,61 @@
 
         /**
          * Element selector utility.
-         * The current implementation doesn't include wrapping as of now.
+         * The current implementation doesn't include wrapping as of now, and so doesn't do anything special with the selector, so just using document.querySelector may now be better.
+         * 
+         * @deprecated
+         * @param {string|Element} selector - The selector or parent element to search within (otherwise search the document).
+         * @param {string} subSelector - The selector to find within the parent element.
+         * @param {boolean} one - Whether to return only the first matching element (true) or all matching elements (false).
+         * @returns {Element|NodeList|null} The selected element(s) or null if not found.
+         * 
+         * @example LS.Select("#myElement");
+         * @example LS.Select(document.body, ".myClass");
+         * @example LS.Select("#myElement", ".myClass", true);
          */
         Select(selector, subSelector, one = false){
             if(!selector) return one? null: [];
 
-            const isElement = selector instanceof Element;
-            const target = (isElement? selector : document);
-
+            // const isElement = selector instanceof Element;
+            const isElement = typeof selector !== "string";            
             if(isElement && !subSelector) return one? selector: [selector];
 
+            const target = (isElement? selector : document);
             const actualSelector = isElement? subSelector || "*" : selector || '*';
             return one? target.querySelector(actualSelector): target.querySelectorAll(actualSelector);
         }
 
+        /**
+         * Selects a single element based on the provided selector.
+         * 
+         * @param {string|Element} selector 
+         * @param {string} subSelector 
+         * @returns {Element|null} The selected element or null if not found.
+         */
         SelectOne(selector, subSelector){
             if(!selector) selector = document.body;
             return LS.Select(selector, subSelector, true);
+        }
+
+        /**
+         * Misc utility to select an element based on the provided selector.
+         * If the element does not exist, it creates a new one.
+         * 
+         * @example LS.SelectOrCreate("#myElement");
+         * @example LS.SelectOrCreate(searchElement, "#myElement");
+         * 
+         * @param {string|Element} selector - The selector or parent element to search within (otherwise search the document).
+         * @param {string} subSelector - The selector to find or create if using a root element.
+         * @returns {Element} The selected or newly created element.
+         */
+        SelectOrCreate(selector, subSelector) {
+            if(!selector) return null;
+
+            const element = LS.SelectOne(selector, subSelector);
+            if(element) return element;
+
+            const newElement = LS.Create(subSelector || selector);
+            return newElement;
         }
 
         Util = {
@@ -1798,10 +1836,33 @@
                 return Object.getOwnPropertyNames(func.prototype).length > 1;
             },
 
-            resolveElements(...array){
-                return array.flat().filter(Boolean).map(element => {
-                    return typeof element === "string" ? document.createTextNode(element) : typeof element === "object" && !(element instanceof Node) ? LS.Create(element) : element;
-                });
+            /**
+             * Internal helper for resolving elements from various input types (string, array, object, Node).
+             * @param {*} input Input to resolve into elements.
+             * @param {Array|Node} target Target to append elements to, or an array to collect them in.
+             * @returns {Array|Node} The target with resolved elements appended, or an array of resolved elements.
+             */
+            resolveElements(input, target = null) {
+                const result = target || [];
+                const isArray = Array.isArray(target);
+
+                for(const item of Array.isArray(input) ? input : [input]) {
+                    if(item === null || item === undefined) continue;
+
+                    const type = typeof item;
+
+                    if(type === "string"){
+                        const node = document.createTextNode(item);
+                        if(isArray) result.push(node); else result.appendChild(node);
+                    } else if(type === "object" && !(item instanceof Node)){
+                        const created = LS.Create(item);
+                        if(isArray) result.push(created); else result.appendChild(created);
+                    } else {
+                        if(isArray) result.push(item); else result.appendChild(item);
+                    }
+                }
+
+                return result;
             },
 
             FILTER_MODE_REMOVE: 0,
@@ -1916,22 +1977,33 @@
              * @param {Object} options Options for the touch handle.
              * @param {boolean} options.disablePointerEvents Whether to disable pointer events on the document while dragging (to prevent accidental interaction with other elements). Default is true.
              * @param {boolean} options.pointerLock Whether to use pointer lock for mouse input. Default is false.
-             * @param {boolean} options.calculateWorld Whether to calculate the world rectangle (relative position to a target rather than viewport). Default is false, or true if options.world is provided.
-             * @param {Element|Object} options.world Element/rectangle object {top, left, bottom, right} to use as the world reference for worldX/worldY coordinates. If not set, the current target element will be used if calculateWorld is true, otherwise worldX/worldY will be the same as x/y.
-             * @param {boolean} options.alwaysRecalculateWorld Whether to recalculate the world rectangle on every move event. Default is false (only calculated on start).
+             * @param {boolean} options.calculateBounds Whether to calculate the bounds rectangle (relative position to a target rather than viewport). Default is false, or true if options.boundsTarget is provided.
+             * @param {Element|Object} options.boundsTarget Element/rectangle object {x, y, width, height} relative to the viewport to use as the bounds reference for boundX/boundY. Default is the target.
+             * @param {Function} options.transformBounds Optional function to apply transformations to the bounds position after it is calculated. Receives the bounds rectangle {x, y, width, height} and should return a new rectangle object.
+             * @param {boolean} options.alwaysRecalculateBounds Whether to recalculate the bounds rectangle on every move event. Default is false (only calculated on start).
+             * @param {boolean} options.edgeScroll Whether to enable edge scrolling when the pointer is near the edge of the bounds rectangle. Default is false.
+             * @param {number} options.edgeScrollMargin Margin in pixels from the edge of the bounds rectangle to start edge scrolling.
+             * @param {number} options.edgeScrollSpeed Max speed of edge scrolling in pixels per frame.
              * @param {string} options.cursor CSS cursor to use while dragging. Default is "grabbing". Can be changed by setting the `cursor` property of the TouchHandle instance at any time.
              * @param {string} options.exclude CSS selector to exclude certain elements from starting the drag. If the event target matches this selector, the drag will not start.
              * @param {boolean} options.detached Whether to start detached (not attached to any element). Default is false.
              * @param {Array} options.targets Array of additional elements to listen for drag events on. Default is null (only the initial element is used).
              * @param {Array} options.startEvents Array of additional events to listen for to start the drag. Default is null (only pointerdown is used).
              * @param {Array} options.buttons Array of mouse buttons to accept (0 = left, 1 = middle, 2 = right). Default is all buttons.
-             * @param {boolean} options.frameTimed Whether to emit move events on animation frames instead of every pointermove event. Default is false.
-             * @param {boolean} options.fluentFrames Whether to emit move events on every animation frame, even if the pointer hasn't moved. Default is false. Requires options.frameTimed to be true.
+             * @param {boolean} options.frameTimed Whether to emit move events on animation frames instead of every pointermove event. Default is false, but I strongly recommend setting it to true for smoother performance.
+             * @param {boolean} options.fluentFrames If true, the move callback will continue calling on every frame while the drag is active, even if the pointer hasn't actually moved. Default is false. Requires options.frameTimed to be true. Useful for continuous updates like edge scrolling.
              * @param {function} options.onStart Optional callback function to call when the drag starts. Receives an event object (see below).
              * @param {function} options.onMove Optional callback to call when the drag moves. Receives an event object (see below).
              * @param {function} options.onEnd Optional callback to call when the drag ends. Receives an event object (see below).
+             * @param {boolean} options.inertia Whether to enable dragging inertia (momentum). Default is false.
+             * @param {number} options.inertiaFriction Friction coefficient for inertia. Default is 0.92 (lower values = more friction).
+             * @param {boolean} options.handleWheel Whether to handle wheel events for scrolling. Default is false.
+             * @param {boolean} options.handleHover Whether to handle hovering (pointermove without dragging). Default is false.
              * 
-             * Emits: "start", "move", "end" events with the event object. Emits "destroy" when the TouchHandle is destroyed.
+             * Emits: "start", "move", "end" events with the event object.
+             * Emits "destroy" when the TouchHandle is destroyed.
+             * Emits "scroll" with scroll x/y values when edge scrolling occurs (if enabled).
+             * Emits "hover" with the event object when hovering occurs (if enabled).
              * 
              * Event shape:
              * ```
@@ -1948,9 +2020,12 @@
              *   offsetY: number, // Offset y position (difference since start)
              *   startX: number, // Start x position (first event position)
              *   startY: number, // Start y position (first event position)
-             *   worldX: number, // Current x position (relative to the world or same as x if no world is set)
-             *   worldY: number, // Current y position (relative to the world or same as y if no world is set)
-             *   worldRect: object // The rectangle representing the bounds of the world element, if enabled, otherwise null
+             *   boundX: number, // Current x position (relative to the bounds target, if enabled)
+             *   boundY: number, // Current y position (relative to the bounds target, if enabled)
+             *   boundingRect: object, // The rectangle representing the bounds of the bounds target, if enabled, otherwise null
+             *   hasMoved: boolean, // Only useful when used with fluentFrames: will be false if the event didn't come from an actual pointermove event, but was emitted on a frame
+             *   scrollDeltaX: number, // Amount scrolled in x direction since last event (if edge scrolling is enabled)
+             *   scrollDeltaY: number, // Amount scrolled in y direction since last event (if edge scrolling is enabled)
              * }
              * ```
              * 
@@ -1963,10 +2038,12 @@
                     this.options = {
                         buttons: [0, 1, 2],
                         disablePointerEvents: true,
-                        frameTimed: false,
+                        frameTimed: !!(options.fluentFrames),
                         fluentFrames: false,
-                        calculateWorld: !!(options.world),
-                        alwaysRecalculateWorld: false,
+                        calculateBounds: !!(options.boundsTarget),
+                        alwaysRecalculateBounds: false,
+                        inertia: false,
+                        inertiaFriction: 0.92,
                         ...options
                     };
 
@@ -1990,7 +2067,15 @@
                     this.latestMoveEvent = null;
                     this.activePointerId = null;
 
-                    this.world = this.options.world || null;
+                    // Edgescroll can be enabled/disabled at any time
+                    this.edgeScroll = !!this.options.edgeScroll;
+
+                    // Inertia can be enabled/disabled at any time
+                    this.inertia = !!this.options.inertia;
+                    this.velocityX = 0;
+                    this.velocityY = 0;
+
+                    this.boundsTarget = this.options.boundsTarget || element;
 
                     this._moveEventRef = this.prepareEvent("move");
                     this.prepareEvent("start", { deopt: true });
@@ -1999,6 +2084,10 @@
                     this.onStart = this.onStart.bind(this);
                     this.onMove = this.onMove.bind(this);
                     this.onRelease = this.onRelease.bind(this);
+
+                    if(this.options.handleWheel) this.onScroll = this.onScroll.bind(this);
+                    if(this.options.handleHover) this.onHover = this.onHover.bind(this);
+
                     this.cancel = this.cancel.bind(this);
                     this.onPointerLockChange = this.onPointerLockChange.bind(this);
                     this.frameHandler = this.frameHandler.bind(this);
@@ -2010,13 +2099,21 @@
                         dy: 0,
                         offsetX: 0,
                         offsetY: 0,
-                        worldX: 0,
-                        worldY: 0,
-                        worldRect: null,
+                        boundX: 0,
+                        boundY: 0,
+                        boundingRect: null,
+                        // worldX: 0,
+                        // worldY: 0,
+                        // worldRect: null,
                         startX: 0,
                         startY: 0,
+                        scrollDeltaX: 0,
+                        scrollDeltaY: 0,
+                        // scrollOffsetX: 0,
+                        // scrollOffsetY: 0,
                         cancel: this.cancel,
                         isTouch: false,
+                        hasMoved: false,
                         cancelled: false,
                         domEvent: null
                     };
@@ -2054,6 +2151,14 @@
                             target.addEventListener(evt, this.onStart);
                         }
                     }
+
+                    if(this.options.handleWheel) {
+                        target.addEventListener("wheel", this.onScroll, { passive: false });
+                    }
+
+                    if(this.options.handleHover) {
+                        target.addEventListener("pointermove", this.onHover, { passive: false });
+                    }
                 }
 
                 #detachTargetListeners(target) {
@@ -2066,6 +2171,14 @@
                         for (const evt of this.options.startEvents) {
                             target.removeEventListener(evt, this.onStart);
                         }
+                    }
+
+                    if(this.options.handleWheel) {
+                        target.removeEventListener("wheel", this.onScroll);
+                    }
+
+                    if(this.options.handleHover) {
+                        target.removeEventListener("pointermove", this.onHover);
                     }
                 }
 
@@ -2121,7 +2234,7 @@
                 set cursor(value) {
                     this._cursor = value;
                     if (this.seeking) {
-                        document.documentElement.style.cursor = value || "";
+                        document.documentElement.style.cursor = value? (value + "!important"): "";
                     }
                 }
 
@@ -2157,21 +2270,26 @@
 
                     this.activePointerId = event.pointerId;
 
-                    this.worldRect = this.options.calculateWorld? this.world instanceof Element ? this.world.getBoundingClientRect() : (this.world || event.target.getBoundingClientRect()) : null;
-
                     this._eventData.x = x;
                     this._eventData.y = y;
                     this._eventData.dx = 0;
                     this._eventData.dy = 0;
                     this._eventData.offsetX = 0;
                     this._eventData.offsetY = 0;
-                    this._eventData.worldX = this.worldRect? x - this.worldRect.left: x;
-                    this._eventData.worldY = this.worldRect? y - this.worldRect.top : y;
-                    this._eventData.worldRect = this.worldRect;
                     this._eventData.startX = x;
                     this._eventData.startY = y;
+                    this._eventData.scrollDeltaX = 0;
+                    this._eventData.scrollDeltaY = 0;
+                    // this._eventData.scrollOffsetX = 0;
+                    // this._eventData.scrollOffsetY = 0;
                     this._eventData.domEvent = event;
                     this._eventData.isTouch = isTouch;
+                    this._eventData.hasMoved = false;
+
+                    if(this.options.calculateBounds) {
+                        this._calculateBounds(true);
+                    }
+
                     this.emit("start", [this._eventData]);
                     if (this.options.onStart) this.options.onStart(this._eventData);
 
@@ -2183,8 +2301,19 @@
                     // Prevent default to stop text selection, etc.
                     if (event.cancelable) event.preventDefault();
 
+                    if(this.inertia) {
+                        this.velocityX = 0;
+                        this.velocityY = 0;
+                    }
+
                     target.classList.add("is-dragging");
-                    target.setPointerCapture(event.pointerId);
+
+                    const docEl = document.documentElement;
+                    docEl.classList.add("ls-dragging");
+                    
+                    if (!this.options.pointerLock) {
+                        target.setPointerCapture(event.pointerId);
+                    }
 
                     if (this.options.pointerLock) {
                         if(!this.pointerLockSet) {
@@ -2204,40 +2333,149 @@
 
                     this.dragTarget = event.target;
                     this.dragTarget.classList.add("ls-drag-target");
-
-                    const docEl = document.documentElement;
-                    docEl.classList.add("ls-dragging");
+                    
+                    // For an unknown reason, Chrome since a recent version started to overwrite the
+                    // cursor and ignores documentElement which causes weird cursor behavior, so we set it again to the element and restore it later.
+                    this.__originalCursor = target.style.cursor;
+                    target.style.cursor = this._cursor || "grabbing";
                     if (this.options.disablePointerEvents) docEl.style.pointerEvents = "none";
-
                     if (!docEl.style.cursor) docEl.style.cursor = this._cursor || "grabbing";
 
                     // Attach move/up listeners to document
                     document.addEventListener("pointermove", this.onMove);
                     document.addEventListener("pointerup", this.onRelease);
+
+                    if(this.options.fluentFrames) {
+                        // Start the frame handler
+                        this.scheduleMove();
+                    }
                 }
 
                 onMove(event) {
                     if (this._eventData.cancelled || event.pointerId !== this.activePointerId) return;
 
+                    this.__isHovering = false;
+
+                    // If frametimed, schedule the move to be processed on the next animation frame instead of processing it immediately.
+                    // This discards any intermediate move events that happen before the next frame.
                     if (this.options.frameTimed) {
                         this.latestMoveEvent = event;
-                        if (!this.frameQueued) {
-                            this.frameQueued = true;
-                            LS.Context.requestAnimationFrame(this.frameHandler);
-                        }
+                        this.scheduleMove();
                         return;
                     }
 
                     this.processMove(event);
                 }
 
+                onHover(event) {
+                    if (!this.options.handleHover || this.seeking || this._eventData.cancelled) return;
+
+                    this.__isHovering = true;
+
+                    // If frametimed, schedule the move to be processed on the next animation frame instead of processing it immediately.
+                    // This discards any intermediate move events that happen before the next frame.
+                    if (this.options.frameTimed) {
+                        this.latestMoveEvent = event;
+                        this.scheduleMove();
+                        return;
+                    }
+
+                    this.processMove(event);
+                }
+
+                onScroll(event) {
+                    if (this.options.handleWheel) {
+                        event.preventDefault();
+                        this._eventData.scrollDeltaX = event.deltaX;
+                        this._eventData.scrollDeltaY = event.deltaY;
+                        this._eventData.domEvent = event;
+                        this.quickEmit("scroll", event.deltaX, event.deltaY, this._eventData, true);
+                        if(this.options.onScroll) this.options.onScroll(event.deltaX, event.deltaY, this._eventData, true);
+                        this._eventData.domEvent = null;
+                    }
+                }
+
                 frameHandler() {
                     this.frameQueued = false;
+
+                    if(this.__isHovering) {
+                        if (this.latestMoveEvent) {
+                            this.processMove(this.latestMoveEvent);
+                            this.latestMoveEvent = null;
+                        }
+                        return;
+                    }
+
+                    if(!this.seeking) return;
+
+                    if(this.edgeScroll) {
+                        this.processEdgeScroll();
+                    }
+
+                    // Fire a move event even if the pointer hasn't moved when fluentFrames is enabled
+                    if(!this.latestMoveEvent && this.options.fluentFrames) {
+                        this._eventData.hasMoved = false;
+                        this.fireMove();
+
+                        // Schedule another frame
+                        this.scheduleMove();
+                        return;
+                    }
+
+                    // Process normally if we have a move event
                     if (this.latestMoveEvent) {
                         this.processMove(this.latestMoveEvent);
                         this.latestMoveEvent = null;
-                    } else if(this.options.fluentFrames) {
-                        this.fireMove();
+                    }
+
+                    if(this.options.fluentFrames) {
+                        // Schedule another frame
+                        this.scheduleMove();
+                    }
+                }
+
+                processEdgeScroll() {
+                    if (!this.edgeScroll || !this.boundingRect) return;
+
+                    const margin = this.options.edgeScrollMargin || 24;
+                    const speed = this.options.edgeScrollSpeed || 12;
+                    const curve = this.options.edgeScrollCurve || 1.35;
+
+                    const left = this.boundingRect.x;
+                    const top = this.boundingRect.y;
+                    const right = left + this.boundingRect.width;
+                    const bottom = top + this.boundingRect.height;
+
+                    const edgeValue = (distance, sign) => {
+                        const t = Math.max(0, distance / margin);
+                        return sign * Math.round(speed * Math.pow(t, curve));
+                    };
+
+                    let scrollX = 0;
+                    let scrollY = 0;
+
+                    if (this._eventData.x < left + margin) {
+                        scrollX = edgeValue(left + margin - this._eventData.x, -1);
+                    } else if (this._eventData.x > right - margin) {
+                        scrollX = edgeValue(this._eventData.x - (right - margin), 1);
+                    }
+
+                    if (this._eventData.y < top + margin) {
+                        scrollY = edgeValue(top + margin - this._eventData.y, -1);
+                    } else if (this._eventData.y > bottom - margin) {
+                        scrollY = edgeValue(this._eventData.y - (bottom - margin), 1);
+                    }
+
+                    const maxSpeed = speed * 1.5;
+                    scrollX = Math.max(-maxSpeed, Math.min(maxSpeed, scrollX));
+                    scrollY = Math.max(-maxSpeed, Math.min(maxSpeed, scrollY));
+
+                    this._eventData.scrollDeltaX = scrollX;
+                    this._eventData.scrollDeltaY = scrollY;
+
+                    if (scrollX !== 0 || scrollY !== 0) {
+                        this.quickEmit("scroll", scrollX, scrollY, this._eventData);
+                        if (this.options.onScroll) this.options.onScroll(scrollX, scrollY, this._eventData);
                     }
                 }
 
@@ -2267,46 +2505,126 @@
                         }
                     }
 
-                    if (this.options.calculateWorld && this.options.alwaysRecalculateWorld) {
-                        this.worldRect = this.world instanceof Element ? this.world.getBoundingClientRect() : (this.world || event.target.getBoundingClientRect());
-                    }
-
                     this._eventData.dx = x - prevX;
                     this._eventData.dy = y - prevY;
                     this._eventData.offsetX = x - this._eventData.startX;
                     this._eventData.offsetY = y - this._eventData.startY;
-                    this._eventData.worldX = this.worldRect ? x - this.worldRect.left : x;
-                    this._eventData.worldY = this.worldRect ? y - this.worldRect.top  : y;
                     this._eventData.x = x;
                     this._eventData.y = y;
                     this._eventData.domEvent = event;
                     this._eventData.isTouch = isTouch;
+                    this._eventData.hasMoved = true;
+
+                    if(this.inertia && !this.__isHovering) {
+                        this.velocityX = this._eventData.dx;
+                        this.velocityY = this._eventData.dy;
+                    }
+
+                    if (this.options.calculateBounds) {
+                        this._calculateBounds(this.options.alwaysRecalculateBounds || this.__isHovering);
+                    }
+
                     return this.fireMove();
+                }
+
+                _calculateBounds(recalculate = false) {
+                    if(recalculate) {
+                        this.boundingRect = (this.boundsTarget instanceof Element ? this.boundsTarget.getBoundingClientRect() : (this.boundsTarget || this._eventData?.domEvent?.currentTarget? (this._eventData?.domEvent?.currentTarget).getBoundingClientRect() : null));
+
+                        if(!this.boundingRect) {
+                            this.boundingRect = { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight };
+                        }
+
+                        if(this.options.transformBounds) {
+                            this.boundingRect = this.options.transformBounds(this.boundingRect) || this.boundingRect;
+                        }
+                    }
+
+                    if(!this.boundingRect) {
+                        this._eventData.boundX = this._eventData.x;
+                        this._eventData.boundY = this._eventData.y;
+                        return;
+                    }
+
+                    const x = this._eventData.x;
+                    const y = this._eventData.y;
+
+                    let position = [this.boundingRect ? x - this.boundingRect.x : x, this.boundingRect ? y - this.boundingRect.y : y];
+
+                    this._eventData.boundX = position[0];
+                    this._eventData.boundY = position[1];
+                    this._eventData.boundingRect = this.boundingRect;
                 }
 
                 fireMove() {
                     if (this._eventData.cancelled) return;
-                    if (this.options.onMove) this.options.onMove(this._eventData);
-                    this.quickEmit(this._moveEventRef, this._eventData);
+
+                    if(this.__isHovering) {
+                        if(this.seeking) return;
+                        if(this.options.onHover) this.options.onHover(this._eventData);
+                        this.quickEmit("hover", this._eventData);
+                    } else {
+                        if (this.options.onMove) this.options.onMove(this._eventData);
+                        this.quickEmit(this._moveEventRef, this._eventData);
+                    }
+
+                    this._eventData.domEvent = null;
                 }
 
                 scheduleMove() {
-                    if (!this.frameQueued) {
-                        this.frameQueued = true;
-                        LS.Context.requestAnimationFrame(this.frameHandler);
+                    if((!this.seeking && !this.__isHovering) || this.frameQueued) {
+                        // Discard
+                        return;
                     }
+
+                    this.frameQueued = true;
+                    requestAnimationFrame(this.frameHandler);
                 }
 
                 onRelease(event) {
-                    this.cleanupDragState();
+                    this.seeking = false;
+                    this._eventData.cancelled = false;
+                    this.frameQueued = false;
+                    this.latestMoveEvent = null;
+
+
+                    if (this.dragTarget) {
+                        this.dragTarget.classList.remove("ls-drag-target");
+                        this.dragTarget = null;
+                    }
+
+                    if (this.pointerLockActive) {
+                        document.exitPointerLock();
+                    }
+
+                    const captureTarget = this.activeTarget;
+                    if(captureTarget) {
+                        if (event && typeof event.pointerId === "number" && captureTarget.hasPointerCapture(event.pointerId)) {
+                            captureTarget.releasePointerCapture(event.pointerId);
+                        }
+    
+                        captureTarget.classList.remove("is-dragging");
+                        captureTarget.style.cursor = this.__originalCursor || "";
+                        this.activeTarget = null;
+                    }
+
+                    this.__originalCursor = null;
+
+                    const docEl = document.documentElement;
+                    docEl.classList.remove("ls-dragging");
+                    docEl.style.pointerEvents = "";
+                    docEl.style.cursor = "";
+
+                    document.removeEventListener("pointermove", this.onMove);
+                    document.removeEventListener("pointerup", this.onRelease);
 
                     const isDestroy = event.type === "destroy";
 
                     this._eventData.domEvent = event;
                     this.emit(isDestroy ? "destroy" : "end", [this._eventData]);
 
-                    if (this.pointerLockActive) {
-                        document.exitPointerLock();
+                    if(this.inertia) {
+                        this.processInertia();
                     }
 
                     if (isDestroy) {
@@ -2317,43 +2635,38 @@
                         this.options.onEnd(this._eventData);
                     }
 
-                    const captureTarget = this.activeTarget;
-                    if (captureTarget && typeof event.pointerId === "number" && captureTarget.hasPointerCapture(event.pointerId)) {
-                        captureTarget.releasePointerCapture(event.pointerId);
-                    }
                     this._eventData.domEvent = null;
-                    this._eventData.worldRect = null;
-                    this.worldRect = null;
+                    this._eventData.hasMoved = true;
+                    this._eventData.cancelled = false;
+                    this._eventData.scrollDeltaX = 0;
+                    this._eventData.scrollDeltaY = 0;
+
+                    this._eventData.boundingRect = null;
+                    this.boundingRect = null;
+                }
+
+                processInertia() {
+                    if (Math.abs(this.velocityX) < 0.5 && Math.abs(this.velocityY) < 0.5) {
+                        return; // No significant velocity to process
+                    }
+
+                    this.quickEmit("scroll", -this.velocityX, -this.velocityY, this._eventData);
+                    if(this.options.onScroll) this.options.onScroll(-this.velocityX, -this.velocityY, this._eventData);
+
+                    this.velocityX *= this.options.inertiaFriction;
+                    this.velocityY *= this.options.inertiaFriction;
+
+                    requestAnimationFrame(() => this.processInertia());
+                }
+
+                stopInertia() {
+                    this.velocityX = 0;
+                    this.velocityY = 0;
                 }
 
                 onPointerLockChange() {
                     const lockEl = document.pointerLockElement;
                     this.pointerLockActive = !!lockEl && lockEl === this.activeTarget;
-                }
-
-                cleanupDragState() {
-                    this.seeking = false;
-                    this._eventData.cancelled = false;
-                    this.frameQueued = false;
-                    this.latestMoveEvent = null;
-
-                    if (this.activeTarget) {
-                        this.activeTarget.classList.remove("is-dragging");
-                    }
-
-                    if (this.dragTarget) {
-                        this.dragTarget.classList.remove("ls-drag-target");
-                        this.dragTarget = null;
-                    }
-
-                    const docEl = document.documentElement;
-                    docEl.classList.remove("ls-dragging");
-                    docEl.style.pointerEvents = "";
-                    docEl.style.cursor = "";
-                    this.activeTarget = null;
-
-                    document.removeEventListener("pointermove", this.onMove);
-                    document.removeEventListener("pointerup", this.onRelease);
                 }
 
                 /**
@@ -2365,12 +2678,18 @@
 
                     this.detach(true);
                     this.clearTargets();
+                    this.stopInertia();
                     this._moveEventRef = null;
                     super.destroy();
                     this.options.onStart = null;
                     this.options.onMove = null;
                     this.options.onEnd = null;
-                    this.options.world = null;
+                    this.options.onScroll = null;
+                    this.options.onHover = null;
+                    this.options.boundsTarget = null;
+                    this.boundsTarget = null;
+                    this.boundingRect = null;
+                    this._cursor = null;
                     this.options = null;
                     this._eventData = null;
                     this.destroyed = true;
@@ -2401,7 +2720,7 @@
                 return function(target) {
                     if(typeof target !== "object") throw "The target must be an object";
 
-                    for (const [key, descriptor] of cache) {
+                    for (let [key, descriptor] of cache) {
                         if (!(key in target)) {
                             if(typeof descriptor.value === "object" && descriptor.value !== null) {
                                 descriptor = { ...descriptor, value: LS.Util.clone(descriptor.value) };
@@ -2534,32 +2853,42 @@
              * 
              * In passive mode (default), you call schedule() whenever.
              * In active mode (start/stop methods), it works like a ticker.
+             * 
+             * Offers a FPS limiter, delta time calculation, and speed multiplier.
+             * It also has built-in framerate measurement/sampling tool.
              */
             FrameScheduler: class FrameScheduler {
                 /**
                  * @param {Function} callback - The function to call on each frame.
                  * @param {Object} [options] - Optional settings.
                  * @param {number} [options.limiter] - Minimum ms between frames (rate limit).
-                 * @param {boolean} [options.deltaTime] - If true, pass delta time to callback.
                  * @param {number} [options.speed] - Playback speed multiplier (default: 1).
+                 * @param {boolean} [options.vSync] - Uses requestAnimationFrame for vsync (default: true, recommended in most cases).
                  */
                 constructor(callback, options = {}) {
                     this.callback = callback;
                     this.queued = false;
                     this.running = false;
                     this.limiter = options.limiter || null;
-                    this.deltaTime = options.deltaTime || false;
                     this.speed = options.speed ?? 1;
+
+                    this.vSync = options.vSync !== false; // Default to true
+
+                    // Sampling for framerate measurement
+                    this.frameSamples = null;
+                    this.sampling = false;
+
+                    // Internal state
                     this._lastFrame = 0;
                     this._rafId = null;
-                    if (this.deltaTime) this._prevTimestamp = null;
+                    this._prevTimestamp = null;
                 }
 
                 #frame = (timestamp) => {
                     if (this.limiter) {
                         if (timestamp - this._lastFrame < this.limiter) {
                             // Not enough time passed, reschedule
-                            this._rafId = LS.Context.requestAnimationFrame(this.#frame);
+                            this._rafId = requestAnimationFrame(this.#frame);
                             return;
                         }
                         this._lastFrame = timestamp;
@@ -2568,14 +2897,17 @@
                     this.queued = false;
 
                     if (this.callback) {
-                        if (this.running && this.deltaTime) {
-                            const delta = this._prevTimestamp !== null ? (timestamp - this._prevTimestamp) * this.speed : 0;
+                        const delta = this._prevTimestamp !== null ? (timestamp - this._prevTimestamp) * this.speed : 0;
+
+                        if(this.sampling) {
+                            this.frameSamples.push(delta);
+                        }
+
+                        if (this.running) {
                             this._prevTimestamp = timestamp;
                             this.callback(delta, timestamp);
-                        } else if(this.deltaTime) {
-                            this.callback(0, timestamp);
                         } else {
-                            this.callback(timestamp);
+                            this.callback(0, timestamp);
                         }
                     }
 
@@ -2597,7 +2929,7 @@
                 start() {
                     if (this.running) return;
                     this.running = true;
-                    if (this.deltaTime) this._prevTimestamp = null;
+                    this._prevTimestamp = null;
                     this.schedule();
                 }
 
@@ -2610,7 +2942,18 @@
                     if (this.queued) return;
                     this.queued = true;
 
-                    this._rafId = LS.Context.requestAnimationFrame(this.#frame);
+                    if (this.vSync) {
+                        this._rafId = requestAnimationFrame(this.#frame);
+                        return;
+                    }
+
+                    if (this.limiter) {
+                        setTimeout(() => {
+                            this.#frame(performance.now());
+                        }, this.limiter);
+                    } else {
+                        this.#frame(performance.now());
+                    }
                 }
 
                 cancel() {
@@ -2621,10 +2964,34 @@
                     }
                 }
 
+                startSampling() {
+                    this.frameSamples ??= [];
+                    this.sampling = true;
+                }
+
+                stopSampling() {
+                    const samples = this.frameSamples;
+
+                    this.frameSamples = null;
+                    this.sampling = false;
+                    return samples;
+                }
+
+                measureFramerate(period = 1000) {
+                    return new Promise(resolve => {
+                        this.startSampling();
+                        setTimeout(() => {
+                            const samples = this.stopSampling();
+                            const average = samples.length / (period / 1000);
+                            resolve({ samples, average });
+                        }, period);
+                    });
+                }
+
                 destroy() {
                     this.cancel();
                     this.callback = null;
-                    if (this.deltaTime) this._prevTimestamp = null;
+                    this._prevTimestamp = null;
                 }
             },
 
@@ -2917,8 +3284,8 @@
              * @deprecated
              */
             add(...elements){
-                this.append(...LS.Util.resolveElements(...elements));
-                return this
+                LS.Util.resolveElements(elements.flat(), this);
+                return this;
             },
 
             /**
@@ -2926,8 +3293,8 @@
              * @deprecated
              */
             addBefore(target){
-                LS.Util.resolveElements(target).forEach(element => this.parentNode.insertBefore(element, this))
-                return this
+                LS.Util.resolveElements(target).forEach(element => this.parentNode.insertBefore(element, this));
+                return this;
             },
 
             /**
@@ -2935,8 +3302,8 @@
              * @deprecated
              */
             addAfter(target){
-                LS.Util.resolveElements(target).forEach(element => this.parentNode.insertBefore(element, this.nextSibling))
-                return this
+                LS.Util.resolveElements(target).forEach(element => this.parentNode.insertBefore(element, this.nextSibling));
+                return this;
             },
 
             /**

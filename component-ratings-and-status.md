@@ -16,12 +16,13 @@ The goal is to have all built-in components reach the highest quality rating so 
 - **☆☆☆☆☆ (-/-)** — Work in progress, not rated yet.
 
 **Builtin** = part of LS core and is not a separate component.
-
 | Component  | Quality Rating | Notes |
 |----------------|-----------------|----------------|
+| LS Core 6.0.0 | ★★★★★ (5/5) | In a stable & maintainable state
 | LS.Color/ColorView | ★★★★★ (5/5) | Maybe does a bit too much :)
 | LS.EventEmitter (builtin) | ★★★★★ (5/5) | Great event system.
 | LS.Tooltips | ★★★★★ (5/5) | Simple and effective, though missing some features
+| LS.Util.TouchHandle | ★★★★★ (5/5) | Solid utility for all kinds of touch/mouse interactions.
 | LS.Modal | ★★★★☆ (4/5) | Solid, fast, simple. May need some small tweaks.
 | LS.Resize | ★★★★☆ (4/5) | Functional and extensive in features.
 | LS.Toast | ★★★★☆ (4/5) | Simple
@@ -54,6 +55,38 @@ The goal is to have all built-in components reach the highest quality rating so 
 | LS.CommandPalette | ☆☆☆☆☆ (?) | Incomplete
 | LS.ColorPicker | ☆☆☆☆☆ (?) | Incomplete
 | LS.GLMultiShader | ☆☆☆☆☆ (-) | Moved to LS.GL
+| LS.SPA | ☆☆☆☆☆ (-) | Unreleased. Currently functional only in a specific environment.
+
+Misc utilities or smaller components (all built-in):
+
+| Item  | Quality Rating | Notes |
+|----------------|-----------------|----------------|
+| LS.Util.FrameScheduler | ★★★★★ (5/5) | Good feature set.
+| LS.Util.parseURLParams | ★★★★★ (5/5) | Ridiculously efficient
+| LS.Util.emmetParser | ★★★★☆ (4/5) | Works well and is fast enough
+| LS.Util.parseJSONC | ★★★★☆ (4/5) | Works, simple and small enough
+| LS.Util.clone | ★★★★☆ (4/5) | Faster than klona and has more features. I'm happy.
+| LS.Util.staticDefaults | ★★★☆☆ (3/5) | Works but performance could be improved
+| LS.Util.sanitize | ★★★☆☆ (3/5) | Works but performance could be improved
+| LS.Util.normalizePath | ★★★☆☆ (3/5) | Outdated code, but very simple
+| LS.Util.RunOnce | ★★★★★ (5/5) | Stupid simple.
+| LS.Util.Switch | ★★★★★ (5/5) | Stupid simple.
+| LS.Util.ElementSwitch | ★★★★★ (5/5) | Stupid simple.
+| LS.Util.normalize | ★★★★★ (5/5) | Stupid simple.
+| LS.Util.copy | ★★★★★ (5/5) | Stupid simple.
+| LS.Util.validateUUID | ★★★★★ (5/5) | Fast.
+| LS.SPA.Router | ★★★★☆ (4/5) | Nice router and matcher.
+
+<br>
+<br>
+
+## How I rate components
+I have a certain software engineering standard. I rate components objectively based on how they meet these standards. The variables include:
+- Code quality (cleanliness, maintainability, readability, architecture/layout, bloat, coding style)
+- Feature set (does it do what it is supposed to do, and does it have all the features one would expect)
+- Performance (I have very strict performance & efficiency standards - components must be light, not do unexpected work, and be fast on all devices)
+- Test coverage & stability (I test components extensively in various scenarios and edge cases. If a component is not tested enough, it will be rated lower, even if it performs well in other areas.)
+
 
 ## Migration Status
 Migration progress of older LS v3 components into v5.  
@@ -67,7 +100,7 @@ Components marked **Not Started** are not available yet and may be rejected.
 
 ## Deleted Components
 These are ***very old*** LS v3 components that have been removed and not considered for migration, either due to very low quality or simply lack of usefulness. Their idea may be re-added in the future. Otherwise they have no significance other than historical purposes.
-- LS.Toolbox (crazy ideas, but never proved to be useful)
+- LS.Toolbox (crazy ideas (like hello? a full shell emulator, desktop environment, and integrated debugger in a single component?), but never proved to be useful and was discontinued)
 - LS.Dialog (now a part of LS.Modal)
 - LS.Manipulator (deemed unnecessary, was supposed to be "regex" for string manipulation)
 - LS.Notif (low quality (incomplete, intrusive), replaced by LS.Toast)

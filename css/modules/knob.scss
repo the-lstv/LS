@@ -45,6 +45,18 @@ ls-knob * {
     height: var(--gear-size);
 }
 
+.ls-knob-label {
+    position: absolute;
+    top: calc(100% + 2px);
+    white-space: nowrap;
+}
+
+ls-knob {
+    margin: 0 var(--knob-spacing, 18px);
+    margin-bottom: calc(1em + 4px);
+    font-size: small;
+}
+
 .ls-knob-digit {
     position: absolute;
     top: 50%;
@@ -128,12 +140,12 @@ ls-knob[preset=numeric] {
 
     &:hover::after, &.is-dragging::after {
         border-top-color: var(--elevate-3);
-        bottom: 6px;
+        bottom: 4px;
     }
 
     &:hover::before, &.is-dragging::before {
         border-bottom-color: var(--elevate-3);
-        top: 5px;
+        top: 4px;
     }
 
     .ls-knob-stator {
