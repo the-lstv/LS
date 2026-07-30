@@ -119,9 +119,8 @@ uniform sampler2D uTexture;
 
 out vec4 outColor;
 
-void main()
-{
-    float coverage = texture(uTexture, v_texCoord).g;
+void main() {
+    float coverage = texture(uTexture, v_texCoord).r;
 
     outColor = vec4(
         v_color.rgb,
@@ -134,7 +133,7 @@ void main()
  * Optionally THREE.js compatible.
  * @version 1.0.0
  */
-const msdfVertex = `#version 300 es
+const fontVertex = `#version 300 es
 
 // Simple quad
 const vec2 positions[6] = vec2[](
@@ -179,8 +178,6 @@ void main() {
     p.z = glyphDepth;
     gl_Position = p;
 #endif
-
-
 
     vec2 uv = i_uvRect.xy + (positions[gl_VertexID] * 0.5 + 0.5) * i_uvRect.zw;
 
@@ -1037,6 +1034,36 @@ void main() {
         }
     }
 
+    const GL_ENUMS = WebGL2RenderingContext.prototype;
+    function bufferFrom(type, size) {
+        switch(type.toLowerCase()) {
+            case "float":
+            case GL_ENUMS.FLOAT:
+                return new Float32Array(size);
+            case "int":
+            case GL_ENUMS.INT:
+                return new Int32Array(size);
+            case "uint":
+            case GL_ENUMS.UNSIGNED_INT:
+                return new Uint32Array(size);
+            case "short":
+            case GL_ENUMS.SHORT:
+                return new Int16Array(size);
+            case "ushort":
+            case GL_ENUMS.UNSIGNED_SHORT:
+                return new Uint16Array(size);
+            case "byte":
+            case GL_ENUMS.BYTE:
+                return new Int8Array(size);
+            case "ubyte":
+            case GL_ENUMS.UNSIGNED_BYTE:
+                return new Uint8Array(size);
+            default:
+                console.warn(`Unknown buffer type "${type}". Defaulting to Float32Array.`);
+                return new Float32Array(size);
+        }
+    }
+
     /**
      * A WebGL renderable base class for handling graphics rendering.
      */
@@ -1050,21 +1077,81 @@ void main() {
             const gl = this.renderer.gl;
 
             this.program = options.program || (options.vertex && options.fragment ? createProgram(this.renderer, options.vertex, options.fragment) : null);
+
             this.uniforms = {};
             this.attributes = {};
+            this.buffers = {};
+
             this.addUniforms(options.uniforms);
             this.addAttributes(options.attributes);
 
+            this.enabled = options.enabled !== undefined ? options.enabled : true;
+
             this.dimensionsUpToDate = false;
 
-            if(options.bindVAO) {
+            // We can create a default VAO helper for this renderable
+            if(options.vao) {
                 this.vao = gl.createVertexArray();
                 this.__bindVAO = true;
             }
 
-            if(options.onSetup) {
+            if(options.onSetup || typeof options.bind === "object") {
                 if(this.vao) gl.bindVertexArray(this.vao);
-                options.onSetup.call(this, gl, this.program, this.uniforms, this.attributes, options);
+
+                // Bind some defined buffer layouts to attributes
+                if(typeof options.bind === "object") {
+                    for(const key in options.bind) {
+                        const a = this.addAttribute(key);
+    
+                        if(a !== null && a !== -1) {
+                            const buffer = options.bind[key];
+                            if(buffer instanceof WebGLBuffer) {
+                                this.buffers[key] = buffer.bindToAttribute(a);
+                            } else if(typeof buffer === "number") {
+                                this.buffers[key] = this.renderer.createBuffer(buffer * 1, 1, gl.DYNAMIC_DRAW).bindToAttribute(a, 1, null, false, 0, 0, 1);
+                            } else if(typeof buffer === "object" && buffer !== null) {
+                                buffer.cellSize ??= 1;
+    
+                                let data = buffer.data || buffer.size;
+    
+                                if(typeof data === "number") {
+                                    data = bufferFrom(buffer.type || "float", data * buffer.cellSize);
+                                }
+    
+                                this.buffers[key] = this.renderer.createBuffer(data, buffer.cellSize, buffer.usage || gl.DYNAMIC_DRAW).bindToAttribute(a, buffer.cellSize, buffer.type || null, !!buffer.normalized, buffer.stride, buffer.offset, buffer.divisor);
+                            } else {
+                                console.warn(`Invalid buffer for attribute "${key}". Expected a WebGLBuffer, number, or object with buffer data.`);
+                            }
+                        }
+                    }
+                }
+
+                // const count = gl.getProgramParameter(this.program, gl.ACTIVE_ATTRIBUTES);
+                // for (let i = 0; i < count; i++) {
+                //     const info = gl.getActiveAttrib(this.program, i);
+                //     const loc = gl.getAttribLocation(this.program, info.name);
+
+                //     console.log({
+                //         name: info.name,
+                //         location: loc,
+                //         type: info.type,
+                //         size: info.size,
+                //     });
+                // }
+                // for (let i = 0; i < gl.getParameter(gl.MAX_VERTEX_ATTRIBS); i++) {
+                //     console.log(i, {
+                //         enabled: gl.getVertexAttrib(i, gl.VERTEX_ATTRIB_ARRAY_ENABLED),
+                //         integer: gl.getVertexAttrib(i, gl.VERTEX_ATTRIB_ARRAY_INTEGER),
+                //         size: gl.getVertexAttrib(i, gl.VERTEX_ATTRIB_ARRAY_SIZE),
+                //         type: gl.getVertexAttrib(i, gl.VERTEX_ATTRIB_ARRAY_TYPE),
+                //         stride: gl.getVertexAttrib(i, gl.VERTEX_ATTRIB_ARRAY_STRIDE),
+                //     });
+                // }
+
+                if(typeof options.onSetup === "function") {
+                    options.onSetup.call(this, gl, this.program, this.uniforms, this.attributes, options);
+                }
+
                 if(this.__bindVAO && this.vao) {
                     gl.bindVertexArray(null);
                 }
@@ -1086,17 +1173,14 @@ void main() {
 
             if(Array.isArray(uniforms)) {
                 for(const key of uniforms) {
-                    if(!key) continue;
-                    if(typeof key !== "string") throw new Error(`Invalid location key: expected a string, got ${typeof key}.`);
-                    this.uniforms[key] = this.renderer.gl.getUniformLocation(this.program, key);
+                    this.addUniform(key);
                 }
-            } else {
+            } else if(typeof uniforms === "object") {
                 for(const key in uniforms) {
-                    const value = uniforms[key];
-                    if(!value) continue;
-                    if(typeof value !== "string") throw new Error(`Invalid location value for key "${key}". Expected a string, got ${typeof value}.`);
-                    this.uniforms[key] = this.renderer.gl.getUniformLocation(this.program, value);
+                    this.addUniform(key);
                 }
+            } else if(typeof uniforms === "string") {
+                this.addUniform(uniforms);
             }
         }
 
@@ -1105,18 +1189,29 @@ void main() {
 
             if(Array.isArray(attributes)) {
                 for(const key of attributes) {
-                    if(!key) continue;
-                    if(typeof key !== "string") throw new Error(`Invalid location key: expected a string, got ${typeof key}.`);
-                    this.attributes[key] = this.renderer.gl.getAttribLocation(this.program, key);
+                    this.addAttribute(key);
                 }
-            } else {
+            } else if(typeof attributes === "object") {
                 for(const key in attributes) {
-                    const value = attributes[key];
-                    if(!value) continue;
-                    if(typeof value !== "string") throw new Error(`Invalid location value for key "${key}". Expected a string, got ${typeof value}.`);
-                    this.attributes[key] = this.renderer.gl.getAttribLocation(this.program, value);
+                    this.addAttribute(key);
                 }
+            } else if(typeof attributes === "string") {
+                this.addAttribute(attributes);
             }
+        }
+
+        addAttribute(key) {
+            if(!key) return;
+            if(typeof key !== "string") throw new Error(`Invalid location key: expected a string, got ${typeof key}.`);
+            if(this.attributes[key] !== undefined) return this.attributes[key];
+            return this.attributes[key] = this.renderer.gl.getAttribLocation(this.program, key);
+        }
+
+        addUniform(key) {
+            if(!key) return;
+            if(typeof key !== "string") throw new Error(`Invalid location key: expected a string, got ${typeof key}.`);
+            if(this.uniforms[key] !== undefined) return this.uniforms[key];
+            return this.uniforms[key] = this.renderer.gl.getUniformLocation(this.program, key);
         }
 
         getUniformLocation(key) {
@@ -1125,35 +1220,6 @@ void main() {
 
         getAttributeLocation(key) {
             return this.attributes[key] || (this.attributes[key] = this.renderer.gl.getAttribLocation(this.program, key)) || null;
-        }
-
-        /**
-         * Extra helper that creates a managed buffer and binds it to the attribute location.
-         * @param {*} attributeKey - The key of the attribute to bind the buffer to
-         * @param {*} data - The data to upload to the buffer, or size - SIZE WILL BE MULTIPLIED BY cellSize IN THIS METHOD FOR CONVENIENCE
-         * @param {*} cellSize - The number of components per vertex attribute (1, 2, 3, or 4),
-         * @param {*} type - The data type of each component in the array (gl.FLOAT, gl.INT, etc.)
-         * @param {*} normalized - Whether integer data values should be normalized when being cast to a float
-         * @param {*} stride - The offset in bytes between the beginning of consecutive vertex attributes
-         * @param {*} offset - The offset in bytes of the first component in the vertex attribute array
-         * @param {*} divisor - The number of instances that will pass between updates of the attribute
-         * @param {*} usage - The usage pattern hint of the data store (gl.STREAM_DRAW, gl.STATIC_DRAW or gl.DYNAMIC_DRAW)
-         * @returns {WebGLBuffer|null} The created buffer, or null if the attribute was not found
-         */
-        createBufferForAttribute(attributeKey, data, cellSize = 1, type = null, normalized = false, stride = 0, offset = 0, divisor = 1, usage = this.renderer.gl.DYNAMIC_DRAW) {
-            const location = typeof attributeKey === "string" ? this.getAttributeLocation(attributeKey) : attributeKey;
-            if(location === null || location === -1) {
-                console.warn(`Attribute "${attributeKey}" not found in program.`);
-                return null;
-            }
-
-            if(typeof data === "number") {
-                data = data * cellSize;
-            }
-
-            const buffer = this.renderer.createBuffer(data, cellSize, usage || this.renderer.gl.DYNAMIC_DRAW);
-            buffer.bindToAttribute(location, cellSize, type, normalized, stride, offset, divisor);
-            return buffer;
         }
 
         /**
@@ -1186,6 +1252,17 @@ void main() {
 
                 // TODO:
                 this.renderer.renderables = this.renderer.renderables.filter(r => r !== this);
+            }
+
+            if(this.buffers) {
+                for(const key in this.buffers) {
+                    const buffer = this.buffers[key];
+                    if(buffer && typeof buffer.destroy === "function") {
+                        buffer.destroy();
+                    }
+                    this.buffers[key] = null;
+                }
+                this.buffers = null;
             }
 
             if(this.vao) {
@@ -1443,8 +1520,15 @@ void main() {
             const texture = gl.createTexture();
             gl.bindTexture(gl.TEXTURE_2D, texture);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.image);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+            if((this.atlas.type === "softmask" || this.atlas.type === "hardmask") && this.options.nearestFilter) {
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+            } else {
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+            }
+
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
             gl.bindTexture(gl.TEXTURE_2D, null);
@@ -1501,10 +1585,10 @@ void main() {
         constructor(options = {}) {
             super({
                 fragment: fragmentsByType[options.type || "msdf"] || msdfFragment,
-                vertex: msdfVertex,
+                vertex: fontVertex,
                 uniforms: ["uProjection", "uOffset", "uTexture", "uPxRange", "uGamma"],
                 attributes: ["i_pos", "i_size", "i_weight", "i_style", "i_uvRect", "i_color", "glyphDepth"],
-                bindVAO: true,
+                vao: true,
                 ...options
             });
 
@@ -2085,16 +2169,6 @@ void main() {
      * It tracks dirty regions and only updating those regions when necessary.
      */
     class WebGLBuffer {
-        static U8  = Uint8Array;
-        static U16 = Uint16Array;
-        static U32 = Uint32Array;
-        static F16 = Float32Array;
-        static F32 = Float32Array;
-        static F64 = Float64Array;
-        static I8  = Int8Array;
-        static I16 = Int16Array;
-        static I32 = Int32Array;
-
         constructor(renderer, data, cellSize = 1, usage) {
             if(!(renderer instanceof WebGLRenderer)) {
                 throw new Error("GPUBuffer constructor expects a WebGLRenderer instance as the first argument.");
@@ -2106,7 +2180,7 @@ void main() {
             if(this.isInt || this.isUInt || data instanceof Float32Array || data instanceof Float64Array) {
                 this.data = data;
             } else if(data instanceof ArrayBuffer || typeof data === 'number' || data instanceof Array) {
-                this.data = new this.constructor.F32(data);
+                this.data = new Float32Array(data);
             } else {
                 throw new Error("GPUBuffer constructor expects a typed array constructor, an ArrayBuffer, a number (size), or an array as the second argument.");
             }
@@ -2124,8 +2198,8 @@ void main() {
             this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffer);
             this.gl.bufferData(this.gl.ARRAY_BUFFER, this.data.byteLength, this.usage);
 
-            this.__lowestDirty = 0;
-            this.__highestDirty = this.data.length;
+            this.lowestDirty = 0;
+            this.highestDirty = this.data.length;
 
             renderer.once('destroy', this.__parentDestroyed = () => this.delete());
         }
@@ -2140,7 +2214,18 @@ void main() {
             }
 
             if(typeof type !== 'number') {
-                type = this.isInt? this.gl.INT : this.isUInt? this.gl.UNSIGNED_INT : this.gl.FLOAT;
+                switch(this.data.constructor) {
+                    case Uint8Array:    type = this.gl.UNSIGNED_BYTE; break;
+                    case Uint16Array:   type = this.gl.UNSIGNED_SHORT; break;
+                    case Uint32Array:   type = this.gl.UNSIGNED_INT; break;
+                    case Int8Array:     type = this.gl.BYTE; break;
+                    case Int16Array:    type = this.gl.SHORT; break;
+                    case Int32Array:    type = this.gl.INT; break;
+                    case Float32Array:  type = this.gl.FLOAT; break;
+                    case Float64Array:  throw new Error("WebGL does not support Float64Array for vertex attributes.");
+                    default:
+                        throw new Error("bindToAttribute could not determine the correct WebGL type for the provided data. Please specify the 'type' parameter explicitly.");
+                }
             }
 
             this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffer);
@@ -2148,7 +2233,6 @@ void main() {
 
             // while (this.gl.getError() !== this.gl.NO_ERROR) {}
             if((this.isInt || this.isUInt) && normalized === false) {
-                console.log(location, size, type, normalized, stride, offset, divisor);
                 this.gl.vertexAttribIPointer(location, size, type, stride, offset);
             } else {
                 this.gl.vertexAttribPointer(location, size, type, normalized, stride, offset);
@@ -2170,6 +2254,10 @@ void main() {
         /**
          * Sets a value in the buffer at the specified index and marks the region as dirty for updating.
          * Does nothing if the value is the same, so skipping updates if the value hasn't changed.
+         * 
+         * This method tracks and compares the dirty range for you, guaranteeing minimal GPU updates, but also has extra CPU overhead per set.
+         * If you do a lot of writes and want to track manually, you can set the value directly in the `data` array and then call `update()` with the range you want to update or set lowestDirty and highestDirty.
+         * 
          * @param {*} at The index in the buffer to set the value at.
          * @param {*} value The value to set at the specified index.
          * @returns {void}
@@ -2179,8 +2267,8 @@ void main() {
         set(at, value) {
             if(this.data[at] === value) return;
             this.data[at] = value;
-            this.__lowestDirty = Math.min(this.__lowestDirty, at);
-            this.__highestDirty = Math.max(this.__highestDirty, at + 1);
+            if (at < this.lowestDirty) this.lowestDirty = at;
+            if (at + 1 > this.highestDirty) this.highestDirty = at + 1;
         }
 
         bind() {
@@ -2202,13 +2290,13 @@ void main() {
                 from = 0;
                 to = this.data.length;
             } else if(from === undefined && to === undefined) {
-                from = this.__lowestDirty;
-                to = this.__highestDirty;
+                from = this.lowestDirty;
+                to = this.highestDirty;
             }
 
             if(from >= to) return;
 
-            // console.log("Updating buffer from", from, "to", to);
+            console.log("Updating buffer from", from, "to", to);
 
             this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffer);
 
@@ -2219,28 +2307,60 @@ void main() {
                 this.gl.bufferSubData(this.gl.ARRAY_BUFFER, from * this.byteSize, subData);
             }
 
-            this.__lowestDirty = this.data.length;
-            this.__highestDirty = 0;
+            this.lowestDirty = this.data.length;
+            this.highestDirty = 0;
         }
 
-        resize(newSize) {
+        /**
+         * Resize the buffer to a new size. This will create a new typed array and copy the existing data to it.
+         * @param {*} newSize - The new size of the buffer. Must be a positive integer.
+         * @param {boolean} keepData - Whether to keep the existing data when resizing or start with an empty buffer.
+         * @returns {void}
+         * 
+         * Warning: This method will invalidate existing references to the old data array.
+         * Also, this is an expensive operation, use only if absolutely necessary, never use this as a way to change the buffer size dynamically (eg. for instancing you can simply choose how many instances to render without resizing the buffer).
+         */
+        resize(newSize, keepData = true) {
             if(newSize <= 0) {
                 throw new Error("resize expects a positive integer as the new size.");
             }
 
-            const newData = new this.constructor.F32(newSize);
-            newData.set(this.data.subarray(0, Math.min(this.data.length, newSize)));
+            const newData = new this.data.constructor(newSize);
+            if(keepData) {
+                newData.set(this.data.subarray(0, Math.min(this.data.length, newSize)));
+            }
+
             this.data = newData;
 
             this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffer);
             this.gl.bufferData(this.gl.ARRAY_BUFFER, this.data.byteLength, this.usage);
 
-            this.__lowestDirty = 0;
-            this.__highestDirty = this.data.length;
+            this.lowestDirty = 0;
+            this.highestDirty = this.data.length;
+        }
+
+        resizeCells(newCellCount, keepData = true) {
+            if(newCellCount <= 0) {
+                throw new Error("resizeCells expects a positive integer as the new cell count.");
+            }
+
+            const newSize = newCellCount * this.cellSize;
+            this.resize(newSize, keepData);
+        }
+
+        doubleSize(keepData = true) {
+            const newSize = this.data.length * 2;
+            this.resize(newSize, keepData);
+        }
+
+        clear() {
+            this.data.fill(0);
+            this.lowestDirty = 0;
+            this.highestDirty = this.data.length;
         }
 
         replace(newData) {
-            if(!(newData instanceof this.constructor.F32)) {
+            if(!(newData instanceof this.data.constructor)) {
                 throw new Error("replace expects a typed array of the same type as the original data.");
             }
 
@@ -2249,8 +2369,8 @@ void main() {
             this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffer);
             this.gl.bufferData(this.gl.ARRAY_BUFFER, this.data.byteLength, this.usage);
 
-            this.__lowestDirty = 0;
-            this.__highestDirty = this.data.length;
+            this.lowestDirty = 0;
+            this.highestDirty = this.data.length;
         }
 
         delete() {
@@ -2265,8 +2385,8 @@ void main() {
 
             this.gl = null;
             this.renderer = null;
-            this.__lowestDirty = 0;
-            this.__highestDirty = 0;
+            this.lowestDirty = 0;
+            this.highestDirty = 0;
             this.byteSize = 0;
             this.cellSize = 0;
             this.instanceSize = 0;
@@ -2331,7 +2451,7 @@ void main() {
 
         // Shader presets
         shaders: {
-            msdfVertex,
+            msdfVertex: fontVertex,
             msdfFragment,
             mtsdfFragment,
 

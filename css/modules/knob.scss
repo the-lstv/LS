@@ -140,12 +140,12 @@ ls-knob[preset=numeric] {
 
     &:hover::after, &.is-dragging::after {
         border-top-color: var(--elevate-3);
-        bottom: 6px;
+        bottom: 4px;
     }
 
     &:hover::before, &.is-dragging::before {
         border-bottom-color: var(--elevate-3);
-        top: 5px;
+        top: 4px;
     }
 
     .ls-knob-stator {

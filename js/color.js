@@ -1387,18 +1387,23 @@ LS.Color = class Color {
         this.setAccent(color);
     }
 
-    static generate(r, g, b) {
+    static generate(r, g, b, hueShift = false) {
         const color = (r instanceof Color)? r.clone(): new Color(r, g, b);
         let style = '';
 
         // Cache HSL once
-        const hsl = color.getHSL();
-        const h = hsl[0];
+        let hsl = color.getHSL();
+        let h = hsl[0];
         const s = hsl[1];
         const sat = s * 0.12;
 
         // Accents: 10..90 and 35, 45, 55, 95
         for(let i = 1; i <= 9; i++){
+            if(hueShift) {
+                h += 100 / 9;
+                if(h > 360) h -= 360;
+            }
+
             const v = i * 10;
             color.setHSL(h, s, v);
             style += `--accent-${v}:${color.hex};`;
@@ -1418,10 +1423,15 @@ LS.Color = class Color {
 
         // Bases: 10..90 and 15..95
         for(let i = 1; i <= 9; i++){
+            if(hueShift) {
+                h += 100 / 9;
+                if(h > 360) h -= 360;
+            }
+
             const v = i * 10;
             const tone = color.setHSL(h, sat, v).hex;
             const midTone = color.setHSL(h, sat, v + 5).hex;
-            
+
             style += `--base-${v}:${tone};--base-${v+5}:${midTone};`;
         }
 
@@ -1565,8 +1575,8 @@ LS.Color = class Color {
 
     static getAccentColorValueOf(element, target) {
         const name = element.getAttribute("ls-accent");
-        const level = (name === "yellow" || name === "orange") ? "10" : "40";
-        return LS.Color.parse(getComputedStyle(element).getPropertyValue("--accent-" + level), null, null, null, target);
+        // const level = (name === "yellow" || name === "orange") ? "10" : "40";
+        return LS.Color.parse(getComputedStyle(element).getPropertyValue("--accent-40"), null, null, null, target);
     }
 
     /**

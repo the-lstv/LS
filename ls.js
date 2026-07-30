@@ -1982,8 +1982,8 @@
              * @param {Function} options.transformBounds Optional function to apply transformations to the bounds position after it is calculated. Receives the bounds rectangle {x, y, width, height} and should return a new rectangle object.
              * @param {boolean} options.alwaysRecalculateBounds Whether to recalculate the bounds rectangle on every move event. Default is false (only calculated on start).
              * @param {boolean} options.edgeScroll Whether to enable edge scrolling when the pointer is near the edge of the bounds rectangle. Default is false.
-             * @param {number} options.edgeScrollMargin Margin in pixels from the edge of the bounds rectangle to start edge scrolling. Default is 32.
-             * @param {number} options.edgeScrollSpeed Max speed of edge scrolling in pixels per frame. Default is 10.
+             * @param {number} options.edgeScrollMargin Margin in pixels from the edge of the bounds rectangle to start edge scrolling.
+             * @param {number} options.edgeScrollSpeed Max speed of edge scrolling in pixels per frame.
              * @param {string} options.cursor CSS cursor to use while dragging. Default is "grabbing". Can be changed by setting the `cursor` property of the TouchHandle instance at any time.
              * @param {string} options.exclude CSS selector to exclude certain elements from starting the drag. If the event target matches this selector, the drag will not start.
              * @param {boolean} options.detached Whether to start detached (not attached to any element). Default is false.
@@ -2438,35 +2438,44 @@
                     if (!this.edgeScroll || !this.boundingRect) return;
 
                     const margin = this.options.edgeScrollMargin || 24;
-                    const speed = this.options.edgeScrollSpeed   || 16;
+                    const speed = this.options.edgeScrollSpeed || 12;
+                    const curve = this.options.edgeScrollCurve || 1.35;
+
+                    const left = this.boundingRect.x;
+                    const top = this.boundingRect.y;
+                    const right = left + this.boundingRect.width;
+                    const bottom = top + this.boundingRect.height;
+
+                    const edgeValue = (distance, sign) => {
+                        const t = Math.max(0, distance / margin);
+                        return sign * Math.round(speed * Math.pow(t, curve));
+                    };
 
                     let scrollX = 0;
                     let scrollY = 0;
 
-                    const right = this.boundingRect.x + this.boundingRect.width;
-                    const bottom = this.boundingRect.y + this.boundingRect.height;
-
-                    if (this._eventData.x < this.boundingRect.x + margin) {
-                        scrollX = -Math.round(speed * (1 - (this._eventData.x - this.boundingRect.x) / margin));
+                    if (this._eventData.x < left + margin) {
+                        scrollX = edgeValue(left + margin - this._eventData.x, -1);
                     } else if (this._eventData.x > right - margin) {
-                        scrollX = Math.round(speed * (1 - (right - this._eventData.x) / margin));
+                        scrollX = edgeValue(this._eventData.x - (right - margin), 1);
                     }
 
-                    if (this._eventData.y < this.boundingRect.y + margin) {
-                        scrollY = -Math.round(speed * (1 - (this._eventData.y - this.boundingRect.y) / margin));
+                    if (this._eventData.y < top + margin) {
+                        scrollY = edgeValue(top + margin - this._eventData.y, -1);
                     } else if (this._eventData.y > bottom - margin) {
-                        scrollY = Math.round(speed * (1 - (bottom - this._eventData.y) / margin));
+                        scrollY = edgeValue(this._eventData.y - (bottom - margin), 1);
                     }
 
-                    scrollX = Math.max(-speed, Math.min(scrollX, speed));
-                    scrollY = Math.max(-speed, Math.min(scrollY, speed));
+                    const maxSpeed = speed * 1.5;
+                    scrollX = Math.max(-maxSpeed, Math.min(maxSpeed, scrollX));
+                    scrollY = Math.max(-maxSpeed, Math.min(maxSpeed, scrollY));
 
                     this._eventData.scrollDeltaX = scrollX;
                     this._eventData.scrollDeltaY = scrollY;
 
-                    if(scrollX !== 0 || scrollY !== 0) {
+                    if (scrollX !== 0 || scrollY !== 0) {
                         this.quickEmit("scroll", scrollX, scrollY, this._eventData);
-                        if(this.options.onScroll) this.options.onScroll(scrollX, scrollY, this._eventData);
+                        if (this.options.onScroll) this.options.onScroll(scrollX, scrollY, this._eventData);
                     }
                 }
 

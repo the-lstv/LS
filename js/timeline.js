@@ -32,8 +32,14 @@
  */
 
 (() => {
-    // For now there's a limit since all of those are pre-instanced and take that much memory
-    const MAX_RENDER_ITEMS = 2000000;
+    // For now there's a limit since all of those are pre-instanced and take that much memory and we don't resize
+    // Later could (1) use multiple drawcalls or idk
+    // Simply, as of now if you exceed this many items, new items won't be shown
+    // 20 bytes per instance, so 512000 items = 10.24 MB of data, now we aren't uploading the whole thing each time, but still
+    // Eventually this library needs a more clever change tracker too as currently we compare each cell, but we could instead do some magic to calculate it
+    const MAX_RENDER_ITEMS = 512000;
+
+    // This likely won't be reached but is a fallback in case the accent is not available
     const DEFAULT_TILE_COLOR = [104, 104, 104];
 
     function num(value, fallback = 0) {
@@ -43,7 +49,6 @@
 
     LS.LoadComponent(class TimelineGL extends LS.Component {
         /**
-         * 
          * Timeline item data structure
          * @typedef {Object} TimelineItem
          * @property {number} start - Start time of the item
@@ -101,7 +106,7 @@
             zoomY: 1,
             scrollX: 0,
             scrollY: 0,
-            minZoom: 0.00000005,
+            minZoom: 0.0005,
             maxZoom: 1,
             minZoomY: 0.5,
             maxZoomY: 5,
@@ -222,7 +227,6 @@
             });
 
             this.container.append(this.renderer.canvas, this.playerHead);
-            this.renderer.canvas.classList.add("level-1");
 
             // -- Text engine for labels
             this.textEngine = this.options.textEngine || new LS.GL.WebGLTextEngine({
@@ -273,8 +277,8 @@
                 renderables: [],
             }
 
-            const lContrast = 0.6;
-            const dContrast = 1.0;
+            const lContrast = 0.4;
+            const dContrast = 1.5;
 
             // Wait for the font to load before enabling rendering
             this.textEngine.loadPromise.then(() => {
@@ -290,13 +294,17 @@
 
                 // Set initial contrast based on the current theme
                 this.contrast = LS.Color.theme === "dark"? dContrast: lContrast;
-
+                this.#updateBackgroundColor();
+                
                 this.addExternalEventListener(LS.Color, "theme-changed", (theme) => {
+                    this.#updateBackgroundColor();
                     this.contrast = theme === "dark"? dContrast: lContrast;
                     this.renderer.render();
                 });
-
+                
                 this.addExternalEventListener(LS.Color, "accent-changed", (theme) => {
+                    this.#updateBackgroundColor();
+
                     // Default color changed
                     if(this.items.length > 0) {
                         this.__rerenderItems = true;
@@ -312,6 +320,10 @@
             this.loadPromise = this.textEngine.loadPromise;
 
             window.timeline = this;
+        }
+
+        #updateBackgroundColor() {
+            this.backgroundColor = LS.Color.parse(getComputedStyle(this.renderer.canvas).backgroundColor);
         }
 
         /**
@@ -1032,7 +1044,7 @@
             this.gridBackground = this.renderer.createRenderable({
                 vertex: `#version 300 es
 
-out vec2 vUV;
+out vec2 uv;
 
 uniform vec2 resolution;
 
@@ -1044,7 +1056,8 @@ const vec2 positions[3] = vec2[](
 
 void main() {
     vec2 pos = positions[gl_VertexID];
-    vUV = pos * 0.5 + 0.5;
+    uv = (pos * 0.5 + 0.5) * resolution;
+    uv.y = resolution.y - uv.y;
     gl_Position = vec4(pos, 0.0, 1.0);
 }`,
                 fragment: this.options.backgroundFragment?? `#version 300 es
@@ -1055,111 +1068,112 @@ uniform vec2 resolution;
 uniform vec2 zoom;
 uniform vec2 timeSignature;
 uniform vec2 gridSize;
-uniform float realColumnWidth;
 uniform float contrast;
 
 uniform vec2 selectionRange;
 uniform uvec3 accentColor;
+uniform uvec3 backgroundColor;
 
 uniform float sidebarWidth;
 uniform float labelBarHeight;
 
-in vec2 vUV;
+in vec2 uv;
 out vec4 fragColor;
 
-void main() {
-    // Here we have the coordinates of the current pixel
-    vec2 uv = vUV * resolution;
+void applyElevation(vec3 baseColor, float elevation) {
+    if(elevation < 1.0) {
+        fragColor = vec4(mix(baseColor, vec3(0.0), (1.0 - elevation) * contrast), 1.0);
+    } else {
+        fragColor = vec4(mix(baseColor, vec3(1.0), (elevation - 1.0) * contrast), 1.0);
+    }
+}
 
-    // Flip the y-axis so that 0,0 is at the top left
-    uv.y = resolution.y - uv.y;
+void main() {
+    const float borderWidth = 1.0;
 
     float offsetY = uv.y + offset.y;
     float offsetX = uv.x + offset.x;
     float rowHeight = gridSize.y * zoom.y;
     float columnWidth = gridSize.x * zoom.x;
 
-    if(uv.x < sidebarWidth) {
-        if(uv.x > sidebarWidth - 2.0) {
-            fragColor = vec4(vec3(0.0), 0.8 * contrast);
-            return;
-        }
+    vec3 backgroundColor = vec3(backgroundColor) / 255.0;
+    vec3 accentColor = mix(vec3(accentColor) / 255.0, backgroundColor, 0.2);
 
-        float mixFactor = 1.0;
-        if(uv.x > sidebarWidth - 4.0) {
-            mixFactor = 1.0 - (uv.x - (sidebarWidth - 4.0)) * 0.25;
-        }
+    bool isSelected = uv.x >= selectionRange.x && uv.x <= selectionRange.y;
 
-        float rowColorY = 0.2 + ((mod(offsetY, rowHeight) * (1.0 / rowHeight)) * (0.2 * contrast)) * mixFactor;
-        fragColor = vec4(0.0, 0.0, 0.0, rowColorY);
+    if(uv.y < labelBarHeight) {
+        fragColor = vec4(mix(isSelected? accentColor: backgroundColor, vec3(1.0), ((uv.y > labelBarHeight - borderWidth || (uv.x < sidebarWidth && uv.x > sidebarWidth - borderWidth))? 0.2: 0.0) * contrast), 1.0);
         return;
     }
 
-    vec3 baseColor = vec3(0.0);
-    if(uv.x >= selectionRange.x && uv.x <= selectionRange.y) {
-        baseColor = vec3(accentColor) / 255.0;
-    }
+    float elevation = 1.0;
 
-    float alpha = 1.0;
-
-    if(uv.y < labelBarHeight) {
-        if(uv.y > labelBarHeight - 2.0) {
-            // Border
-            baseColor = mix(baseColor, vec3(1.0), 0.2);
+    if(uv.x < sidebarWidth) {
+        if(uv.x > sidebarWidth - borderWidth) {
+            applyElevation(backgroundColor, 1.2);
+            return;
         }
 
-        // // Draw the top bar area
-        // fragColor = vec4(vec3(0.05), 0.8 * contrast);
-        // return;
-    }
-
-    // Lines
-    if(mod(offsetY, rowHeight) < 1.0 || uv.x < sidebarWidth + 1.0) {
-        float keyHeight = rowHeight;
-        float posY = offsetY * (1.0 / keyHeight);
-        float gIndexY = floor(posY);
-        float note = floor(mod(gIndexY, 12.0));
-        float factor = 0.6;
-
-        if(note == 0.0 || note == 7.0) {
-            factor = 1.0;
+        if(uv.x > sidebarWidth - 4.0) {
+            elevation = 0.8;
         }
 
-        alpha = factor;
+        elevation -= ((mod(offsetY, rowHeight) * (1.0 / rowHeight)) * 0.2) + 0.1;
+
+        applyElevation(backgroundColor, elevation + 0.15);
+        return;
     }
 
-    if(mod(offsetX, columnWidth) < 1.0 || uv.x < sidebarWidth + 1.0) {
-        float factor = 0.6;
-
-        // if we are on a bar line, make it more visible
-        if(mod(offsetX, columnWidth * timeSignature.x) < 1.0) {
-            factor = 1.2;
-        }
-            
-        alpha = factor;
+    vec3 baseColor = backgroundColor;
+    if(isSelected) {
+        baseColor = mix(baseColor, accentColor, 0.5);
     }
 
-    // Segments
+    // TODO: account properly
     float segmentHighlight = 0.0;
-    if(realColumnWidth * zoom.x > 0.5) {
-        float cell = offsetX * 1.0 / (64.0 * realColumnWidth * zoom.x);
-        segmentHighlight = step(0.5, fract(cell)) * 0.45;
+    float segmentWidth = ((1024.0 * 2.0) * timeSignature.x) * zoom.x;
+    if(segmentWidth > 1.0) {
+        float cell = offsetX * 1.0 / (segmentWidth);
+        float factor = segmentWidth > 32.0? 1.0: segmentWidth * (1.0/32.0);
+        segmentHighlight = step(0.5, fract(cell)) * 0.2 * factor;
     }
+
+    elevation -= segmentHighlight;
 
     // Rows
     float row = offsetY * 1.0 / (2.0 * rowHeight);
-    float rowHighlight = step(0.5, fract(row)) * (segmentHighlight > 0.0? 0.2: 0.6);
+    elevation -= step(0.5, fract(row)) * (segmentHighlight > 0.0? 0.1: 0.2);
 
-    alpha *= 0.2 + segmentHighlight + rowHighlight;
+    // Lines
+    if(mod(offsetY, rowHeight) < 1.0 || uv.x < sidebarWidth + 1.0) {
+        // float posY = offsetY * (1.0 / rowHeight);
+        // float gIndexY = floor(posY);
+        // float note = floor(mod(gIndexY, 12.0));
 
-    fragColor = vec4(baseColor, alpha * contrast);
-}
-                `,
+        elevation = 0.5;
 
-                uniforms: ["offset", "resolution", "zoom", "timeSignature", "gridSize", "realColumnWidth", "contrast", "sidebarWidth", "labelBarHeight", "selectionRange", "accentColor"],
-                attributes: [],
+        // float factor = 0.6;
 
-                bindVAO: true,
+        // if(note == 0.0 || note == 7.0) {
+        //     factor = 1.0;
+        // }
+
+        // elevation = factor;
+    }
+
+    if(mod(offsetX, columnWidth) < 1.0 || uv.x < sidebarWidth + 1.0) {
+        elevation = 0.6;
+
+        // if we are on a bar line, make it more visible
+        if(mod(offsetX, columnWidth * timeSignature.x) < 1.0) {
+            elevation = 0.1;
+        }
+    }
+
+    applyElevation(baseColor, elevation);
+}`,
+
+                uniforms: ["offset", "resolution", "zoom", "timeSignature", "gridSize", "contrast", "sidebarWidth", "labelBarHeight", "selectionRange", "accentColor", "backgroundColor"],
 
                 onRender(delta, now, gl, cw, ch, updatedDimensions, uniforms, attributes) {
                     let headPos = (self.#seek * self.#zoomX) - self.#scrollX + self.#sidebarWidth;
@@ -1174,7 +1188,6 @@ void main() {
                     gl.uniform2f(uniforms.zoom, self.#zoomX, self.#zoomY);
                     gl.uniform2f(uniforms.timeSignature, self.timeSignature.x, self.timeSignature.y);
                     gl.uniform2f(uniforms.gridSize, self.columnWidth(), self.rowHeight);
-                    gl.uniform1f(uniforms.realColumnWidth, 1.0);
                     gl.uniform1f(uniforms.contrast, self.contrast?? 1.0);
 
                     const selectionStart = self.selectionRange[0] * self.#zoomX - self.#scrollX + self.#sidebarWidth;
@@ -1183,6 +1196,9 @@ void main() {
 
                     const color = LS.Color.currentAccent || DEFAULT_TILE_COLOR;
                     gl.uniform3ui(uniforms.accentColor, color[0], color[1], color[2]);
+
+                    const backgroundColor = self.backgroundColor;
+                    gl.uniform3ui(uniforms.backgroundColor, backgroundColor[0], backgroundColor[1], backgroundColor[2]);
 
                     gl.uniform1f(uniforms.sidebarWidth, self.#sidebarWidth);
                     gl.uniform1f(uniforms.labelBarHeight, self.#labelBarHeight);
@@ -1195,7 +1211,6 @@ void main() {
                 vertex: `#version 300 es
 
 in float a_size;
-in float a_state;
 in vec2 a_position;
 in vec3 a_color;
 
@@ -1206,10 +1221,12 @@ uniform vec2 offset;
 uniform vec2 resolution;
 uniform vec2 zoom;
 
-out float v_size;
+out vec2 size;
 out vec3 v_color;
 out vec2 v_uv;
-out float v_state;
+
+in uint a_state;
+flat out uint v_state;
 
 const vec2 positions[6] = vec2[](
     vec2(-0.1, -0.1),
@@ -1225,6 +1242,7 @@ void main() {
 
     // Apply zoom and offset
     pos = (pos * zoom) - offset;
+    pos.y += 1.0;
 
     // Convert to normalized device coordinates
     vec2 ndc = (pos / resolution) * 2.0 - 1.0;
@@ -1233,35 +1251,27 @@ void main() {
     gl_Position = vec4(ndc, depth, 1.0);
 
     v_color = a_color;
-    v_size = a_size;
     v_state = a_state;
 
+    size = vec2(a_size, rowHeight) * zoom;
     v_uv = positions[gl_VertexID];
 }`,
                 fragment: this.options.itemFragment?? `#version 300 es
 precision highp float;
 
-in float v_size;
+in vec2 size;
 in vec3 v_color;
 in vec2 v_uv;
 
-in float v_state;
+flat in uint v_state;
 
 out vec4 fragColor;
 
-uniform vec2 resolution;
-uniform vec2 zoom;
-uniform vec2 offset;
-uniform float rowHeight;
-
-uniform float sidebarWidth;
-
 ${LS.GL.utils.roundedBoxSDF}
 
-void main() {
-    // Apply non-uniform zoom
-    vec2 size = vec2(v_size, rowHeight) * zoom;
+// TODO: theres too much branching in ts
 
+void main() {
     // Base color
     vec3 color = v_color.rgb;
     vec2 pos = v_uv * size;
@@ -1271,13 +1281,20 @@ void main() {
 
     float alpha = 1.0 - smoothstep(0.0, aa * 0.5, d);
 
+    // Resize handles
     if(pos.x < 6.0 || pos.x > size.x - 6.0) {
         // Multiply by alpha here to clip for shadow/outline
         color = mix(color, vec3(1.0), 0.3 * alpha);
     }
 
-    // Borders & resize handles
-    if(v_state == 1.0) {
+    // Has content
+    if((v_state & (1u << 1)) == 0u) {
+        color = pos.y < 20.0? color: vec3(0.0);
+        alpha = pos.y < 20.0? alpha: alpha * 0.6;
+    }
+
+    // Is selected
+    if((v_state & (1u << 0)) != 0u) {
         color = mix(color, vec3(1.0), 0.2 * alpha);
 
         float outlineWidth = 2.0;
@@ -1322,21 +1339,15 @@ void main() {
     fragColor = vec4(color, alpha);
 }`,
 
-                uniforms: ["offset", "resolution", "zoom", "sidebarWidth", "rowHeight"],
-                attributes: ["a_position", "a_size", "a_color", "a_state", "depth"],
+                uniforms: ["offset", "resolution", "zoom", "rowHeight"],
 
-                bindVAO: true,
-
-                onSetup(gl, program, uniforms, attributes) {
-                    this.positionBuffer = this.createBufferForAttribute(attributes.a_position, MAX_RENDER_ITEMS, 2);
-                    this.sizeBuffer = this.createBufferForAttribute(attributes.a_size, MAX_RENDER_ITEMS, 1);
-                    this.colorBuffer = this.createBufferForAttribute(attributes.a_color, new Uint8Array(MAX_RENDER_ITEMS * 3), 3, gl.UNSIGNED_BYTE, true);
-                    // this.depthBuffer = this.createBufferForAttribute(attributes.depth, MAX_RENDER_ITEMS, 1);
-
-                    // I genuinely tried for 4 fucking hours to get this to work with a Uint8Array but webgl just decides to do random bullshit and i don't have the nerves for it
-                    // So sorry not sorry we gonna waste 4 bytes for a boolean
-                    // this.stateBuffer = this.createBufferForAttribute(attributes.a_state,       new Uint8Array(MAX_RENDER_ITEMS),     1);
-                    this.stateBuffer = this.createBufferForAttribute(attributes.a_state, MAX_RENDER_ITEMS, 1);
+                vao: true,
+                bind: {
+                    a_position: { cellSize: 2, type: "float", size: MAX_RENDER_ITEMS },
+                    a_size:     { cellSize: 1, type: "float", size: MAX_RENDER_ITEMS },
+                    a_color:    { cellSize: 3, type: "ubyte", size: MAX_RENDER_ITEMS, normalized: true },
+                    a_state:    { cellSize: 1, type: "ubyte", size: MAX_RENDER_ITEMS },
+                    depth:      { cellSize: 1, type: "float", size: MAX_RENDER_ITEMS }
                 },
 
                 onRender(delta, now, gl, cw, ch, updatedDimensions, uniforms, attributes) {
@@ -1422,11 +1433,11 @@ void main() {
 
                         if (j > 0) {
 
-                            this.positionBuffer.update();
-                            this.sizeBuffer.update();
-                            this.colorBuffer.update();
-                            this.stateBuffer.update();
-                            // this.depthBuffer.update();
+                            this.buffers.a_position.update();
+                            this.buffers.a_size.update();
+                            this.buffers.a_color.update();
+                            this.buffers.a_state.update();
+                            // this.buffers.depth.update();
                         }
 
                         this.__visibleItems = j;
@@ -1438,8 +1449,7 @@ void main() {
                         gl.uniform2f(uniforms.offset, scrollX - self.#sidebarWidth, scrollY - self.#labelBarHeight);
                         gl.uniform2f(uniforms.zoom, zoomX, zoomY);
                         gl.uniform2f(uniforms.resolution, cw, ch);
-                        gl.uniform1f(uniforms.sidebarWidth, self.#sidebarWidth);
-                        gl.uniform1f(uniforms.rowHeight, self.rowHeight);
+                        gl.uniform1f(uniforms.rowHeight, self.rowHeight - (1 / zoomY));
 
                         // fuck webgl nothing ever works
                         // it's the same cycle: 1) try to implement the simplest thing in existence that should take 2 seconds at most, 2) absolutely nothing works and shit that worked flawlessly is gone, 3) 8 hours in just give up
@@ -1456,6 +1466,8 @@ void main() {
 
                         self.renderer.endScissor();
                     }
+
+                    const textColor = self.contrast < 0.8? 0: 200;
 
                     // -- Redraw bar labels (markers)
                     if (movedX) {
@@ -1492,7 +1504,7 @@ void main() {
                                     length,
                                     pos - scrollX + self.#sidebarWidth,
                                     y,
-                                    255, 255, 255, 255
+                                    textColor, textColor, textColor, 255
                                 );
 
                                 reserved += length;
@@ -1529,7 +1541,7 @@ void main() {
                                 const row = i - preBuffer + Math.floor(scrollY / screenRowHeight);
 
                                 if (row < 0 || (self.maxRows > 0 && row >= self.maxRows) || row % labelStep !== 0) continue;
-                                let [trackLabel, xOffset, yOffset, align, padding, r, g, b, a] = self.getRowLabel?.(row) ?? self.options.getRowLabel?.(row) ?? [`Track ${row}`, 0, 0, 2, 10, 255, 255, 255, 255];
+                                let [trackLabel, xOffset, yOffset, align, padding, r, g, b, a] = self.getRowLabel?.(row) ?? self.options.getRowLabel?.(row) ?? [`Track ${row}`, 0, 0, 2, 10, textColor, textColor, textColor, 255];
                                 if(!trackLabel || typeof trackLabel !== "string") continue;
 
                                 const y =
@@ -1608,9 +1620,6 @@ void main() {
     fragColor = vec4(color, 0.2 * alpha);
 }`,
                 uniforms: ["uOffset", "uSize", "uResolution", "uColor"],
-                attributes: [],
-
-                bindVAO: true,
 
                 // i spent SO MUCH fucking time and nerves on this bullshit
                 onRender(delta, now, gl, cw, ch, updatedDimensions, uniforms, attributes) {
@@ -1662,11 +1671,12 @@ void main() {
                 return;
             }
 
-            const positionBuffer = this.itemsRenderable.positionBuffer;
-            const sizeBuffer = this.itemsRenderable.sizeBuffer;
-            const colorBuffer = this.itemsRenderable.colorBuffer;
-            const stateBuffer = this.itemsRenderable.stateBuffer;
-            const depthBuffer = this.itemsRenderable.depthBuffer;
+            const buffers = this.itemsRenderable.buffers;
+            const positionBuffer = buffers.a_position;
+            const sizeBuffer = buffers.a_size;
+            const colorBuffer = buffers.a_color;
+            const stateBuffer = buffers.a_state;
+            const depthBuffer = buffers.depth;
 
             positionBuffer.set(j * 2, item.start);
             positionBuffer.set(j * 2 + 1, item.row * this.rowHeight);
@@ -2016,10 +2026,10 @@ void main() {
                                 }
                             }
 
-                            this.focusedItem.duration = Math.max(1, unlockedSnap? 1: Math.min(snapDistance, initial[1]), end - this.focusedItem.start);
+                            this.resizeSelected(end - initial[0], false, this.__focusedItemIndex, false);
 
                             itemChanged = true;
-                            if(this.options.tooltipOnResize) {
+                            if(this.options.tooltipOnResize && this.selectedItems.length === 1) {
                                 const itemHWidth = (this.focusedItem.duration * this.#zoomX) * 0.5;
                                 LS.Tooltips.position(this.focusedItem.start * this.#zoomX - this.#scrollX + this.touchHandle.boundingRect.x + itemHWidth, (this.focusedItem.row * this.rowHeight * this.#zoomY) - this.#scrollY + this.touchHandle.boundingRect.y - 35);
                                 LS.Tooltips.show(`Start: ${this.formatMarker(this.focusedItem.start)}, Length: ${this.formatMarker(this.focusedItem.duration)}`);
@@ -2043,11 +2053,14 @@ void main() {
 
                             start = Math.max(0, Math.min(start, end - snapDistance));
 
-                            this.focusedItem.start = start;
-                            this.focusedItem.duration = Math.max(1, end - start);
+                            // this.focusedItem.start = start;
+                            // this.focusedItem.duration = Math.max(1, end - start);
+                            // this.focusedItem.duration = Math.max(1, unlockedSnap? 1: Math.min(snapDistance, initial[1]), end - this.focusedItem.start);
+                            this.resizeSelected(end - start, false, this.__focusedItemIndex, false);
+                            t
 
                             itemChanged = true;
-                            if(this.options.tooltipOnResize) {
+                            if(this.options.tooltipOnResize && this.selectedItems.length === 1) {
                                 const itemHWidth = (this.focusedItem.duration * this.#zoomX) * 0.5;
                                 LS.Tooltips.position(this.focusedItem.start * this.#zoomX - this.#scrollX + this.touchHandle.boundingRect.x + itemHWidth, (this.focusedItem.row * this.rowHeight * this.#zoomY) - this.#scrollY + this.touchHandle.boundingRect.y - 35);
                                 LS.Tooltips.show(`Start: ${this.formatMarker(this.focusedItem.start)}, Length: ${this.formatMarker(this.focusedItem.duration)}`);
