@@ -4,42 +4,46 @@
  * @version 1.0.1
  */
 
-LS.LoadComponent(class ImageCropper extends LS.Component {
+class ImageCropper extends LS.Component {
+    static { LS.register(this, { name: "ImageCropper", global: true }) }
+
+    DEFAULTS = LS.Util.staticDefaults({
+        width: 100,
+        height: 100,
+        styled: true,
+        inheritResolution: false,
+        animated: false,
+
+        shape: "rect", // "rect" | "circle"
+        rotation: 0,
+
+        minScale: 1,
+        maxScale: 3,
+        initialScale: 1,
+
+        finalWidth: null,
+        finalHeight: null,
+
+        outputType: "image/webp",
+        outputQuality: 0.92,
+
+        animatedOutputType: null,
+        animatedFps: 30,
+        videoBitsPerSecond: 1_500_000,
+        maxAnimatedLength: 30,
+
+        background: null,
+        createURL: false,
+        crossOrigin: null,
+
+        // Prevent huge canvases from killing the tab
+        maxOutputPixels: 16_777_216 // 4096 * 4096
+    });
+
     constructor(source, options = {}) {
         super();
 
-        this.options = LS.Util.defaults({
-            width: 100,
-            height: 100,
-            styled: true,
-            inheritResolution: false,
-            animated: false,
-
-            shape: "rect", // "rect" | "circle"
-            rotation: 0,
-
-            minScale: 1,
-            maxScale: 3,
-            initialScale: 1,
-
-            finalWidth: null,
-            finalHeight: null,
-
-            outputType: "image/webp",
-            outputQuality: 0.92,
-
-            animatedOutputType: null,
-            animatedFps: 30,
-            videoBitsPerSecond: 1_500_000,
-            maxAnimatedLength: 30,
-
-            background: null,
-            createURL: false,
-            crossOrigin: null,
-
-            // Prevent huge canvases from killing the tab
-            maxOutputPixels: 16_777_216 // 4096 * 4096
-        }, options);
+        this.options = this.constructor.DEFAULTS(options);
 
         this._validateOptions();
 
@@ -1202,7 +1206,11 @@ LS.LoadComponent(class ImageCropper extends LS.Component {
 
         this.flush();
     }
-}, { name: "ImageCropper", global: true });
+}
+
+if (typeof module !== "undefined" && module.exports) {
+    module.exports = ImageCropper;
+}
 
 
 // GIF Encoder

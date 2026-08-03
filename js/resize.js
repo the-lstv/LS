@@ -6,7 +6,9 @@
  * @version 1.0.0
  */
 
-LS.LoadComponent(class Resize extends LS.Component {
+class Resize extends LS.Component {
+    static { LS.register(this, { name: "Resize", singular: true, global: true }) }
+
     constructor(){
         super();
         this.targets = new WeakMap();
@@ -659,4 +661,8 @@ LS.LoadComponent(class Resize extends LS.Component {
     getTarget(element) {
         return this.targets.get(element) || null;
     }
-}, { name: "Resize", singular: true, global: true })
+}
+
+if (typeof module !== "undefined" && module.exports) {
+    module.exports = Resize;
+}

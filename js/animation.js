@@ -280,4 +280,8 @@
 
         transforms
     }, { name: "Animation", global: true });
+
+    if (typeof module !== "undefined" && module.exports) {
+        module.exports = LS.Animation;
+    }
 })();

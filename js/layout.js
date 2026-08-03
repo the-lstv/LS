@@ -5,7 +5,9 @@
  * @version 1.0
  */
 
-LS.LoadComponent(class Layout extends LS.Component {
+class Layout extends LS.Component {
+    static { LS.register(this, { name: "Layout", id: "ls-layout", global: true }) }
+
     constructor(options = {}) {
         super();
     }
@@ -19,8 +21,8 @@ LS.LoadComponent(class Layout extends LS.Component {
     destroy() {
         super.destroy();
     }
-}, { name: "Layout", id: "ls-layout", global: true });
+}
 
-/*
-
-*/
+if (typeof module !== "undefined" && module.exports) {
+    module.exports = Layout;
+}

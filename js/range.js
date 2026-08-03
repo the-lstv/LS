@@ -5,7 +5,9 @@
  * @license GPL-3.0
  */
 
-LS.LoadComponent(class Range extends LS.Component {
+class Range extends LS.Component {
+    static { LS.register(this, { name: "Range", global: true }) }
+
     static PRESET_PROGRESS = {
         slider: false,
         style: "ls-progress",
@@ -349,7 +351,7 @@ LS.LoadComponent(class Range extends LS.Component {
 
         super.destroy();
     }
-}, { global: true, name: "Range" });
+}
 
 customElements.define('ls-range', class LSRange extends HTMLElement {
     constructor() {
@@ -501,3 +503,7 @@ customElements.define('ls-range', class LSRange extends HTMLElement {
         }
     }
 });
+
+if (typeof module !== "undefined" && module.exports) {
+    module.exports = Range;
+}

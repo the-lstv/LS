@@ -1,4 +1,6 @@
-LS.LoadComponent(class Toast extends LS.Component {
+class Toast extends LS.Component {
+    static { LS.register(this, { name: "Toast", global: true }) }
+
     constructor(content, options = {}){
         super();
 
@@ -84,4 +86,8 @@ LS.LoadComponent(class Toast extends LS.Component {
         this.container.remove();
         this.openToasts.clear();
     }
-}, { global: true, name: "Toast" });
+}
+
+if (typeof module !== "undefined" && module.exports) {
+    module.exports = Toast;
+}

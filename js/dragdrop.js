@@ -10,8 +10,10 @@
  * @license GPL-3.0
  */
 
-LS.LoadComponent(class DragDrop extends LS.Component {
-    static DROP_TARGET_DEFAULTS = {
+class DragDrop extends LS.Component {
+    static { LS.register(this, { name: "DragDrop", global: true }) }
+
+    static DROP_TARGET_DEFAULTS = LS.Util.staticDefaults({
         id: null,
         outsideParent: false,
         relativeMouse: false,
@@ -39,7 +41,7 @@ LS.LoadComponent(class DragDrop extends LS.Component {
         tolerance: 5,
         swap: false,
         handle: null
-    };
+    });
 
     #handlers = new Map();
     #state = {
@@ -99,7 +101,7 @@ LS.LoadComponent(class DragDrop extends LS.Component {
      */
     constructor(options = {}){
         super();
-        this.options = LS.Util.defaults(this.constructor.DROP_TARGET_DEFAULTS, options);
+        this.options = this.constructor.DROP_TARGET_DEFAULTS(options);
         this.draggables = new Set();
         this.dropzones = new Set();
 
@@ -532,4 +534,8 @@ LS.LoadComponent(class DragDrop extends LS.Component {
         this.frameScheduler.cancel();
         this.frameScheduler = null;
     }
-}, { name: "DragDrop", global: true });
+}
+
+if (typeof module !== "undefined" && module.exports) {
+    module.exports = DragDrop;
+}

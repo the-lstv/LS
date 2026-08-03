@@ -1,4 +1,6 @@
-LS.LoadComponent(class Tooltips extends LS.Component {
+class Tooltips extends LS.Component {
+    static { LS.register(this, { name: "Tooltips", singular: true, global: true }) }
+
     /**
      * Global scan mode: Global event listeners are used to detect mouseenter/mouseleave events.
      * This causes more overhead when moving the mouse (each event is scanned for a possible matching tooltip even if there are none), but allows for tooltips
@@ -370,4 +372,8 @@ LS.LoadComponent(class Tooltips extends LS.Component {
         this.frameScheduler = null;
         super.destroy();
     }
-}, { global: true, singular: true, name: "Tooltips" });
+}
+
+if (typeof module !== "undefined" && module.exports) {
+    module.exports = Tooltips;
+}

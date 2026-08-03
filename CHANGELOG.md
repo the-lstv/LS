@@ -58,6 +58,7 @@ Major update (2026 release)!
 - No v5compat component will exist unlike v4compat, but this isn't a problem since the API differences aren't that major and it's mostly solved with aliases.
 - LS.Native is deprecated in favor of a future API
 - Removed LS.Color.all and LS.Color.randomAccent methods
+- Removed deprecated EventEmitter.alias method, now EventEmitter.aliasEvent
 - [state] attribute is now [data-ls-state]
 
 ### Version 5.4.0 (planned LTS)

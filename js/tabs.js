@@ -4,7 +4,9 @@
  * @author Lukas
  */
 
-LS.LoadComponent(class Tabs extends LS.Component {
+class Tabs extends LS.Component {
+    static { LS.register(this, { name: "Tabs", global: true }) }
+
     static defaults = LS.Util.staticDefaults({
         // Styles
         styled: true,
@@ -563,4 +565,8 @@ LS.LoadComponent(class Tabs extends LS.Component {
 
         super.destroy();
     }
-}, { name: 'Tabs', global: true });
+}
+
+if (typeof module !== "undefined" && module.exports) {
+    module.exports = Tabs;
+}

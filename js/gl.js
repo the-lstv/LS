@@ -330,37 +330,6 @@ void main() {
     }
 
     /**
-     * Creates an orthographic projection matrix.
-     * @param {*} out - The output matrix
-     * @param {*} left - The left clipping plane
-     * @param {*} right - The right clipping plane
-     * @param {*} bottom - The bottom clipping plane
-     * @param {*} top - The top clipping plane
-     * @param {*} near - The near clipping plane
-     * @param {*} far - The far clipping plane
-     * @returns The orthographic projection matrix
-     */
-    function ortho(out, left, right, bottom, top, near, far) {
-        out[0] = 2 / (right - left);
-        out[1] = 0;
-        out[2] = 0;
-        out[3] = 0;
-        out[4] = 0;
-        out[5] = 2 / (top - bottom);
-        out[6] = 0;
-        out[7] = 0;
-        out[8] = 0;
-        out[9] = 0;
-        out[10] = -2 / (far - near);
-        out[11] = 0;
-        out[12] = -(right + left) / (right - left);
-        out[13] = -(top + bottom) / (top - bottom);
-        out[14] = -(far + near) / (far - near);
-        out[15] = 1;
-        return out;
-    }
-
-    /**
      * A simple hash function
      * @param {string} str - The input string
      * @param {number} seed - An optional seed value
@@ -509,7 +478,7 @@ void main() {
             if (options.camera) {
                 this.activeCamera = options.camera;
             } else if (!this.activeCamera) {
-                this.activeCamera = new OrthographicCamera(0, this.width, this.height, 0, -1, 1);
+                this.activeCamera = new Camera(0, 0, this.width, this.height, 0, -1, 1);
             }
 
             if(options.resizeTo) {
@@ -610,12 +579,16 @@ void main() {
 
     /**
      * A WebGL renderer base class for handling graphics rendering.
-     * It should not be required directly.
+     * Note that due to the way WebGL is badly implemented in most browsers, you should use this *very* sparingly and always preffer reusing for multiple applications if you can and as much as you can, or you will hit limits and pretty major performance issues.
+     * To aid with this slightly, you can use VirtualWebGLRenderer instead, that internally recycles renderers.
      * @experimental
      */
     class WebGLRenderer extends Renderer {
-        constructor(options = {}) {
+        constructor(options = {}, recycle = false) {
             super(options);
+
+            // Base renderables
+            this.renderables = [];
 
             this.frameScheduler = this.addDestroyable(new LS.Util.FrameScheduler(this.tick.bind(this), { deltaTime: true, ...options?.frameScheduler }));
 
@@ -633,8 +606,15 @@ void main() {
             this.vertexShaders = new Map();
             this.fragmentShaders = new Map();
 
-            // Base renderables
-            this.renderables = [];
+            this.x = null;
+            this.y = null;
+            this.width = null;
+            this.height = null;
+
+            this.width = null;
+            this.height = null;
+
+            this.virtual = recycle;
 
             this.setOptions(options);
             if (options.init !== false) {
@@ -747,19 +727,19 @@ void main() {
             if(this.options.blockIfHidden && !this.isVisible()) return;
 
             const gl = this.gl;
-            const cw = this.width;
-            const ch = this.height;
+            const canvasWidth = this.width;
+            const canvasHeight = this.height;
 
             if(clear && this.options.clear !== false) {
                 gl.clear(gl.COLOR_BUFFER_BIT);
             }
 
-            const updatedDimensions = cw !== this.lastRenderWidth || ch !== this.lastRenderHeight;
+            const updatedDimensions = canvasWidth !== this.lastRenderWidth || canvasHeight !== this.lastRenderHeight;
             if (updatedDimensions) {
-                this.lastRenderWidth = cw;
-                this.lastRenderHeight = ch;
-                this.activeCamera.update(0, cw, ch, 0, -1, 1); // TODO: ? this isn't right what
-                gl.viewport(0, 0, cw, ch);
+                this.lastRenderWidth = canvasWidth;
+                this.lastRenderHeight = canvasHeight;
+                this.activeCamera.update(0, canvasWidth, canvasHeight, 0, -1, 1); // TODO: ? this isn't right what
+                gl.viewport(0, 0, canvasWidth, canvasHeight);
                 this.dimensionsVersion++;
             }
 
@@ -801,15 +781,11 @@ void main() {
             }
 
             const gl = this.gl;
-            const cw = this.width;
-            const ch = this.height;
+            const cw = this.viewportWidth || this.width;
+            const ch = this.viewportHeight || this.height;
 
             if(clear) {
                 gl.clear(gl.COLOR_BUFFER_BIT);
-            }
-
-            if(renderable.__bindVAO && renderable.vao) {
-                gl.bindVertexArray(renderable.vao);
             }
 
             if(!renderable.dimensionsUpToDate || renderable.dimensionsUpToDate !== this.dimensionsVersion) {
@@ -820,6 +796,10 @@ void main() {
 
             if(renderable.useProgram !== false && renderable.program !== undefined) {
                 gl.useProgram(renderable.program);
+            }
+
+            if(renderable.__bindVAO && renderable.vao) {
+                gl.bindVertexArray(renderable.vao);
             }
 
             renderable.render(delta || 0, now || performance.now(), gl, cw, ch, updateDimensions, renderable.uniforms, renderable.attributes, camera? camera.projectionMatrix: this.activeCamera.projectionMatrix);
@@ -841,12 +821,17 @@ void main() {
             if(typeof x === "object" && x !== null) {
                 width = x.width;
                 height = x.height;
-                y = x.y;
-                x = x.x;
+                y = this.height - (x.y + height); // seriously, even here
+                x =  x.x;
             }
 
             const gl = this.gl;
             gl.viewport(x, y, width, height);
+
+            this.viewportX = x;
+            this.viewportY = y;
+            this.viewportWidth = width;
+            this.viewportHeight = height;
         }
 
         #resize(width, height) {
@@ -1033,6 +1018,19 @@ void main() {
             }
         }
     }
+
+    // const rendererPool = [];
+
+    /**
+     * Same interface as WebGLRenderer, but internally recycles renderers to avoid creating multiple contexts and hitting browser limits.
+     * Note that understandably this doesn't guarantee that you always get a fresh renderer with the exact same options as you requested.
+     * @experimental
+     */
+    // class VirtualWebGLRenderer extends WebGLRenderer {
+    //     constructor(options = {}) {
+    //         super(options, true);
+    //     }
+    // }
 
     const GL_ENUMS = WebGL2RenderingContext.prototype;
     function bufferFrom(type, size) {
@@ -1278,11 +1276,26 @@ void main() {
     }
 
     /**
-     * A simple orthographic camera class for 2D rendering.
-     * It creates an orthographic projection matrix based on the provided parameters.
+     * A simple camera class.
+     * Work in progress
      */
-    class OrthographicCamera {
-        constructor(left, right, bottom, top, near, far) {
+    class Camera {
+        static ORTHOGRAPHIC = 0;
+        static PERSPECTIVE = 1;
+
+        /**
+         * Creates a new Camera instance.
+         * @param {number} type - The type of camera (Camera.ORTHOGRAPHIC or Camera.PERSPECTIVE)
+         * @param {number} left - The left clipping plane or field of view (for perspective)
+         * @param {number} right - The right clipping plane or aspect ratio (for perspective)
+         * @param {number} bottom - The bottom clipping plane or near clipping plane (for perspective)
+         * @param {number} top - The top clipping plane or far clipping plane (for perspective)
+         * @param {number} near - The near clipping plane
+         * @param {number} far - The far clipping plane
+         * @experimental
+         */
+        constructor(type = Camera.ORTHOGRAPHIC, left, right, bottom, top, near, far) {
+            this.type = type;
             this.left = left;
             this.right = right;
             this.bottom = bottom;
@@ -1291,68 +1304,96 @@ void main() {
             this.far = far;
 
             this.projectionMatrix = new Float32Array(16);
-            ortho(this.projectionMatrix, left, right, bottom, top, near, far);
+            this.update(left, right, bottom, top, near, far);
         }
 
         update(left, right, bottom, top, near, far) {
-            this.left = left;
-            this.right = right;
-            this.bottom = bottom;
-            this.top = top;
-            this.near = near;
-            this.far = far;
-
-            ortho(this.projectionMatrix, left, right, bottom, top, near, far);
-        }
-    }
-
-    /**
-     * A simple perspective camera class for 3D rendering.
-     * It creates a perspective projection matrix based on the provided parameters.
-     */
-    class PerspectiveCamera {
-        constructor(fov, aspect, near, far) {
-            this.fov = fov;
-            this.aspect = aspect;
-            this.near = near;
-            this.far = far;
-
-            this.projectionMatrix = new Float32Array(16);
-            this.updateProjectionMatrix();
+            if (this.type === Camera.ORTHOGRAPHIC) {
+                Camera.ortho(this.projectionMatrix, left, right, bottom, top, near, far);
+            } else {
+                Camera.perspective(this.projectionMatrix, left, right, bottom, top, near, far);
+            }
         }
 
-        update(fov, aspect, near, far) {
-            this.fov = fov;
-            this.aspect = aspect;
-            this.near = near;
-            this.far = far;
+        setOrtho(left = null, right = null, bottom = null, top = null, near = null, far = null) {
+            this.type = Camera.ORTHOGRAPHIC;
+            if( left !== null ) this.left = left;
+            if( right !== null ) this.right = right;
+            if( bottom !== null ) this.bottom = bottom;
+            if( top !== null ) this.top = top;
+            if( near !== null ) this.near = near;
+            if( far !== null ) this.far = far;
 
-            this.updateProjectionMatrix();
+            Camera.ortho(this.projectionMatrix, this.left, this.right, this.bottom, this.top, this.near, this.far);
         }
 
-        updateProjectionMatrix() {
-            const f = 1.0 / Math.tan(this.fov / 2);
-            const nf = 1 / (this.near - this.far);
+        setPerspective(fov = null, aspect = null, near = null, far = null) {
+            this.type = Camera.PERSPECTIVE;
+            if( fov !== null ) this.fov = fov;
+            if( aspect !== null ) this.aspect = aspect;
+            if( near !== null ) this.near = near;
+            if( far !== null ) this.far = far;
 
-            this.projectionMatrix[0] = f / this.aspect;
-            this.projectionMatrix[1] = 0;
-            this.projectionMatrix[2] = 0;
-            this.projectionMatrix[3] = 0;
+            Camera.perspective(this.projectionMatrix, this.fov, this.aspect, this.near, this.far);
+        }
 
-            this.projectionMatrix[4] = 0;
-            this.projectionMatrix[5] = f;
-            this.projectionMatrix[6] = 0;
-            this.projectionMatrix[7] = 0;
+        /**
+         * Creates an orthographic projection matrix.
+         * @param {*} out - The output matrix
+         * @param {*} left - The left clipping plane
+         * @param {*} right - The right clipping plane
+         * @param {*} bottom - The bottom clipping plane
+         * @param {*} top - The top clipping plane
+         * @param {*} near - The near clipping plane
+         * @param {*} far - The far clipping plane
+         * @returns The orthographic projection matrix
+         */
+        static ortho(out, left, right, bottom, top, near, far) {
+            out[0] = 2 / (right - left);
+            // out[1] = 0;
+            // out[2] = 0;
+            // out[3] = 0;
 
-            this.projectionMatrix[8] = 0;
-            this.projectionMatrix[9] = 0;
-            this.projectionMatrix[10] = (this.far + this.near) * nf;
-            this.projectionMatrix[11] = -1;
+            // out[4] = 0;
+            out[5] = 2 / (top - bottom);
+            // out[6] = 0;
+            // out[7] = 0;
 
-            this.projectionMatrix[12] = 0;
-            this.projectionMatrix[13] = 0;
-            this.projectionMatrix[14] = (2 * this.far * this.near) * nf;
-            this.projectionMatrix[15] = 0;
+            // out[8] = 0;
+            // out[9] = 0;
+            out[10] = -2 / (far - near);
+            // out[11] = 0;
+
+            out[12] = -(right + left) / (right - left);
+            out[13] = -(top + bottom) / (top - bottom);
+            out[14] = -(far + near) / (far - near);
+            out[15] = 1;
+            return out;
+        }
+
+        static perspective(out, fov, aspect, near, far) {
+            const f = 1.0 / Math.tan(fov / 2);
+            const nf = 1 / (near - far);
+
+            out[0] = f / aspect;
+            // out[1] = 0;
+            // out[2] = 0;
+            // out[3] = 0;
+
+            // out[4] = 0;
+            out[5] = f;
+            // out[6] = 0;
+            // out[7] = 0;
+
+            // out[8] = 0;
+            // out[9] = 0;
+            out[10] = (far + near) * nf;
+            // out[11] = -1;
+
+            out[12] = 0;
+            out[13] = 0;
+            out[14] = (2 * far * near) * nf;
+            out[15] = 0;
         }
     }
 
@@ -1360,22 +1401,21 @@ void main() {
 
     class WebGLMSDFFont {
         constructor(options = {}) {
+            const src = LS.Util.normalizePath(options.fontSrc || ('./assets/fonts/' + (options.fontName || 'JetBrainsMono')));
+            if(globalFontCache.has(src)) {
+                console.debug(`Font "${src}" is already loaded. Using cached version.`);
+                return globalFontCache.get(src);
+            }
+
             this.options = options;
             this.loaded = false;
             this.loading = false;
 
             this.fontData = null;
             this.fontImage = null;
-
-            const src = options.fontSrc || ('./assets/fonts/' + (options.fontName || 'JetBrainsMono'));
             this.fontSrc = src;
 
             this.__promise = null;
-
-            if(globalFontCache.has(src)) {
-                console.warn(`Font "${src}" is already loaded. Using cached version.`);
-                return globalFontCache.get(src);
-            }
 
             globalFontCache.set(src, this);
         }
@@ -1421,17 +1461,54 @@ void main() {
             const baseFontSize = fontData.atlas.size || 24;
             const metrics = fontData.metrics || {};
 
+            const version = fontData.version || 1;
+
+            // v1 stores glyphs as an object, v2 stores glyphs as an arraybuffer encoded in base64
+
+            let glyphView = null, glyphStride = fontData.byteStride || 0, glyphCount = fontData.glyphs.length;
+            if(version === 2) {
+                // Convert the base64 string to an ArrayBuffer
+                const glyphsBinaryData = Uint8Array.fromBase64(fontData.glyphs);
+                glyphCount = glyphsBinaryData.length / glyphStride;
+                glyphView = new DataView(glyphsBinaryData.buffer, glyphsBinaryData.byteOffset, glyphsBinaryData.byteLength);
+
+                // I was lazy so for now we just convert it back to an object
+
+                fontData.glyphs = [];
+                for (let i = 0; i < glyphCount; i++) {
+                    const offset = i * glyphStride;
+                    fontData.glyphs.push({
+                        i: glyphView.getUint16(offset),
+                        gI: glyphView.getUint16(offset + 2),
+                        code: glyphView.getUint16(offset + 4),
+                        advance: glyphView.getUint16(offset + 6),
+                        planeBounds: {
+                            top: glyphView.getFloat32(offset + 8),
+                            left: glyphView.getFloat32(offset + 12),
+                            bottom: glyphView.getFloat32(offset + 16),
+                            right: glyphView.getFloat32(offset + 20)
+                        },
+                        atlasBounds: {
+                            top: glyphView.getFloat32(offset + 24),
+                            left: glyphView.getFloat32(offset + 28),
+                            bottom: glyphView.getFloat32(offset + 32),
+                            right: glyphView.getFloat32(offset + 36)
+                        }
+                    });
+                }
+            }
+
             const lowestCharCode = Math.min(...fontData.glyphs.map(c => c.code || Infinity));
             const highestCharCode = Math.max(...fontData.glyphs.map(c => c.code || 0));
-
-            // Pack the font data into a single Float32Array for fast access
-            const map = new Float32Array((highestCharCode - lowestCharCode + 1) * MAP_SLOTS); // +1 for missing glyph
 
             const hasBottomOrigin = fontData.atlas?.yOrigin === "bottom";
             const baselinePx = (metrics.ascender || 0) * baseFontSize;
 
+            // Pack the font data into a Float32Array
+            const map = new Float32Array((highestCharCode - lowestCharCode + 1) * MAP_SLOTS); // +1 for missing glyph
+
             // Precompute as much as possible
-            for (let i = 0; i < fontData.glyphs.length; i++) {
+            for (let i = 0; i < glyphCount; i++) {
                 const charData = fontData.glyphs[i];
                 const code = charData.code;
 
@@ -1495,11 +1572,16 @@ void main() {
             this.cmap = map;
             this.stride = MAP_SLOTS;
             this.atlas = fontData.atlas;
+            this.fontData = fontData;
             this.baseCellWidth = baseCellWidth;
             this.baseCellHeight = baseCellHeight;
             // this._missingGlyphIndex = (highestCharCode - lowestCharCode + 1) * MAP_SLOTS;
             this._missingGlyphIndex = (32 - lowestCharCode) * MAP_SLOTS; // Use space character as missing glyph
             this._lowestCharCode = lowestCharCode;
+
+            if(fontData.nameMap) {
+                this.nameMap = new Map(fontData.nameMap);
+            }
 
             this.image = image;
 
@@ -1544,7 +1626,6 @@ void main() {
                 throw new Error("Font not loaded yet. Await loadFont() first.");
             }
 
-            console.log(this.atlas)
             gl.uniform1f(uniforms.uPxRange, this.atlas?.distanceRange || 4.0);
             gl.uniform1f(uniforms.uGamma, 1.4);
         }
@@ -1703,6 +1784,10 @@ void main() {
             if (typeof newOptions.manualRendering !== "undefined") {
                 this.manualRendering = newOptions.manualRendering;
             }
+
+            if (typeof newOptions.staticColor !== "undefined") {
+                this.staticColor = newOptions.staticColor;
+            }
         }
 
         render(delta, now, gl, cw, ch, updatedDimensions, uniforms, attributes, projectionMatrix) {
@@ -1786,10 +1871,21 @@ void main() {
             gl.vertexAttribIPointer(attributes.i_style,  1, gl.UNSIGNED_SHORT,        stride, startIdx * stride + offset);
             offset += 2;
 
+            // TODO: split the color buffer or possibly use palettes
             gl.vertexAttribPointer (attributes.i_color,  4, gl.UNSIGNED_BYTE,  true,  stride, startIdx * stride + offset);
             offset += 4;
 
             gl.vertexAttribPointer (attributes.glyphDepth, 1, gl.FLOAT,        false, stride, startIdx * stride + offset);
+
+            if(this.staticColor) {
+                if(!Array.isArray(this.staticColor) || this.staticColor.length !== 4) {
+                    throw new Error("Invalid staticColor option: expected an array of 4 values [r, g, b, a].");
+                }
+
+                const [r, g, b, a] = this.staticColor;
+                gl.disableVertexAttribArray(attributes.i_color);
+                gl.vertexAttrib4f(attributes.i_color, r / 255, g / 255, b / 255, a / 255);
+            }
         }
 
         /**
@@ -1811,28 +1907,28 @@ void main() {
          * @returns {number} The xadvance value for the character, which can be used for cursor movement.
          */
         _updateVertex(cellIdx, x, y, charCode, r, g, b, a, size, style, weight, depth) {
-            if(!this.font || !this.font.cmap) return;
- 
-            const f32Idx = cellIdx * this.cellSizeF;
+            const font = this.font;
+            if(!font || !font.cmap) return;
 
             // Should be optimized, kind of sucks we have to do a lookup for every character
-            const map = this.font.cmap;
-            let glyphIdx = this.font._missingGlyphIndex;
+            const map = font.cmap;
+            let glyphIdx = font._missingGlyphIndex;
             // if (glyphIdx >= map.length) glyphIdx = 0;
-            if (charCode >= this.font._lowestCharCode) {
-                const idx = (charCode - this.font._lowestCharCode) * this.font.stride;
+            if (charCode >= font._lowestCharCode) {
+                const idx = (charCode - font._lowestCharCode) * font.stride;
                 if (idx >= 0 && idx < map.length) glyphIdx = idx;
             }
 
-            const xadvance = (this.font._missingGlyphIndex === glyphIdx && charCode !== 32)? 0: (map[glyphIdx + 6] || this.font.baseCellWidth) * size;
+            const xadvance = (font._missingGlyphIndex === glyphIdx && charCode !== 32)? 0: (map[glyphIdx + 6] || font.baseCellWidth) * size;
 
             // Dirty glyph (for now we only care to render if glyph changes through this function)
 
             let updateChar = false;
             const updatePos = x !== undefined || y !== undefined || size !== undefined;
-            const updateColor = r !== undefined || g !== undefined || b !== undefined || a !== undefined;
+            const updateColor = !this.staticColor && (r !== undefined || g !== undefined || b !== undefined || a !== undefined);
             const updateStyle = style !== undefined || weight !== undefined;
 
+            const f32Idx = cellIdx * this.cellSizeF;
             if(charCode !== undefined) {
                 updateChar = this.gridBuffer[cellIdx] !== charCode;
                 this.gridBuffer[cellIdx] = charCode;
@@ -1863,10 +1959,10 @@ void main() {
                 const u16Idx = f32Idx * 2;
                 if(weight !== undefined) u16[u16Idx + 16] = weight;  // i_weight
                 if(style !== undefined)  u16[u16Idx + 17] = style;   // i_style
-    
-                this.__lowestDirty = Math.min(this.__lowestDirty || f32Idx - this.cellSizeF, f32Idx - this.cellSizeF);
-                this.__highestDirty = Math.max(this.__highestDirty || f32Idx + this.cellSizeF, f32Idx + this.cellSizeF);
             }
+
+            this.__lowestDirty = Math.min(this.__lowestDirty || f32Idx - this.cellSizeF, f32Idx - this.cellSizeF);
+            this.__highestDirty = Math.max(this.__highestDirty || f32Idx + this.cellSizeF, f32Idx + this.cellSizeF);
 
             if(depth !== undefined) {
                 const f32 = this.vertexData;
@@ -1891,7 +1987,7 @@ void main() {
 
             // Update position and size if needed
             if(updatePos) {
-                const scale = size / this.font.atlas.size;
+                const scale = size / font.atlas.size;
                 const x0 = x + map[glyphIdx + 11]            * scale;
                 const y0 = y + map[glyphIdx + 12]            * scale;
                 const halfWidth =  (map[glyphIdx + 2]) * 0.5 * scale;
@@ -2040,7 +2136,7 @@ void main() {
             }
         }
 
-        writeTextAt(text, startIdx = 0, len, x, y, r = 255, g = 255, b = 255, a = 255, size = this.engine.defaultFontSize, style = 0, weight = 0, depth = 0) {
+        writeTextAt(text, startIdx = 0, len, x, y, r = 255, g = 255, b = 255, a = 255, size = this.engine.defaultFontSize, style, weight, depth) {
             if(r && typeof r !== 'number') {
                 [r, g, b, a] = LS.Color.parse(r, g, b, a);
             }
@@ -2058,6 +2154,7 @@ void main() {
 
                 x += advance;
             }
+            return this;
         }
 
         clear(startIdx = 0, len = this.size) {
@@ -2146,9 +2243,10 @@ void main() {
          * @param {number} size - Font size
          * @param {number} style - Font style
          * @param {number} weight - Font weight
+         * All values are optional. If a value is not provided, the existing value for that attribute will be retained.
          * @param {number} depth - Glyph depth
          */
-        setChar(index, x, y, charCode, r = 255, g = 255, b = 255, a = 255, size = this.engine.defaultFontSize, style = 0, weight = 0, depth = 0) {
+        setChar(index, x, y, charCode, r = 255, g = 255, b = 255, a = 255, size = this.engine.defaultFontSize, style, weight, depth) {
             const cellIdx = this.startIdx + index;
             if (cellIdx < this.startIdx || cellIdx >= this.startIdx + this.size) {
                 return;
@@ -2258,17 +2356,33 @@ void main() {
          * This method tracks and compares the dirty range for you, guaranteeing minimal GPU updates, but also has extra CPU overhead per set.
          * If you do a lot of writes and want to track manually, you can set the value directly in the `data` array and then call `update()` with the range you want to update or set lowestDirty and highestDirty.
          * 
-         * @param {*} at The index in the buffer to set the value at.
-         * @param {*} value The value to set at the specified index.
+         * @param {number|Array|TypedArray|Buffer} value The value to set.
+         * @param {number} offset The index in the buffer to set the value at.
          * @returns {void}
          * 
-         * Warning: This method is quite high level and may not be the most efficient depending on your use case.
+         * Warning: This method is high level and may not be the most efficient. Avoid in performance critical code paths.
          */
-        set(at, value) {
-            if(this.data[at] === value) return;
-            this.data[at] = value;
-            if (at < this.lowestDirty) this.lowestDirty = at;
-            if (at + 1 > this.highestDirty) this.highestDirty = at + 1;
+        set(value, offset = 0) {
+            if(Array.isArray(value) || value instanceof ArrayBuffer || value instanceof Float32Array || value instanceof Uint8Array || value instanceof Uint16Array || value instanceof Uint32Array || value instanceof Int8Array || value instanceof Int16Array || value instanceof Int32Array) {
+                if(value.length + offset > this.data.length) {
+                    throw new Error("set expects the value array to fit within the buffer. Value length: " + value.length + ", offset: " + offset + ", buffer length: " + this.data.length);
+                }
+
+                this.data.set(value, offset);
+
+                this.lowestDirty = Math.min(this.lowestDirty, offset);
+                this.highestDirty = Math.max(this.highestDirty, offset + value.length);
+                return;
+            }
+
+            if(this.data[offset] === value) return;
+            this.data[offset] = value;
+            if (offset < this.lowestDirty) this.lowestDirty = offset;
+            if (offset + 1 > this.highestDirty) this.highestDirty = offset + 1;
+        }
+
+        setWithStride(value, offset = 0, stride = this.cellSize) {
+            this.set(value, offset * stride);
         }
 
         bind() {
@@ -2295,8 +2409,6 @@ void main() {
             }
 
             if(from >= to) return;
-
-            console.log("Updating buffer from", from, "to", to);
 
             this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffer);
 
@@ -2398,16 +2510,15 @@ void main() {
     }
 
     const sharedColorConversionBuffer = new Uint8Array(4);
+    const roundedBoxSDF = `float roundedBoxSDF(vec2 CenterPosition, vec2 Size, float Radius) {\nreturn length(max(abs(CenterPosition)-Size+Radius,0.0))-Radius;\n}`;
 
     LS.LoadComponent({
         v: 2,
         version: "2.0.0-alpha.0",
 
         htmlParser,
-        ortho,
 
-        OrthographicCamera,
-        PerspectiveCamera,
+        Camera,
 
         // WebGL shader utilities
         stripShaderVersion,
@@ -2417,6 +2528,7 @@ void main() {
 
         // WebGLRenderer class
         WebGLRenderer,
+        // VirtualWebGLRenderer,
         Renderable,
         WebGLBuffer,
         WebGLMSDFFont,
@@ -2430,21 +2542,67 @@ void main() {
          * @param {number} g - The green component of the color.
          * @param {number} b - The blue component of the color.
          * @param {number} a - The alpha component of the color.
+         * @param {Array} target - Optional target array to store the result. If not provided, a new array will be created.
+         * @param {number} offset - Optional offset in the target array to start writing the result.
          * @returns {Array} The color as a vec4 array [r, g, b, a] with values in the range [0, 1].
          */
-        colorToVec4: (r, g, b, a = 1) => {
-            if(r instanceof LS.Color) return r.floatPixel;
+        colorToVec4: (r, g, b, a = 1, target = [], offset = 0) => {
+            if(r instanceof LS.Color) {
+                const c = r.floatPixel;
+                target[offset + 0] = c[0];
+                target[offset + 1] = c[1];
+                target[offset + 2] = c[2];
+                target[offset + 3] = c[3];
+                return target;
+            }
 
             // Parse the color
             LS.Color.parse(r, g, b, a, sharedColorConversionBuffer);
 
             // Return the color as a vec4
-            return [Math.fround(sharedColorConversionBuffer[0] / 255), Math.fround(sharedColorConversionBuffer[1] / 255), Math.fround(sharedColorConversionBuffer[2] / 255), Math.fround(sharedColorConversionBuffer[3] / 255)];
+            target[offset + 0] = Math.fround(sharedColorConversionBuffer[0] / 255);
+            target[offset + 1] = Math.fround(sharedColorConversionBuffer[1] / 255);
+            target[offset + 2] = Math.fround(sharedColorConversionBuffer[2] / 255);
+            target[offset + 3] = Math.fround(sharedColorConversionBuffer[3] / 255);
+            return target;
+        },
+
+        /**
+         * Offsets a rectangle by another rectangle.
+         * @param {Object} rect1 - The first rectangle with properties x, y, width, and height.
+         * @param {Object} rect2 - The second rectangle with properties x, y, width, and height.
+         * @returns {Object} A new rectangle that encompasses both input rectangles.
+         * This creates a new rectangle.
+         */
+        offsetRect: (rect1, rect2) => {
+            const x = rect1.x + rect2.x;
+            const y = rect1.y + rect2.y;
+            const width = rect2.width;
+            const height = rect2.height;
+            return { x, y, width, height };
+        },
+
+        /**
+         * Offsets a rectangle by another rectangle.
+         * @param {Object} rect1 - The first rectangle with properties x, y, width, and height.
+         * @param {Object} rect2 - The second rectangle with properties x, y, width, and height.
+         * @returns {Object} A new rectangle that encompasses both input rectangles.
+         * This modifies rect1 in place and returns it.
+         */
+        offsetRectNC: (rect1, rect2) => {
+            rect1.x += rect2.x;
+            rect1.y += rect2.y;
+            rect1.width = rect2.width;
+            rect1.height = rect2.height;
+            return rect1;
         },
 
         createRenderer(options = {}) {
             return new WebGLRenderer(options);
         },
+
+        // TODO
+        unloadGlobals() {},
 
         // Misc utilities
         cyrb64,
@@ -2458,7 +2616,9 @@ void main() {
             // Fullscreen triangle (covers the entire screen with a single triangle, which is more efficient than a quad)
             basic_fullscreen_vertex: `#version 300 es
 
-out vec2 vUV;
+out vec2 uv;
+
+uniform vec2 uResolution;
 
 const vec2 positions[3] = vec2[](
     vec2(-1.0, -1.0),
@@ -2468,14 +2628,14 @@ const vec2 positions[3] = vec2[](
 
 void main() {
     vec2 pos = positions[gl_VertexID];
-    vUV = pos * 0.5 + 0.5;
     gl_Position = vec4(pos, 0.0, 1.0);
+    uv = (pos * 0.5 + 0.5) * uResolution;
+    uv.y = uResolution.y - uv.y;
 }`,
-
             // Fullscreen quad if you need to use a real quad (but two triangles)
             basic_fullscreen_quad: `#version 300 es
 
-out vec2 vUV;
+out vec2 uv;
 
 const vec2 positions[4] = vec2[](
     vec2(-1.0, -1.0),
@@ -2486,7 +2646,7 @@ const vec2 positions[4] = vec2[](
 
 void main() {
     vec2 pos = positions[gl_VertexID];
-    vUV = pos * 0.5 + 0.5;
+    uv = pos * 0.5 + 0.5;
     gl_Position = vec4(pos, 0.0, 1.0);
 }`,
             basic_quad: `#version 300 es
@@ -2520,7 +2680,99 @@ void main() {
 
     gl_Position = vec4(pos, 0.0, 1.0);
 }`,
+            instanced_quads: `#version 300 es
 
+// Simple quad
+const vec2 positions[6] = vec2[](
+    vec2(-1.0, -1.0),
+    vec2( 1.0, -1.0),
+    vec2(-1.0,  1.0),
+
+    vec2(-1.0,  1.0),
+    vec2( 1.0, -1.0),
+    vec2( 1.0,  1.0)
+);
+
+in vec2 iOffset;
+in vec2 iSize;
+in vec3 iColor;
+
+out vec2 vUV;
+out vec3 vColor;
+out vec2 vSize;
+out vec2 vOffset;
+
+uniform vec2 uResolution;
+uniform vec2 uOffset;
+uniform vec2 uSize;
+
+void main() {
+    vec2 local = uSize * positions[gl_VertexID];
+
+    vUV = local * 0.5 + 0.5;
+    vColor = iColor;
+    vSize = iSize;
+    vOffset = iOffset;
+
+    vec2 pos = vUV * (iSize / uResolution) + ((iOffset - uOffset) / uResolution);
+    pos = pos * 2.0 - 1.0;
+    pos.y = -pos.y;
+
+    gl_Position = vec4(pos, 0.0, 1.0);
+}`,
+            instanced_lines: `#version 300 es
+
+// Simple quad
+const vec2 positions[6] = vec2[](
+    vec2(-1.0, -1.0),
+    vec2( 1.0, -1.0),
+    vec2(-1.0,  1.0),
+
+    vec2(-1.0,  1.0),
+    vec2( 1.0, -1.0),
+    vec2( 1.0,  1.0)
+);
+
+out vec2 vUV;
+out vec2 vStart;
+out vec2 vEnd;
+out float vThickness;
+out vec3 vColor;
+
+uniform vec2 uResolution;
+uniform vec2 uOffset;
+uniform vec2 uSize;
+
+in vec2 iStart;
+in vec2 iEnd;
+in float iThickness;
+in vec3 iColor;
+
+void main() {
+    vec2 local = uSize * positions[gl_VertexID];
+
+    vUV = local * 0.5 + 0.5;
+
+    // World/screen pixel coordinates
+    vec2 start = iStart - uOffset;
+    vec2 end   = iEnd - uOffset;
+
+    vec2 dir = normalize(end - start);
+    vec2 normal = vec2(-dir.y, dir.x);
+
+    // Expand the line into a quad
+    vec2 pos = mix(start, end, vUV.x);
+    pos += normal * (local.y * iThickness * 0.5);
+
+    // Pixel space -> clip space
+    pos /= uResolution;
+    pos = pos * 2.0 - 1.0;
+    pos.y = -pos.y;
+
+    gl_Position = vec4(pos, 0.0, 1.0);
+
+    vColor = iColor;
+}`,
             // Simple hello world shader
             basic_fullscreen_fragment: `#version 300 es
 precision highp float;
@@ -2531,28 +2783,46 @@ out vec4 fragColor;
 void main() {
     fragColor = vec4(vUV, 0.0, 1.0);
 }`,
-
-            // Debug shaders to quicker find out what isn't working so you don't lose your sanity
-
-            // This one just renders red
-            debug_fragment: `#version 300 es
+            selection_rect_fragment: `#version 300 es
 precision highp float;
 
+in vec2 vUV;
 out vec4 fragColor;
 
-void main() {
-    fragColor = vec4(1.0, 0.0, 0.0, 1.0);
-}`,
-            debug_vertex: `#version 300 es
-layout(location = 0) in vec2 aPosition;
+uniform vec2 uSize;
+uniform vec2 uOffset;
+uniform vec2 uResolution;
+uniform uvec3 uColor;
+
+${roundedBoxSDF}
 
 void main() {
-    gl_Position = vec4(aPosition, 0.0, 1.0);
-}`
+    vec2 uv = vUV * uSize;
+
+    vec3 color = vec3(uColor) / 255.0;
+
+    float d = roundedBoxSDF((vUV - 0.5) * uSize, uSize * 0.5, 4.0);
+    float aa = fwidth(d); // Anti-aliasing factor
+    float alpha = 1.0 - smoothstep(0.0, aa * 0.5, d);
+
+    // Border
+    if(uv.x < 2.0 || uv.x > uSize.x - 2.0 || uv.y < 2.0 || uv.y > uSize.y - 2.0) {
+        fragColor = vec4(color, alpha);
+        return;
+    }
+
+    fragColor = vec4(color, 0.2 * alpha);
+}`,
+
+
+            // Debug shaders to quicker find out what isn't working so you don't lose your sanity
+            // This one just renders red
+            debug_fragment: `#version 300 es\nprecision highp float;\nout vec4 fragColor;\nvoid main() {\nfragColor = vec4(1.0, 0.0, 0.0, 1.0);\n}`,
+            debug_vertex: `#version 300 es\nin vec2 aPosition;\nout vec2 vUV;\nvoid main() {\nvUV = aPosition * 0.5 + 0.5;\ngl_Position = vec4(aPosition, 0.0, 1.0);\n}`
         },
 
         utils: {
-            roundedBoxSDF: `float roundedBoxSDF(vec2 CenterPosition, vec2 Size, float Radius) {\nreturn length(max(abs(CenterPosition)-Size+Radius,0.0))-Radius;\n}`,
+            roundedBoxSDF
         },
 
         get animation() {
@@ -2561,4 +2831,8 @@ void main() {
     }, { name: "GL", global: true, dependencies: ["Color"] });
 
     console.warn("LS.GL is an early stage component. The API is not stable and may change in future releases. This component is not fully tested and may contain bugs.");
+
+    if (typeof module !== "undefined" && module.exports) {
+        module.exports = LS.GL;
+    }
 })();

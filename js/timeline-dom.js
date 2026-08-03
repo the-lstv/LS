@@ -112,7 +112,9 @@
     // Until I have a server-side transpiler of LS.CompileTemplate, I will hard-code the output here to give the client some rest :P
     const TEMPLATE = function(d){'use strict';var e0=document.createElement("div");e0.setAttribute("tabindex","0");var e1=document.createElement("div");e1.className="ls-timeline-markers";var e2=document.createElement("div");e2.className="ls-timeline-player-head";var e3=document.createElement("div");e3.className="ls-timeline-selection-rect";e3.style.cssText="position: absolute; pointer-events: none; display: none; border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent) 50%, rgba(0, 0, 0, 0.2) 50%); z-index: 100;";var e4=document.createElement("div");e4.className="ls-timeline-snap-line";e4.style.cssText="position: fixed; top: 0; left: 0; width: 1px; background: var(--accent-60); z-index: 1000; pointer-events: none; display: none;";var e5=document.createElement("div");e5.className="ls-timeline-slice-line";e5.style.cssText="position: fixed; top: 0; left: 0; width: 2px; background: var(--accent-60); z-index: 1000; pointer-events: none; display: none;";var e6=document.createElement("div");e6.className="ls-timeline-scroll-container";var e7=document.createElement("div");e7.className="ls-timeline-spacer";e7.style.cssText="height: 1px; width: 0px;";var e8=document.createElement("div");e8.className="ls-timeline-rows";e6.append(e7,e8);e0.append(e1,e2,e3,e4,e5,e6);var __rootValue=e0;return{"markerContainer":e1,"playerHead":e2,"selectionRect":e3,"snapLine":e4,"sliceLine":e5,"scrollContainer":e6,"spacerElement":e7,"rowContainer":e8,root:__rootValue};}
 
-    LS.LoadComponent(class Timeline extends LS.Component {
+    class Timeline extends LS.Component {
+        static { LS.register(this, { name: "TimelineDOM", global: true }) }
+
         // --- Player state values (does influence content) ---
         #seek = 0;
         #duration = 0;
@@ -3246,5 +3248,9 @@
             this.emit("destroy");
             this.events.clear();
         }
-    }, { name: "TimelineDOM", global: true });
+    }
+
+    if (typeof module !== "undefined" && module.exports) {
+        module.exports = TimelineDOM;
+    }
 })();

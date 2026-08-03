@@ -1,5 +1,11 @@
-LS.LoadComponent(class ColorPicker extends LS.Component {
+class ColorPicker extends LS.Component {
+    static { LS.register(this, { name: "ColorPicker", global: true }) }
+
     constructor(options = {}){
         super();
     }
-}, { name: "ColorPicker", global: true });
+}
+
+if (typeof module !== "undefined" && module.exports) {
+    module.exports = ColorPicker;
+}

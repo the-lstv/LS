@@ -293,7 +293,7 @@ ls-group > *:not(:only-child):last-child {
 
 #ls-top-layer {
   position: fixed;
-  z-index: 50000000;
+  z-index: 50000000000000;
 }
 
 .ls-toast-layer {

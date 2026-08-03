@@ -13,7 +13,9 @@
  * @version 0.2.0
  */
 
-LS.LoadComponent(class Tree extends LS.Component {
+class Tree extends LS.Component {
+    static { LS.register(this, { name: "Tree", global: true }) }
+
     // See constructor for documentation on options
     static defaults = LS.Util.staticDefaults({
         rowHeight: 24,
@@ -893,4 +895,10 @@ LS.LoadComponent(class Tree extends LS.Component {
  
         super.destroy();
     }
-}, { name: "Tree", global: true });
+}
+
+if (typeof module !== "undefined" && module.exports) {
+    module.exports = {
+        Tree: Tree
+    };
+}

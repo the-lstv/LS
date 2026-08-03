@@ -47,7 +47,9 @@
         return Number.isFinite(value)? value: fallback;
     }
 
-    LS.LoadComponent(class TimelineGL extends LS.Component {
+    class TimelineGL extends LS.Component {
+        static { LS.register(this, { name: "Timeline", global: true }) }
+
         /**
          * Timeline item data structure
          * @typedef {Object} TimelineItem
@@ -118,10 +120,13 @@
             tool: "select",
             historyEnabled: true,
 
+            renderImmediately: true,
+
             // There are 3 versions for font, UbuntuMono/mtsdf, UbuntuMono/softmask (bitmap), and UbuntuMono/msdf (msdf).
             // softmask is the smallest and most efficient and also has all glyphs, and good enough quality for the timeline (when the text stays small).
             // If you want to scale up the font or it looks blurry or pixelated, use either the mtsdf or msdf versions, which can handle larger text sizes.
             fontName: "UbuntuMono/softmask",
+            fontType: "softmask",
 
             toolShortcuts: {
                 select: "v",
@@ -226,13 +231,11 @@
                 ...this.options.rendererOptions
             });
 
-            this.container.append(this.renderer.canvas, this.playerHead);
-
             // -- Text engine for labels
             this.textEngine = this.options.textEngine || new LS.GL.WebGLTextEngine({
                 renderer: this.renderer,
                 fontName: this.options.fontName,
-                type: "softmask", // TODO: the engine should extract this from the font file automatically
+                type: this.options.fontType, // TODO: the engine should extract this from the font file automatically
 
                 // The amount of characters that can be rendered at once
                 bufferSize: 16384,
@@ -264,27 +267,37 @@
                     x: 0,
                     y: 0,
 
-                    get width() {
-                        return self.renderer.width;
-                    },
-
-                    get height() {
-                        return self.renderer.height;
-                    }
+                    get width() { return self.renderer.width; },
+                    get height() { return self.renderer.height; },
                 },
 
                 enabled: false, // Wait for font
                 renderables: [],
             }
 
+            this.domJail = document.createElement("div");
+            this.domJail.style.position = "absolute";
+            this.domJail.style.width = this.renderable.rect.width - this.sidebarWidth + "px";
+            this.domJail.style.height = this.renderable.rect.height + "px";
+            this.domJail.style.overflow = "hidden";
+            this.domJail.style.pointerEvents = "none";
+            this.domJail.style.zIndex = "2";
+            this.domJail.style.transform = "translate3d(" + (this.renderable.rect.x + this.sidebarWidth) + "px, " + this.renderable.rect.y + "px, 0)";
+            this.domJail.appendChild(this.playerHead);
+            this.container.append(this.domJail, this.renderer.canvas);
+
             const lContrast = 0.4;
             const dContrast = 1.5;
 
+            this.loadPromise = this.textEngine.loadPromise;
+
             // Wait for the font to load before enabling rendering
-            this.textEngine.loadPromise.then(() => {
+            this.loadPromise.then(() => {
                 // Force redraw of labels just in case
                 this.__prevScrollX = null;
+                this.__prevScrollY = null;
                 this.__prevZoomX = null;
+                this.__prevZoomY = null;
 
                 this.renderable.enabled = true;
 
@@ -297,32 +310,34 @@
                 this.#updateBackgroundColor();
                 
                 this.addExternalEventListener(LS.Color, "theme-changed", (theme) => {
+                    this.__prevScrollX = null;
+                    this.__prevScrollY = null;
+                    this.__prevZoomX = null;
+                    this.__prevZoomY = null;
                     this.#updateBackgroundColor();
                     this.contrast = theme === "dark"? dContrast: lContrast;
                     this.renderer.render();
                 });
                 
-                this.addExternalEventListener(LS.Color, "accent-changed", (theme) => {
+                this.addExternalEventListener(LS.Color, "accent-changed", () => {
                     this.#updateBackgroundColor();
 
                     // Default color changed
                     if(this.items.length > 0) {
                         this.__rerenderItems = true;
-                        this.renderer.render();
                     }
+
+                    this.renderer.render();
                 });
 
                 this.#setupRenderables();
                 this.#setupHandle();
-                this.renderer.render();
+                if(this.options.renderImmediately) this.renderer.render();
             });
-
-            this.loadPromise = this.textEngine.loadPromise;
-
-            window.timeline = this;
         }
 
         #updateBackgroundColor() {
+            if(!this.renderer.canvas.isConnected) return;
             this.backgroundColor = LS.Color.parse(getComputedStyle(this.renderer.canvas).backgroundColor);
         }
 
@@ -682,13 +697,12 @@
          * @param {boolean} [delta=true] - Whether the time and row offsets are relative (true) or absolute (false)
          * @param {number} [anchorElementIndex=0] - The index of the anchor element in the selected items for absolute movement
          * @param {boolean} [emitAction=true] - Whether to emit an action event for external history management
+         * @param {TimelineItem[]} [items=null] - Optional array of items to move; defaults to the currently selected items
          * @param {boolean} [scrollIntoView=true] - Whether to scroll the timeline into view
          */
         moveSelected(time, row, delta = true, anchorElementIndex = 0, emitAction = true, items = null, scrollIntoView = false) {
             items = items || this.selectedItems;
             if (!items || items.length === 0) return;
-
-            const changes = [];
 
             if(!delta) {
                 const firstItem = items[anchorElementIndex] || items[0];
@@ -717,6 +731,8 @@
 
             if(time === 0 && row === 0) return;
 
+            const changes = [];
+
             for (const item of items) {
                 const before = emitAction && { start: item.start, row: item.row };
 
@@ -735,6 +751,64 @@
                 // Emit action for external history management
                 this.emitAction({
                     type: "move",
+                    changes
+                });
+            }
+
+            this.__needsSort = true;
+            this.renderer.render();
+        }
+
+        /**
+         * Resizes the selected items by a specified time offset.
+         * @param {number} time - The time offset to resize the items by
+         * @param {number} [edge=1] - The edge to resize (1 for end, 0 for start)
+         * @param {boolean} [delta=true] - Whether the time offset is relative (true) or absolute (false)
+         * @param {number} [anchorElementIndex=0] - The index of the anchor element for resizing
+         * @param {boolean} [emitAction=true] - Whether to emit an action event for external history management
+         * @param {TimelineItem[]} [items=null] - Optional array of items to resize; defaults to the currently selected items
+         */
+        resizeSelected(time, edge = 1, delta = true, anchorElementIndex = 0, emitAction = true, items = null) {
+            items = items || this.selectedItems;
+            if (!this.selectedItems || this.selectedItems.length === 0) return;
+
+            if (!delta) {
+                const firstItem = items[anchorElementIndex];
+                time = time - firstItem.duration;
+            }
+
+            if (edge === 0 && time !== 0) {
+                let minStart = Infinity;
+                for (const item of items) {
+                    if (item.start < minStart) minStart = item.start;
+                }
+
+                if (minStart + time < 0) time = -minStart;
+            }
+
+            if (time === 0) return;
+
+            const changes = [];
+            const offset = edge === 0? -time: 0;
+
+            for (const item of items) {
+                const before = emitAction && { duration: item.duration, start: item.start };
+
+                item.duration = Math.max(0, item.duration + time);
+                item.start = Math.max(0, item.start + offset);
+
+                if (emitAction)
+                changes.push({
+                    id: item.id,
+                    before,
+                    after: { duration: item.duration, start: item.start }
+                });
+            }
+
+            if (emitAction) {
+                // Emit action for external history management
+                this.emitAction({
+                    type: "resize",
                     changes
                 });
             }
@@ -1056,9 +1130,9 @@ const vec2 positions[3] = vec2[](
 
 void main() {
     vec2 pos = positions[gl_VertexID];
+    gl_Position = vec4(pos, 0.0, 1.0);
     uv = (pos * 0.5 + 0.5) * resolution;
     uv.y = resolution.y - uv.y;
-    gl_Position = vec4(pos, 0.0, 1.0);
 }`,
                 fragment: this.options.backgroundFragment?? `#version 300 es
 precision highp float;
@@ -1176,11 +1250,10 @@ void main() {
                 uniforms: ["offset", "resolution", "zoom", "timeSignature", "gridSize", "contrast", "sidebarWidth", "labelBarHeight", "selectionRange", "accentColor", "backgroundColor"],
 
                 onRender(delta, now, gl, cw, ch, updatedDimensions, uniforms, attributes) {
-                    let headPos = (self.#seek * self.#zoomX) - self.#scrollX + self.#sidebarWidth;
-                    if(headPos < self.#sidebarWidth || headPos > self.#sidebarWidth + cw) headPos = -1000;
-                    if (self.__headPos !== headPos) {
-                        self.playerHead.style.transform = `translate3d(${headPos}px, 0, 0)`;
-                        self.__headPos = headPos;
+                    self.#updateHeadPosition();
+
+                    if(!this.backgroundColor) {
+                        self.#updateBackgroundColor();
                     }
 
                     gl.uniform2f(uniforms.offset, self.#scrollX - self.#sidebarWidth, self.#scrollY - self.#labelBarHeight);
@@ -1290,7 +1363,7 @@ void main() {
     // Has content
     if((v_state & (1u << 1)) == 0u) {
         color = pos.y < 20.0? color: vec3(0.0);
-        alpha = pos.y < 20.0? alpha: alpha * 0.6;
+        alpha = pos.y < 20.0? alpha: alpha * 0.8;
     }
 
     // Is selected
@@ -1408,7 +1481,7 @@ void main() {
                             //     continue;
                             // }
 
-                            self.__addRenderableItem(a, item, 0, j, reserved, firstVisibleRow, lastVisibleRow);
+                            self.__addRenderableItem(a, item, false, j, reserved, firstVisibleRow, lastVisibleRow);
                             reserved += a[1];
                             j += a[2];
                             if (a[0]) break;
@@ -1418,7 +1491,7 @@ void main() {
                             const item = selectedItems[i];
                             if (!item) continue;
 
-                            self.__addRenderableItem(a, item, 1, j, reserved, firstVisibleRow, lastVisibleRow);
+                            self.__addRenderableItem(a, item, true, j, reserved, firstVisibleRow, lastVisibleRow);
                             reserved += a[1];
                             j += a[2];
                             if (a[0]) break;
@@ -1534,7 +1607,7 @@ void main() {
 
                         if(self.#sidebarWidth > 0 && screenRowHeight > textHeight + 2) {
                             const labelStep = Math.max(1, Math.ceil(textHeight / screenRowHeight));
-                            const labelCount = ((self.renderer.height - self.#labelBarHeight) / screenRowHeight);
+                            const labelCount = ((self.renderable.rect.width - self.#labelBarHeight) / screenRowHeight);
                             const preBuffer = Math.floor(self.#labelBarHeight / screenRowHeight);
 
                             for (let i = 0; i < labelCount + preBuffer + 1; i++) {
@@ -1579,7 +1652,7 @@ void main() {
                         }
                     }
 
-                    self.renderer.scissor(0, self.#labelBarHeight, self.#sidebarWidth, self.renderer.height - self.#labelBarHeight);
+                    self.renderer.scissor(0, self.#labelBarHeight, self.#sidebarWidth, self.renderable.rect.width - self.#labelBarHeight);
                     self.numberLabelsY.render();
                     self.renderer.endScissor();
 
@@ -1653,7 +1726,7 @@ void main() {
             this.renderable.renderables.push(this.gridBackground, this.itemsRenderable, this.selectionRectRenderable);
         }
 
-        __addRenderableItem(a, item, state, j, reserved, firstVisibleRow, lastVisibleRow) {
+        __addRenderableItem(a, item, selected, j, reserved, firstVisibleRow, lastVisibleRow) {
             if (item.row < firstVisibleRow || item.row > lastVisibleRow) {
                 a[0] = false;
                 a[1] = 0;
@@ -1662,10 +1735,10 @@ void main() {
             }
 
             const computedX = item.start * this.#zoomX - this.#scrollX;
-            if (computedX > this.renderer.width) {
+            if (computedX > this.renderable.rect.width) {
                 // Since items are sorted by start, all subsequent items will also be off-screen to the right
                 // However we skip this check for focused items (state = 1)
-                a[0] = state !== 1;
+                a[0] = selected !== 1;
                 a[1] = 0;
                 a[2] = 0;
                 return;
@@ -1678,10 +1751,10 @@ void main() {
             const stateBuffer = buffers.a_state;
             const depthBuffer = buffers.depth;
 
-            positionBuffer.set(j * 2, item.start);
-            positionBuffer.set(j * 2 + 1, item.row * this.rowHeight);
+            positionBuffer.set(item.start, j * 2);
+            positionBuffer.set(item.row * this.rowHeight, j * 2 + 1);
 
-            sizeBuffer.set(j, Math.max(1, item.duration));
+            sizeBuffer.set(Math.max(1, item.duration), j);
 
             if (item.tileColor && !Array.isArray(item.tileColor)) {
                 // Parse & cache any non-array color value
@@ -1693,20 +1766,23 @@ void main() {
             const r = color[0];
             const g = color[1];
             const b = color[2];
+
             const blend = 0.15; // 15% background influence
 
-            colorBuffer.set(j * 3, r);
-            colorBuffer.set(j * 3 + 1, g);
-            colorBuffer.set(j * 3 + 2, b);
-
-            stateBuffer.set(j, state);
-
-            const depth = undefined//j / 1000;
-
-            // depthBuffer.set(j, depth + 0.0001);
+            colorBuffer.set(r, j * 3);
+            colorBuffer.set(g, j * 3 + 1);
+            colorBuffer.set(b, j * 3 + 2);
 
             const screenRowHeight = this.rowHeight * this.#zoomY;
             const textHeight = this.textEngine.cellHeight;
+
+            const hasContent = screenRowHeight > 40;
+
+            stateBuffer.set((selected? 1: 0) | (hasContent? 0: 2), j);
+
+            const depth = undefined//j / 1000;
+
+            // depthBuffer.set(depth + 0.0001, j);
 
             // TODO text should be properly centered
             if (reserved < 16384 - 2048 && item.duration * this.#zoomX > 25 && screenRowHeight > textHeight + 2) {
@@ -1727,7 +1803,12 @@ void main() {
                 label = label.slice(0, slice >= labelLength? labelLength: Math.max(0, slice - 1)) + (slice >= labelLength? "": "…");
 
                 if (labelLength > 0) {
-                    this.labels.writeTextAt(label, reserved, labelLength, computedX + 10 + this.#sidebarWidth, (((this.rowHeight * 0.5) + (item.row * this.rowHeight)) * this.#zoomY - this.#scrollY) + this.#labelBarHeight - (10), textColor * (1 - blend) + r * blend, textColor * (1 - blend) + g * blend, textColor * (1 - blend) + b * blend, alpha ?? 255, 16, 0, 0, depth);
+                    const x = computedX + 10 + this.#sidebarWidth;
+
+                    const halfFontHeight = hasContent? -2: (textHeight * 0.5);
+                    const y = (((hasContent? 0: this.rowHeight * 0.5) + (item.row * this.rowHeight)) * this.#zoomY - this.#scrollY) + this.#labelBarHeight - (halfFontHeight);
+
+                    this.labels.writeTextAt(label, reserved, labelLength, x, y, textColor * (1 - blend) + r * blend, textColor * (1 - blend) + g * blend, textColor * (1 - blend) + b * blend, alpha ?? 255, 16, 0, 0, depth);
                     a[0] = false;
                     a[1] = labelLength;
                     a[2] = 1;
@@ -2026,7 +2107,7 @@ void main() {
                                 }
                             }
 
-                            this.resizeSelected(end - initial[0], false, this.__focusedItemIndex, false);
+                            this.resizeSelected(end - initial[0], 1, false, this.__focusedItemIndex, false);
 
                             itemChanged = true;
                             if(this.options.tooltipOnResize && this.selectedItems.length === 1) {
@@ -2056,8 +2137,7 @@ void main() {
                             // this.focusedItem.start = start;
                             // this.focusedItem.duration = Math.max(1, end - start);
                             // this.focusedItem.duration = Math.max(1, unlockedSnap? 1: Math.min(snapDistance, initial[1]), end - this.focusedItem.start);
-                            this.resizeSelected(end - start, false, this.__focusedItemIndex, false);
-                            t
+                            this.resizeSelected(end - start, 0, false, this.__focusedItemIndex, false);
 
                             itemChanged = true;
                             if(this.options.tooltipOnResize && this.selectedItems.length === 1) {
@@ -2086,9 +2166,8 @@ void main() {
                         }
                     }
 
-                    if (!nothingToDo) {
-                        this.renderer.render();
-                    }
+                    if (nothingToDo) return;
+                    this.renderer.render();
                 },
 
                 onEnd: (event) => {
@@ -2105,9 +2184,7 @@ void main() {
                         this.renderer.render();
                     }
 
-                    // this.focusedItem = null;
-
-                    // Hide any tooltips created by the timeline
+                    // Hide any tooltips created during the drag
                     LS.Tooltips.hide();
 
                     if(mode === 4) {
@@ -2317,7 +2394,7 @@ void main() {
             if (this.maxRows < 0) {
                 value = Math.max(0, value);
             } else {
-                value = Math.max(0, Math.min(Number(value), ((this.maxRows * this.rowHeight) * this.#zoomY) - ((this.renderer.height - this.#labelBarHeight))));
+                value = Math.max(0, Math.min(Number(value), ((this.maxRows * this.rowHeight) * this.#zoomY) - ((this.renderable.rect.height - this.#labelBarHeight))));
             }
 
             if (value === this.#scrollY) return;
@@ -2330,6 +2407,14 @@ void main() {
             return this.#scrollY;
         }
 
+        get width() {
+            return this.renderable.rect.width;
+        }
+
+        get height() {
+            return this.renderable.rect.height;
+        }
+
         set zoomX(value) {
             if (isNaN(value)) return;
 
@@ -2337,7 +2422,7 @@ void main() {
             const maxZoom = this.options.maxZoom;
 
             if(minZoom === "auto") {
-                const minZoomX = (this.renderer.width - this.#sidebarWidth) / this.#duration;
+                const minZoomX = (this.renderable.rect.width - this.#sidebarWidth) / this.#duration;
                 value = Math.max(minZoomX, value);
             } else {
                 value = Math.max(minZoom, value);
@@ -2434,8 +2519,8 @@ void main() {
         }
 
         #updateHeadPosition() {
-            let headPos = (this.#seek * this.#zoomX) - this.#scrollX + this.#sidebarWidth;
-            if(headPos < this.#sidebarWidth || headPos > 50 + this.renderer.width) headPos = -1000;
+            let headPos = (this.#seek * this.#zoomX) - this.#scrollX;
+            if(headPos < -50 || headPos > 50 + this.renderable.rect.width) headPos = -1000;
 
             if (this.__headPos !== headPos) {
                 this.playerHead.style.transform = `translate3d(${headPos}px, 0, 0)`;
@@ -2553,6 +2638,9 @@ void main() {
 
             this.textEngine.destroy();
             this.textEngine = null;
+            this.labels = null;
+            this.numberLabelsX = null;
+            this.numberLabelsY = null;
 
             this.touchHandle.destroy();
             this.touchHandle = null;
@@ -2569,14 +2657,22 @@ void main() {
             } else {
                 this.renderer.destroyRenderable(this.renderable);
             }
+            this.renderable = null;
 
             this.options = null;
-            this.renderable = null;
             this.clipboard = null;
             this.selectedItems = null;
             this.items = null;
             this.itemMap = null;
             this.previousItem = null;
+            this.loadPromise = null;
+            this.__seekEventRef = null;
+            this.__headPositionQueued = null;
+            this.__headPos = null;
+            this.__prevScrollX = null;
+            this.__prevScrollY = null;
+            this.__focusedItemIndex = null;
+            this.__needsSort = null;
 
             super.destroy();
         }
@@ -2593,5 +2689,9 @@ void main() {
         addTrack() {
             console.warn("Timeline.addTrack() is deprecated and does nothing. You have unlimited tracks now!");
         }
-    }, { name: "Timeline", global: true });
+    }
+
+    if (typeof module !== "undefined" && module.exports) {
+        module.exports = TimelineGL;
+    }
 })();

@@ -509,7 +509,9 @@
         }
     }
 
-    LS.LoadComponent(class Reactive extends LS.Component {
+    class Reactive extends LS.Component {
+        static { LS.register(this, { name: "Reactive", global: true }) }
+
         EMPTY_PATH = Object.freeze([ null, null, null ]);
 
         types = new Map([
@@ -1000,5 +1002,12 @@
             return null;
         }
 
-    }, { name: "Reactive", singular: true, global: true });
+    }
+
+    if (typeof module !== "undefined" && module.exports) {
+        module.exports = {
+            Reactive: Reactive,
+            Binding: ReactiveBinding
+        };
+    }
 })();

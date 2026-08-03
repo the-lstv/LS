@@ -139,7 +139,9 @@
         }
     }
 
-    LS.LoadComponent(class Multipane extends LS.Component {
+    class Multipane extends LS.Component {
+        static { LS.register(this, { name: "Multipane", id: "ls-multipane-layout", global: true }) }
+
         static PRESETS = {
             default: {
                 /**
@@ -545,5 +547,9 @@
             this.container = null;
             super.destroy();
         }
-    }, { name: "Multipane", id: "ls-multipane-layout", global: true });
+    }
+
+    if (typeof module !== "undefined" && module.exports) {
+        module.exports = Multipane;
+    }
 })();

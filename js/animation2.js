@@ -137,9 +137,11 @@ class Timeline {
     then(fn) { return this.promise.then(fn); }
 }
 
-LS.LoadComponent(class Animation extends LS.Component {
-    DEFAULT_DURATION = 300
-    DEFAULT_EASING = 'ease'
+class Animation extends LS.Component {
+    static { LS.register(this, { name: "Animation2", global: true }) }
+
+    DEFAULT_DURATION = 300;
+    DEFAULT_EASING = 'ease';
 
     constructor() {
         super();
@@ -653,8 +655,13 @@ LS.LoadComponent(class Animation extends LS.Component {
         this.scheduled.length = 0;
         this.activeProps = new WeakMap();
     }
-}, { name: "Animation2", global: true });
+};
 
 LS.Animation2.global = new LS.Animation2();
 
 console.warn("LS.Animation2 is highly experimental. Do not use it in production; things will change a lot and may be unsafe right now.");
+
+
+if (typeof module !== "undefined" && module.exports) {
+    module.exports = LS.Animation2;
+}
