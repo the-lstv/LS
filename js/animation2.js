@@ -662,6 +662,6 @@ LS.Animation2.global = new LS.Animation2();
 console.warn("LS.Animation2 is highly experimental. Do not use it in production; things will change a lot and may be unsafe right now.");
 
 
-if (typeof module !== "undefined" && module.exports) {
+/*@ls-export*/ if (typeof module !== "undefined" && module.exports) {
     module.exports = LS.Animation2;
 }

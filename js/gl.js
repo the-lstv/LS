@@ -9,6 +9,8 @@
  * @experimental
  */
 
+const quad = `const vec2 positions[4] = vec2[](vec2(-1.0, -1.0), vec2(1.0, -1.0), vec2(-1.0, 1.0), vec2(1.0, 1.0));`
+
 /**
  * MSDF shader for rendering text with MSDF fonts.
  * Optionally THREE.js compatible.
@@ -34,12 +36,17 @@ float median(float r, float g, float b) {
 void main() {
     vec3 msd = texture(uTexture, v_texCoord).rgb;
     float sd = median(msd.r, msd.g, msd.b);
+
     vec2 texSize = vec2(textureSize(uTexture, 0));
     vec2 unitRange = vec2(uPxRange) / texSize;
     vec2 screenTexSize = vec2(1.0) / fwidth(v_texCoord);
     float screenPxRange = max(0.5 * dot(unitRange, screenTexSize), 1.0);
 
     float alpha = clamp(screenPxRange * (sd - 0.5 + v_weight) + 0.5, 0.0, 1.0);
+
+    // Apply a second anti-aliasing pass to smooth out the edges of the glyphs
+    float aa = fwidth(sd);
+    alpha = smoothstep(0.5 - aa, 0.5 + aa, sd);
 
     outColor = vec4(v_color.rgb, v_color.a * alpha);
 }
@@ -59,13 +66,11 @@ uniform float uPxRange;
 
 out vec4 outColor;
 
-float median(float r, float g, float b)
-{
+float median(float r, float g, float b) {
     return max(min(r, g), min(max(r, g), b));
 }
 
-float screenPxRange()
-{
+float screenPxRange() {
     vec2 texSize = vec2(textureSize(uTexture, 0));
 
     vec2 unitRange = vec2(uPxRange) / texSize;
@@ -77,33 +82,32 @@ float screenPxRange()
     );
 }
 
-void main()
-{
+void main() {
     vec4 tex = texture(uTexture, v_texCoord);
 
     float msdf = median(tex.r, tex.g, tex.b);
-float sdf = tex.a;
+    float sdf = tex.a;
 
-float sd = mix(msdf, sdf, 0.15);
+    float sd = mix(msdf, sdf, 0.15);
 
-vec2 texSize = vec2(textureSize(uTexture, 0));
-vec2 unitRange = vec2(uPxRange) / texSize;
-vec2 screenTexSize = 1.0 / fwidth(v_texCoord);
+    vec2 texSize = vec2(textureSize(uTexture, 0));
+    vec2 unitRange = vec2(uPxRange) / texSize;
+    vec2 screenTexSize = 1.0 / fwidth(v_texCoord);
 
-float screenPxRange = max(
-    0.5 * dot(unitRange, screenTexSize),
-    1.0
-);
+    float screenPxRange = max(
+        0.5 * dot(unitRange, screenTexSize),
+        1.0
+    );
 
-float alpha = smoothstep(
-    0.0,
-    1.0,
-    screenPxRange * (sd - 0.5) + 0.5
-);
+    float alpha = smoothstep(
+        0.0,
+        1.0,
+        screenPxRange * (sd - 0.5) + 0.5
+    );
 
-alpha = pow(alpha, 0.9);
+    alpha = pow(alpha, 0.9);
 
-outColor = vec4(v_color.rgb, v_color.a * alpha);
+    outColor = vec4(v_color.rgb, v_color.a * alpha);
 }`;
 
 /**
@@ -135,16 +139,7 @@ void main() {
  */
 const fontVertex = `#version 300 es
 
-// Simple quad
-const vec2 positions[6] = vec2[](
-    vec2(-1.0, -1.0),
-    vec2( 1.0, -1.0),
-    vec2(-1.0,  1.0),
-
-    vec2(-1.0,  1.0),
-    vec2( 1.0, -1.0),
-    vec2( 1.0,  1.0)
-);
+${quad}
 
 in vec2 i_pos;
 in vec4 i_uvRect;
@@ -465,6 +460,8 @@ void main() {
      * @experimental
      */
     class Renderer extends LS.Context {
+        static backend = "Abstract";
+
         constructor(options = {}) {
             super();
             this.options = options;
@@ -493,9 +490,16 @@ void main() {
                 }
 
                 this.resize(resizeTo.clientWidth, resizeTo.clientHeight);
-            } else if (options.resizeTo === false && this.__observer) {
-                this.__observer.disconnect();
+                window.addEventListener("resize", this.__resizeHandler = () => {
+                    this.resize(resizeTo.clientWidth, resizeTo.clientHeight);
+                });
+
+            } else if (options.resizeTo === false && this.__observer || this.__resizeHandler) {
+                this.__observer && this.__observer.disconnect();
+                this.__resizeHandler && window.removeEventListener("resize", this.__resizeHandler);
+
                 this.__observer = null;
+                this.__resizeHandler = null;
             }
         }
 
@@ -579,11 +583,23 @@ void main() {
 
     /**
      * A WebGL renderer base class for handling graphics rendering.
-     * Note that due to the way WebGL is badly implemented in most browsers, you should use this *very* sparingly and always preffer reusing for multiple applications if you can and as much as you can, or you will hit limits and pretty major performance issues.
-     * To aid with this slightly, you can use VirtualWebGLRenderer instead, that internally recycles renderers.
+     * Note that due to the way WebGL is implemented in most browsers, you should use this *very* sparingly,
+     * and always preffer reusing for multiple applications if you can and as much as you can.
+     * Or you can hit limits and get major performance issues.
+     * 
      * @experimental
+     * 
+     * TIP: If you need to render multiple components, you don't have to create a new renderer for each one!
+     * Renderables are independent of the renderer and do not require a separate renderer instance.
+     * 
+     * All LS renderables are designed to co-exist in the same renderer and share resources, so you can simply have a single one and draw whichever you need.
+     * Eg., you can have multiple LS.Timeline or LS.Patcher instances and draw them on the same canvas with a single renderer, and simply update the region
+     * where you want them to draw by updating the rect {x,y,width,height} property.
+     * Doing this is prefferable and also lowers resource usage as many resources can be shared between renderables.
      */
     class WebGLRenderer extends Renderer {
+        static backend = "WebGL";
+
         constructor(options = {}, recycle = false) {
             super(options);
 
@@ -738,8 +754,7 @@ void main() {
             if (updatedDimensions) {
                 this.lastRenderWidth = canvasWidth;
                 this.lastRenderHeight = canvasHeight;
-                this.activeCamera.update(0, canvasWidth, canvasHeight, 0, -1, 1); // TODO: ? this isn't right what
-                gl.viewport(0, 0, canvasWidth, canvasHeight);
+                this.viewport(0, 0, canvasWidth, canvasHeight);
                 this.dimensionsVersion++;
             }
 
@@ -756,13 +771,24 @@ void main() {
         }
 
         renderOne(renderable, delta = 0, now = null, camera = null, clear = false, updateDimensions = false) {
-            if(!renderable || renderable.enabled === false) return;
+            if(!renderable || renderable.enabled === false || renderable.destroyed) return;
 
             const hasRenderMethod = typeof renderable.render === "function";
 
             if(renderable.renderables) {
-                if(typeof renderable.viewport === "object" || typeof renderable.rect === "object") {
-                    this.viewport(renderable.viewport || renderable.rect);
+                if(typeof renderable.rect === "object" || typeof renderable.viewport === "object") {
+                    const rect = renderable.viewport || renderable.rect;
+                    if(rect.width < 1 || rect.height < 1) return;
+                    this.viewport(rect.x, rect.y, rect.width, rect.height);
+
+                    if(renderable.compositeDOMLayers) {
+                        for(const layer of renderable.compositeDOMLayers) {
+                            layer.style.position = "absolute";
+                            layer.style.transform = "translate3d(" + `${rect.x}px, ${rect.y}px, 0px)`;
+                            layer.style.width = `${rect.width}px`;
+                            layer.style.height = `${rect.height}px`;
+                        }
+                    }
                 }
 
                 renderable = renderable.renderable || renderable.renderables;
@@ -775,8 +801,8 @@ void main() {
                 return;
             }
 
-            if(renderable?.destroyed || !hasRenderMethod) {
-                console.warn("Renderable has been destroyed or doesn't provide a render method.");
+            if(!hasRenderMethod) {
+                console.warn("Renderable doesn't provide a render method.");
                 return;
             }
 
@@ -821,9 +847,12 @@ void main() {
             if(typeof x === "object" && x !== null) {
                 width = x.width;
                 height = x.height;
-                y = this.height - (x.y + height); // seriously, even here
+                y = x.y;
                 x =  x.x;
             }
+
+            // seriously, even here
+            y = this.height - (y + height);
 
             const gl = this.gl;
             gl.viewport(x, y, width, height);
@@ -832,6 +861,9 @@ void main() {
             this.viewportY = y;
             this.viewportWidth = width;
             this.viewportHeight = height;
+
+            // eeh? it works..
+            this.activeCamera.update(0, width, height, 0, -1, 1);
         }
 
         #resize(width, height) {
@@ -968,10 +1000,37 @@ void main() {
                 }
             }
 
-            if(typeof renderable.destroy === "function") {
+            if(typeof renderable.destroy === "function" && !renderable.destroyed) {
                 renderable.destroy();
             } else {
                 console.warn("Renderable does not have a destroy method!");
+            }
+
+            if(renderable.program) {
+                this.destroyProgram(renderable.program);
+                renderable.program = null;
+            }
+
+            if(renderable.vao) {
+                this.gl.deleteVertexArray(renderable.vao);
+                renderable.vao = null;
+            }
+
+            if(renderable.buffers) {
+                for(const key in renderable.buffers) {
+                    const buffer = renderable.buffers[key];
+                    if(buffer instanceof WebGLBuffer) {
+                        buffer.destroy();
+                    }
+                }
+                renderable.buffers = null;
+            }
+
+            if(renderable.compositeDOMLayers) {
+                for(const layer of renderable.compositeDOMLayers) {
+                    layer.remove();
+                }
+                renderable.compositeDOMLayers = null;
             }
 
             const index = this.renderables.indexOf(renderable);
@@ -1018,19 +1077,6 @@ void main() {
             }
         }
     }
-
-    // const rendererPool = [];
-
-    /**
-     * Same interface as WebGLRenderer, but internally recycles renderers to avoid creating multiple contexts and hitting browser limits.
-     * Note that understandably this doesn't guarantee that you always get a fresh renderer with the exact same options as you requested.
-     * @experimental
-     */
-    // class VirtualWebGLRenderer extends WebGLRenderer {
-    //     constructor(options = {}) {
-    //         super(options, true);
-    //     }
-    // }
 
     const GL_ENUMS = WebGL2RenderingContext.prototype;
     function bufferFrom(type, size) {
@@ -1124,27 +1170,29 @@ void main() {
                     }
                 }
 
-                // const count = gl.getProgramParameter(this.program, gl.ACTIVE_ATTRIBUTES);
-                // for (let i = 0; i < count; i++) {
-                //     const info = gl.getActiveAttrib(this.program, i);
-                //     const loc = gl.getAttribLocation(this.program, info.name);
-
-                //     console.log({
-                //         name: info.name,
-                //         location: loc,
-                //         type: info.type,
-                //         size: info.size,
-                //     });
-                // }
-                // for (let i = 0; i < gl.getParameter(gl.MAX_VERTEX_ATTRIBS); i++) {
-                //     console.log(i, {
-                //         enabled: gl.getVertexAttrib(i, gl.VERTEX_ATTRIB_ARRAY_ENABLED),
-                //         integer: gl.getVertexAttrib(i, gl.VERTEX_ATTRIB_ARRAY_INTEGER),
-                //         size: gl.getVertexAttrib(i, gl.VERTEX_ATTRIB_ARRAY_SIZE),
-                //         type: gl.getVertexAttrib(i, gl.VERTEX_ATTRIB_ARRAY_TYPE),
-                //         stride: gl.getVertexAttrib(i, gl.VERTEX_ATTRIB_ARRAY_STRIDE),
-                //     });
-                // }
+                if(options.debug) {
+                    const count = gl.getProgramParameter(this.program, gl.ACTIVE_ATTRIBUTES);
+                    for (let i = 0; i < count; i++) {
+                        const info = gl.getActiveAttrib(this.program, i);
+                        const loc = gl.getAttribLocation(this.program, info.name);
+    
+                        console.log({
+                            name: info.name,
+                            location: loc,
+                            type: info.type,
+                            size: info.size,
+                        });
+                    }
+                    for (let i = 0; i < gl.getParameter(gl.MAX_VERTEX_ATTRIBS); i++) {
+                        console.log(i, {
+                            enabled: gl.getVertexAttrib(i, gl.VERTEX_ATTRIB_ARRAY_ENABLED),
+                            integer: gl.getVertexAttrib(i, gl.VERTEX_ATTRIB_ARRAY_INTEGER),
+                            size: gl.getVertexAttrib(i, gl.VERTEX_ATTRIB_ARRAY_SIZE),
+                            type: gl.getVertexAttrib(i, gl.VERTEX_ATTRIB_ARRAY_TYPE),
+                            stride: gl.getVertexAttrib(i, gl.VERTEX_ATTRIB_ARRAY_STRIDE),
+                        });
+                    }
+                }
 
                 if(typeof options.onSetup === "function") {
                     options.onSetup.call(this, gl, this.program, this.uniforms, this.attributes, options);
@@ -1790,6 +1838,24 @@ void main() {
             }
         }
 
+        get staticColor() {
+            return this._staticColor;
+        }
+
+        set staticColor(value) {
+            if (value !== null && (!Array.isArray(value))) {
+                throw new Error("Invalid staticColor option: expected an array of 4 values [r, g, b, a].");
+            }
+
+            const gl = this.renderer.gl;
+            gl.bindVertexArray(this.vao);
+            gl.disableVertexAttribArray(this.attributes.i_color);
+            gl.vertexAttrib4f(this.attributes.i_color, value[0] / 255, value[1] / 255, value[2] / 255, (value[3] || 255) / 255);
+            gl.bindVertexArray(null);
+
+            this._staticColor = value;
+        }
+
         render(delta, now, gl, cw, ch, updatedDimensions, uniforms, attributes, projectionMatrix) {
             // if(this.manualRendering || this.nextFree === 0) return;
             if(this.nextFree === 0) return;
@@ -1806,10 +1872,10 @@ void main() {
             gl.activeTexture(gl.TEXTURE0);
             gl.bindTexture(gl.TEXTURE_2D, this.texture);
             gl.uniform1i(uniforms.uTexture, 0);
-            gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.nextFree);
+            gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.nextFree);
         }
 
-        renderRange(startIdx, endIdx) {
+        renderRange(startIdx, endIdx, projectionMatrix) {
             if(endIdx <= startIdx) return;
             const gl = this.renderer.gl;
 
@@ -1820,20 +1886,19 @@ void main() {
             gl.useProgram(this.program);
             gl.bindVertexArray(this.vao);
 
-            const projectionMatrix = this.renderer.activeCamera?.projectionMatrix;
             const uniforms = this.uniforms;
 
             this.updateBuffers();
             this._setArrayOffset(startIdx);
 
-            gl.uniformMatrix4fv(uniforms.uProjection, false, projectionMatrix);
+            gl.uniformMatrix4fv(uniforms.uProjection, false, projectionMatrix || this.renderer.activeCamera?.projectionMatrix);
 
             gl.uniform2f(uniforms.uOffset, this.offsetX, this.offsetY);
 
             gl.activeTexture(gl.TEXTURE0);
             gl.bindTexture(gl.TEXTURE_2D, this.texture);
             gl.uniform1i(uniforms.uTexture, 0);
-            gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, endIdx - startIdx);
+            gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, endIdx - startIdx);
 
             gl.bindVertexArray(null);
             gl.useProgram(null);
@@ -1878,13 +1943,7 @@ void main() {
             gl.vertexAttribPointer (attributes.glyphDepth, 1, gl.FLOAT,        false, stride, startIdx * stride + offset);
 
             if(this.staticColor) {
-                if(!Array.isArray(this.staticColor) || this.staticColor.length !== 4) {
-                    throw new Error("Invalid staticColor option: expected an array of 4 values [r, g, b, a].");
-                }
-
-                const [r, g, b, a] = this.staticColor;
-                gl.disableVertexAttribArray(attributes.i_color);
-                gl.vertexAttrib4f(attributes.i_color, r / 255, g / 255, b / 255, a / 255);
+                this.staticColor = this.staticColor;
             }
         }
 
@@ -2423,6 +2482,10 @@ void main() {
             this.highestDirty = 0;
         }
 
+        updateWithStride(from, to, stride = this.cellSize) {
+            return this.update(from * stride, to * stride);
+        }
+
         /**
          * Resize the buffer to a new size. This will create a new typed array and copy the existing data to it.
          * @param {*} newSize - The new size of the buffer. Must be a positive integer.
@@ -2533,6 +2596,53 @@ void main() {
         WebGLBuffer,
         WebGLMSDFFont,
 
+        /**
+         * Creates a global WebGLRenderer instance that is composited on top of your application and resizes to your window.
+         * Drawing on this renderer will be composited on top of whatever is rendered in your application.
+         * @param {*} options 
+         * @returns 
+         */
+        createGlobalWebGLRenderer(options = {}) {
+            if(!LS.GlobalWebGLRenderer) {
+                options.resizeTo ??= window;
+                options.backgroundColor ??= "transparent";
+                options.blockIfHidden ??= true;
+                options.firstFrame ??= false;
+
+                LS.GlobalWebGLRenderer = new WebGLRenderer(options);
+                LS.GlobalWebGLRenderer.canvas.style.position = "fixed";
+                LS.GlobalWebGLRenderer.canvas.style.top = "0px";
+                LS.GlobalWebGLRenderer.canvas.style.left = "0px";
+                LS.GlobalWebGLRenderer.canvas.style.pointerEvents = "none";
+                LS.GlobalWebGLRenderer.canvas.style.zIndex = "9999";
+                LS.GlobalWebGLRenderer.canvas.classList.add("ls-global-webgl-renderer");
+
+                LS.once("ready", () => {
+                    LS._topLayer.appendChild(LS._compositeLayer = LS.Create({
+                        class: "ls-gl-composite-layer",
+                        inner: LS.GlobalWebGLRenderer.canvas
+                    }));
+
+                    LS.completed("global-composite-layer", LS._compositeLayer);
+                });
+            } else {
+                console.warn("Global WebGLRenderer was already created. Returning the existing instance, options provided were ignored. You should only call createGlobalWebGLRenderer once.");
+            }
+            return LS.GlobalWebGLRenderer;
+        },
+
+        destroyGlobalWebGLRenderer() {
+            if(LS.GlobalWebGLRenderer) {
+                console.log("Global WebGLRenderer was destroyed.");
+                LS.GlobalWebGLRenderer.canvas.remove();
+                LS.GlobalWebGLRenderer.destroy();
+                LS.GlobalWebGLRenderer = null;
+                LS.prepareEvent("global-composite-layer", { completed: false, data: null });
+                LS._compositeLayer?.remove();
+                LS._compositeLayer = null;
+            }
+        },
+
         // Experimental
         WebGLTextEngine,
 
@@ -2637,12 +2747,7 @@ void main() {
 
 out vec2 uv;
 
-const vec2 positions[4] = vec2[](
-    vec2(-1.0, -1.0),
-    vec2( 1.0, -1.0),
-    vec2( 1.0,  1.0),
-    vec2(-1.0,  1.0)
-);
+${quad}
 
 void main() {
     vec2 pos = positions[gl_VertexID];
@@ -2651,16 +2756,7 @@ void main() {
 }`,
             basic_quad: `#version 300 es
 
-// Simple quad
-const vec2 positions[6] = vec2[](
-    vec2(-1.0, -1.0),
-    vec2( 1.0, -1.0),
-    vec2(-1.0,  1.0),
-
-    vec2(-1.0,  1.0),
-    vec2( 1.0, -1.0),
-    vec2( 1.0,  1.0)
-);
+${quad}
 
 out vec2 vUV;
 
@@ -2680,22 +2776,14 @@ void main() {
 
     gl_Position = vec4(pos, 0.0, 1.0);
 }`,
-            instanced_quads: `#version 300 es
+            instanced_quads: (extra_attributes) => `#version 300 es
 
-// Simple quad
-const vec2 positions[6] = vec2[](
-    vec2(-1.0, -1.0),
-    vec2( 1.0, -1.0),
-    vec2(-1.0,  1.0),
-
-    vec2(-1.0,  1.0),
-    vec2( 1.0, -1.0),
-    vec2( 1.0,  1.0)
-);
+${quad}
 
 in vec2 iOffset;
 in vec2 iSize;
 in vec3 iColor;
+${extra_attributes? extra_attributes.map(attr => `in ${attr.type} i${attr.name};${attr.type === "uint"? "flat ": ""}out ${attr.type} v${attr.name};`).join(""): ""}
 
 out vec2 vUV;
 out vec3 vColor;
@@ -2704,17 +2792,22 @@ out vec2 vOffset;
 
 uniform vec2 uResolution;
 uniform vec2 uOffset;
-uniform vec2 uSize;
+uniform vec2 uZoom;
+uniform float uOutset;
 
 void main() {
-    vec2 local = uSize * positions[gl_VertexID];
+    vec2 size = iSize * uZoom;
+    vec2 offset = (iOffset * uZoom) - uOffset;
 
+    vec2 local = positions[gl_VertexID] * uOutset;
     vUV = local * 0.5 + 0.5;
-    vColor = iColor;
-    vSize = iSize;
-    vOffset = iOffset;
 
-    vec2 pos = vUV * (iSize / uResolution) + ((iOffset - uOffset) / uResolution);
+    vSize = size;
+    vOffset = offset;
+    vColor = iColor;
+    ${extra_attributes? extra_attributes.map(attr => `v${attr.name} = i${attr.name};`).join(""): ""}
+
+    vec2 pos = vUV * (size / uResolution) + (offset / uResolution);
     pos = pos * 2.0 - 1.0;
     pos.y = -pos.y;
 
@@ -2722,16 +2815,7 @@ void main() {
 }`,
             instanced_lines: `#version 300 es
 
-// Simple quad
-const vec2 positions[6] = vec2[](
-    vec2(-1.0, -1.0),
-    vec2( 1.0, -1.0),
-    vec2(-1.0,  1.0),
-
-    vec2(-1.0,  1.0),
-    vec2( 1.0, -1.0),
-    vec2( 1.0,  1.0)
-);
+${quad}
 
 out vec2 vUV;
 out vec2 vStart;
@@ -2797,21 +2881,35 @@ uniform uvec3 uColor;
 ${roundedBoxSDF}
 
 void main() {
-    vec2 uv = vUV * uSize;
-
     vec3 color = vec3(uColor) / 255.0;
 
-    float d = roundedBoxSDF((vUV - 0.5) * uSize, uSize * 0.5, 4.0);
-    float aa = fwidth(d); // Anti-aliasing factor
-    float alpha = 1.0 - smoothstep(0.0, aa * 0.5, d);
+    vec2 p = (vUV - 0.5) * uSize;
+    vec2 halfSize = uSize * 0.5;
 
-    // Border
-    if(uv.x < 2.0 || uv.x > uSize.x - 2.0 || uv.y < 2.0 || uv.y > uSize.y - 2.0) {
-        fragColor = vec4(color, alpha);
-        return;
-    }
+    float radius = 6.0;
 
-    fragColor = vec4(color, 0.2 * alpha);
+    // Outer rounded box
+    float outer = roundedBoxSDF(p, halfSize, radius);
+
+    // Inner rounded box (border thickness)
+    float borderWidth = 2.0;
+    float inner = roundedBoxSDF(
+        p,
+        halfSize - vec2(borderWidth),
+        max(radius - borderWidth, 0.0)
+    );
+
+    float aa = fwidth(outer);
+
+    float shapeAlpha = 1.0 - smoothstep(0.0, aa, outer);
+
+    // Border area between outer and inner rounded boxes
+    float border = smoothstep(-aa, aa, inner) * shapeAlpha;
+
+    // Fill area
+    float fill = (1.0 - smoothstep(-aa, aa, inner)) * shapeAlpha;
+
+    fragColor = vec4(color, border + fill * 0.2);
 }`,
 
 
@@ -2822,7 +2920,8 @@ void main() {
         },
 
         utils: {
-            roundedBoxSDF
+            roundedBoxSDF,
+            quad
         },
 
         get animation() {
@@ -2832,7 +2931,7 @@ void main() {
 
     console.warn("LS.GL is an early stage component. The API is not stable and may change in future releases. This component is not fully tested and may contain bugs.");
 
-    if (typeof module !== "undefined" && module.exports) {
+    /*@ls-export*/ if (typeof module !== "undefined" && module.exports) {
         module.exports = LS.GL;
     }
 })();

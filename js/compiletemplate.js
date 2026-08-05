@@ -764,6 +764,6 @@ LS.CompileTemplate = (() => {
     }
 })();
 
-if (typeof module !== "undefined" && module.exports) {
+/*@ls-export*/ if (typeof module !== "undefined" && module.exports) {
     module.exports = LS.compileTemplate;
 }

@@ -1004,7 +1004,7 @@
 
     }
 
-    if (typeof module !== "undefined" && module.exports) {
+    /*@ls-export*/ if (typeof module !== "undefined" && module.exports) {
         module.exports = {
             Reactive: Reactive,
             Binding: ReactiveBinding

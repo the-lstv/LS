@@ -374,6 +374,6 @@ class Tooltips extends LS.Component {
     }
 }
 
-if (typeof module !== "undefined" && module.exports) {
+/*@ls-export*/ if (typeof module !== "undefined" && module.exports) {
     module.exports = Tooltips;
 }

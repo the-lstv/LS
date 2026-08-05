@@ -166,7 +166,7 @@ LS.ShortcutManager = class ShortcutManager extends LS.EventEmitter {
     }
 };
 
-if (typeof module !== "undefined" && module.exports) {
+/*@ls-export*/ if (typeof module !== "undefined" && module.exports) {
     module.exports = {
         ShortcutManager: LS.ShortcutManager
     };
