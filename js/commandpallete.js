@@ -1,5 +1,11 @@
-LS.LoadComponent(class CommandPalette extends LS.Component {
+class CommandPalette extends LS.Component {
+    static { LS.register(this, { name: "CommandPalette", global: true }) }
+
     constructor(options = {}){
         super();
     }
-}, { name: "CommandPalette", global: true });
+}
+
+/*@ls-export*/ if (typeof module !== "undefined" && module.exports) {
+    module.exports = CommandPalette;
+}

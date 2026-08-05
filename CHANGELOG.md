@@ -1,17 +1,6 @@
-## Alpha 6.0.0-alpha.3
-- Sibling support to LS.Resize
-- LS.View is now under the LS namespace and included by default instead of LS.Multipane.View
-- LS.View now extends LS.Context instead of LS.EventEmitter for better lifecycle management
-- LS.Tooltips have been enhanced and now scan globally by default.
-- Some possible memory leaks have been fixed.
-- New experimental LS.GL library for WebGL/WebGPU (in the future) rendering and a MSDF/MTSDF text engine, replacing the legacy LS.GL.
-- LS.TimelineGL (WebGL-based) has been introduced as an (almost) drop-in replacement for the deprecated LS.Timeline (DOM-based). The DOM version is now deprecated, all future improvements will be made to the WebGL version.
-- TouchHandle now offers built-in world coordinate transformations, edge scrolling and inertia for panning applications.
-- LS.Util.FrameScheduler now always calculates delta time, allows disabling vSync, and has a built-in sampling mode for measuring framerate/frametimes.
-- Some changes to the design language
-- Modals now allow safe HTML content
 
-## Version 6.0.0
+
+# Version 6.0.0
 Major update (2026 release)!
 - **New components**: `LS.Multipane`, `LS.Layout`, `LS.View`, `LS.Patcher`, `LS.List`, `LS.SPA.*`, `LS.WindowManager`, `LS.CommandPalette`, `LS.ColorPicker`, `LS.Tree`, `LS.i18n`
 - LS.Create now supports Emmet abbreviations! (eg. LS.Create("#myId") instead of LS.Create("div", { id: "myId" }))
@@ -40,17 +29,27 @@ Major update (2026 release)!
 - Added LS.Modal.alert, LS.Modal.confirm and LS.Modal.prompt helpers for quick modals
 - Added a built-in JSONC parser (JSON with comments) - LS.Util.parseJSONC, LS.Util.stripJsonComments
 - & more general improvements
+#### Added in 6.0.0-alpha.3
+- Sibling support to LS.Resize
+- LS.View is now under the LS namespace and included by default instead of LS.Multipane.View
+- LS.View now extends LS.Context instead of LS.EventEmitter for better lifecycle management
+- LS.Tooltips have been enhanced and now scan globally by default.
+- Some possible memory leaks have been fixed.
+- New experimental LS.GL library for WebGL/WebGPU (in the future) rendering and a MSDF/MTSDF text engine, replacing the legacy LS.GL.
+- LS.TimelineGL (WebGL-based) has been introduced as an (almost) drop-in replacement for the deprecated LS.Timeline (DOM-based). The DOM version is now deprecated, all future improvements will be made to the WebGL version.
+- TouchHandle now offers built-in world coordinate transformations, edge scrolling and inertia for panning applications.
+- LS.Util.FrameScheduler now always calculates delta time, allows disabling vSync, and has a built-in sampling mode for measuring framerate/frametimes.
+- Some changes to the design language
+- Modals now allow safe HTML content
 
-< work in progress >
-
-**Misc**
+#### Misc
 - Introduced a GUI for generating CDN Links: https://lstv.space/tools/ls-loader
 - Documentation is *finally* here (yeah after 6 major releases)
 
-**Breaking changes:**
+#### Breaking changes:
 - Removed legacy TinyFramework (LS.Tiny, Q, O, S, N, M). Now entirely under the LS namespace! (Temporarily, a "enableV5Compat" option exists that restores this.)
 - Removed shared event listeners for lastKey, shiftDown, controlDown, mouseDown!
-- Removed legacyEvents from TouchHandle API!
+- Removed legacyEvents from TouchHandle API! Please use the new event object.
 - Removed LS.Util.map
 - Removed TinyFactory's isInView, isEntirelyInView, on, off, get, getAll, attr, delAttr, wrapIn and clear methods!
 - Removed enforceContextSafety option, replaced with experimental Context.debugEnforceContextSafety() and Context.debugWarnContextSafety() methods intended for debugging purposes.
@@ -58,11 +57,8 @@ Major update (2026 release)!
 - No v5compat component will exist unlike v4compat, but this isn't a problem since the API differences aren't that major and it's mostly solved with aliases.
 - LS.Native is deprecated in favor of a future API
 - Removed LS.Color.all and LS.Color.randomAccent methods
+- Removed deprecated EventEmitter.alias method, now EventEmitter.aliasEvent
 - [state] attribute is now [data-ls-state]
-
-### Version 5.4.0 (planned LTS)
-5.4.0 is identical to v6.0.0 with v5compat enabled, making it compatible with v5 applications.
-v5compat will be removed in future v6 releases and only this LTS version will be supported.
 
 ### Version 5.3.0 (farewell update)
 - Polishes, optimizations & bug fixes
@@ -133,7 +129,7 @@ Sorry for the aggressively implemented memory safety features, the current objec
 - Fixed tooltips not being hidden on esbuilt (backwards-compatible) builds
 - API now supports esbuild transpilation when enabled to bring better support to old browsers
 
-## Version 5.0.0
+# Version 5.0.0
 Major update (2025 release)!
 - 🚀 Performance and resource efficiency enhancements
 - 🎨 New and better dynamic color system
@@ -159,7 +155,7 @@ Major update (2025 release)!
 - Minor API bugfixes
 - Add version information to LS.version and LS.v
 
-## Version 4.0.0 (legacy)
+# Version 4.0.0 (legacy)
 V4 is not a major release, but rather a "LTS" version of v3.6.5.<br>
 It is deprecated but favored over the older 3.6.5 that it is based on, intended to keep old projects running.<br>
 It has also been upgraded to the new distribution format & file structure with latest API compatibility, moving from the old magical preprocessor, so it can be used reliably where needed.<br>

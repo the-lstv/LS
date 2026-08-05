@@ -1856,4 +1856,8 @@ LS.Color = class Color {
 
 const LS_ACCENTS_MAP = new Map([["navy",[60,42,162,1]],["blue",[0,105,204,1]],["pastel-indigo",[57,96,147,1]],["lapis",[37,124,167,1]],["teal",[0,204,204,1]],["pastel-teal",[43,153,161,1]],["aquamarine",[54,150,116,1]],["green",[32,172,107,1]],["lime",[104,167,37,1]],["neon",[88,204,0,1]],["yellow",[204,187,0,1]],["orange",[204,99,0,1]],["deep-orange",[204,61,0,1]],["red",[195,9,9,1]],["rusty-red",[173,31,45,1]],["pink",[182,22,123,1]],["hotpink",[192,12,99,1]],["purple",[126,62,142,1]],["soap",[97,48,156,1]],["burple",[10,32,194,1]],["white",[102,102,102,1]]]);
 LS.Color.accentColors = LS_ACCENTS_MAP;
+
+/*@ls-export*/ if (typeof module !== "undefined" && module.exports) {
+    module.exports = LS.Color;
+}
 })();

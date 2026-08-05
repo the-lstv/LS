@@ -50,7 +50,9 @@
  * audio_processor.send("start");
  */
 
-LS.LoadComponent(class Node extends LS.EventEmitter {
+class LSNode extends LS.EventEmitter {
+    static { LS.register(this, { name: "Node", global: true }) }
+
     constructor(options = {}) {
         super();
 
@@ -81,8 +83,8 @@ LS.LoadComponent(class Node extends LS.EventEmitter {
     }
 
     addChild(child) {
-        if (!(child instanceof Node)) {
-            throw new Error("Child must be an instance of Node");
+        if (!(child instanceof LSNode)) {
+            throw new Error("Child must be an instance of LSNode");
         }
 
         if (!this.children) return;
@@ -109,4 +111,8 @@ LS.LoadComponent(class Node extends LS.EventEmitter {
 
         this.emit("childRemoved", child);
     }
-}, { name: "Node", global: true });
+}
+
+/*@ls-export*/ if (typeof module !== "undefined" && module.exports) {
+    module.exports = LSNode;
+}

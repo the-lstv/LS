@@ -7,35 +7,35 @@
   overflow: hidden;
 }
 
-.ls-timeline canvas {
+.ls-timeline {
   border-top: 1px solid var(--elevate-2);
 }
 
-.ls-timeline canvas {
+.ls-timeline {
   background: var(--surface-1);
 }
 
-[ls-theme=light] .ls-timeline canvas {
+[ls-theme=light] .ls-timeline {
   background: var(--surface-0);
 }
 
-.ls-timeline[data-tool=slice] canvas {
+.ls-timeline[data-tool=slice] {
   cursor: var(--ls-cursor-slice);
 }
 
-.ls-timeline[data-tool=erase] canvas {
+.ls-timeline[data-tool=erase] {
   cursor: var(--ls-cursor-erase);
 }
 
-.ls-timeline[data-tool=preview] canvas {
+.ls-timeline[data-tool=preview] {
   cursor: var(--ls-cursor-preview);
 }
 
-.ls-timeline[data-tool=group] canvas {
+.ls-timeline[data-tool=group] {
   cursor: var(--ls-cursor-group);
 }
 
-.ls-timeline[data-tool=paint] canvas {
+.ls-timeline[data-tool=paint] {
   cursor: var(--ls-cursor-paint);
 }
 

@@ -127,3 +127,9 @@ LS.WebSocket = class WebSocketWrapper extends LS.EventEmitter {
         this.destroyed = true;
     }
 };
+
+/*@ls-export*/ if (typeof module !== "undefined" && module.exports) {
+    module.exports = {
+        WebSocket: LS.WebSocket
+    };
+}

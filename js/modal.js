@@ -38,7 +38,9 @@
         }
     }
 
-    LS.LoadComponent(class Modal extends LS.Component {
+    class Modal extends LS.Component {
+        static { LS.register(this, { name: "Modal", global: true }) }
+
         static defaults = LS.Util.staticDefaults({
             styled: true,
             fadeInDuration: 300,
@@ -399,5 +401,9 @@
                 modal.lsComponent.close();
             }
         }
-    }, { name: "Modal", global: true })
+    }
+
+    /*@ls-export*/ if (typeof module !== "undefined" && module.exports) {
+        module.exports = Modal;
+    }
 })();

@@ -143,4 +143,8 @@
             }
         }
     }, { name: "i18n", global: true });
+
+    /*@ls-export*/ if (typeof module !== "undefined" && module.exports) {
+        module.exports = LS.i18n;
+    }
 })();

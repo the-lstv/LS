@@ -3,13 +3,11 @@
 .idea
 .github
 
-# Backend related
+# Backend distribution related
 versions/
 
 # Being worked on
 misc/demos
-*.test.html
-*.bench.html
 
 # ?
 app.conf
@@ -18,6 +16,10 @@ ls-reference.md
 node_modules
 pnpm-*
 
+# Internal temporary files
 *.patch
 *.log
 *.backup
+*.test.*
+*.bench.*
+__*
