@@ -780,15 +780,6 @@ void main() {
                     const rect = renderable.viewport || renderable.rect;
                     if(rect.width < 1 || rect.height < 1) return;
                     this.viewport(rect.x, rect.y, rect.width, rect.height);
-
-                    if(renderable.compositeDOMLayers) {
-                        for(const layer of renderable.compositeDOMLayers) {
-                            layer.style.position = "absolute";
-                            layer.style.transform = "translate3d(" + `${rect.x}px, ${rect.y}px, 0px)`;
-                            layer.style.width = `${rect.width}px`;
-                            layer.style.height = `${rect.height}px`;
-                        }
-                    }
                 }
 
                 renderable = renderable.renderable || renderable.renderables;
@@ -985,6 +976,65 @@ void main() {
             gl.disable(gl.SCISSOR_TEST);
         }
 
+        addRenderable(renderable) {
+            if(!renderable) return;
+
+            if(renderable.boundingContainer) {
+                renderable._resizeObserver = null;
+                renderable._resizeObserver = new ResizeObserver(() => {
+                    const rect = renderable.boundingContainer.getBoundingClientRect();
+                    renderable.rect.x = rect.left;
+                    renderable.rect.y = rect.top;
+                    renderable.rect.width = rect.width;
+                    renderable.rect.height = rect.height;
+
+                    if(renderable.compositeDOMLayers) {
+                        for(const layer of renderable.compositeDOMLayers) {
+                            const element = layer.element || layer;
+                            const offsetX = layer.offset?.x || 0;
+                            const offsetY = layer.offset?.y || 0;
+                            const offsetLeft = layer.offset?.left || 0;
+                            const offsetTop = layer.offset?.top || 0;
+                            const offsetRight = layer.offset?.right || 0;
+                            const offsetBottom = layer.offset?.bottom || 0;
+
+                            element.style.position = "fixed";
+                            element.style.left = "0px";
+                            element.style.top = "0px";
+                            element.style.transform = "translate3d(" + `${rect.x + offsetLeft + offsetX}px, ${rect.y + offsetTop + offsetY}px, 0px)`;
+                            element.style.width = `${rect.width - offsetLeft - offsetRight}px`;
+                            element.style.height = `${rect.height - offsetTop - offsetBottom}px`;
+                        }
+                    }
+
+                    this.renderOne(renderable, 0, performance.now(), this.activeCamera, false, true);
+                });
+
+                renderable._resizeObserver.observe(renderable.boundingContainer);
+
+                renderable._intersectionObserver = new IntersectionObserver((entries) => {
+                    for(const entry of entries) {
+                        const isVisible = entry.isIntersecting;
+                        renderable.enabled = isVisible;
+                        this.render(); //todo:
+
+                        if(renderable.compositeDOMLayers) {
+                            for(const layer of renderable.compositeDOMLayers) {
+                                const element = layer.element || layer;
+
+                                element.style.display = isVisible? "block": "none";
+                                if(!element.isConnected) LS._compositeLayer.appendChild(element);
+                            }
+                        }
+                    }
+                }, { threshold: 0 });
+
+                renderable._intersectionObserver.observe(renderable.boundingContainer);
+            }
+
+            this.renderables.push(renderable);
+        }
+
         destroyRenderable(renderable) {
             if(!renderable) return;
 
@@ -1026,9 +1076,20 @@ void main() {
                 renderable.buffers = null;
             }
 
+            if(renderable._resizeObserver) {
+                renderable._resizeObserver.disconnect();
+                renderable._resizeObserver = null;
+            }
+
+            if(renderable._intersectionObserver) {
+                renderable._intersectionObserver.disconnect();
+                renderable._intersectionObserver = null;
+            }
+
             if(renderable.compositeDOMLayers) {
                 for(const layer of renderable.compositeDOMLayers) {
-                    layer.remove();
+                    const element = layer.element || layer;
+                    if(element.isConnected) element.remove();
                 }
                 renderable.compositeDOMLayers = null;
             }
@@ -2613,12 +2674,12 @@ void main() {
                 LS.GlobalWebGLRenderer.canvas.style.position = "fixed";
                 LS.GlobalWebGLRenderer.canvas.style.top = "0px";
                 LS.GlobalWebGLRenderer.canvas.style.left = "0px";
+                LS.GlobalWebGLRenderer.canvas.style.zIndex = "1";
                 LS.GlobalWebGLRenderer.canvas.style.pointerEvents = "none";
-                LS.GlobalWebGLRenderer.canvas.style.zIndex = "9999";
                 LS.GlobalWebGLRenderer.canvas.classList.add("ls-global-webgl-renderer");
 
                 LS.once("ready", () => {
-                    LS._topLayer.appendChild(LS._compositeLayer = LS.Create({
+                    (options.compositeLayerParent || LS._topLayer).appendChild(LS._compositeLayer = LS.Create({
                         class: "ls-gl-composite-layer",
                         inner: LS.GlobalWebGLRenderer.canvas
                     }));

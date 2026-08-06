@@ -29,9 +29,11 @@ The goal is to have all built-in components reach the highest quality rating so 
 | LS.Multipane | ★★★★☆ (4/5) | Not bad but lacks some features.
 | LS.Stack/StackItem | ★★★★☆ (4/5) | Simple
 | LS.Knob | ★★★★☆ (4/5) | Extensive feature set, pretty robust
-| LS.Timeline | ★★★★☆ (4/5) | Recently migrated and stable, bugs may still show up
+| LS.TimelineGL | ★★★★☆ (4/5) | Recently fully revamped, has a few slight bugs
+| LS.Patcher | ★★★★☆ (4/5) | New component, needs rendering optimizations
 | LS.Tree | ★★★★☆ (4/5) | Stable, but might still need some polishing.
 | LS.Animation | ★★★★☆ (4/5) | Works, but way too few features (being replaced by LS.Animation2)
+| LS.Menu | ★★★★☆ (4/5) | Recently refactored (further work could be done to reduce per-instance overhead)
 | LS.ShortcutManager (builtin) | ★★★☆☆ (3/5) | Needs API solidification, incomplete
 | LS.Reactive | ★★★☆☆ (3/5) | Solid code for what it does, but needs a strategy redesign
 | LS.Tabs | ★★★☆☆ (3/5) | Not terrible but could be better.
@@ -39,22 +41,18 @@ The goal is to have all built-in components reach the highest quality rating so 
 | LS.Context (builtin) | ★★★☆☆ (3/5) | Too opinionated but functional
 | LS.CompileTemplate (builtin) | ★★★☆☆ (3/5) | Experimental
 | LS.Range | ★★★☆☆ (3/5) | Functional, but code review needed
-| LS.ImageCropper | ★★★☆☆ (3/5) | Spaghetti/rushed but functional. Not much attention has been given to this component, but it works.
-| LS.Menu | ★★★☆☆ (3/5) | In early development, requires some polishing and bug fixes
+| LS.ImageCropper | ★★★☆☆ (3/5) | Rushed but functional. Not enough attention has been given.
 | LS.GL | ★★★☆☆ (3/5) | Experimental stage
 | LS.DragDrop | ★★☆☆☆ (2/5) | Recently migrated from v3, needs refactoration, but is more or less useless now.
 | LS.Network | ★★☆☆☆ (2/5) | Just a WebSocket wrapper as of now
 | LS.i18n | ★★☆☆☆ (2/5) | Work needs to be done here
 | LS.Node | ★☆☆☆☆ (1/5) | Doesn't really do anything yet
 | LS.Native | ★☆☆☆☆ (1/5) | Deprecated
-| LS.TimelineGL | ☆☆☆☆☆ (?) | Work in progress
 | LS.Animation2 | ☆☆☆☆☆ (?) | Incomplete
 | LS.Layout | ☆☆☆☆☆ (?) | Incomplete
-| LS.Patcher | ☆☆☆☆☆ (?) | Incomplete
 | LS.WindowManager | ☆☆☆☆☆ (?) | Incomplete
 | LS.CommandPalette | ☆☆☆☆☆ (?) | Incomplete
 | LS.ColorPicker | ☆☆☆☆☆ (?) | Incomplete
-| LS.GLMultiShader | ☆☆☆☆☆ (-) | Moved to LS.GL
 | LS.SPA | ☆☆☆☆☆ (-) | Unreleased. Currently functional only in a specific environment.
 
 Misc utilities or smaller components (all built-in):

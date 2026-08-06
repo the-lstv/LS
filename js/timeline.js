@@ -279,23 +279,10 @@ class TimelineGL extends LS.Component {
             height: this.renderer.canvas.height
         };
 
-        this.resizeObserver = null;
-        if(!this.options.rect) {
-            this.resizeObserver = new ResizeObserver(() => {
-                const rect = this.container.getBoundingClientRect();
-                this.rect.x = rect.left;
-                this.rect.y = rect.top;
-                this.rect.width = rect.width;
-                this.rect.height = rect.height;
-                this.renderer.render();
-            });
-
-            this.resizeObserver.observe(this.container);
-        }
+        this.boundingContainer = this.container;
 
         this.enabled = false;
         this.renderables = [];
-        this.compositeDOMLayers = [];
 
         this.domJail = document.createElement("div");
         this.domJail.style.position = "absolute";
@@ -303,7 +290,13 @@ class TimelineGL extends LS.Component {
         this.domJail.style.pointerEvents = "none";
         this.domJail.style.zIndex = "2";
         this.domJail.appendChild(this.playerHead);
-        this.compositeDOMLayers.push(this.domJail);
+
+        // Composite the DOM based things on top of the WebGL canvas
+        this.compositeDOMLayers = [{
+            element: this.domJail,
+            offset: { left: this.#sidebarWidth }
+        }];
+
         // this.container.append(this.domJail);
 
         if(this.__dedicatedRenderer) {
@@ -357,7 +350,7 @@ class TimelineGL extends LS.Component {
 
             this.#setupRenderables();
             this.#setupHandle();
-            if(this.options.renderImmediately) this.renderer.render();
+            if(this.options.renderImmediately && !this.__dedicatedRenderer) this.renderer.render();
         });
     }
 
@@ -1163,96 +1156,100 @@ in vec2 uv;
 out vec4 fragColor;
 
 void applyElevation(vec3 baseColor, float elevation) {
-if(elevation < 1.0) {
-    fragColor = vec4(mix(baseColor, vec3(0.0), (1.0 - elevation) * contrast), 1.0);
-} else {
-    fragColor = vec4(mix(baseColor, vec3(1.0), (elevation - 1.0) * contrast), 1.0);
-}
+    if(elevation < 1.0) {
+        fragColor = vec4(mix(baseColor, vec3(0.0), (1.0 - elevation) * contrast), 1.0);
+    } else {
+        fragColor = vec4(mix(baseColor, vec3(1.0), (elevation - 1.0) * contrast), 1.0);
+    }
 }
 
 void main() {
-const float borderWidth = 1.0;
+    const float borderWidth = 1.0;
 
-float offsetY = uv.y + offset.y;
-float offsetX = uv.x + offset.x;
-float rowHeight = gridSize.y * zoom.y;
-float columnWidth = gridSize.x * zoom.x;
+    float offsetY = uv.y + offset.y;
+    float offsetX = uv.x + offset.x;
+    float rowHeight = gridSize.y * zoom.y;
+    float columnWidth = gridSize.x * zoom.x;
 
-vec3 backgroundColor = vec3(backgroundColor) / 255.0;
-vec3 accentColor = mix(vec3(accentColor) / 255.0, backgroundColor, 0.2);
+    vec3 backgroundColor = vec3(backgroundColor) / 255.0;
+    vec3 accentColor = mix(vec3(accentColor) / 255.0, backgroundColor, 0.2);
 
-bool isSelected = uv.x >= selectionRange.x && uv.x <= selectionRange.y;
+    bool isSelected = uv.x >= selectionRange.x && uv.x <= selectionRange.y;
 
-if(uv.y < labelBarHeight) {
-    fragColor = vec4(mix(isSelected? accentColor: backgroundColor, vec3(1.0), ((uv.y > labelBarHeight - borderWidth || (uv.x < sidebarWidth && uv.x > sidebarWidth - borderWidth))? 0.2: 0.0) * contrast), 1.0);
-    return;
-}
-
-float elevation = 1.0;
-
-if(uv.x < sidebarWidth) {
-    if(uv.x > sidebarWidth - borderWidth) {
-        applyElevation(backgroundColor, 1.2);
+    if(uv.y < labelBarHeight) {
+        if(uv.x < sidebarWidth) {
+            applyElevation(backgroundColor, 0.8);
+            return;
+        }
+        fragColor = vec4(mix(isSelected? accentColor: backgroundColor, vec3(1.0), ((uv.y > labelBarHeight - borderWidth || (uv.x < sidebarWidth && uv.x > sidebarWidth - borderWidth))? 0.2: 0.0) * contrast), 1.0);
         return;
     }
 
-    if(uv.x > sidebarWidth - 4.0) {
-        elevation = 0.8;
+    float elevation = 1.0;
+
+    if(uv.x < sidebarWidth) {
+        if(uv.x > sidebarWidth - borderWidth) {
+            applyElevation(backgroundColor, 1.2);
+            return;
+        }
+
+        if(uv.x > sidebarWidth - 4.0) {
+            elevation = 0.8;
+        }
+
+        elevation -= ((mod(offsetY, rowHeight) * (1.0 / rowHeight)) * 0.2) + 0.1;
+
+        applyElevation(backgroundColor, elevation + 0.15);
+        return;
     }
 
-    elevation -= ((mod(offsetY, rowHeight) * (1.0 / rowHeight)) * 0.2) + 0.1;
-
-    applyElevation(backgroundColor, elevation + 0.15);
-    return;
-}
-
-vec3 baseColor = backgroundColor;
-if(isSelected) {
-    baseColor = mix(baseColor, accentColor, 0.5);
-}
-
-// TODO: account properly
-float segmentHighlight = 0.0;
-float segmentWidth = ((1024.0 * 2.0) * timeSignature.x) * zoom.x;
-if(segmentWidth > 1.0) {
-    float cell = offsetX * 1.0 / (segmentWidth);
-    float factor = segmentWidth > 32.0? 1.0: segmentWidth * (1.0/32.0);
-    segmentHighlight = step(0.5, fract(cell)) * 0.2 * factor;
-}
-
-elevation -= segmentHighlight;
-
-// Rows
-float row = offsetY * 1.0 / (2.0 * rowHeight);
-elevation -= step(0.5, fract(row)) * (segmentHighlight > 0.0? 0.1: 0.2);
-
-// Lines
-if(mod(offsetY, rowHeight) < 1.0 || uv.x < sidebarWidth + 1.0) {
-    // float posY = offsetY * (1.0 / rowHeight);
-    // float gIndexY = floor(posY);
-    // float note = floor(mod(gIndexY, 12.0));
-
-    elevation = 0.5;
-
-    // float factor = 0.6;
-
-    // if(note == 0.0 || note == 7.0) {
-    //     factor = 1.0;
-    // }
-
-    // elevation = factor;
-}
-
-if(mod(offsetX, columnWidth) < 1.0 || uv.x < sidebarWidth + 1.0) {
-    elevation = 0.6;
-
-    // if we are on a bar line, make it more visible
-    if(mod(offsetX, columnWidth * timeSignature.x) < 1.0) {
-        elevation = 0.1;
+    vec3 baseColor = backgroundColor;
+    if(isSelected) {
+        baseColor = mix(baseColor, accentColor, 0.5);
     }
-}
 
-applyElevation(baseColor, elevation);
+    // TODO: account properly
+    float segmentHighlight = 0.0;
+    float segmentWidth = ((1024.0 * 2.0) * timeSignature.x) * zoom.x;
+    if(segmentWidth > 1.0) {
+        float cell = offsetX * 1.0 / (segmentWidth);
+        float factor = segmentWidth > 32.0? 1.0: segmentWidth * (1.0/32.0);
+        segmentHighlight = step(0.5, fract(cell)) * 0.2 * factor;
+    }
+
+    elevation -= segmentHighlight;
+
+    // Rows
+    float row = offsetY * 1.0 / (2.0 * rowHeight);
+    elevation -= step(0.5, fract(row)) * (segmentHighlight > 0.0? 0.1: 0.2);
+
+    // Lines
+    if(mod(offsetY, rowHeight) < 1.0 || uv.x < sidebarWidth + 1.0) {
+        // float posY = offsetY * (1.0 / rowHeight);
+        // float gIndexY = floor(posY);
+        // float note = floor(mod(gIndexY, 12.0));
+
+        elevation = 0.5;
+
+        // float factor = 0.6;
+
+        // if(note == 0.0 || note == 7.0) {
+        //     factor = 1.0;
+        // }
+
+        // elevation = factor;
+    }
+
+    if(mod(offsetX, columnWidth) < 1.0 || uv.x < sidebarWidth + 1.0) {
+        elevation = 0.6;
+
+        // if we are on a bar line, make it more visible
+        if(mod(offsetX, columnWidth * timeSignature.x) < 1.0) {
+            elevation = 0.1;
+        }
+    }
+
+    applyElevation(baseColor, elevation);
 }`,
 
             uniforms: ["offset", "uResolution", "zoom", "timeSignature", "gridSize", "contrast", "sidebarWidth", "labelBarHeight", "selectionRange", "accentColor", "backgroundColor"],
@@ -1609,7 +1606,7 @@ void main() {
 
                     if(self.#sidebarWidth > 0 && screenRowHeight > textHeight + 2) {
                         const labelStep = Math.max(1, Math.ceil(textHeight / screenRowHeight));
-                        const labelCount = ((self.rect.width - self.#labelBarHeight) / screenRowHeight);
+                        const labelCount = ((self.rect.height - self.#labelBarHeight) / screenRowHeight);
                         const preBuffer = Math.floor(self.#labelBarHeight / screenRowHeight);
 
                         for (let i = 0; i < labelCount + preBuffer + 1; i++) {
@@ -1654,7 +1651,7 @@ void main() {
                     }
                 }
 
-                self.renderer.scissor(self.rect.x, self.rect.y + self.#labelBarHeight, self.#sidebarWidth, self.rect.width - self.#labelBarHeight);
+                self.renderer.scissor(self.rect.x, self.rect.y + self.#labelBarHeight, self.#sidebarWidth, self.rect.height - self.#labelBarHeight);
                 self.numberLabelsY.render();
                 self.renderer.endScissor();
 
@@ -1796,7 +1793,8 @@ void main() {
 
     // -- Navigation
     #setupHandle() {
-        let initial = [0, 0], mode = 0, edgeScrollOffset = [0, 0], itemChanged = false;
+        let initial = [0, 0], mode = 0, edgeScrollOffset = [0, 0], itemChanged = false, timeSinceLastClick = 0;
+
         this.touchHandle = new LS.Util.TouchHandle(this.container, {
             calculateBounds: true,
 
@@ -1807,6 +1805,8 @@ void main() {
 
             handleWheel: true,
             handleHover: true,
+
+            boundsTarget: this.renderer.canvas,
 
             transformBounds: (rect) => {
                 const rRect = this.rect;
@@ -1860,7 +1860,7 @@ void main() {
                 // Reset state
                 const button = +event.domEvent.button?? 0;
                 this.touchHandle.edgeScroll = button !== 1;
-                this.renderer.canvas.style.cursor = "";
+                this.container.style.cursor = "";
                 this.touchHandle.inertia = false;
                 event.__scrolled = false;
                 edgeScrollOffset[0] = 0;
@@ -1984,11 +1984,34 @@ void main() {
                         mode = 5;
                     }
                 } else {
-                    mode = 4;
+                    const dbClick = Date.now() - timeSinceLastClick < 200;
 
-                    // Also set immediately the seek position since we are dragging on the bar
-                    let snapDistance = event.domEvent.altKey? 1: this.columnWidth();
-                    this.setSeek(this._snap((event.boundX + this.#scrollX) / this.#zoomX, snapDistance));
+                    const snappedWx = this._snap((event.boundX + this.#scrollX) / this.#zoomX, this.columnWidth());
+
+                    if(event.domEvent.shiftKey || dbClick) {
+                        if(!dbClick && this.selectionRange[0] !== this.selectionRange[1]) {
+                            mode = 10;
+                            initial[0] = this.selectionRange[1] - this.selectionRange[0];
+                            initial[1] = snappedWx - this.selectionRange[0];
+                            this.touchHandle.cursor = "ew-resize";
+                        } else {
+                            mode = 9;
+                            this.touchHandle.cursor = "crosshair";
+                            this.selectionRange[0] = snappedWx;
+                            this.selectionRange[1] = this.selectionRange[0];
+                            initial[0] = this.selectionRange[0];
+                            this.renderer.render();
+                        }
+
+                    } else {
+                        mode = 4;
+    
+                        // Also set immediately the seek position since we are dragging on the bar
+                        let snapDistance = event.domEvent.altKey? 1: this.columnWidth();
+                        this.setSeek(this._snap((event.boundX + this.#scrollX) / this.#zoomX, snapDistance));
+                    }
+
+                    timeSinceLastClick = Date.now();
                 }
 
                 if(mode === 4) {
@@ -2121,11 +2144,6 @@ void main() {
                         break;
                     }
 
-                    // -- Seek
-                    case 4:
-                        this.setSeek(this._snap((event.boundX + this.#scrollX) / this.#zoomX, snapDistance));
-                        break;
-
                     // -- Erase item
                     case 5: {
                         const { row: eraseRow, time: eraseTime } = this.transformCoords(event.boundX, event.boundY, false);
@@ -2135,6 +2153,39 @@ void main() {
                             const itemToErase = itemsToErase[itemsToErase.length - 1];
                             this.remove(itemToErase, true);
                         }
+                        break;
+                    }
+
+                    // -- Seek
+                    case 4:
+                        this.setSeek(this._snap((event.boundX + this.#scrollX) / this.#zoomX, snapDistance));
+                        break;
+
+                    // -- Selection (range)
+                    case 9: {
+                        const start = initial[0];
+                        const end = this._snap((event.boundX + this.#scrollX) / this.#zoomX, snapDistance);
+
+                        this.selectionRange[0] = Math.max(Math.min(start, end), 0);
+                        this.selectionRange[1] = Math.max(start, end, 0);
+
+                        const items = this.getRange(this.selectionRange[0], this.selectionRange[1]);
+
+                        this.selectedItems = items;
+                        break;
+                    }
+
+                    // -- Moving selection (range)
+                    case 10: {
+                        const start = Math.max(0, this._snap((event.boundX + this.#scrollX) / this.#zoomX, snapDistance) - initial[1]);
+                        const end = start + initial[0];
+
+                        this.selectionRange[0] = Math.max(Math.min(start, end), 0);
+                        this.selectionRange[1] = Math.max(start, end, 0);
+
+                        const items = this.getRange(this.selectionRange[0], this.selectionRange[1]);
+
+                        this.selectedItems = items;
                         break;
                     }
                 }
@@ -2168,14 +2219,14 @@ void main() {
             onHover: (event) => {
                 if(event.boundY < 0 || event.boundX < 0) {
                     // Auto to prevent tool cursor
-                    this.renderer.canvas.style.cursor = "auto";
+                    this.container.style.cursor = "auto";
                     return;
                 }
 
                 // TODO: zIndex
                 const item = this.getIntersectingAt((event.boundX + this.#scrollX) / this.#zoomX, Math.floor((event.boundY + this.#scrollY) / (this.rowHeight * this.#zoomY))).pop();
                 if (!item) {
-                    this.renderer.canvas.style.cursor = "";
+                    this.container.style.cursor = "";
                     return;
                 }
 
@@ -2185,9 +2236,9 @@ void main() {
                 const noteH = this.rowHeight * this.#zoomY;
 
                 if (event.boundX > noteX + this.resizeMargin && event.boundX < noteX + noteW - this.resizeMargin) {
-                    this.renderer.canvas.style.cursor = "var(--ls-cursor-move)";
+                    this.container.style.cursor = "var(--ls-cursor-move)";
                 } else {
-                    this.renderer.canvas.style.cursor = "ew-resize";
+                    this.container.style.cursor = "ew-resize";
                 }
             }
         });
@@ -2610,7 +2661,9 @@ void main() {
     }
 
     destroy() {
-        if (this.destroyed) return;
+        if (this.destroyed || this.destroying) return;
+        this.destroying = true;
+
         this.reset(true);
 
         this.textEngine.destroy();
@@ -2619,8 +2672,10 @@ void main() {
         this.numberLabelsX = null;
         this.numberLabelsY = null;
 
-        this.touchHandle.destroy();
-        this.touchHandle = null;
+        if(this.touchHandle) {
+            this.touchHandle.destroy();
+            this.touchHandle = null;
+        }
 
         this.__actionEventRef = null;
 
@@ -2634,11 +2689,6 @@ void main() {
             this.renderer.destroyRenderable(this);
         }
         this.renderer = null;
-
-        if(this.resizeObserver) {
-            this.resizeObserver.disconnect();
-            this.resizeObserver = null;
-        }
 
         this.options = null;
         this.clipboard = null;

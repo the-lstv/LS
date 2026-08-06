@@ -41,6 +41,7 @@ Major update (2026 release)!
 - LS.Util.FrameScheduler now always calculates delta time, allows disabling vSync, and has a built-in sampling mode for measuring framerate/frametimes.
 - Some changes to the design language
 - Modals now allow safe HTML content
+- Rewrite of the previously very low quality component LS.Menu
 
 #### Misc
 - Introduced a GUI for generating CDN Links: https://lstv.space/tools/ls-loader

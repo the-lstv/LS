@@ -127,7 +127,7 @@ body {
         }
     }
 
-    hr {
+    hr, .ls-menu-separator {
         border: 1px solid var(--elevate);
         border-radius: 10px;
         margin: var(--hr-spacing, 18px) 0

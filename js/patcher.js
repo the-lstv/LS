@@ -182,9 +182,11 @@ class Patcher extends LS.Component {
         this.rect = this.options.rect || {
             x: 0,
             y: 0,
-            get width() { return self.renderer.width; },
-            get height() { return self.renderer.height; },
+            width: this.renderer.canvas.width,
+            height: this.renderer.canvas.height
         };
+
+        this.boundingContainer = this.container;
 
         this.enabled = false;
         this.renderables = [];
@@ -321,7 +323,7 @@ class Patcher extends LS.Component {
                 this.renderer.addRenderable(this);
             }
 
-            if(this.options.renderImmediately) this.renderer.render();
+            if(this.options.renderImmediately && !this.__dedicatedRenderer) this.renderer.render();
         });
     }
 
@@ -634,6 +636,7 @@ class Patcher extends LS.Component {
         svg.setAttribute("width", "100%");
         svg.setAttribute("height", "100%");
         svg.style.position = "absolute";
+        svg.style.pointerEvents = "none";
 
         this.connectionsGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
         svg.appendChild(this.connectionsGroup);
@@ -735,8 +738,8 @@ class Patcher extends LS.Component {
                     const line = this.#curvedLine(sourceX, sourceY, targetX, targetY);
                     const path = `M ${sourceX} ${sourceY} C ${line[2]} ${sourceY}, ${line[4]} ${targetY}, ${targetX} ${targetY}`;
 
+                    let entry = this.pathPool[required];
                     required++;
-                    let entry = this.pathPool[required - 1];
 
                     if (!entry) {
                         const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
@@ -1170,7 +1173,7 @@ void main() {
 
         let initialSelection = null;
 
-        this.touchHandle = new LS.Util.TouchHandle(this.renderer.canvas, {
+        this.touchHandle = new LS.Util.TouchHandle(this.container, {
             calculateBounds: true,
 
             frameTimed: true,
@@ -1180,6 +1183,8 @@ void main() {
 
             handleWheel: true,
             handleHover: true,
+
+            boundsTarget: this.renderer.canvas,
 
             transformBounds: (rect) => {
                 const rRect = this.rect;
@@ -1522,131 +1527,138 @@ void main() {
             }
         });
 
+        // -- Context menu
+
+        const itemCm = [
+            { text: "", type: "label" },
+            {
+                text: "Bypass node",
+                icon: "ph ph-power",
+                action: () => this.toggleBypass(this.focusedItem)
+            },
+            {
+                text: "Rename...",
+                icon: "ph ph-pencil",
+                action: () => {
+                    const focusedItem = this.focusedItem;
+                    LS.Modal.prompt("Enter a new label for the node:", focusedItem.label || focusedItem.id, {
+                        title: "Rename Node"
+                    }).then((newLabel) => {
+                        if (newLabel !== null) {
+                            focusedItem.label = newLabel;
+                            this.renderer.render();
+                        }
+                    });
+                }
+            },
+            {
+                text: "Disconnect all",
+                icon: "ph ph-plugs-connected",
+                action: () => this.disconnectAllFromNode(this.focusedItem)
+            },
+            {
+                text: "Replace with",
+                icon: "ph ph-arrows-clockwise",
+
+                // TODO
+                items: [
+                    {
+                        text: "Audio Node",
+                        action: () => this.replaceNode(this.focusedItem, { type: "audio" })
+                    },
+                    {
+                        text: "MIDI Node",
+                        action: () => this.replaceNode(this.focusedItem, { type: "midi" })
+                    },
+                    {
+                        text: "Parameter Node",
+                        action: () => this.replaceNode(this.focusedItem, { type: "param" })
+                    }
+                ]
+            },
+            { type: "separator" },
+            {
+                text: "Copy",
+                icon: "ph ph-copy",
+                action: () => this.copySelected()
+            },
+            {
+                text: "Cut",
+                icon: "ph ph-scissors",
+                action: () => this.copySelected(true)
+            },
+            {
+                text: "Clone",
+                icon: "ph ph-copy",
+                action: () => this.cloneSelected()
+            },
+            {
+                text: "Delete",
+                icon: "ph ph-trash",
+                action: () => this.deleteSelected()
+            },
+            { type: "separator" },
+            {
+                text: "Clear Selection",
+                icon: "ph ph-selection-slash",
+                action: () => this.deselectAll()
+            }
+        ];
+
+        const globalCm = [
+            { text: "Patcher", type: "label" },
+            {
+                text: "Open Node Panel",
+                icon: "ph ph-plus-circle",
+                action: () => this.openMenu(true)
+            },
+            {
+                text: "Reset Node Positions",
+                icon: "ph ph-bounding-box",
+                action: () => this.resetLayout()
+            },
+            {
+                text: "Select All",
+                icon: "ph ph-selection-all",
+                action: () => this.selectAll()
+            },
+            { type: "separator" },
+            {
+                text: "Paste Items",
+                icon: "ph ph-clipboard",
+                action: () => this.pasteItems()
+            },
+            { type: "separator" },
+            {
+                text: "Delete Selected",
+                icon: "ph ph-trash",
+                action: () => this.deleteSelected()
+            },
+            {
+                text: "Copy Selected",
+                icon: "ph ph-copy",
+                action: () => this.copySelected()
+            },
+            {
+                text: "Clear Selection",
+                icon: "ph ph-selection-slash",
+                action: () => this.deselectAll()
+            }
+        ];
+
         this.patcherContextMenu = LS.Menu.addContextMenu(this.container, () => {
             const focusedItem = this.focusedItem;
-
             if(focusedItem) {
-                return [
-                    { text: focusedItem.label || focusedItem.id, type: "label" },
-                    {
-                        text: "Bypass node",
-                        icon: "ph ph-power",
-                        action: () => this.toggleBypass(focusedItem)
-                    },
-                    {
-                        text: "Rename...",
-                        icon: "ph ph-pencil",
-                        action: () => {
-                            LS.Modal.prompt("Enter a new label for the node:", focusedItem.label || focusedItem.id, {
-                                title: "Rename Node"
-                            }).then((newLabel) => {
-                                if (newLabel !== null) {
-                                    focusedItem.label = newLabel;
-                                    this.renderer.render();
-                                }
-                            });
-                        }
-                    },
-                    {
-                        text: "Disconnect all",
-                        icon: "ph ph-plugs-connected",
-                        action: () => this.disconnectAllFromNode(focusedItem)
-                    },
-                    {
-                        text: "Replace with",
-                        icon: "ph ph-arrows-clockwise",
-
-                        // TODO
-                        items: [
-                            {
-                                text: "Audio Node",
-                                action: () => this.replaceNode(focusedItem, "audio")
-                            },
-                            {
-                                text: "MIDI Node",
-                                action: () => this.replaceNode(focusedItem, "midi")
-                            },
-                            {
-                                text: "Parameter Node",
-                                action: () => this.replaceNode(focusedItem, "param")
-                            }
-                        ]
-                    },
-                    { type: "separator" },
-                    {
-                        text: "Copy",
-                        icon: "ph ph-copy",
-                        action: () => this.copySelected()
-                    },
-                    {
-                        text: "Cut",
-                        icon: "ph ph-scissors",
-                        action: () => this.copySelected(true)
-                    },
-                    {
-                        text: "Clone",
-                        icon: "ph ph-copy",
-                        action: () => this.cloneSelected()
-                    },
-                    {
-                        text: "Delete",
-                        icon: "ph ph-trash",
-                        action: () => this.deleteSelected()
-                    },
-                    { type: "separator" },
-                    {
-                        text: "Clear Selection",
-                        icon: "ph ph-selection-slash",
-                        action: () => this.deselectAll()
-                    }
-                ];
+                itemCm[0].text = focusedItem.label || focusedItem.id || "";
+                return itemCm;
             }
 
-            const selectedCount = this.selectedItems.length;
-            return [
-                { text: "Patcher", type: "label" },
-                {
-                    text: "Open Node Panel",
-                    icon: "ph ph-plus-circle",
-                    action: () => this.openMenu(true)
-                },
-                {
-                    text: "Reset Node Positions",
-                    icon: "ph ph-bounding-box",
-                    action: () => this.resetLayout()
-                },
-                {
-                    text: "Select All",
-                    icon: "ph ph-selection-all",
-                    action: () => this.selectAll()
-                },
-                { type: "separator" },
-                {
-                    text: "Paste Items",
-                    icon: "ph ph-clipboard",
-                    disabled: this.clipboard.length === 0,
-                    action: () => this.pasteItems()
-                },
-                { type: "separator" },
-                {
-                    text: "Delete Selected",
-                    icon: "ph ph-trash",
-                    disabled: selectedCount === 0,
-                    action: () => this.deleteSelected()
-                },
-                {
-                    text: "Copy Selected",
-                    icon: "ph ph-copy",
-                    disabled: selectedCount === 0,
-                    action: () => this.copySelected()
-                },
-                {
-                    text: "Clear Selection",
-                    icon: "ph ph-selection-slash",
-                    disabled: selectedCount === 0,
-                    action: () => this.deselectAll()
-                }
-            ];
+            const hasSelection = this.selectedItems.length > 0;
+            globalCm.at(-1).disabled = !hasSelection;
+            globalCm.at(-2).disabled = !hasSelection;
+            globalCm.at(-3).disabled = !hasSelection;
+            globalCm.at(-5).disabled = this.clipboard.length === 0;
+            return globalCm;
         });
     }
 
@@ -1883,15 +1895,15 @@ void main() {
         return this;
     }
 
-    toggleBypass(node) {
+    toggleBypass(node, value = null) {
         if(typeof node === "string") {
             node = this.nodeMap.get(node);
         }
 
         if(!node) return this;
 
-        node.bypassed = !node.bypassed;
-        this.quickEmit("item-bypass", node);
+        node.bypassed = value !== null? !!value: !node.bypassed;
+        this.quickEmit("item-bypass", node, node.bypassed);
         this.renderer.render();
         return this;
     }
@@ -1981,6 +1993,31 @@ void main() {
         this.nodeMap.clear();
         this.renderer.render();
         return this;
+    }
+
+    replaceNode(oldNode, newNode) {
+        if(typeof oldNode === "string") {
+            oldNode = this.nodeMap.get(oldNode);
+        }
+
+        if (!oldNode || !newNode) return;
+
+        const id = oldNode.id;
+        newNode.id = id;
+        newNode.x = oldNode.x;
+        newNode.y = oldNode.y;
+
+        // TODO: validate io etc.
+
+        const index = this.nodes.indexOf(oldNode);
+        if (index >= 0) {
+            this.nodes[index] = newNode;
+            this.nodeMap.delete(id);
+            this.nodeMap.set(id, newNode);
+            this.renderer.render();
+
+            this.quickEmit("item-replaced", oldNode, newNode);
+        }
     }
 
     getNodeById(nodeId) {

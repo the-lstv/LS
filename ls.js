@@ -1484,19 +1484,19 @@
          * If the element does not exist, it creates a new one.
          * 
          * @example LS.SelectOrCreate("#myElement");
-         * @example LS.SelectOrCreate(searchElement, "#myElement");
+         * @example LS.SelectOrCreate("#myElement", searchElement);
          * 
-         * @param {string|Element} selector - The selector or parent element to search within (otherwise search the document).
-         * @param {string} subSelector - The selector to find or create if using a root element.
-         * @returns {Element} The selected or newly created element.
+         * @param {string} selector - The selector to search for or create.
+         * @param {string|Element} target - Selector or parent element to search within (otherwise the body).
+         * @returns {Element} The found or newly created element.
          */
-        SelectOrCreate(selector, subSelector) {
+        SelectOrCreate(selector, target) {
             if(!selector) return null;
 
-            const element = LS.SelectOne(selector, subSelector);
+            const element = LS.Select(target || selector, target? selector: null, true);
             if(element) return element;
 
-            const newElement = LS.Create(subSelector || selector);
+            const newElement = LS.Create(selector);
             return newElement;
         }
 

@@ -788,17 +788,8 @@ button.ls-toast-close.ls-toast-close.ls-toast-close {
   overflow: auto;
 }
 
-.ls-menu-item {
+.ls-menu-item:not(.ls-menu-label):not(.ls-menu-separator), .ls-list-item {
   margin: 0 4px;
-}
-.ls-menu-item:last-child {
-  margin-bottom: 4px;
-}
-.ls-menu-item:first-child {
-  margin-top: 4px;
-}
-
-.ls-list-item, .ls-menu-item {
   padding: var(--space-tiny) var(--space-small);
   white-space: nowrap;
   border-radius: var(--border-radius-small);
@@ -808,6 +799,18 @@ button.ls-toast-close.ls-toast-close.ls-toast-close {
   gap: 5px;
   overflow: hidden;
   min-height: fit-content;
+}
+.ls-menu-item:not(.ls-menu-label):not(.ls-menu-separator):last-child, .ls-list-item:last-child {
+  margin-bottom: 4px;
+}
+.ls-menu-item:not(.ls-menu-label):not(.ls-menu-separator):first-child, .ls-list-item:first-child {
+  margin-top: 4px;
+}
+.ls-menu-item:not(.ls-menu-label):not(.ls-menu-separator).ls-checkbox, .ls-menu-item:not(.ls-menu-label):not(.ls-menu-separator).ls-radio, .ls-menu-item:not(.ls-menu-label):not(.ls-menu-separator).ls-switch, .ls-list-item.ls-checkbox, .ls-list-item.ls-radio, .ls-list-item.ls-switch {
+  padding-left: calc(1em + 15px);
+}
+.ls-menu-item:not(.ls-menu-label):not(.ls-menu-separator).ls-checkbox > span, .ls-menu-item:not(.ls-menu-label):not(.ls-menu-separator).ls-radio > span, .ls-menu-item:not(.ls-menu-label):not(.ls-menu-separator).ls-switch > span, .ls-list-item.ls-checkbox > span, .ls-list-item.ls-radio > span, .ls-list-item.ls-switch > span {
+  left: 5px;
 }
 
 .ls-list-item:hover, .ls-list-item.selected {
@@ -833,22 +836,17 @@ button.ls-toast-close.ls-toast-close.ls-toast-close {
   margin-left: 4px;
 }
 
-.ls-menu-separator.ls-menu-separator {
+.ls-menu-separator.ls-menu-separator.ls-menu-separator {
   border: 1px solid var(--elevate-2, var(--surface-3));
   border-bottom: none;
+  height: 0;
+  overflow: visible;
   --hr-spacing: 4px;
 }
 
 .ls-menu-label {
   font-weight: 600;
   padding: 6px 10px;
-}
-
-.ls-menu-item.ls-checkbox, .ls-menu-item.ls-radio, .ls-menu-item.ls-switch {
-  padding-left: calc(1em + 15px);
-}
-.ls-menu-item.ls-checkbox > span, .ls-menu-item.ls-radio > span, .ls-menu-item.ls-switch > span {
-  left: 5px;
 }
 
 .ls-list-item.disabled, .ls-menu-item.disabled {
@@ -2448,7 +2446,7 @@ body {
   outline-offset: 3px;
   border-radius: 3px;
 }
-[ls] hr {
+[ls] hr, [ls] .ls-menu-separator {
   border: 1px solid var(--elevate);
   border-radius: 10px;
   margin: var(--hr-spacing, 18px) 0;
