@@ -94,7 +94,117 @@
         return d;
     }
 
-    // Register the Knob component class with LS
+    let currentKnob = null, rawValue, lastPointerStartTime = 0, lastPointerStartX = 0, lastPointerStartY = 0;
+
+    // --- Shared handle for all knob instances
+    let startValue = 0;
+    const sharedHandle = new LS.Util.TouchHandle(document, {
+        pointerLock: true,
+        buttons: [0],
+
+        onStart: (event) => {
+            const domEvent = event.domEvent;
+            const knobElement = domEvent.target.closest("ls-knob");
+            currentKnob = knobElement?.knob;
+            if (!currentKnob || !currentKnob.enabled) return event.cancel();
+
+            sharedHandle.activeTarget = knobElement;
+
+            const now = performance.now();
+
+            const x = event.x;
+            const y = event.y;
+            const dx = x - lastPointerStartX;
+            const dy = y - lastPointerStartY;
+            const interval = now - lastPointerStartTime;
+            const distanceSq = (dx * dx) + (dy * dy);
+
+            const DOUBLE_START_MS = 300;
+            const MAX_DISTANCE_PX = 12;
+
+            if (interval > 0 && interval <= DOUBLE_START_MS && distanceSq <= (MAX_DISTANCE_PX * MAX_DISTANCE_PX)) {
+                event.cancel();
+                currentKnob.reset();
+                lastPointerStartTime = 0;
+                return;
+            }
+
+            lastPointerStartTime = now;
+            lastPointerStartX = x;
+            lastPointerStartY = y;
+
+            startValue = currentKnob._value;
+            rawValue = currentKnob._value;
+            currentKnob.isDragging = true;
+            currentKnob.element.classList.add("ls-knob-active");
+            currentKnob.showTooltip();
+        },
+
+        onMove: (event) => {
+            if (!currentKnob || !currentKnob.enabled || !event.domEvent) return;
+
+            const mode = currentKnob.getMode();
+            const range = currentKnob.options.max - currentKnob.options.min;
+
+            // Scale ~200px
+            const delta = (-event.dy / 200) * range * currentKnob.options.sensitivity;
+
+            // Accumulate raw value for smooth interpolation
+            // In 360-degree mode, wrap around instead of clamping
+            const clamped = mode === 2 ? 
+                ((rawValue + delta - currentKnob.options.min) % range + range) % range + currentKnob.options.min :
+                clamp(Number(rawValue + delta) || 0, currentKnob.options.min, currentKnob.options.max);
+
+            rawValue = clamped;
+
+            // Snap to step & clamp
+            const final = clamp(
+                Math.round(clamped / currentKnob.options.step) * currentKnob.options.step,
+                currentKnob.options.min, currentKnob.options.max
+            );
+
+            const rounded = Math.round(final * 1e10) / 1e10;
+            if (rounded !== currentKnob._value) {
+                if(currentKnob.options.frameTimed) {
+                    currentKnob.__scheduledEmitInput = true;
+                } else {
+                    currentKnob.emitInput();
+                }
+            }
+
+            currentKnob._value = rounded;
+            currentKnob.render();
+        },
+
+        onEnd: () => {
+            currentKnob.isDragging = false;
+            currentKnob.element.classList.remove("ls-knob-active");
+            currentKnob.hideTooltip();
+            // Sync raw value to final stepped value
+            rawValue = currentKnob._value;
+
+            if (startValue !== currentKnob._value) {
+                currentKnob.emitChange();
+            }
+
+            currentKnob = null;
+            startValue = 0;
+        }
+    });
+
+    sharedHandle.cursor = "none";
+
+    // --- Shared scheduler for all knob instances
+    const scheduled = new Set();
+    const sharedScheduler = new LS.Util.FrameScheduler(() => {
+        for (const knob of scheduled) {
+            if(!knob || knob.destroyed) continue;
+            knob._render();
+        }
+        scheduled.clear();
+    });
+
+    // --- Register the Knob component class with LS
     class Knob extends LS.Component {
         static { LS.register(this, { name: "Knob", global: true }) }
 
@@ -113,7 +223,7 @@
             numeric: false,
             valueDisplayFormatter: null,
             label: null,
-            bipolar: "auto" // "auto" = true when min < 0 < max, or explicit true/false
+            mode: "auto" // 0 = default, 1 = bipolar, 2 = 360. auto = bipolar if min < 0 < max
         });
 
         /**
@@ -134,10 +244,18 @@
 
             this.element.knob = this;
 
-            this.options = this.constructor.defaults(options);
-            this.style = { ...DEFAULT_STYLE };
+            if(options.tooltip) {
+                element.setAttribute("ls-tooltip", options.tooltip);
+            }
 
-            this.#value = clamp(this.options.value, this.options.min, this.options.max);
+            this.options = this.constructor.defaults(options);
+
+            // Legacy 'bipolar' option
+            if(options.bipolar !== undefined) {
+                this.options.mode = options.bipolar === "auto" ? "auto" : (options.bipolar ? 1 : 0);
+            }
+
+            this._value = clamp(this.options.value, this.options.min, this.options.max);
             this.#percentage = 0;
             this.#arcAngle = 0;
             this.#initialized = false;
@@ -151,8 +269,7 @@
             this.digitElement = null;
             this.labelElement = null;
 
-            // Frame scheduler for efficient rendering
-            this.frameScheduler = new LS.Util.FrameScheduler(() => this.#render());
+            this.__scheduledEmitInput = false;
 
             // Interaction state
             this.enabled = !this.options.disabled;
@@ -162,20 +279,17 @@
         }
 
         // Private state
-        #value = 0;
-        #rawValue = 0; // Unsnapped value for smooth interpolation during drag
+        _value = 0;
+
         #percentage = 0;
         #arcAngle = 0;
         #initialized = false;
-        #startValue = 0;
-        #isDragging = false;
         #lastRenderedDigit = null;
-        #lastPointerStartTime = 0;
-        #lastPointerStartX = 0;
-        #lastPointerStartY = 0;
+
+        isDragging = false;
 
         get value() {
-            return this.#value;
+            return this._value;
         }
 
         set value(newValue) {
@@ -186,26 +300,9 @@
             const final = clamp(stepped, this.options.min, this.options.max);
             // Round to avoid floating point precision issues
             const rounded = Math.round(final * 1e10) / 1e10;
-            if (rounded === this.#value) return;
-            this.#value = rounded;
-            if (!this.#isDragging) {
-                this.#rawValue = rounded;
-            }
-            this.frameScheduler.schedule();
-        }
-
-        // Internal setter that bypasses stepping (for smooth drag)
-        #setRawValue(newValue) {
-            const clamped = clamp(Number(newValue) || 0, this.options.min, this.options.max);
-            this.#rawValue = clamped;
-            // Snap for the actual value
-            const stepped = Math.round(clamped / this.options.step) * this.options.step;
-            const final = clamp(stepped, this.options.min, this.options.max);
-            const rounded = Math.round(final * 1e10) / 1e10;
-            const changed = rounded !== this.#value;
-            this.#value = rounded;
-            this.frameScheduler.schedule();
-            return changed;
+            if (rounded === this._value) return;
+            this._value = rounded;
+            this.render();
         }
 
         get min() {
@@ -214,7 +311,7 @@
 
         set min(val) {
             this.options.min = Number(val) || 0;
-            this.value = this.#value; // Re-clamp
+            this.value = this._value; // Re-clamp
         }
 
         get max() {
@@ -223,7 +320,7 @@
 
         set max(val) {
             this.options.max = Number(val) || 100;
-            this.value = this.#value; // Re-clamp
+            this.value = this._value; // Re-clamp
         }
 
         get step() {
@@ -278,59 +375,6 @@
             const preset = this.element.getAttribute("preset") || (this.options.numeric ? "numeric" : this.options.preset);
             this.setPreset(preset, true);
 
-            // Setup touch/mouse interaction
-            this.handle = new LS.Util.TouchHandle(this.element, {
-                pointerLock: true,
-                buttons: [0],
-
-                onStart: (event) => {
-                    if (!this.enabled) return event.cancel();
-
-                    if (this.#shouldResetFromPointerStart(event.domEvent)) {
-                        event.cancel();
-                        this.reset();
-                        return;
-                    }
-
-                    this.#startValue = this.#value;
-                    this.#rawValue = this.#value;
-                    this.#isDragging = true;
-                    this.element.classList.add("ls-knob-active");
-                    this.#showTooltip();
-                },
-
-                onMove: (event) => {
-                    if (!this.enabled || !event.domEvent) return;
-                    // Proportional movement: scale by range so ~200px drag = full range
-                    const range = this.options.max - this.options.min;
-                    const pixelsForFullRange = 200;
-                    const delta = (-event.dy / pixelsForFullRange) * range * this.options.sensitivity;
-
-                    // Accumulate raw value for smooth interpolation
-                    const newRawValue = this.#rawValue + delta;
-                    const changed = this.#setRawValue(newRawValue);
-
-                    if (changed) {
-                        this.#emitInput();
-                    }
-                    this.#showTooltip();
-                },
-
-                onEnd: () => {
-                    this.#isDragging = false;
-                    this.element.classList.remove("ls-knob-active");
-                    this.#hideTooltip();
-                    // Sync raw value to final stepped value
-                    this.#rawValue = this.#value;
-                    if (this.#startValue !== this.#value) {
-                        this.#emitChange();
-                    }
-                }
-            });
-
-            this.handle.cursor = "none";
-            this.handle.enabled = this.enabled;
-
             // Keyboard support
             this.element.setAttribute("tabindex", "0");
             this.element.setAttribute("role", "slider");
@@ -362,8 +406,8 @@
 
                 if (handled) {
                     e.preventDefault();
-                    this.#emitInput();
-                    this.#emitChange();
+                    this.emitInput();
+                    this.emitChange();
                 }
             });
 
@@ -373,13 +417,13 @@
                 e.preventDefault();
                 const delta = -Math.sign(e.deltaY) * this.options.step;
                 this.value += delta;
-                this.#emitInput();
-                this.#emitChange();
+                this.emitInput();
+                this.emitChange();
             }, { passive: false });
 
             this.#initialized = true;
             this.#initializeVisuals();
-            this.frameScheduler.schedule();
+            this.render();
         }
 
         #initializeVisuals() {
@@ -467,17 +511,28 @@
             this.#updateLabel();
         }
 
-        #render() {
+        render() {
+            scheduled.add(this);
+            sharedScheduler.schedule();
+        }
+
+        _render() {
             if (!this.#initialized) return;
+
+            if(this.__scheduledEmitInput) {
+                this.emitInput();
+                this.__scheduledEmitInput = false;
+            }
 
             // Calculate percentage and angle
             const range = this.options.max - this.options.min;
-            this.#percentage = range > 0 ? ((this.#value - this.options.min) / range) * 100 : 0;
+            this.#percentage = range > 0 ? ((this._value - this.options.min) / range) * 100 : 0;
+
             this.#arcAngle = this.style.arcGap[0] +
                 (this.#percentage / 100) * (this.style.arcGap[1] - this.style.arcGap[0]);
 
             // Update ARIA attributes
-            this.element.setAttribute("aria-valuenow", this.#value);
+            this.element.setAttribute("aria-valuenow", this._value);
             this.element.setAttribute("aria-valuemin", this.options.min);
             this.element.setAttribute("aria-valuemax", this.options.max);
 
@@ -488,36 +543,51 @@
 
             // Update arc path
             if (this.style.arc && this.arc) {
-                const isBipolar = this.#isBipolar();
-                
-                if (isBipolar) {
-                    // Bipolar mode: arc starts from zero point
-                    const zeroPercent = (0 - this.options.min) / range * 100;
-                    const zeroAngle = this.style.arcGap[0] +
-                        (zeroPercent / 100) * (this.style.arcGap[1] - this.style.arcGap[0]);
+                const mode = this.getMode();
+
+                switch (mode) {
+                    case 0:
+                        // Normal mode: arc from start to value
+                        this.arc.setAttribute("d", this.#computeArc(this.style.arcFill, this.#arcAngle));
+                        break;
+                    case 1:
+                        // Bipolar mode: arc starts from zero point
+                        const zeroPercent = (0 - this.options.min) / range * 100;
+                        const zeroAngle = this.style.arcGap[0] +
+                            (zeroPercent / 100) * (this.style.arcGap[1] - this.style.arcGap[0]);
+                        
+                        if (this._value >= 0) {
+                            // Positive: draw from zero to value
+                            this.arc.setAttribute("d", this.#computeArc(this.style.arcFill, this.#arcAngle, zeroAngle));
+                        } else {
+                            // Negative: draw from value to zero
+                            this.arc.setAttribute("d", this.#computeArc(this.style.arcFill, zeroAngle, this.#arcAngle));
+                        }
+                        break;
                     
-                    if (this.#value >= 0) {
-                        // Positive: draw from zero to value
-                        this.arc.setAttribute("d", this.#computeArc(this.style.arcFill, this.#arcAngle, zeroAngle));
-                    } else {
-                        // Negative: draw from value to zero
-                        this.arc.setAttribute("d", this.#computeArc(this.style.arcFill, zeroAngle, this.#arcAngle));
-                    }
-                } else {
-                    // Normal mode: arc from start to value
-                    this.arc.setAttribute("d", this.#computeArc(this.style.arcFill, this.#arcAngle));
+                    case 2:
+                        // 360-degree mode, arc spans small gap for visual effect
+                        const gap = 15; // degrees
+                        const startAngle = this.#arcAngle - gap;
+                        const endAngle = this.#arcAngle + gap;
+                        this.arc.setAttribute("d", this.#computeArc(this.style.arcFill, endAngle, startAngle));
+                    default:
+                        break;
                 }
+            }
+
+            if(this.isDragging) {
+                this.showTooltip();
             }
 
             this.#updateDigitDisplay();
         }
 
-        #isBipolar() {
-            if (this.options.bipolar === "auto") {
-                // Auto-detect: bipolar if range spans zero
-                return this.options.min < 0 && this.options.max > 0;
+        getMode() {
+            if (this.options.mode === "auto") {
+                return (this.options.min < 0 && this.options.max > 0)? 1 : 0;
             }
-            return !!this.options.bipolar;
+            return this.options.mode;
         }
 
         #computeArc(fill = true, endAngle = this.#arcAngle, startAngle = this.style.arcGap[0]) {
@@ -551,7 +621,7 @@
 
         #updateDigitDisplay() {
             if (!this.style.digit || !this.digitElement) return;
-            const text = this.#formatValue(this.#value);
+            const text = this.#formatValue(this._value);
             if(text instanceof HTMLElement) {
                 if (this.digitElement.firstChild !== text) {
                     this.digitElement.textContent = "";
@@ -567,51 +637,37 @@
             }
         }
 
-        #emitInput() {
-            this.quickEmit("input", this.#value);
+        emitInput() {
+            this.quickEmit("input", this._value);
             this.element.dispatchEvent(new Event("input", { bubbles: true }));
+            if (this.options.onInput) {
+                this.options.onInput(this._value);
+            }
         }
 
-        #emitChange() {
-            this.quickEmit("change", this.#value);
+        emitChange() {
+            this.quickEmit("change", this._value);
             this.element.dispatchEvent(new Event("change", { bubbles: true }));
+            if (this.options.onChange) {
+                this.options.onChange(this._value);
+            }
         }
 
         reset() {
-            const resetValue = this.options.defaultValue !== undefined ? this.options.defaultValue : this.#isBipolar() ? 0 : this.options.min;
-            if (this.#value === resetValue) return;
+            const resetValue = this.options.defaultValue !== undefined ? this.options.defaultValue : this.getMode() ? 0 : this.options.min;
+            if (this._value === resetValue) return;
             this.value = resetValue;
-            this.#emitChange();
-            this.#emitInput();
+            this.emitChange();
+            this.emitInput();
         }
 
-        #shouldResetFromPointerStart(domEvent) {
-            if (!domEvent || domEvent.button !== 0) return false;
-
-            const now = performance.now();
-            const x = domEvent.clientX;
-            const y = domEvent.clientY;
-            const interval = now - this.#lastPointerStartTime;
-            const dx = x - this.#lastPointerStartX;
-            const dy = y - this.#lastPointerStartY;
-            const distanceSq = (dx * dx) + (dy * dy);
-
-            this.#lastPointerStartTime = now;
-            this.#lastPointerStartX = x;
-            this.#lastPointerStartY = y;
-
-            const DOUBLE_START_MS = 300;
-            const MAX_DISTANCE_PX = 12;
-            return interval > 0 && interval <= DOUBLE_START_MS && distanceSq <= (MAX_DISTANCE_PX * MAX_DISTANCE_PX);
-        }
-
-        #showTooltip() {
+        showTooltip() {
             if (!this.options.showTooltip || !LS.Tooltips || this.style.showTooltip === false) return;
-            const displayValue = this.#formatValue(this.#value);
+            const displayValue = this.#formatValue(this._value);
             LS.Tooltips.position(this.element).show(displayValue);
         }
 
-        #hideTooltip() {
+        hideTooltip() {
             if (!this.options.showTooltip || !LS.Tooltips) return;
             LS.Tooltips.hide();
         }
@@ -653,12 +709,12 @@
         setPreset(preset, quiet = false) {
             if (typeof preset === "string") {
                 // Skip if already using this preset
-                if (this.style.name === preset) return;
+                if (this.style && this.style.name === preset) return;
                 const presetName = preset;
                 const presetStyle = PRESETS[preset] || {};
-                this.style = { ...DEFAULT_STYLE, ...presetStyle, name: presetName };
+                this.style = { ...DEFAULT_STYLE, ...presetStyle, name: presetName, ...this.options.style };
             } else if (typeof preset === "object") {
-                this.style = { ...DEFAULT_STYLE, ...preset };
+                this.style = { ...DEFAULT_STYLE, ...preset, ...this.options.style };
             }
 
             const newPresetName = this.style.name || "custom";
@@ -675,7 +731,7 @@
 
             if (!quiet && this.#initialized) {
                 this.#initializeVisuals();
-                this.frameScheduler.schedule();
+                this.render();
             }
         }
 
@@ -688,7 +744,7 @@
             this.element.setAttribute("knob-pointer", this.style.pointer);
             this.element.setAttribute("knob-digit", this.style.digit ? "true" : "false");
             this.#initializeVisuals();
-            this.frameScheduler.schedule();
+            this.render();
         }
 
         /**
@@ -697,7 +753,7 @@
          */
         updateOptions(options = {}) {
             Object.assign(this.options, options);
-            this.value = this.#value; // Re-clamp with new bounds
+            this.value = this._value; // Re-clamp with new bounds
             if ('label' in options) {
                 this.#updateLabel();
             }
@@ -713,32 +769,37 @@
         }
 
         get bipolar() {
-            return this.options.bipolar;
+            return this.getMode() === 1;
         }
 
         set bipolar(val) {
-            this.options.bipolar = val;
-            this.frameScheduler.schedule();
+            this.options.mode = val ? 1 : 0;
+            this.render();
         }
 
-        /**
-         * Force a render update
-         */
-        render() {
-            this.#initializeVisuals();
-            this.frameScheduler.schedule();
+        get mode() {
+            return this.options.mode;
+        }
+
+        set mode(val) {
+            this.options.mode = val;
+            this.render();
+        }
+
+        get numeric() {
+            return this.options.numeric;
+        }
+
+        set numeric(val) {
+            this.options.numeric = val;
+            this.render();
         }
 
         /**
          * Clean up all resources
          */
         destroy() {
-            this.frameScheduler.destroy();
-
-            if (this.handle) {
-                this.handle.destroy();
-                this.handle = null;
-            }
+            scheduled.delete(this);
 
             if (this.__keydownHandler) {
                 this.element.removeEventListener("keydown", this.__keydownHandler);
@@ -760,8 +821,6 @@
             this.element.removeAttribute("knob-pointer");
             this.element.removeAttribute("knob-digit");
 
-            this.events.clear();
-
             this.svg = null;
             this.arc = null;
             this.back = null;
@@ -772,16 +831,13 @@
             this.element = null;
 
             this.#initialized = false;
+            super.destroy();
         }
     }
 
-    /*@ls-export*/ if (typeof module !== "undefined" && module.exports) {
-        module.exports = Knob;
-    }
-
-    // Custom Element: <ls-knob>
-    customElements.define("ls-knob", class LSKnob extends HTMLElement {
-        static observedAttributes = ["value", "min", "max", "step", "preset", "disabled", "label", "show-tooltip", "bipolar", "numeric"];
+    // --- Register as a custom element: <ls-knob>
+    customElements.define("ls-knob", class extends HTMLElement {
+        static observedAttributes = ["value", "min", "max", "step", "preset", "disabled", "label", "show-tooltip", "mode", "numeric"];
 
         constructor() {
             super();
@@ -811,8 +867,8 @@
                 label: this.getAttribute("label") || null,
                 showTooltip: !this.hasAttribute("show-tooltip") || this.getAttribute("show-tooltip") !== "false",
                 numeric: this.hasAttribute("numeric") && this.getAttribute("numeric") !== "false",
-                bipolar: this.hasAttribute("bipolar") 
-                    ? (this.getAttribute("bipolar") === "auto" ? "auto" : this.getAttribute("bipolar") !== "false")
+                mode: this.hasAttribute("mode") 
+                    ? (this.getAttribute("mode") === "auto" ? "auto" : parseInt(this.getAttribute("mode")))
                     : "auto"
             };
 
@@ -877,8 +933,8 @@
                 case "show-tooltip":
                     this.knob.options.showTooltip = newValue !== "false";
                     break;
-                case "bipolar":
-                    this.knob.bipolar = newValue === "auto" ? "auto" : newValue !== "false";
+                case "mode":
+                    this.knob.mode = newValue === "auto" ? "auto" : parseInt(newValue);
                     break;
                 case "numeric":
                     this.knob.setPreset(newValue === "false" ? "default" : "numeric");
@@ -966,16 +1022,12 @@
             this.setAttribute("numeric", val ? "true" : "false");
         }
 
-        get bipolar() {
-            return this.knob?.bipolar ?? this.getAttribute("bipolar");
+        get mode() {
+            return this.knob.getMode();
         }
 
-        set bipolar(val) {
-            if (val === "auto") {
-                this.setAttribute("bipolar", "auto");
-            } else {
-                this.setAttribute("bipolar", val ? "true" : "false");
-            }
+        set mode(val) {
+            this.setAttribute("mode", val === "auto" ? "auto" : parseInt(val));
         }
 
         get defaultValue() {
@@ -1033,4 +1085,8 @@
             this.__pendingValue = null;
         }
     });
+
+    /*@ls-export*/ if (typeof module !== "undefined" && module.exports) {
+        module.exports = Knob;
+    }
 })();

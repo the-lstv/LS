@@ -52,9 +52,10 @@
  * @property {Object} [iconEngineOptions] - Additional options for the icon engine.
  * @property {boolean} [addRenderable=true] - Whether to add the patcher renderable to the renderer.
  * @property {boolean} [renderImmediately=true] - Whether to render the patcher immediately after initialization.
- * @property {boolean} [fab=false] - Whether to show a floating action button (FAB) for adding nodes.
+ * @property {boolean} [fab=false] - Whether to show a floating action button (FAB) for adding nodes from a bank.
  * @property {string} [fabPosition="bottom-right"] - The position of the FAB (e.g., "bottom-right", "top-left").
- * @property {string} [fabIcon="plus"] - The icon to use for the FAB.
+ * @property {string} [fabIcon="plus"] - The icon class to use for the FAB.
+ * @property {Array} [bank] - An array of node templates shown in menus.
  * @property {Object} [parent] - Optional parent element to append the patcher container to.
  * @property {Object} [portMetadata] - Optional global metadata for ports, keyed by port ID.
  * @property {number} [collapsedNodeWidth=60] - The width of collapsed nodes.
@@ -71,6 +72,7 @@
  * - selected items should be more obvious when zoomed out
  * - zIndex and better hit testing
  * - groups & expandable nodes
+ * - better/automatic sorting & change detection
  */
 class Patcher extends LS.Component {
     static { LS.register(this, { name: "Patcher", global: true }) }
@@ -100,6 +102,8 @@ class Patcher extends LS.Component {
 
         buffer: 20,
 
+        bank: null,
+
         connectionColors: {
             audio: [255, 112, 52],
             midi:  [0, 133, 255],
@@ -117,8 +121,7 @@ class Patcher extends LS.Component {
 
         // Fab
         fab: false,
-        fabPosition: "bottom-right",
-        fabIcon: "plus"
+        fabPosition: "bottom-right"
     });
 
     // --- Camera state values (does not influence content) ---
@@ -286,10 +289,42 @@ class Patcher extends LS.Component {
 
         // Undo/Redo action events (history management is external)
         this.__actionEventRef = this.prepareEvent("action");
+        this.__changedEventRef = this.prepareEvent("change");
 
         const lContrast = 0.1;
         const dContrast = 1.0;
         this.contrast = null;
+
+        this.bank = this.options.bank || [];
+
+        if(this.options.fab) {
+            this.domContainer = document.createElement("div");
+            this.compositeDOMLayers.push(this.domContainer);
+
+            this.domContainer.style.position = "absolute";
+            this.domContainer.style.pointerEvents = "none";
+
+            this.fab = document.createElement("button");
+            this.fab.className = "ls-patcher-fab elevated circle";
+            this.fab.innerHTML = `<i class="${this.options.fabIcon || "ph ph-plus"}"></i>`;
+            this.fab.style.position = "absolute";
+            this.fab.style.pointerEvents = "all";
+
+            const position = (this.options.fabPosition || "bottom-right").split("-");
+            const padding = this.options.fabPadding ?? 16;
+            this.fab.style.inset = `${position.includes("top")? padding + "px": "auto"} ${position.includes("right")? padding + "px": "auto"} ${position.includes("bottom")? padding + "px": "auto"} ${position.includes("left")? padding + "px": "auto"}`;
+
+            this.fab.addEventListener("click", () => {
+                this.quickEmit("fab-click");
+                this.openMenu();
+            });
+
+            this.domContainer.appendChild(this.fab);
+        }
+
+        if(this.options.bank) {
+            this.bankMenu = new LS.Menu();
+        }
 
         this.loadPromise.then(() => {
             // Force redraw of labels just in case
@@ -342,6 +377,12 @@ class Patcher extends LS.Component {
             this.renderer.render();
             this.quickEmit("item-deselect");
         }
+    }
+
+    groupSelected() {
+        if (this.selectedItems.length < 2) return;
+
+        // todo
     }
 
     /**
@@ -490,6 +531,7 @@ class Patcher extends LS.Component {
             inputs: item.inputs,
             outputs: item.outputs,
             icon: item.icon,
+            kind: item.kind,
             metadata: LS.Util.clone(item.metadata)
         };
     }
@@ -805,6 +847,9 @@ class Patcher extends LS.Component {
             vertex: LS.GL.shaders.instanced_quads([{
                 name: "State",
                 type: "uint"
+            }, {
+                name: "Color",
+                type: "vec3"
             }]),
 
             fragment: `#version 300 es
@@ -941,6 +986,8 @@ void main() {
                     for (const output of node.outputs) {
                         const color = self.options.connectionColors[output.type || "audio"];
 
+                        stateBuffer.data[j] = 0;
+
                         offsetBuffer.data [j * 2 + 0] = node.x + baseWidth - portSize * 0.5;
                         offsetBuffer.data [j * 2 + 1] = portY;
 
@@ -974,7 +1021,11 @@ void main() {
         });
 
         this.nodeRenderable = this.renderer.createRenderable({
-            vertex: LS.GL.shaders.instanced_quads(),
+            vertex: LS.GL.shaders.instanced_quads([{
+                name: "Color",
+                type: "vec3"
+            }]),
+
             fragment: `#version 300 es
 precision highp float;
 
@@ -1561,20 +1612,7 @@ void main() {
                 icon: "ph ph-arrows-clockwise",
 
                 // TODO
-                items: [
-                    {
-                        text: "Audio Node",
-                        action: () => this.replaceNode(this.focusedItem, { type: "audio" })
-                    },
-                    {
-                        text: "MIDI Node",
-                        action: () => this.replaceNode(this.focusedItem, { type: "midi" })
-                    },
-                    {
-                        text: "Parameter Node",
-                        action: () => this.replaceNode(this.focusedItem, { type: "param" })
-                    }
-                ]
+                items: () => this.openMenu(true, this.focusedItem)
             },
             { type: "separator" },
             {
@@ -1610,7 +1648,12 @@ void main() {
             {
                 text: "Open Node Panel",
                 icon: "ph ph-plus-circle",
-                action: () => this.openMenu(true)
+                action: () => this.openMenu()
+            },
+            {
+                text: "Add Node",
+                icon: "ph ph-plus",
+                items: () => this.openMenu(true)
             },
             {
                 text: "Reset Node Positions",
@@ -1622,6 +1665,17 @@ void main() {
                 icon: "ph ph-selection-all",
                 action: () => this.selectAll()
             },
+            // { type: "separator" },
+            // { text: "Export Patch", icon: "ph ph-download", action: () => this.exportPatch() },
+            // { text: "Import Patch", icon: "ph ph-upload", action: () => this.importPatch() },
+            // {
+            //     text: "Scripts",
+            //     icon: "ph ph-code",
+            //     items: [
+            //         { text: "Export Script", action: () => this.exportScript() },
+            //         { text: "Import Script", action: () => this.importScript() }
+            //     ]
+            // },
             { type: "separator" },
             {
                 text: "Paste Items",
@@ -1643,6 +1697,11 @@ void main() {
                 text: "Clear Selection",
                 icon: "ph ph-selection-slash",
                 action: () => this.deselectAll()
+            },
+            {
+                text: "Group Selected",
+                icon: "ph ph-rectangle",
+                action: () => this.groupSelected()
             }
         ];
 
@@ -1660,6 +1719,43 @@ void main() {
             globalCm.at(-5).disabled = this.clipboard.length === 0;
             return globalCm;
         });
+    }
+
+    // todo: very work in progress, don't expect clean code
+    openMenu(listOnly = false, replacingNode = null) {
+        const sortedItems = this.bank.sort((a, b) => (a.category || a.label || a.title || a.name).localeCompare(b.category || b.label || b.title || b.name));
+        const items = [];
+        const seenC = new Set();
+        for(const item of sortedItems) {
+            if(item.category && !seenC.has(item.category)) {
+                items.push({ type: "separator" });
+                items.push({ text: item.category, type: "label" });
+                seenC.add(item.category);
+            }
+
+            items.push({
+                label: item.label || item.title || item.name,
+                icon: `ph ph-${item.icon || "question"}`,
+                action: () => {
+                    if(replacingNode) {
+                        this.replaceNode(replacingNode, this.cloneItem(item));
+                    } else {
+                        const [x, y] = this.transformCoords(this.rect.width * 0.5, this.rect.height * 0.5, false);
+                        const node = this.cloneItem(item);
+                        node.x = x;
+                        node.y = y;
+                        this.add(node);
+                    }
+                }
+            });
+        }
+
+        if(listOnly) {
+            return items;
+        }
+
+        this.bankMenu.reset(items);
+        this.bankMenu.open();
     }
 
     /**
@@ -1860,6 +1956,7 @@ void main() {
         this.connections = Array.isArray(connections) ? connections : [];
         this.connectionsDirty = true;
         this.renderer.render();
+        this.quickEmit(this.__changedEventRef);
         return this;
     }
 
@@ -1867,6 +1964,7 @@ void main() {
         this.connections.push(connection);
         this.connectionsDirty = true;
         this.renderer.render();
+        this.quickEmit(this.__changedEventRef);
         return this;
     }
 
@@ -1874,6 +1972,7 @@ void main() {
         this.connections.length = 0;
         this.connectionsDirty = true;
         this.renderer.render();
+        this.quickEmit(this.__changedEventRef);
         return this;
     }
 
@@ -1891,6 +1990,7 @@ void main() {
             }
         }
 
+        this.quickEmit(this.__changedEventRef);
         this.renderer.render();
         return this;
     }
@@ -1904,6 +2004,7 @@ void main() {
 
         node.bypassed = value !== null? !!value: !node.bypassed;
         this.quickEmit("item-bypass", node, node.bypassed);
+        this.quickEmit(this.__changedEventRef);
         this.renderer.render();
         return this;
     }
@@ -1920,6 +2021,7 @@ void main() {
     setNodes(nodes) {
         this.nodes = Array.isArray(nodes) ? nodes : [];
         this.#updateNodeMap();
+        this.quickEmit(this.__changedEventRef);
         this.renderer.render();
         return this;
     }
@@ -1928,6 +2030,7 @@ void main() {
         if (!node || !node.id) return;
         this.nodes.push(node);
         this.nodeMap.set(node.id, node);
+        this.quickEmit(this.__changedEventRef);
         this.renderer.render();
         return this;
     }
@@ -1972,6 +2075,7 @@ void main() {
         this.nodeMap.delete(item.id);
 
         this.quickEmit("item-removed", item);
+        this.quickEmit(this.__changedEventRef);
 
         if (destroy) {
             this.quickEmit("item-cleanup", item);
@@ -1992,6 +2096,7 @@ void main() {
         this.nodes.length = 0;
         this.nodeMap.clear();
         this.renderer.render();
+        this.quickEmit(this.__changedEventRef);
         return this;
     }
 
@@ -2007,7 +2112,7 @@ void main() {
         newNode.x = oldNode.x;
         newNode.y = oldNode.y;
 
-        // TODO: validate io etc.
+        // TODO: validate io compatibility
 
         const index = this.nodes.indexOf(oldNode);
         if (index >= 0) {
@@ -2017,6 +2122,7 @@ void main() {
             this.renderer.render();
 
             this.quickEmit("item-replaced", oldNode, newNode);
+            this.quickEmit(this.__changedEventRef);
         }
     }
 
@@ -2145,6 +2251,89 @@ void main() {
         };
     }
 
+    /**
+     * Sorts the nodes in topological order based on their connections.
+     * Nodes with no dependencies will appear first, followed by nodes that depend on them, and so on.
+     * 
+     * TODO: optimize & enhance this
+     * 
+     * @returns {Object} An object containing the sorted nodes and related data.
+     */
+    sortNodesTopologically(mutate = true) {
+        const consumers = new Map();
+        const deps = new Map();
+
+        for (const connection of this.connections) {
+            if(!connection.sourceNodeId || !connection.targetNodeId) continue;
+            if(connection.sourceNodeId === connection.targetNodeId) continue; // Ignore self-loops temporarily
+            if(!this.nodeMap.has(connection.sourceNodeId) || !this.nodeMap.has(connection.targetNodeId)) continue; // Ignore connections to non-existent nodes (todo: delete them)
+
+            let consumersOf = consumers.get(connection.sourceNodeId);
+
+            if (!consumersOf) {
+                consumersOf = [];
+                consumers.set(connection.sourceNodeId, consumersOf);
+            }
+            consumersOf.push(connection);
+
+            let depsOf = deps.get(connection.targetNodeId);
+            if (!depsOf) {
+                depsOf = [];
+                deps.set(connection.targetNodeId, depsOf);
+            }
+            depsOf.push(connection);
+        }
+
+        const sortedNodeIds = Patcher.topoSort(this.nodes, consumers, deps);
+        const sortedNodes = sortedNodeIds.map(id => this.nodeMap.get(id)).filter(node => node !== undefined);
+
+        if (mutate) {
+            this.nodes = sortedNodes;
+            this.renderer.render();
+        }
+
+        return { sorted: sortedNodes, sortedNodeIds, consumers, deps };
+    }
+
+    /**
+     * Performs a topological sort on the given nodes.
+     */
+    static topoSort(nodes, consumers, deps) {
+        const indegree = new Map();
+
+        for (const node of nodes) {
+            indegree.set(node.id, deps.get(node.id)?.length ?? 0);
+        }
+
+        const queue = [];
+
+        for (const [id, degree] of indegree) {
+            if (degree === 0) {
+                queue.push(id);
+            }
+        }
+
+        const order = [];
+
+        while (queue.length) {
+            const id = queue.pop();
+            order.push(id);
+
+            for (const consumer of consumers.get(id) ?? []) {
+                const next = consumer.targetNodeId;
+
+                const d = indegree.get(next) - 1;
+                indegree.set(next, d);
+
+                if (d === 0) {
+                    queue.push(next);
+                }
+            }
+        }
+
+        return order;
+    }
+
     // -- Cleanup
     destroy() {
         if(this.destroyed) return;
@@ -2182,8 +2371,23 @@ void main() {
         this.__needsSort = null;
         this.clipboard = null;
 
+        this.__changedEventRef = null;
+        this.__actionEventRef = null;
+
+        if(this.domContainer) {
+            this.domContainer.remove();
+            this.domContainer = null;
+        }
+
+        if(this.fab) {
+            this.fab.destroy();
+            this.fab = null;
+        }
+
         this.svgLayer.remove();
         this.svgLayer = null;
+
+        this.bank = null;
 
         if(this.__dedicatedRenderer) {
             this.renderer.destroy();

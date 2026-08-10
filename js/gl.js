@@ -815,13 +815,15 @@ void main() {
                 gl.useProgram(renderable.program);
             }
 
-            if(renderable.__bindVAO && renderable.vao) {
+            const bindVAO = renderable.bindVAO && renderable.vao;
+
+            if(bindVAO) {
                 gl.bindVertexArray(renderable.vao);
             }
 
             renderable.render(delta || 0, now || performance.now(), gl, cw, ch, updateDimensions, renderable.uniforms, renderable.attributes, camera? camera.projectionMatrix: this.activeCamera.projectionMatrix);
 
-            if(renderable.__bindVAO && renderable.vao) {
+            if(bindVAO) {
                 gl.bindVertexArray(null);
             }
         }
@@ -1197,8 +1199,10 @@ void main() {
             // We can create a default VAO helper for this renderable
             if(options.vao) {
                 this.vao = gl.createVertexArray();
-                this.__bindVAO = true;
+                this.bindVAO = true;
             }
+
+            this.useProgram = options.useProgram !== undefined ? options.useProgram : true;
 
             if(options.onSetup || typeof options.bind === "object") {
                 if(this.vao) gl.bindVertexArray(this.vao);
@@ -1259,7 +1263,7 @@ void main() {
                     options.onSetup.call(this, gl, this.program, this.uniforms, this.attributes, options);
                 }
 
-                if(this.__bindVAO && this.vao) {
+                if(this.vao) {
                     gl.bindVertexArray(null);
                 }
             }
@@ -2843,11 +2847,9 @@ ${quad}
 
 in vec2 iOffset;
 in vec2 iSize;
-in vec3 iColor;
 ${extra_attributes? extra_attributes.map(attr => `in ${attr.type} i${attr.name};${attr.type === "uint"? "flat ": ""}out ${attr.type} v${attr.name};`).join(""): ""}
 
 out vec2 vUV;
-out vec3 vColor;
 out vec2 vSize;
 out vec2 vOffset;
 
@@ -2865,7 +2867,6 @@ void main() {
 
     vSize = size;
     vOffset = offset;
-    vColor = iColor;
     ${extra_attributes? extra_attributes.map(attr => `v${attr.name} = i${attr.name};`).join(""): ""}
 
     vec2 pos = vUV * (size / uResolution) + (offset / uResolution);
@@ -2971,6 +2972,15 @@ void main() {
     float fill = (1.0 - smoothstep(-aa, aa, inner)) * shapeAlpha;
 
     fragColor = vec4(color, border + fill * 0.2);
+}`,
+
+            basic_color_fragment: `#version 300 es
+precision highp float;
+out vec4 fragColor;
+uniform vec4 uColor;
+
+void main() {
+    fragColor = vec4(uColor);
 }`,
 
 

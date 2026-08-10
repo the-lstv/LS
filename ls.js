@@ -1216,7 +1216,7 @@
                 metadata: options.metadata,
                 global: !!options.global,
                 hasEvents: options.events !== false,
-                singular: !!options.singular,
+                singular: !!options.singular || !!options.singleton,
                 name
             }
 
@@ -1895,8 +1895,12 @@
                         const node = document.createTextNode(item);
                         if(isArray) result.push(node); else result.appendChild(node);
                     } else if(type === "object" && !(item instanceof Node)){
-                        const created = LS.Create(item);
-                        if(isArray) result.push(created); else result.appendChild(created);
+                        if(item.element instanceof Node) {
+                            if(isArray) result.push(item.element); else result.appendChild(item.element);
+                        } else {
+                            const created = LS.Create(item);
+                            if(isArray) result.push(created); else result.appendChild(created);
+                        }
                     } else {
                         if(isArray) result.push(item); else result.appendChild(item);
                     }
@@ -2181,15 +2185,22 @@
                 }
 
                 #attachTargetListeners(target) {
-                    if(!target || !(target instanceof Element)) {
+                    const isGlobal = target === window || target === document || target === document.body || target === document.documentElement;
+
+                    if((!target || !(target instanceof Element)) && !isGlobal) {
                         console.error("TouchHandle: Target must be a DOM Element. Received:", target);
                         return;
                     }
 
+                    if(isGlobal) {
+                        target = window;
+                    } else {
+                        target.classList.add("ls-draggable");
+                        target.style.touchAction = "none";
+                        target.style.userSelect = "none";
+                    }
+
                     target.addEventListener("pointerdown", this.onStart, { passive: false });
-                    target.style.touchAction = "none";
-                    target.style.userSelect = "none";
-                    target.classList.add("ls-draggable");
 
                     if (this.options.startEvents) {
                         for (const evt of this.options.startEvents) {
@@ -2207,10 +2218,22 @@
                 }
 
                 #detachTargetListeners(target) {
+                    const isGlobal = target === window || target === document || target === document.body || target === document.documentElement;
+
+                    if((!target || !(target instanceof Element)) && !isGlobal) {
+                        console.error("TouchHandle: Target must be a DOM Element. Received:", target);
+                        return;
+                    }
+
+                    if(isGlobal) {
+                        target = window;
+                    } else {
+                        target.style.touchAction = "";
+                        target.style.userSelect = "";
+                        target.classList.remove("ls-draggable");
+                    }
+
                     target.removeEventListener("pointerdown", this.onStart);
-                    target.style.touchAction = "";
-                    target.style.userSelect = "";
-                    target.classList.remove("ls-draggable");
 
                     if (this.options.startEvents) {
                         for (const evt of this.options.startEvents) {
@@ -2303,8 +2326,7 @@
 
                     if (event.pointerType === 'mouse' && !this.options.buttons.includes(event.button)) return;
 
-                    const target = event.currentTarget;
-                    this.activeTarget = target;
+                    this.activeTarget = event.currentTarget;
 
                     this.seeking = true;
                     this._eventData.cancelled = false;
@@ -2343,6 +2365,10 @@
                         return;
                     }
 
+                    // Maybe the target was changed in the callback
+                    const target = this.activeTarget || event.currentTarget;
+                    const isGlobal = target === window || target === document || target === document.body || target === document.documentElement;
+
                     // Prevent default to stop text selection, etc.
                     if (event.cancelable) event.preventDefault();
 
@@ -2351,16 +2377,22 @@
                         this.velocityY = 0;
                     }
 
-                    target.classList.add("is-dragging");
-
                     const docEl = document.documentElement;
                     docEl.classList.add("ls-dragging");
+
+                    if (!isGlobal) {
+                        target.classList.add("is-dragging");
+                        if (!this.options.pointerLock) {
+                            target.setPointerCapture(event.pointerId);
+                        }
                     
-                    if (!this.options.pointerLock) {
-                        target.setPointerCapture(event.pointerId);
+                        // For an unknown reason, Chrome since a recent version started to overwrite the
+                        // cursor and ignores documentElement which causes weird cursor behavior, so we set it again to the element and restore it later.
+                        this.__originalCursor = target.style.cursor;
+                        target.style.cursor = this._cursor || "grabbing";
                     }
 
-                    if (this.options.pointerLock) {
+                    if (this.options.pointerLock && !isGlobal && !isTouch) {
                         if(!this.pointerLockSet) {
                             document.addEventListener('pointerlockchange', this.onPointerLockChange);
                             this.pointerLockSet = true;
@@ -2378,11 +2410,7 @@
 
                     this.dragTarget = event.target;
                     this.dragTarget.classList.add("ls-drag-target");
-                    
-                    // For an unknown reason, Chrome since a recent version started to overwrite the
-                    // cursor and ignores documentElement which causes weird cursor behavior, so we set it again to the element and restore it later.
-                    this.__originalCursor = target.style.cursor;
-                    target.style.cursor = this._cursor || "grabbing";
+
                     if (this.options.disablePointerEvents) docEl.style.pointerEvents = "none";
                     if (!docEl.style.cursor) docEl.style.cursor = this._cursor || "grabbing";
 

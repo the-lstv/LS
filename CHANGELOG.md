@@ -42,6 +42,8 @@ Major update (2026 release)!
 - Some changes to the design language
 - Modals now allow safe HTML content
 - Rewrite of the previously very low quality component LS.Menu
+- Enhanced color & animations & new toggle style (ls-toggle-button)
+- 360deg support for LS.Knob
 
 #### Misc
 - Introduced a GUI for generating CDN Links: https://lstv.space/tools/ls-loader

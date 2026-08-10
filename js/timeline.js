@@ -19,6 +19,7 @@
  * - Undo/redo
  * - Automations
  * - Vertex area seems to be 2x larger than the actual item
+ * - Currently we render everything on every frame (and in general there is a lot of avoidable work every frame) so that is something to check at some point. Still smooth though.
  * 
  * TO DO:
  * - Smooth scroll, scroll to view on keyboard move
@@ -281,6 +282,8 @@ class TimelineGL extends LS.Component {
 
         this.boundingContainer = this.container;
 
+        this.backgroundColor = null;
+
         this.enabled = false;
         this.renderables = [];
 
@@ -325,20 +328,19 @@ class TimelineGL extends LS.Component {
 
             // Set initial contrast based on the current theme
             this.contrast = LS.Color.theme === "dark"? dContrast: lContrast;
-            this.#updateBackgroundColor();
             
             this.addExternalEventListener(LS.Color, "theme-changed", (theme) => {
                 this.__prevScrollX = null;
                 this.__prevScrollY = null;
                 this.__prevZoomX = null;
                 this.__prevZoomY = null;
-                this.#updateBackgroundColor();
+                this.backgroundColor = null;
                 this.contrast = theme === "dark"? dContrast: lContrast;
                 this.renderer.render();
             });
-            
+
             this.addExternalEventListener(LS.Color, "accent-changed", () => {
-                this.#updateBackgroundColor();
+                this.backgroundColor = null;
 
                 // Default color changed
                 if(this.items.length > 0) {
@@ -404,27 +406,37 @@ class TimelineGL extends LS.Component {
 
     /**
      * Resets the timeline, optionally destroying existing items and replacing them with new ones.
-     * @param {*} destroyItems - Whether to destroy existing items (default: true)
      * @param {*} replacingItems - Optional array of items to replace the existing items with (default: null)
+     * @param {*} destroyItems - Whether to destroy existing items (default: true)
      * @returns 
      */
-    reset(destroyItems = true, replacingItems = null) {
+    reset(replacingItems = null, destroyItems = true) {
         if (this.destroyed) return;
-        return; // TODO
-
-        const oldItems = Array.isArray(this.items)? this.items.slice(): [];
 
         if (destroyItems) {
-            for (const item of oldItems) {
+            for (const item of this.items) {
                 this.destroyItem(item);
             }
         }
 
         this.selectedItems.length = 0;
 
-        this.items = replacingItems || [];
-        this.sortItems();
+        if(replacingItems && Array.isArray(replacingItems)) {
+            this.items = replacingItems;
+            this.sortItems();
+        } else {
+            this.items = [];
+            this.itemMap.clear();
 
+            if (0 !== this.#duration) {
+                this.#duration = 0;
+                this.quickEmit("duration-changed", this.#duration);
+            }
+        }
+
+        // Force re-calculation for labels
+        this.__prevScrollX = null;
+        this.__prevScrollY = null;
         this.renderer.render();
     }
 
@@ -1132,6 +1144,9 @@ class TimelineGL extends LS.Component {
 
     // -- Renderables
     #setupRenderables() {
+        // Eventually remove this when I fix all the bugs
+        const FORCE_RENDER = true;
+
         const self = this;
         this.gridBackground = this.renderer.createRenderable({
             vertex: LS.GL.shaders.basic_fullscreen_vertex,
@@ -1285,48 +1300,76 @@ void main() {
             }
         });
 
+        this.onionCount = 0;
+        this.onionRenderable = this.renderer.createRenderable({
+            vertex: LS.GL.shaders.instanced_quads(),
+            fragment: LS.GL.shaders.basic_color_fragment,
+
+            uniforms: ["uColor", "uResolution", "uOffset", "uZoom", "uOutset"],
+
+            vao: true,
+            bind: {
+                iOffset: { cellSize: 2, type: "float", size: TimelineGL.MAX_RENDER_ITEMS },
+                iSize:   { cellSize: 2, type: "float", size: TimelineGL.MAX_RENDER_ITEMS },
+            },
+
+            onRender(delta, now, gl, cw, ch, updatedDimensions, uniforms, attributes) {
+                const buffers = this.buffers;
+
+                buffers.iOffset.updateWithStride(0, self.onionCount);
+                buffers.iSize.updateWithStride(0, self.onionCount);
+
+                console.log(self.onionCount);
+
+                gl.uniform2f(uniforms.uResolution, cw, ch);
+                gl.uniform2f(uniforms.uOffset, self.#scrollX - self.#sidebarWidth, self.#scrollY - self.#labelBarHeight);
+                gl.uniform2f(uniforms.uZoom, self.#zoomX, self.#zoomY);
+                gl.uniform1f(uniforms.uOutset, 1.0);
+
+                const color = LS.Color.currentAccent || TimelineGL.DEFAULT_TILE_COLOR;
+                gl.uniform4f(uniforms.uColor, color[0] / 255.0, color[1] / 255.0, color[2] / 255.0, 0.5);
+                gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, self.onionCount);
+            }
+        });
+
         this.itemsRenderable = this.renderer.createRenderable({
             vertex: `#version 300 es
-
-in float a_size;
-in vec2 a_position;
-in vec3 a_color;
-
-in float depth;
 
 uniform float rowHeight;
 uniform vec2 offset;
 uniform vec2 resolution;
 uniform vec2 zoom;
 
+in float a_size;
+in vec2 a_position;
+in vec3 a_color;
+in uint a_state;
+
+in float depth;
+
 out vec2 size;
 out vec3 v_color;
 out vec2 v_uv;
-
-in uint a_state;
 flat out uint v_state;
+
 
 ${LS.GL.utils.quad}
 
 void main() {
-    vec2 vPos = positions[gl_VertexID] * 1.1; // Slightly expand the quad for shadow
-    vec2 pos = a_position + (vPos * vec2(a_size, rowHeight));
+    size = vec2(a_size, rowHeight) * zoom;
+    vec2 Offset = (a_position * zoom) - offset;
 
-    // Apply zoom and offset
-    pos = (pos * zoom) - offset;
-    pos.y += 1.0;
+    vec2 local = positions[gl_VertexID] * 1.1; // Slightly expand the quad for shadow
+    v_uv = local * 0.5 + 0.5;
 
-    // Convert to normalized device coordinates
-    vec2 ndc = (pos / resolution) * 2.0 - 1.0;
-    ndc.y = -ndc.y; // Flip y-axis for WebGL
-
-    gl_Position = vec4(ndc, depth, 1.0);
+    vec2 pos = v_uv * (size / resolution) + (Offset / resolution);
+    pos = pos * 2.0 - 1.0;
+    pos.y = -pos.y;
 
     v_color = a_color;
     v_state = a_state;
 
-    size = vec2(a_size, rowHeight) * zoom;
-    v_uv = vPos;
+    gl_Position = vec4(pos, 0.0, 1.0);
 }`,
             fragment: this.options.itemFragment?? `#version 300 es
 precision highp float;
@@ -1414,6 +1457,10 @@ void main() {
             uniforms: ["offset", "resolution", "zoom", "rowHeight"],
 
             vao: true,
+
+            bindVAO: false,    // We do this manually
+            useProgram: false, // We do this manually
+
             bind: {
                 a_position: { cellSize: 2, type: "float", size: TimelineGL.MAX_RENDER_ITEMS },
                 a_size:     { cellSize: 1, type: "float", size: TimelineGL.MAX_RENDER_ITEMS },
@@ -1428,6 +1475,8 @@ void main() {
                     self.scrollX = self.#scrollX;
                     self.scrollY = self.#scrollY;
                 }
+
+                self.onionCount = 0;
 
                 const scrollX = self.#scrollX;
                 const scrollY = self.#scrollY;
@@ -1451,7 +1500,7 @@ void main() {
 
                 // --- Redraw items
                 // TODO: Add a buffer so we don't have to redraw everything every time
-                if (movedX || movedY || self.__needsSort || self.__rerenderItems || selectedItemsChanged || focusedItemsLength > 0) {
+                if (FORCE_RENDER || movedX || movedY || self.__needsSort || self.__rerenderItems || selectedItemsChanged || focusedItemsLength > 0) {
                     if (self.__needsSort) {
                         self.sortItems();
                     }
@@ -1518,11 +1567,6 @@ void main() {
                 if (this.__visibleItems > 0) {
                     self.renderer.scissor(self.rect.x + self.#sidebarWidth, self.rect.y + self.#labelBarHeight);
 
-                    gl.uniform2f(uniforms.offset, scrollX - self.#sidebarWidth, scrollY - self.#labelBarHeight);
-                    gl.uniform2f(uniforms.zoom, zoomX, zoomY);
-                    gl.uniform2f(uniforms.resolution, cw, ch);
-                    gl.uniform1f(uniforms.rowHeight, self.rowHeight - (1 / zoomY));
-
                     // fuck webgl nothing ever works
                     // it's the same cycle: 1) try to implement the simplest thing in existence that should take 2 seconds at most, 2) absolutely nothing works and shit that worked flawlessly is gone, 3) 8 hours in just give up
                     // took me 30 hours to get a shitty rectangle to render
@@ -1530,7 +1574,24 @@ void main() {
                     // gl.enable(gl.DEPTH_TEST);
                     // gl.depthFunc(gl.LEQUAL);
                     // gl.depthMask(true);
+
+                    gl.useProgram(this.program);
+                    gl.bindVertexArray(this.vao);
+
+                    gl.uniform2f(uniforms.offset, scrollX - self.#sidebarWidth, scrollY - self.#labelBarHeight);
+                    gl.uniform2f(uniforms.zoom, zoomX, zoomY);
+                    gl.uniform2f(uniforms.resolution, cw, ch);
+                    gl.uniform1f(uniforms.rowHeight, self.rowHeight - (1 / zoomY));
+
                     gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.__visibleItems);
+
+                    gl.bindVertexArray(null);
+                    gl.useProgram(null);
+
+                    // Render onions
+                    if(self.onionCount > 0) {
+                        self.renderer.renderOne(self.onionRenderable);
+                    }
 
                     // gl.depthMask(false);
                     self.labels.render();
@@ -1542,7 +1603,7 @@ void main() {
                 const textColor = self.contrast < 0.8? 0: 200;
 
                 // -- Redraw bar labels (markers)
-                if (movedX) {
+                if (FORCE_RENDER || movedX) {
                     let reserved = 0;
 
                     self.__prevScrollX = scrollX;
@@ -1598,7 +1659,7 @@ void main() {
                 self.renderer.endScissor();
 
                 // Row labels
-                if (movedY) {
+                if (FORCE_RENDER || movedY) {
                     let reserved = 0;
 
                     self.__prevScrollY = scrollY;
@@ -1754,6 +1815,49 @@ void main() {
 
         // depthBuffer.set(depth + 0.0001, j);
 
+        // Render preivew of nested items
+        const nested = hasContent && (item?.data?.items || item?.data?.children || item?.data?.notes);
+        const visibleRowH = this.rowHeight - (20 / this.#zoomY);
+        const visibleWidth = Math.max(1, item.duration);
+
+        if(nested && nested.length > 0 && visibleRowH > 0 && visibleWidth > 0) {
+            const onionBuffers = this.onionRenderable.buffers;
+            const oPosBuffer = onionBuffers.iOffset;
+            const oSizeBuffer = onionBuffers.iSize;
+
+            // TODO: Avoid per frame*item
+            let minRow = Infinity;
+            let maxRow = -Infinity;
+            for (const child of nested) {
+                if(child.row < minRow) {
+                    minRow = child.row;
+                }
+                if(child.row > maxRow) {
+                    maxRow = child.row;
+                }
+            }
+
+            const spannedRows = maxRow - minRow + 1;
+            const rowHeight = visibleRowH / spannedRows;
+
+            for (const child of nested) {
+                if(child.start < 0 || child.start > item.duration) {
+                    continue;
+                }
+
+                const childX = item.start + child.start;
+                const childY = (item.row * this.rowHeight) + ((child.row - minRow) * rowHeight) + (20 / this.#zoomY);
+
+                oPosBuffer.data[this.onionCount * 2] = childX;
+                oPosBuffer.data[this.onionCount * 2 + 1] = childY;
+
+                oSizeBuffer.data[this.onionCount * 2] = Math.min(Math.max(1, child.duration), item.duration - child.start);
+                oSizeBuffer.data[this.onionCount * 2 + 1] = rowHeight;
+
+                this.onionCount++;
+            }
+        }
+
         // TODO text should be properly centered
         if (reserved < 16384 - 2048 && item.duration * this.#zoomX > 25 && screenRowHeight > textHeight + 2) {
             const isDark = (r * 0.299 + g * 0.587 + b * 0.114) < 128;
@@ -1868,6 +1972,10 @@ void main() {
                 itemChanged = false;
                 mode = 0;
 
+                const time = Date.now();
+                const dbClick = time - timeSinceLastClick < 200;
+                timeSinceLastClick = time;
+
                 this.container.focus();
 
                 if (event.boundX < 0) {
@@ -1888,9 +1996,16 @@ void main() {
                                 this.deselectAll();
                             }
 
+                            this.focusedItem = item;
+
+                            if(dbClick) {
+                                this.quickEmit("item-dblclick", item);
+                                event.cancel();
+                                return;
+                            }
+
                             initial[0] = item.start;
                             initial[1] = item.duration;
-                            this.focusedItem = item;
 
                             const itemX = item.start * this.#zoomX - this.#scrollX;
                             const itemWidth = item.duration * this.#zoomX;
@@ -1984,8 +2099,6 @@ void main() {
                         mode = 5;
                     }
                 } else {
-                    const dbClick = Date.now() - timeSinceLastClick < 200;
-
                     const snappedWx = this._snap((event.boundX + this.#scrollX) / this.#zoomX, this.columnWidth());
 
                     if(event.domEvent.shiftKey || dbClick) {
@@ -2010,8 +2123,6 @@ void main() {
                         let snapDistance = event.domEvent.altKey? 1: this.columnWidth();
                         this.setSeek(this._snap((event.boundX + this.#scrollX) / this.#zoomX, snapDistance));
                     }
-
-                    timeSinceLastClick = Date.now();
                 }
 
                 if(mode === 4) {
@@ -2269,7 +2380,7 @@ void main() {
                     }
 
                     // Move the selected items or all items
-                    this.moveSelected(deltaTime, rowDelta, true, null, true, this.selectedItems.length > 0 ? this.selectedItems : this.items, true);
+                    this.moveSelected(deltaTime, rowDelta, true, null, true, this.selectedItems.length > 0? this.selectedItems: this.items, true);
                 }
 
                 return;
@@ -2664,7 +2775,7 @@ void main() {
         if (this.destroyed || this.destroying) return;
         this.destroying = true;
 
-        this.reset(true);
+        this.reset(null, true);
 
         this.textEngine.destroy();
         this.textEngine = null;

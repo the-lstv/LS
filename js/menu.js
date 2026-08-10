@@ -49,7 +49,7 @@ class Menu extends LS.Component {
         group: null
     });
 
-    constructor(element, options = null) {
+    constructor(element, options) {
         super();
 
         this.isOpen = false;
@@ -66,8 +66,7 @@ class Menu extends LS.Component {
             options = options || element;
         }
 
-        options = this.constructor.DEFAULTS(options);
-
+        options = this.constructor.DEFAULTS(options || {});
         this.options = options;
 
         if(options.group) {
@@ -421,6 +420,13 @@ class Menu extends LS.Component {
             let posX = x;
             let posY = y;
             let anchorRect = positionOptions && positionOptions.anchorRect ? positionOptions.anchorRect : null;
+
+            if(x instanceof Element) {
+                anchorRect = x.getBoundingClientRect();
+                x = anchorRect.left;
+                y = anchorRect.top;
+            }
+
             const viewportPadding = 8;
 
             // Optional
@@ -791,6 +797,21 @@ class Menu extends LS.Component {
 
         } else if (key === 'Tab') {
             this.close();
+        } else if (key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+            // todo
+            const char = key.toLowerCase();
+            const startIndex = this.focusedItem ? this.items.indexOf(this.focusedItem) + 1 : 0;
+            const ic = this.items.length;
+
+            for (let i = 0; i < ic; i++) {
+                const index = (startIndex + i) % ic;
+                const item = this.items[index];
+                const label = item?.text || item?.label || item?.value || '';
+                if (item && label.toLowerCase().startsWith(char)) {
+                    this.focus(item);
+                    break;
+                }
+            }
         }
     }
 
@@ -957,7 +978,7 @@ customElements.define('ls-select', class LSSelect extends HTMLElement {
 
     #updateValue() {
         const item = this.menu.selectedItem;
-        this.label.textContent = item?.text || '';
+        this.label.textContent = item?.label || item?.text || item?.value || '';
         this.setAttribute('data-value', item?.value || '');
     }
 

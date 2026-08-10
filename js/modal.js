@@ -43,8 +43,8 @@
 
         static defaults = LS.Util.staticDefaults({
             styled: true,
-            fadeInDuration: 300,
-            fadeOutDuration: 300
+            fadeInDuration: null,
+            fadeOutDuration: null,
         });
 
         constructor(options = {}, template = {}) {
@@ -130,7 +130,7 @@
             this.container.style.zIndex = LS.Stack.length;
 
             if (LS.Animation && this.options.animate !== false) {
-                LS.Animation.fadeIn(this.container, this.options.fadeInDirection || 'forward', this.options.fadeInDuration);
+                LS.Animation.fadeIn(this.container, this.options.fadeInDirection || 'forward', this.options.fadeInDuration || LS.Animation.DEFAULT_DURATION);
             }
 
             this.emit("open");
@@ -165,7 +165,7 @@
             }, 0);
 
             if (LS.Animation && this.options.animate !== false) {
-                LS.Animation.fadeOut(this.container, this.options.fadeOutDirection || 'backward', this.options.fadeOutDuration);
+                LS.Animation.fadeOut(this.container, this.options.fadeOutDirection || 'backward', this.options.fadeOutDuration || LS.Animation.DEFAULT_DURATION);
             }
 
             if (this.options.ephemeral) {
@@ -173,6 +173,15 @@
             }
 
             this.emit("close");
+            return this;
+        }
+
+        toggle() {
+            if (this.isOpen) {
+                this.close();
+            } else {
+                this.open();
+            }
             return this;
         }
 
@@ -189,7 +198,7 @@
                 LS.Context.setTimeout(() => {
                     this.container.remove();
                     this.container = null;
-                }, this.options.fadeOutDuration);
+                }, this.options.fadeOutDuration || LS.Animation.DEFAULT_DURATION);
             } else {
                 this.container.remove();
                 this.container = null;

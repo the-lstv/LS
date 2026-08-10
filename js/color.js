@@ -1387,7 +1387,7 @@ LS.Color = class Color {
         this.setAccent(color);
     }
 
-    static generate(r, g, b, hueShift = false) {
+    static generate(r, g, b, options = {}) {
         const color = (r instanceof Color)? r.clone(): new Color(r, g, b);
         let style = '';
 
@@ -1395,12 +1395,12 @@ LS.Color = class Color {
         let hsl = color.getHSL();
         let h = hsl[0];
         const s = hsl[1];
-        const sat = s * 0.12;
+        const sat = (s * 0.12) * (options.saturationBoost ?? 1);
 
         // Accents: 10..90 and 35, 45, 55, 95
         for(let i = 1; i <= 9; i++){
-            if(hueShift) {
-                h += 100 / 9;
+            if(options.hueShift) {
+                h += (100 / 9) * options.hueShift;
                 if(h > 360) h -= 360;
             }
 
@@ -1423,8 +1423,8 @@ LS.Color = class Color {
 
         // Bases: 10..90 and 15..95
         for(let i = 1; i <= 9; i++){
-            if(hueShift) {
-                h += 100 / 9;
+            if(options.hueShift) {
+                h += (100 / 9) * options.hueShift;
                 if(h > 360) h -= 360;
             }
 
@@ -1432,7 +1432,7 @@ LS.Color = class Color {
             const tone = color.setHSL(h, sat, v).hex;
             const midTone = color.setHSL(h, sat, v + 5).hex;
 
-            style += `--base-${v}:${tone};--base-${v+5}:${midTone};`;
+            style += `--base-${v}:${tone};--base-${v + 5}:${midTone};`;
         }
 
         // Bases: 98
@@ -1466,7 +1466,7 @@ LS.Color = class Color {
         return accent;
     }
 
-    static update(name, r, g, b) {
+    static update(name, r, g, b, options = {}) {
         const accent = this.ensureRule(name);
 
         const color = (r instanceof Color) ? r : new Color(r, g, b);
@@ -1477,7 +1477,7 @@ LS.Color = class Color {
             throw new Error(`Rule at index ${accent.ruleIndex} is not a CSSStyleRule.`);
         }
 
-        rule.style.cssText = this.generate(color);
+        rule.style.cssText = this.generate(color, null, null, options);
 
         return accent;
     }

@@ -126,6 +126,15 @@
   width: 1em;
   height: 100%;
 }
+.ls-range.ls-range-has-label {
+  margin-top: 1.5em;
+}
+
+.ls-range-label {
+  position: absolute;
+  top: calc(-100% - 2px);
+  white-space: nowrap;
+}
 
 .ls-range-handle {
   position: absolute;
@@ -139,6 +148,9 @@
   border: 2px solid var(--elevate-2);
   cursor: grab;
 }
+.ls-range-handle:active {
+  cursor: grabbing;
+}
 
 .ls-range-bar {
   height: 100%;
@@ -146,13 +158,29 @@
   background: var(--accent);
 }
 
+.ls-range-vertical.ls-range-has-label {
+  margin-top: 0;
+  margin-left: 1.5em;
+}
 .ls-range-vertical .ls-range-handle {
   left: 50%;
-  top: var(--range-value-clamped);
+  top: calc(100% - var(--range-value-clamped));
+  height: unset;
+  width: 120%;
 }
 .ls-range-vertical .ls-range-bar {
   width: 100%;
   height: var(--range-value-clamped);
+}
+.ls-range-vertical .ls-range-progressbar {
+  align-items: flex-end;
+}
+.ls-range-vertical .ls-range-label {
+  position: absolute;
+  left: -25px;
+  top: 10px;
+  transform-origin: top left;
+  transform: rotate(270deg) translateX(-100%);
 }
 
 .ls-range-progressbar {
@@ -162,6 +190,7 @@
   border-radius: var(--border-radius-full);
   background: var(--surface-n2);
   border: 2px solid var(--elevate);
+  display: flex;
 }
 
 .ls-range-dots {
@@ -590,6 +619,7 @@ button.ls-toast-close.ls-toast-close.ls-toast-close {
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: background 0.2s;
 }
 
 .ls-modal-layer.ls-modal-layer.is-open {
