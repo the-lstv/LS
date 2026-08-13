@@ -156,7 +156,7 @@ LS.ShortcutManager = class ShortcutManager extends LS.EventEmitter {
         if (shortcut.alt !== event.altKey) return false;
         if (shortcut.meta !== event.metaKey) return false;
 
-        const eventKey = event.key.toLowerCase();
+        const eventKey = event.key.toLowerCase().replace("arrow", "");
         if (eventKey === shortcut.key) return true;
 
         if (shortcut.key === 'space' && event.code === 'Space') return true;

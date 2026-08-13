@@ -81,6 +81,7 @@
             this._cancelAll(element);
 
             if(duration < 1) {
+                element.style.display = 'none';
                 return;
             }
 
@@ -113,6 +114,7 @@
             } finally {
                 animation.cancel();
                 element.classList.remove('animating');
+
                 if (activeAnimations.get(element) === tracker) {
                     activeAnimations.delete(element);
                     if (!tracker.cancelled && element.isConnected) {
@@ -140,6 +142,7 @@
 
             this._cancelAll(element);
 
+            element.style.display = '';
             if(duration < 1) {
                 return;
             }
@@ -147,12 +150,12 @@
             const tracker = { cancelled: false };
             activeAnimations.set(element, tracker);
 
-            element.style.display = '';
             element.classList.add('animating');
 
             const currentTransform = options.preserveTransform ? getComputedStyle(element).transform : 'none';
             const baseTransform = currentTransform === 'none' ? '' : currentTransform;
             const directionTransform = options.direction ? (transforms[options.direction] || options.direction) : '';
+
             const combinedStartTransform = directionTransform && baseTransform ? `${baseTransform} ${directionTransform}` : (directionTransform || baseTransform);
 
             const animation = element.animate([

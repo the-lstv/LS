@@ -52,9 +52,10 @@
  * @property {Object} [iconEngineOptions] - Additional options for the icon engine.
  * @property {boolean} [addRenderable=true] - Whether to add the patcher renderable to the renderer.
  * @property {boolean} [renderImmediately=true] - Whether to render the patcher immediately after initialization.
- * @property {boolean} [fab=false] - Whether to show a floating action button (FAB) for adding nodes.
+ * @property {boolean} [fab=false] - Whether to show a floating action button (FAB) for adding nodes from a bank.
  * @property {string} [fabPosition="bottom-right"] - The position of the FAB (e.g., "bottom-right", "top-left").
- * @property {string} [fabIcon="plus"] - The icon to use for the FAB.
+ * @property {string} [fabIcon="plus"] - The icon class to use for the FAB.
+ * @property {Array} [bank] - An array of node templates shown in menus.
  * @property {Object} [parent] - Optional parent element to append the patcher container to.
  * @property {Object} [portMetadata] - Optional global metadata for ports, keyed by port ID.
  * @property {number} [collapsedNodeWidth=60] - The width of collapsed nodes.
@@ -71,6 +72,7 @@
  * - selected items should be more obvious when zoomed out
  * - zIndex and better hit testing
  * - groups & expandable nodes
+ * - better/automatic sorting & change detection
  */
 class Patcher extends LS.Component {
     static { LS.register(this, { name: "Patcher", global: true }) }
@@ -100,6 +102,8 @@ class Patcher extends LS.Component {
 
         buffer: 20,
 
+        bank: null,
+
         connectionColors: {
             audio: [255, 112, 52],
             midi:  [0, 133, 255],
@@ -117,8 +121,7 @@ class Patcher extends LS.Component {
 
         // Fab
         fab: false,
-        fabPosition: "bottom-right",
-        fabIcon: "plus"
+        fabPosition: "bottom-right"
     });
 
     // --- Camera state values (does not influence content) ---
@@ -182,9 +185,11 @@ class Patcher extends LS.Component {
         this.rect = this.options.rect || {
             x: 0,
             y: 0,
-            get width() { return self.renderer.width; },
-            get height() { return self.renderer.height; },
+            width: this.renderer.canvas.width,
+            height: this.renderer.canvas.height
         };
+
+        this.boundingContainer = this.container;
 
         this.enabled = false;
         this.renderables = [];
@@ -240,8 +245,7 @@ class Patcher extends LS.Component {
          * @type {PatcherNode[]}
          * Array of nodes in the patcher.
          */
-        this.nodes = options.nodes || [];
-        options.nodes = null;
+        this.nodes = [];
 
         /**
          * @type {Connection[]}
@@ -269,6 +273,7 @@ class Patcher extends LS.Component {
         this.targettingPort = [];
 
         this.container.classList.add("ls-patcher-container");
+        this.container.classList.add("level-n1");
         this.container.style.width = "100%";
         this.container.style.height = "100%";
         this.container.__lsComponent = this;
@@ -284,10 +289,47 @@ class Patcher extends LS.Component {
 
         // Undo/Redo action events (history management is external)
         this.__actionEventRef = this.prepareEvent("action");
+        this.__changedEventRef = this.prepareEvent("change");
 
         const lContrast = 0.1;
         const dContrast = 1.0;
         this.contrast = null;
+
+        this.bank = this.options.bank || [];
+
+        if(this.options.fab) {
+            this.domContainer = document.createElement("div");
+            this.compositeDOMLayers.push(this.domContainer);
+
+            this.domContainer.style.position = "absolute";
+            this.domContainer.style.pointerEvents = "none";
+
+            this.fab = document.createElement("button");
+            this.fab.className = "ls-patcher-fab elevated circle";
+            this.fab.innerHTML = `<i class="${this.options.fabIcon || "ph ph-plus"}"></i>`;
+            this.fab.style.position = "absolute";
+            this.fab.style.pointerEvents = "all";
+
+            const position = (this.options.fabPosition || "bottom-right").split("-");
+            const padding = this.options.fabPadding ?? 16;
+            this.fab.style.inset = `${position.includes("top")? padding + "px": "auto"} ${position.includes("right")? padding + "px": "auto"} ${position.includes("bottom")? padding + "px": "auto"} ${position.includes("left")? padding + "px": "auto"}`;
+
+            this.fab.addEventListener("click", () => {
+                this.quickEmit("fab-click");
+                this.openMenu();
+            });
+
+            this.domContainer.appendChild(this.fab);
+        }
+
+        if(this.options.bank) {
+            this.bankMenu = new LS.Menu();
+        }
+
+        if (Array.isArray(this.options.nodes)) {
+            this.setNodes(this.options.nodes);
+            this.options.nodes = null;
+        }
 
         this.loadPromise.then(() => {
             // Force redraw of labels just in case
@@ -310,18 +352,18 @@ class Patcher extends LS.Component {
                 this.contrast = theme === "dark"? dContrast: lContrast;
                 const tColor = this.contrast * 255;
                 this.textEngine.staticColor = this.iconEngine.staticColor = [tColor, tColor, tColor];
-                this.renderer.render();
+                this.renderer.schedule(this);
             });
             
             this.addExternalEventListener(LS.Color, "accent-changed", () => {
-                this.renderer.render();
+                this.renderer.schedule(this);
             });
 
             if (this.options.addRenderable !== false) {
                 this.renderer.addRenderable(this);
             }
 
-            if(this.options.renderImmediately) this.renderer.render();
+            if(this.options.renderImmediately && !this.__dedicatedRenderer) this.renderer.schedule(this);
         });
     }
 
@@ -330,16 +372,22 @@ class Patcher extends LS.Component {
     select(item) {
         this.focusedItem = item;
         this.quickEmit("item-select", item);
-        this.renderer.render();
+        this.renderer.schedule(this);
     }
 
     deselectAll() {
         if (this.selectedItems.length > 0) {
             this.selectedItems.length = 0;
             this.__focusedItemIndex = -1;
-            this.renderer.render();
+            this.renderer.schedule(this);
             this.quickEmit("item-deselect");
         }
+    }
+
+    groupSelected() {
+        if (this.selectedItems.length < 2) return;
+
+        // todo
     }
 
     /**
@@ -412,13 +460,13 @@ class Patcher extends LS.Component {
         }
 
         this.__needsSort = true;
-        this.renderer.render();
+        this.renderer.schedule(this);
     }
 
     selectAll() {
         this.selectedItems.length = 0;
         for (const item of this.nodes) this.selectedItems.push(item);
-        this.renderer.render();
+        this.renderer.schedule(this);
     }
 
     deleteSelected(destroy = true) {
@@ -435,7 +483,7 @@ class Patcher extends LS.Component {
             this.remove(item, destroy, true);
         }
         this.selectedItems.length = 0;
-        this.renderer.render();
+        this.renderer.schedule(this);
     }
 
     copySelected(cut = false) {
@@ -488,6 +536,7 @@ class Patcher extends LS.Component {
             inputs: item.inputs,
             outputs: item.outputs,
             icon: item.icon,
+            kind: item.kind,
             metadata: LS.Util.clone(item.metadata)
         };
     }
@@ -515,7 +564,7 @@ class Patcher extends LS.Component {
         }
 
         this.__needsSort = true;
-        this.renderer.render();
+        this.renderer.schedule(this);
         return clonedItems;
     }
 
@@ -634,6 +683,7 @@ class Patcher extends LS.Component {
         svg.setAttribute("width", "100%");
         svg.setAttribute("height", "100%");
         svg.style.position = "absolute";
+        svg.style.pointerEvents = "none";
 
         this.connectionsGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
         svg.appendChild(this.connectionsGroup);
@@ -688,6 +738,7 @@ class Patcher extends LS.Component {
         // Temporary SVG renderer as per the note above
         this.connectionRenderable = {
             render: (delta, now, gl, cw, ch, updatedDimensions) => {
+                if(self.destroyed) return;
                 const anchorX = this.options.anchorX ?? 0.5;
                 const anchorY = this.options.anchorY ?? 0.5;
 
@@ -735,8 +786,8 @@ class Patcher extends LS.Component {
                     const line = this.#curvedLine(sourceX, sourceY, targetX, targetY);
                     const path = `M ${sourceX} ${sourceY} C ${line[2]} ${sourceY}, ${line[4]} ${targetY}, ${targetX} ${targetY}`;
 
+                    let entry = this.pathPool[required];
                     required++;
-                    let entry = this.pathPool[required - 1];
 
                     if (!entry) {
                         const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
@@ -802,6 +853,9 @@ class Patcher extends LS.Component {
             vertex: LS.GL.shaders.instanced_quads([{
                 name: "State",
                 type: "uint"
+            }, {
+                name: "Color",
+                type: "vec3"
             }]),
 
             fragment: `#version 300 es
@@ -872,6 +926,7 @@ void main() {
             },
 
             onRender(delta, now, gl, cw, ch, updatedDimensions, uniforms, attributes) {
+                if(self.destroyed) return;
                 if(self.#zoomX < 0.5) return;
 
                 const [ax, ay] = self.anchorOffset();
@@ -938,6 +993,8 @@ void main() {
                     for (const output of node.outputs) {
                         const color = self.options.connectionColors[output.type || "audio"];
 
+                        stateBuffer.data[j] = 0;
+
                         offsetBuffer.data [j * 2 + 0] = node.x + baseWidth - portSize * 0.5;
                         offsetBuffer.data [j * 2 + 1] = portY;
 
@@ -971,7 +1028,11 @@ void main() {
         });
 
         this.nodeRenderable = this.renderer.createRenderable({
-            vertex: LS.GL.shaders.instanced_quads(),
+            vertex: LS.GL.shaders.instanced_quads([{
+                name: "Color",
+                type: "vec3"
+            }]),
+
             fragment: `#version 300 es
 precision highp float;
 
@@ -1010,6 +1071,7 @@ void main() {
             },
 
             onRender(delta, now, gl, cw, ch, updatedDimensions, uniforms, attributes) {
+                if(self.destroyed) return;
                 const buffers = this.buffers;
                 const offsetBuffer = buffers.iOffset;
                 const sizeBuffer = buffers.iSize;
@@ -1088,6 +1150,8 @@ void main() {
                     }
                 }
 
+                // this.renderer.scissor(0, 0, cw, ch);
+
                 if(j > 0) {
                     // -- Upload buffers
                     offsetBuffer.updateWithStride(0, j);
@@ -1099,8 +1163,6 @@ void main() {
                     gl.uniform2f(uniforms.uOffset,     self.#scrollX - ax, self.#scrollY - ay);
                     gl.uniform2f(uniforms.uZoom, self.#zoomX, self.#zoomY);
                     gl.uniform1f(uniforms.uOutset, 1.0);
-
-                    this.renderer.scissor(0, 0, cw, ch);
 
                     // -- Render nodes
                     gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, j);
@@ -1126,7 +1188,7 @@ void main() {
                     self.iconLabels.clip(0, 0);
                 }
 
-                this.renderer.endScissor();
+                // this.renderer.endScissor();
             }
         });
 
@@ -1136,6 +1198,7 @@ void main() {
             uniforms: ["uOffset", "uSize", "uResolution", "uColor"],
 
             onRender(delta, now, gl, cw, ch, updatedDimensions, uniforms, attributes) {
+                if(self.destroyed) return;
                 if (!self.selectionRect[0]) return;
                 let x = self.selectionRect[1] - self.#scrollX;
                 let y = self.selectionRect[2] - self.#scrollY;
@@ -1170,7 +1233,7 @@ void main() {
 
         let initialSelection = null;
 
-        this.touchHandle = new LS.Util.TouchHandle(this.renderer.canvas, {
+        this.touchHandle = new LS.Util.TouchHandle(this.container, {
             calculateBounds: true,
 
             frameTimed: true,
@@ -1180,6 +1243,8 @@ void main() {
 
             handleWheel: true,
             handleHover: true,
+
+            boundsTarget: this.renderer.canvas,
 
             transformBounds: (rect) => {
                 const rRect = this.rect;
@@ -1201,7 +1266,7 @@ void main() {
                     } else if (event.domEvent.shiftKey) {
                         this.scrollX += deltaY;
                     } else {
-                        const rect = this.renderer.canvas.getBoundingClientRect();
+                        const rect = this.container.getBoundingClientRect();
                         const mouseX = event.domEvent.clientX - rect.left;
                         const mouseY = event.domEvent.clientY - rect.top;
                         this.zoomFrom(mouseX, mouseY, deltaY, 1.1, 1.1);
@@ -1225,7 +1290,7 @@ void main() {
             onStart: (event) => {
                 // Reset state
                 const button = +event.domEvent.button?? 0;
-                this.renderer.canvas.style.cursor = "";
+                this.container.style.cursor = "";
                 event.__scrolled = false;
                 edgeScrollOffset[0] = 0;
                 edgeScrollOffset[1] = 0;
@@ -1256,7 +1321,7 @@ void main() {
                         this.selectionRect[4] = event.boundY + this.scrollY;
                         this.selectedItems.length = 0;
                         initialSelection = this.selectedItems;
-                        this.renderer.render();
+                        this.renderer.schedule(this);
                         return;
                     } else {
                         const [x, y] = this.transformCoords(event.boundX, event.boundY, false);
@@ -1290,7 +1355,7 @@ void main() {
                                 //     this.cloneSelected();
                                 // }
     
-                                this.renderer.render();
+                                this.renderer.schedule(this);
                                 return;
                             }
                         }
@@ -1342,7 +1407,7 @@ void main() {
                             if(port && port.nodeId !== activeConnection.nodeId && !this.connections.some(c => c.sourceNodeId === activeConnection.nodeId && c.sourcePortId === activeConnection.port.id && c.targetNodeId === port.nodeId && c.targetPortId === port.port.id)) {
                                 this.targettingPort[0] = port.nodeId;
                                 this.targettingPort[1] = port.port.id;
-                                this.renderer.render();
+                                this.renderer.schedule(this);
                                 return;
                             }
                             this.targettingPort.length = 0;
@@ -1383,13 +1448,13 @@ void main() {
                         break;
                 }
 
-                this.renderer.render();
+                this.renderer.schedule(this);
             },
 
             onEnd: (event) => {
                 if (this.selectionRect[0]) {
                     this.selectionRect[0] = false;
-                    this.renderer.render();
+                    this.renderer.schedule(this);
                 }
 
                 initialSelection = null;
@@ -1410,7 +1475,7 @@ void main() {
                     });
 
                     this.targettingPort.length = 0;
-                    this.renderer.render();
+                    this.renderer.schedule(this);
                 }
 
                 if(activeConnection) {
@@ -1429,17 +1494,17 @@ void main() {
                     // todo: O(n) is not great
                     for(const node of this.nodes) {
                         // if(this.nodeIntersects(node, x, y)) {
-                        //     this.renderer.canvas.style.cursor = "pointer";
+                        //     this.container.style.cursor = "pointer";
                         //     return;
                         // }
                         if(this.intersectsPort(node, x, y)) {
-                            this.renderer.canvas.style.cursor = "crosshair";
+                            this.container.style.cursor = "crosshair";
                             return;
                         }
                     }
                 }
 
-                this.renderer.canvas.style.cursor = "default";
+                this.container.style.cursor = "default";
             },
         });
 
@@ -1522,132 +1587,184 @@ void main() {
             }
         });
 
+        // -- Context menu
+
+        const itemCm = [
+            { text: "", type: "label" },
+            {
+                text: "Bypass node",
+                icon: "ph ph-power",
+                action: () => this.toggleBypass(this.focusedItem)
+            },
+            {
+                text: "Rename...",
+                icon: "ph ph-pencil",
+                action: () => {
+                    const focusedItem = this.focusedItem;
+                    LS.Modal.prompt("Enter a new label for the node:", focusedItem.label || focusedItem.id, {
+                        title: "Rename Node"
+                    }).then((newLabel) => {
+                        if (newLabel !== null) {
+                            focusedItem.label = newLabel;
+                            this.renderer.schedule(this);
+                        }
+                    });
+                }
+            },
+            {
+                text: "Disconnect all",
+                icon: "ph ph-plugs-connected",
+                action: () => this.disconnectAllFromNode(this.focusedItem)
+            },
+            {
+                text: "Replace with",
+                icon: "ph ph-arrows-clockwise",
+
+                // TODO
+                items: () => this.openMenu(true, this.focusedItem)
+            },
+            { type: "separator" },
+            {
+                text: "Copy",
+                icon: "ph ph-copy",
+                action: () => this.copySelected()
+            },
+            {
+                text: "Cut",
+                icon: "ph ph-scissors",
+                action: () => this.copySelected(true)
+            },
+            {
+                text: "Clone",
+                icon: "ph ph-copy",
+                action: () => this.cloneSelected()
+            },
+            {
+                text: "Delete",
+                icon: "ph ph-trash",
+                action: () => this.deleteSelected()
+            },
+            { type: "separator" },
+            {
+                text: "Clear Selection",
+                icon: "ph ph-selection-slash",
+                action: () => this.deselectAll()
+            }
+        ];
+
+        const globalCm = [
+            { text: "Patcher", type: "label" },
+            {
+                text: "Open Node Panel",
+                icon: "ph ph-plus-circle",
+                action: () => this.openMenu()
+            },
+            {
+                text: "Add Node",
+                icon: "ph ph-plus",
+                items: () => this.openMenu(true)
+            },
+            {
+                text: "Reset Node Positions",
+                icon: "ph ph-bounding-box",
+                action: () => this.resetLayout()
+            },
+            {
+                text: "Select All",
+                icon: "ph ph-selection-all",
+                action: () => this.selectAll()
+            },
+            // { type: "separator" },
+            // { text: "Export Patch", icon: "ph ph-download", action: () => this.exportPatch() },
+            // { text: "Import Patch", icon: "ph ph-upload", action: () => this.importPatch() },
+            // {
+            //     text: "Scripts",
+            //     icon: "ph ph-code",
+            //     items: [
+            //         { text: "Export Script", action: () => this.exportScript() },
+            //         { text: "Import Script", action: () => this.importScript() }
+            //     ]
+            // },
+            { type: "separator" },
+            {
+                text: "Paste Items",
+                icon: "ph ph-clipboard",
+                action: () => this.pasteItems()
+            },
+            { type: "separator" },
+            {
+                text: "Delete Selected",
+                icon: "ph ph-trash",
+                action: () => this.deleteSelected()
+            },
+            {
+                text: "Copy Selected",
+                icon: "ph ph-copy",
+                action: () => this.copySelected()
+            },
+            {
+                text: "Clear Selection",
+                icon: "ph ph-selection-slash",
+                action: () => this.deselectAll()
+            },
+            {
+                text: "Group Selected",
+                icon: "ph ph-rectangle",
+                action: () => this.groupSelected()
+            }
+        ];
+
         this.patcherContextMenu = LS.Menu.addContextMenu(this.container, () => {
             const focusedItem = this.focusedItem;
-
             if(focusedItem) {
-                return [
-                    { text: focusedItem.label || focusedItem.id, type: "label" },
-                    {
-                        text: "Bypass node",
-                        icon: "ph ph-power",
-                        action: () => this.toggleBypass(focusedItem)
-                    },
-                    {
-                        text: "Rename...",
-                        icon: "ph ph-pencil",
-                        action: () => {
-                            LS.Modal.prompt("Enter a new label for the node:", focusedItem.label || focusedItem.id, {
-                                title: "Rename Node"
-                            }).then((newLabel) => {
-                                if (newLabel !== null) {
-                                    focusedItem.label = newLabel;
-                                    this.renderer.render();
-                                }
-                            });
-                        }
-                    },
-                    {
-                        text: "Disconnect all",
-                        icon: "ph ph-plugs-connected",
-                        action: () => this.disconnectAllFromNode(focusedItem)
-                    },
-                    {
-                        text: "Replace with",
-                        icon: "ph ph-arrows-clockwise",
-
-                        // TODO
-                        items: [
-                            {
-                                text: "Audio Node",
-                                action: () => this.replaceNode(focusedItem, "audio")
-                            },
-                            {
-                                text: "MIDI Node",
-                                action: () => this.replaceNode(focusedItem, "midi")
-                            },
-                            {
-                                text: "Parameter Node",
-                                action: () => this.replaceNode(focusedItem, "param")
-                            }
-                        ]
-                    },
-                    { type: "separator" },
-                    {
-                        text: "Copy",
-                        icon: "ph ph-copy",
-                        action: () => this.copySelected()
-                    },
-                    {
-                        text: "Cut",
-                        icon: "ph ph-scissors",
-                        action: () => this.copySelected(true)
-                    },
-                    {
-                        text: "Clone",
-                        icon: "ph ph-copy",
-                        action: () => this.cloneSelected()
-                    },
-                    {
-                        text: "Delete",
-                        icon: "ph ph-trash",
-                        action: () => this.deleteSelected()
-                    },
-                    { type: "separator" },
-                    {
-                        text: "Clear Selection",
-                        icon: "ph ph-selection-slash",
-                        action: () => this.deselectAll()
-                    }
-                ];
+                itemCm[0].text = focusedItem.label || focusedItem.id || "";
+                return itemCm;
             }
 
-            const selectedCount = this.selectedItems.length;
-            return [
-                { text: "Patcher", type: "label" },
-                {
-                    text: "Open Node Panel",
-                    icon: "ph ph-plus-circle",
-                    action: () => this.openMenu(true)
-                },
-                {
-                    text: "Reset Node Positions",
-                    icon: "ph ph-bounding-box",
-                    action: () => this.resetLayout()
-                },
-                {
-                    text: "Select All",
-                    icon: "ph ph-selection-all",
-                    action: () => this.selectAll()
-                },
-                { type: "separator" },
-                {
-                    text: "Paste Items",
-                    icon: "ph ph-clipboard",
-                    disabled: this.clipboard.length === 0,
-                    action: () => this.pasteItems()
-                },
-                { type: "separator" },
-                {
-                    text: "Delete Selected",
-                    icon: "ph ph-trash",
-                    disabled: selectedCount === 0,
-                    action: () => this.deleteSelected()
-                },
-                {
-                    text: "Copy Selected",
-                    icon: "ph ph-copy",
-                    disabled: selectedCount === 0,
-                    action: () => this.copySelected()
-                },
-                {
-                    text: "Clear Selection",
-                    icon: "ph ph-selection-slash",
-                    disabled: selectedCount === 0,
-                    action: () => this.deselectAll()
-                }
-            ];
+            const hasSelection = this.selectedItems.length > 0;
+            globalCm.at(-1).disabled = !hasSelection;
+            globalCm.at(-2).disabled = !hasSelection;
+            globalCm.at(-3).disabled = !hasSelection;
+            globalCm.at(-5).disabled = this.clipboard.length === 0;
+            return globalCm;
         });
+    }
+
+    // todo: very work in progress, don't expect clean code
+    openMenu(listOnly = false, replacingNode = null) {
+        const sortedItems = this.bank.sort((a, b) => (a.category || a.label || a.title || a.name).localeCompare(b.category || b.label || b.title || b.name));
+        const items = [];
+        const seenC = new Set();
+        for(const item of sortedItems) {
+            if(item.category && !seenC.has(item.category)) {
+                items.push({ type: "separator" });
+                items.push({ text: item.category, type: "label" });
+                seenC.add(item.category);
+            }
+
+            items.push({
+                label: item.label || item.title || item.name,
+                icon: `ph ph-${item.icon || "question"}`,
+                action: () => {
+                    if(replacingNode) {
+                        this.replaceNode(replacingNode, this.cloneItem(item));
+                    } else {
+                        const [x, y] = this.transformCoords(this.rect.width * 0.5, this.rect.height * 0.5, false);
+                        const node = this.cloneItem(item);
+                        node.x = x;
+                        node.y = y;
+                        this.add(node);
+                    }
+                }
+            });
+        }
+
+        if(listOnly) {
+            return items;
+        }
+
+        this.bankMenu.reset(items);
+        this.bankMenu.open();
     }
 
     /**
@@ -1834,7 +1951,7 @@ void main() {
         this.transformAnchor(out);
 
         if (fromViewport) {
-            const rect = this.renderer.canvas.getBoundingClientRect();
+            const rect = this.container.getBoundingClientRect();
             out[0] -= this.rect.x + rect.left;
             out[1] -= this.rect.y + rect.top;
         }
@@ -1847,21 +1964,24 @@ void main() {
     setConnections(connections) {
         this.connections = Array.isArray(connections) ? connections : [];
         this.connectionsDirty = true;
-        this.renderer.render();
+        this.renderer.schedule(this);
+        this.quickEmit(this.__changedEventRef);
         return this;
     }
 
     addConnection(connection) {
         this.connections.push(connection);
         this.connectionsDirty = true;
-        this.renderer.render();
+        this.renderer.schedule(this);
+        this.quickEmit(this.__changedEventRef);
         return this;
     }
 
     clearConnections() {
         this.connections.length = 0;
         this.connectionsDirty = true;
-        this.renderer.render();
+        this.renderer.schedule(this);
+        this.quickEmit(this.__changedEventRef);
         return this;
     }
 
@@ -1879,20 +1999,22 @@ void main() {
             }
         }
 
-        this.renderer.render();
+        this.quickEmit(this.__changedEventRef);
+        this.renderer.schedule(this);
         return this;
     }
 
-    toggleBypass(node) {
+    toggleBypass(node, value = null) {
         if(typeof node === "string") {
             node = this.nodeMap.get(node);
         }
 
         if(!node) return this;
 
-        node.bypassed = !node.bypassed;
-        this.quickEmit("item-bypass", node);
-        this.renderer.render();
+        node.bypassed = value !== null? !!value: !node.bypassed;
+        this.quickEmit("item-bypass", node, node.bypassed);
+        this.quickEmit(this.__changedEventRef);
+        this.renderer.schedule(this);
         return this;
     }
 
@@ -1908,15 +2030,19 @@ void main() {
     setNodes(nodes) {
         this.nodes = Array.isArray(nodes) ? nodes : [];
         this.#updateNodeMap();
-        this.renderer.render();
+        this.quickEmit(this.__changedEventRef);
+        this.renderer.schedule(this);
         return this;
     }
+
+    // todo: reset()
 
     add(node) {
         if (!node || !node.id) return;
         this.nodes.push(node);
         this.nodeMap.set(node.id, node);
-        this.renderer.render();
+        this.quickEmit(this.__changedEventRef);
+        this.renderer.schedule(this);
         return this;
     }
 
@@ -1939,7 +2065,7 @@ void main() {
         if (index >= 0) {
             this.nodes.splice(index, 1);
             this.__needsSort = true;
-            this.renderer.render();
+            this.renderer.schedule(this);
         }
 
         if (!__internal__SkipSelectionUpdate) {
@@ -1960,6 +2086,7 @@ void main() {
         this.nodeMap.delete(item.id);
 
         this.quickEmit("item-removed", item);
+        this.quickEmit(this.__changedEventRef);
 
         if (destroy) {
             this.quickEmit("item-cleanup", item);
@@ -1979,8 +2106,35 @@ void main() {
     clearNodes() {
         this.nodes.length = 0;
         this.nodeMap.clear();
-        this.renderer.render();
+        this.renderer.schedule(this);
+        this.quickEmit(this.__changedEventRef);
         return this;
+    }
+
+    replaceNode(oldNode, newNode) {
+        if(typeof oldNode === "string") {
+            oldNode = this.nodeMap.get(oldNode);
+        }
+
+        if (!oldNode || !newNode) return;
+
+        const id = oldNode.id;
+        newNode.id = id;
+        newNode.x = oldNode.x;
+        newNode.y = oldNode.y;
+
+        // TODO: validate io compatibility
+
+        const index = this.nodes.indexOf(oldNode);
+        if (index >= 0) {
+            this.nodes[index] = newNode;
+            this.nodeMap.delete(id);
+            this.nodeMap.set(id, newNode);
+            this.renderer.schedule(this);
+
+            this.quickEmit("item-replaced", oldNode, newNode);
+            this.quickEmit(this.__changedEventRef);
+        }
     }
 
     getNodeById(nodeId) {
@@ -1992,7 +2146,7 @@ void main() {
         if (isNaN(value)) return;
         if (value === this.#scrollX) return;
         this.#scrollX = value;
-        this.renderer.render();
+        this.renderer.schedule(this);
     }
 
     get scrollX() {
@@ -2003,7 +2157,7 @@ void main() {
         if (isNaN(value)) return;
         if (value === this.#scrollY) return;
         this.#scrollY = value;
-        this.renderer.render();
+        this.renderer.schedule(this);
     }
 
     get scrollY() {
@@ -2081,7 +2235,7 @@ void main() {
 
         if (value === this.#zoomX) return;
         this.#zoomX = value;
-        this.renderer.render();
+        this.renderer.schedule(this);
     }
 
     set zoomY(value) {
@@ -2094,7 +2248,7 @@ void main() {
 
         if (value === this.#zoomY) return;
         this.#zoomY = value;
-        this.renderer.render();
+        this.renderer.schedule(this);
     }
 
     get zoomY() {
@@ -2106,6 +2260,89 @@ void main() {
             nodes: this.nodes.map(n => this.cloneItem(n, true, true)),
             connections: this.connections.map(c => ({ sourceNodeId: c.sourceNodeId, sourcePortId: c.sourcePortId, targetNodeId: c.targetNodeId, targetPortId: c.targetPortId, strength: c.strength }))
         };
+    }
+
+    /**
+     * Sorts the nodes in topological order based on their connections.
+     * Nodes with no dependencies will appear first, followed by nodes that depend on them, and so on.
+     * 
+     * TODO: optimize & enhance this
+     * 
+     * @returns {Object} An object containing the sorted nodes and related data.
+     */
+    sortNodesTopologically(mutate = true) {
+        const consumers = new Map();
+        const deps = new Map();
+
+        for (const connection of this.connections) {
+            if(!connection.sourceNodeId || !connection.targetNodeId) continue;
+            if(connection.sourceNodeId === connection.targetNodeId) continue; // Ignore self-loops temporarily
+            if(!this.nodeMap.has(connection.sourceNodeId) || !this.nodeMap.has(connection.targetNodeId)) continue; // Ignore connections to non-existent nodes (todo: delete them)
+
+            let consumersOf = consumers.get(connection.sourceNodeId);
+
+            if (!consumersOf) {
+                consumersOf = [];
+                consumers.set(connection.sourceNodeId, consumersOf);
+            }
+            consumersOf.push(connection);
+
+            let depsOf = deps.get(connection.targetNodeId);
+            if (!depsOf) {
+                depsOf = [];
+                deps.set(connection.targetNodeId, depsOf);
+            }
+            depsOf.push(connection);
+        }
+
+        const sortedNodeIds = Patcher.topoSort(this.nodes, consumers, deps);
+        const sortedNodes = sortedNodeIds.map(id => this.nodeMap.get(id)).filter(node => node !== undefined);
+
+        if (mutate) {
+            this.nodes = sortedNodes;
+            this.renderer.schedule(this);
+        }
+
+        return { sorted: sortedNodes, sortedNodeIds, consumers, deps };
+    }
+
+    /**
+     * Performs a topological sort on the given nodes.
+     */
+    static topoSort(nodes, consumers, deps) {
+        const indegree = new Map();
+
+        for (const node of nodes) {
+            indegree.set(node.id, deps.get(node.id)?.length ?? 0);
+        }
+
+        const queue = [];
+
+        for (const [id, degree] of indegree) {
+            if (degree === 0) {
+                queue.push(id);
+            }
+        }
+
+        const order = [];
+
+        while (queue.length) {
+            const id = queue.pop();
+            order.push(id);
+
+            for (const consumer of consumers.get(id) ?? []) {
+                const next = consumer.targetNodeId;
+
+                const d = indegree.get(next) - 1;
+                indegree.set(next, d);
+
+                if (d === 0) {
+                    queue.push(next);
+                }
+            }
+        }
+
+        return order;
     }
 
     // -- Cleanup
@@ -2145,14 +2382,34 @@ void main() {
         this.__needsSort = null;
         this.clipboard = null;
 
+        this.__changedEventRef = null;
+        this.__actionEventRef = null;
+
+        this.bankMenu.destroy();
+        this.bankMenu = null;
+        this.bank = null;
+
+        if(this.domContainer) {
+            this.domContainer.remove();
+            this.domContainer = null;
+        }
+
+        if(this.fab) {
+            this.fab.destroy();
+            this.fab = null;
+        }
+
         this.svgLayer.remove();
         this.svgLayer = null;
+
+        this.bank = null;
 
         if(this.__dedicatedRenderer) {
             this.renderer.destroy();
         } else {
             this.renderer.destroyRenderable(this);
         }
+
         this.compositeDOMLayers = null;
         this.renderables = null;
         this.renderer = null;

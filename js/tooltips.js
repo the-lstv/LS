@@ -1,5 +1,11 @@
+/**
+ * LS.Tooltips
+ * 
+ * Simple, lightweight, efficient and versatile tooltips
+ */
+
 class Tooltips extends LS.Component {
-    static { LS.register(this, { name: "Tooltips", singular: true, global: true }) }
+    static { LS.register(this, { name: "Tooltips", singleton: true, global: true }) }
 
     /**
      * Global scan mode: Global event listeners are used to detect mouseenter/mouseleave events.
@@ -15,9 +21,9 @@ class Tooltips extends LS.Component {
      * This can be more efficient when there is only a few tooltips, but requires rescanning the element if new tooltips are added.
      * The downside is it uses more memory and requires more manual management.
      * 
-     * This is the default legacy behavior in < 6.0.0-alpha.3 and is now deprecated.
+     * This was the default behavior in < 6.0.0-alpha.3 and is now deprecated and should be avoided.
      * 
-     * To switch back to this mode, use:
+     * To switch back to this mode, you can use:
      * LS.Tooltips.resetGlobalInstance({ scanMode: LS.Tooltips.SCAN_LOCAL });
      */
     SCAN_LOCAL = "local";
@@ -29,9 +35,6 @@ class Tooltips extends LS.Component {
         this.contentElement = this.createElement({ class:"ls-tooltip-content" });
 
         this.container.append(this.contentElement);
-
-        this.attributes = ['ls-tooltip', 'ls-hint'];
-        this.selector = this.attributes.map(a => `[${a}]`).join(",");
 
         this.scanMode = options.scanMode || this.SCAN_GLOBAL;
         this.animationEnabled = options.animationEnabled;
@@ -53,6 +56,9 @@ class Tooltips extends LS.Component {
         this.__lastVisible = false;
 
         this.frameScheduler = new LS.Util.FrameScheduler(() => this.#render());
+
+        this.attributes = ['ls-tooltip', 'ls-hint'];
+        this.selector = this.attributes.map(a => `[${a}]`).join(",");
 
         LS.once("ready", () => {
             LS._topLayer.append(this.container);
@@ -338,7 +344,7 @@ class Tooltips extends LS.Component {
     /**
      * Reload the global instance of LS.Tooltips.
      * This allows you to change the options or fix some potential issues.
-     * Ensure you do not have any references to the old instance!
+     * Ensure you do not have any references to the old instance (you shouldn't have any in the first place but warning just in case)!
      */
     resetGlobalInstance(newOptions = {}) {
         if(LS.Tooltips !== this) {

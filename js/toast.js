@@ -1,9 +1,23 @@
-class Toast extends LS.Component {
+class Toast {
     static { LS.register(this, { name: "Toast", global: true }) }
 
-    constructor(content, options = {}){
-        super();
+    // static TEMPLATE = LS.CompileTemplate((data, logic) => ({
+    //     class: "ls-toast level-n2",
+    //     accent: data.accent || null,
+    //     inner: [
+    //         logic.if(data.icon, { tag: "i", class: data.icon }),
 
+    //         { inner: data.content, class: "ls-toast-content" },
+
+    //         logic.if(data.uncancellable, null, { tag: "button", class: "elevated circle ls-toast-close", innerHTML: "&times;", onclick: data.closeClicked })
+    //     ]
+    // }));
+
+    // Precompiled template function
+    static TEMPLATE = function(d){'use strict';var e0=document.createElement("div");e0.setAttribute("ls-accent",d.accent);e0.className="ls-toast level-n2";if(!!(d.icon)){var e1=document.createElement("i");e1.className=d.icon;e0.appendChild(e1);}var e2=document.createElement("div");e2.className="ls-toast-content";e2.textContent=d.content;e0.appendChild(e2);if(!!(d.uncancellable)){}else{var e3=document.createElement("button");e3.innerHTML="&times;";e3.onclick=d.closeClicked;e3.className="elevated circle ls-toast-close";e0.appendChild(e3);}var __rootValue=e0;return{root:__rootValue};}
+    static openToasts = new Set();
+
+    constructor(content, options = {}){
         this.element = this.constructor.TEMPLATE({
             content,
             accent: options.accent,
@@ -16,14 +30,21 @@ class Toast extends LS.Component {
         this.constructor.openToasts.add(this);
         this.constructor.container.appendChild(this.element);
 
+        if(!options.uncancellable) {
+            this.element.classList.add("has-close-button");
+        }
+
         this.closeCallback = options.onClose;
 
-        this.setTimeout(() => {
+        this.open = true;
+
+        setTimeout(() => {
+            if(!this.open) return;
             // this.element.class("open");
             if(LS.Animation) LS.Animation.fadeIn(this.element, "upBackward", 400);
         }, 1);
 
-        if(options.timeout > 0 || options.timeout === undefined) this.setTimeout(() => {
+        if(options.timeout > 0 || options.timeout === undefined) this.timeout = setTimeout(() => {
             this.close();
         }, options.timeout || 5000);
     }
@@ -33,17 +54,22 @@ class Toast extends LS.Component {
     }
 
     close(){
-        if(LS.Animation) LS.Animation.fadeOut(this.element, 150, "upBackward");
+        if(!this.open) return;
+
+        this.timeout && clearTimeout(this.timeout);
         this.constructor.openToasts.delete(this);
+        this.open = false;
 
         if(this.closeCallback) this.closeCallback();
         this.closeCallback = null;
 
-        this.setTimeout(() => {
+        if(LS.Animation) LS.Animation.fadeOut(this.element, 150, "upBackward").then(() => {
             this.element.remove();
             this.element = null;
-            super.destroy();
-        }, LS.Animation? 150 : 0);
+        }); else {
+            this.element.remove();
+            this.element = null;
+        }
     }
 
     static {
@@ -54,22 +80,6 @@ class Toast extends LS.Component {
         LS.once("ready", () => {
             LS._topLayer.add(this.container);
         });
-
-        // this.TEMPLATE = LS.CompileTemplate((data, logic) => ({
-        //     class: "ls-toast level-n2",
-        //     accent: data.accent || null,
-        //     inner: [
-        //         logic.if(data.icon, { tag: "i", class: data.icon }),
-
-        //         { inner: data.content, class: "ls-toast-content" },
-
-        //         logic.if(data.uncancellable, null, { tag: "button", class: "elevated circle ls-toast-close", innerHTML: "&times;", onclick: data.closeClicked })
-        //     ]
-        // }));
-
-        // Precompiled template function
-        this.TEMPLATE = function(d){'use strict';var e0=document.createElement("div");e0.setAttribute("ls-accent",d.accent);e0.className="ls-toast level-n2";if(!!(d.icon)){var e1=document.createElement("i");e1.className=d.icon;e0.appendChild(e1);}var e2=document.createElement("div");e2.className="ls-toast-content";e2.textContent=d.content;e0.appendChild(e2);if(!!(d.uncancellable)){}else{var e3=document.createElement("button");e3.innerHTML="&times;";e3.onclick=d.closeClicked;e3.className="elevated circle ls-toast-close";e0.appendChild(e3);}var __rootValue=e0;return{root:__rootValue};}
-        this.openToasts = new Set();
     }
 
     static closeAll(){
@@ -83,6 +93,7 @@ class Toast extends LS.Component {
     }
 
     static destroy(){
+        this.closeAll();
         this.container.remove();
         this.openToasts.clear();
     }

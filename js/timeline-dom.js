@@ -1,21 +1,12 @@
 /**
- * DEPRECATED!
- * Use LS.Timeline, which is a drop-in replacement based on WebGL.
- * This component has many issues and will soon be removed.
+ * ! DEPRECATED !
+ * Use LS.Timeline, which is a drop-in replacement and uses WebGL.
+ * This component has MANY quality issues and will soon be removed.
  * 
  * @deprecated
- */
-
-/**
- * TODO List:
- * 
- * CRITICAL:
- * - Item to item snapping issues
  * 
  * I'm thinking using WebGL would have been much easier and better 😭
  * Yeah, many hours went into this component.
- * 
- * Update: I did make a WebGL version. All this effort for nothing 🥲
  */
 
 (() => {
@@ -2906,7 +2897,7 @@
             this.frameScheduler.schedule();
         }
 
-        reset(destroyItems = true, replacingItems = null) {
+        reset(replacingItems = null, destroyItems = true) {
             if (this.destroyed) return;
 
             const oldItems = Array.isArray(this.items) ? this.items.slice() : [];
@@ -3160,7 +3151,7 @@
         }
 
         destroy() {
-            this.reset(true);
+            this.reset(null, true);
             this.frameScheduler.destroy();
             this.frameScheduler = null;
             this.clipboard = null;

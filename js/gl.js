@@ -548,7 +548,7 @@ void main() {
             options.parent = this;
             const renderable = new Renderable(options);
             if (append) {
-                this.renderables.push(renderable);
+                this.addRenderable(renderable);
             }
             return renderable;
         }
@@ -622,6 +622,8 @@ void main() {
             this.vertexShaders = new Map();
             this.fragmentShaders = new Map();
 
+            this.renderTargets = new Set();
+
             this.x = null;
             this.y = null;
             this.width = null;
@@ -646,8 +648,10 @@ void main() {
          * 
          * ! Are you looking for manual rendering? Use tick() or renderOne()
          */
-        render(now = false) {
+        render(now = false, reEvaluateComponentSizes = false) {
             if (!this.initialized) return;
+
+            this.reEvaluateComponentSizes = reEvaluateComponentSizes;
 
             if (now) {
                 this.tick(0, performance.now(), this.activeCamera);
@@ -746,9 +750,9 @@ void main() {
             const canvasWidth = this.width;
             const canvasHeight = this.height;
 
-            if(clear && this.options.clear !== false) {
-                gl.clear(gl.COLOR_BUFFER_BIT);
-            }
+            // if(clear && this.options.clear !== false) {
+            //     gl.clear(gl.COLOR_BUFFER_BIT);
+            // }
 
             const updatedDimensions = canvasWidth !== this.lastRenderWidth || canvasHeight !== this.lastRenderHeight;
             if (updatedDimensions) {
@@ -764,10 +768,14 @@ void main() {
             if(target) {
                 this.renderOne(target, delta, now, camera, false, updatedDimensions);
             } else {
-                for(const renderable of this.renderables) {
+                const targets = this.renderTargets.size > 0 ? this.renderTargets : this.renderables;
+                for(const renderable of targets) {
                     this.renderOne(renderable, delta, now, camera, false, updatedDimensions);
                 }
             }
+
+            this.renderTargets.clear();
+            this.reEvaluateComponentSizes = false;
         }
 
         renderOne(renderable, delta = 0, now = null, camera = null, clear = false, updateDimensions = false) {
@@ -775,22 +783,17 @@ void main() {
 
             const hasRenderMethod = typeof renderable.render === "function";
 
+            if(this.reEvaluateComponentSizes && renderable.boundingContainer) {
+                this.recomputeBoundingRect(renderable, false);
+            }
+
+            if(typeof renderable.rect === "object" || typeof renderable.viewport === "object") {
+                const rect = renderable.viewport || renderable.rect;
+                if(rect.width < 1 || rect.height < 1) return;
+                this.viewport(rect.x, rect.y, rect.width, rect.height);
+            }
+
             if(renderable.renderables) {
-                if(typeof renderable.rect === "object" || typeof renderable.viewport === "object") {
-                    const rect = renderable.viewport || renderable.rect;
-                    if(rect.width < 1 || rect.height < 1) return;
-                    this.viewport(rect.x, rect.y, rect.width, rect.height);
-
-                    if(renderable.compositeDOMLayers) {
-                        for(const layer of renderable.compositeDOMLayers) {
-                            layer.style.position = "absolute";
-                            layer.style.transform = "translate3d(" + `${rect.x}px, ${rect.y}px, 0px)`;
-                            layer.style.width = `${rect.width}px`;
-                            layer.style.height = `${rect.height}px`;
-                        }
-                    }
-                }
-
                 renderable = renderable.renderable || renderable.renderables;
             }
 
@@ -824,23 +827,29 @@ void main() {
                 gl.useProgram(renderable.program);
             }
 
-            if(renderable.__bindVAO && renderable.vao) {
+            const bindVAO = renderable.bindVAO && renderable.vao;
+
+            if(bindVAO) {
                 gl.bindVertexArray(renderable.vao);
             }
 
             renderable.render(delta || 0, now || performance.now(), gl, cw, ch, updateDimensions, renderable.uniforms, renderable.attributes, camera? camera.projectionMatrix: this.activeCamera.projectionMatrix);
 
-            if(renderable.__bindVAO && renderable.vao) {
+            if(bindVAO) {
                 gl.bindVertexArray(null);
             }
         }
 
         renderMany(renderables, delta = 0, now = null, camera = null, clear = false) {
-            if(!Array.isArray(renderables)) throw new Error("renderMany expects an array of renderables.");
             for(const renderable of renderables) {
                 this.renderOne(renderable, delta, now, camera, clear);
                 clear = false; // Only clear on the first renderable
             }
+        }
+
+        schedule(renderable){
+            this.renderTargets.add(renderable);
+            this.render();
         }
 
         viewport(x, y, width, height) {
@@ -985,6 +994,73 @@ void main() {
             gl.disable(gl.SCISSOR_TEST);
         }
 
+        recomputeBoundingRect(renderable, renderNow = false) {
+            if(!renderable || !renderable.boundingContainer) return;
+
+            const rect = renderable.boundingContainer.getBoundingClientRect();
+            renderable.rect.x = rect.left;
+            renderable.rect.y = rect.top;
+            renderable.rect.width = rect.width;
+            renderable.rect.height = rect.height;
+
+            if(renderable.compositeDOMLayers) {
+                for(const layer of renderable.compositeDOMLayers) {
+                    const element = layer.element || layer;
+                    const offsetX = layer.offset?.x || 0;
+                    const offsetY = layer.offset?.y || 0;
+                    const offsetLeft = layer.offset?.left || 0;
+                    const offsetTop = layer.offset?.top || 0;
+                    const offsetRight = layer.offset?.right || 0;
+                    const offsetBottom = layer.offset?.bottom || 0;
+
+                    element.style.position = "fixed";
+                    element.style.left = "0px";
+                    element.style.top = "0px";
+                    element.style.transform = "translate3d(" + `${rect.x + offsetLeft + offsetX}px, ${rect.y + offsetTop + offsetY}px, 0px)`;
+                    element.style.width = `${rect.width - offsetLeft - offsetRight}px`;
+                    element.style.height = `${rect.height - offsetTop - offsetBottom}px`;
+                }
+            }
+
+            if(renderNow) {
+                this.renderOne(renderable, 0, performance.now(), this.activeCamera, false, true);
+            }
+        }
+
+        addRenderable(renderable) {
+            if(!renderable) return;
+
+            if(renderable.boundingContainer) {
+                renderable._resizeObserver = null;
+                renderable._resizeObserver = new ResizeObserver(() => {
+                    this.recomputeBoundingRect(renderable, true);
+                });
+
+                renderable._resizeObserver.observe(renderable.boundingContainer);
+
+                renderable._intersectionObserver = new IntersectionObserver((entries) => {
+                    for(const entry of entries) {
+                        const isVisible = entry.isIntersecting;
+                        renderable.enabled = isVisible;
+                        this.render(); //todo:
+
+                        if(renderable.compositeDOMLayers) {
+                            for(const layer of renderable.compositeDOMLayers) {
+                                const element = layer.element || layer;
+
+                                element.style.display = isVisible? "block": "none";
+                                if(!element.isConnected) LS._compositeLayer.appendChild(element);
+                            }
+                        }
+                    }
+                }, { threshold: 0 });
+
+                renderable._intersectionObserver.observe(renderable.boundingContainer);
+            }
+
+            this.renderables.push(renderable);
+        }
+
         destroyRenderable(renderable) {
             if(!renderable) return;
 
@@ -1026,9 +1102,20 @@ void main() {
                 renderable.buffers = null;
             }
 
+            if(renderable._resizeObserver) {
+                renderable._resizeObserver.disconnect();
+                renderable._resizeObserver = null;
+            }
+
+            if(renderable._intersectionObserver) {
+                renderable._intersectionObserver.disconnect();
+                renderable._intersectionObserver = null;
+            }
+
             if(renderable.compositeDOMLayers) {
                 for(const layer of renderable.compositeDOMLayers) {
-                    layer.remove();
+                    const element = layer.element || layer;
+                    if(element.isConnected) element.remove();
                 }
                 renderable.compositeDOMLayers = null;
             }
@@ -1037,6 +1124,8 @@ void main() {
             if(index !== -1) {
                 this.renderables.splice(index, 1);
             }
+
+            this.renderTargets.delete(renderable);
         }
 
         destroy() {
@@ -1068,6 +1157,7 @@ void main() {
             this.backgroundColor = null;
             this.pendingResize = null;
             this.options = null;
+            this.renderTargets.clear();
             super.destroy();
 
             // Destroy the WebGL context last to ensure all resources are cleaned up first
@@ -1075,31 +1165,78 @@ void main() {
                 this.gl.getExtension('WEBGL_lose_context')?.loseContext();
                 this.gl = null;
             }
+            this.renderTargets = null;
         }
     }
 
     const GL_ENUMS = WebGL2RenderingContext.prototype;
-    function bufferFrom(type, size) {
-        switch(type.toLowerCase()) {
+    function bufferType(type, strict = true) {
+        if(typeof type === "string") {
+            type = type.toLowerCase();
+        } else if(typeof type === "number") {
+            return type;
+        } else {
+            type = type?.constructor;
+        }
+
+        switch(type) {
             case "float":
+            case Float32Array:
+                return GL_ENUMS.FLOAT;
+
+            case "int":
+            case Int32Array:
+                return GL_ENUMS.INT;
+
+            case "uint":
+            case Uint32Array:
+                return GL_ENUMS.UNSIGNED_INT;
+
+            case "short":
+            case Int16Array:
+                return GL_ENUMS.SHORT;
+
+            case "ushort":
+            case Uint16Array:
+                return GL_ENUMS.UNSIGNED_SHORT;
+
+            case "byte":
+            case Int8Array:
+                return GL_ENUMS.BYTE;
+
+            case "ubyte":
+            case Uint8Array:
+                return GL_ENUMS.UNSIGNED_BYTE;
+
+            case "double":
+            case Float64Array:
+                if(strict) throw new Error("WebGL does not support Float64Array for vertex attributes.");
+
+            default:
+                if(strict) throw new Error("Could not determine the correct WebGL type for the provided data. Please specify the 'type' parameter explicitly.");
+                console.warn(`Unknown buffer type "${type}". Defaulting to Float32Array.`);
+                return GL_ENUMS.FLOAT;
+        }
+    }
+
+    function bufferFrom(type, size) {
+        if(typeof type === "string") {
+            type = bufferType(type, false);
+        }
+
+        switch(type) {
             case GL_ENUMS.FLOAT:
                 return new Float32Array(size);
-            case "int":
             case GL_ENUMS.INT:
                 return new Int32Array(size);
-            case "uint":
             case GL_ENUMS.UNSIGNED_INT:
                 return new Uint32Array(size);
-            case "short":
             case GL_ENUMS.SHORT:
                 return new Int16Array(size);
-            case "ushort":
             case GL_ENUMS.UNSIGNED_SHORT:
                 return new Uint16Array(size);
-            case "byte":
             case GL_ENUMS.BYTE:
                 return new Int8Array(size);
-            case "ubyte":
             case GL_ENUMS.UNSIGNED_BYTE:
                 return new Uint8Array(size);
             default:
@@ -1118,9 +1255,16 @@ void main() {
             if(!this.renderer || !(this.renderer instanceof Renderer)) throw new Error("Renderable requires a LS.WebGLRenderer instance in options.");
             if(!this.renderer.gl) throw new Error("Renderable requires a GL context.");
 
-            const gl = this.renderer.gl;
+            options.fragment ??= options.frag ?? options.fragmentShader;
+            options.vertex ??= options.vert ?? options.vertexShader;
+            options.fragment ??= LS.GL.shaders.basic_color_fragment;
 
+            const gl = this.renderer.gl;
             this.program = options.program || (options.vertex && options.fragment ? createProgram(this.renderer, options.vertex, options.fragment) : null);
+
+            if(!this.program) {
+                throw new Error("Renderable requires a shader program or vertex and fragment shaders.");
+            }
 
             this.uniforms = {};
             this.attributes = {};
@@ -1136,8 +1280,10 @@ void main() {
             // We can create a default VAO helper for this renderable
             if(options.vao) {
                 this.vao = gl.createVertexArray();
-                this.__bindVAO = true;
+                this.bindVAO = true;
             }
+
+            this.useProgram = options.useProgram !== undefined ? options.useProgram : true;
 
             if(options.onSetup || typeof options.bind === "object") {
                 if(this.vao) gl.bindVertexArray(this.vao);
@@ -1198,7 +1344,7 @@ void main() {
                     options.onSetup.call(this, gl, this.program, this.uniforms, this.attributes, options);
                 }
 
-                if(this.__bindVAO && this.vao) {
+                if(this.vao) {
                     gl.bindVertexArray(null);
                 }
             }
@@ -1523,24 +1669,27 @@ void main() {
                 // I was lazy so for now we just convert it back to an object
 
                 fontData.glyphs = [];
+
+                const oOffset = glyphStride === 42? 0: 2;
+
                 for (let i = 0; i < glyphCount; i++) {
                     const offset = i * glyphStride;
                     fontData.glyphs.push({
                         i: glyphView.getUint16(offset),
                         gI: glyphView.getUint16(offset + 2),
                         code: glyphView.getUint16(offset + 4),
-                        advance: glyphView.getUint16(offset + 6),
+                        advance: glyphStride === 42? glyphView.getFloat32(offset + 6): glyphView.getUint16(offset + 6), // There was previously a faulty type
                         planeBounds: {
-                            top: glyphView.getFloat32(offset + 8),
-                            left: glyphView.getFloat32(offset + 12),
-                            bottom: glyphView.getFloat32(offset + 16),
-                            right: glyphView.getFloat32(offset + 20)
+                            top: glyphView.getFloat32(offset + 10 - oOffset),
+                            left: glyphView.getFloat32(offset + 14 - oOffset),
+                            bottom: glyphView.getFloat32(offset + 18 - oOffset),
+                            right: glyphView.getFloat32(offset + 22 - oOffset)
                         },
                         atlasBounds: {
-                            top: glyphView.getFloat32(offset + 24),
-                            left: glyphView.getFloat32(offset + 28),
-                            bottom: glyphView.getFloat32(offset + 32),
-                            right: glyphView.getFloat32(offset + 36)
+                            top: glyphView.getFloat32(offset + 26 - oOffset),
+                            left: glyphView.getFloat32(offset + 30 - oOffset),
+                            bottom: glyphView.getFloat32(offset + 34 - oOffset),
+                            right: glyphView.getFloat32(offset + 38 - oOffset)
                         }
                     });
                 }
@@ -1651,7 +1800,7 @@ void main() {
             gl.bindTexture(gl.TEXTURE_2D, texture);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.image);
 
-            if((this.atlas.type === "softmask" || this.atlas.type === "hardmask") && this.options.nearestFilter) {
+            if((this.atlas.type === "softmask" || this.atlas.type === "hardmask")) {// && this.options.nearestFilter) {
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
             } else {
@@ -1792,6 +1941,10 @@ void main() {
             this.baseScale = 16 / this.font.atlas.size;
             this.cellWidth = this.font.baseCellWidth * this.baseScale;
             this.cellHeight = this.font.baseCellHeight * this.baseScale;
+
+            if(this.defaultFontSize === null) {
+                this.defaultFontSize = options.defaultFontSize || this.font.baseCellHeight;
+            }
 
             gl.bindVertexArray(null);
             gl.bindBuffer(gl.ARRAY_BUFFER, null);
@@ -2362,6 +2515,15 @@ void main() {
         }
 
         bindToAttribute(location, size = this.cellSize, type = null, normalized = false, stride = 0, offset = 0, divisor = 1) {
+            if(typeof type !== 'number') {
+                type = bufferType((type && typeof type === 'string')? type: this.data);
+            }
+
+            WebGLBuffer.bindToAttribute(this.gl, this.buffer, this.isInt || this.isUInt, location, size, type, normalized, stride, offset, divisor);
+            return this;
+        }
+
+        static bindToAttribute(gl, buffer, isInt, location, size = this.cellSize, type = null, normalized = false, stride = 0, offset = 0, divisor = 1) {
             if(typeof location !== 'number' || location < 0) {
                 throw new Error("bindToAttribute expects a valid attribute location (non-negative integer) as the first argument. Got: " + location);
             }
@@ -2371,41 +2533,32 @@ void main() {
             }
 
             if(typeof type !== 'number') {
-                switch(this.data.constructor) {
-                    case Uint8Array:    type = this.gl.UNSIGNED_BYTE; break;
-                    case Uint16Array:   type = this.gl.UNSIGNED_SHORT; break;
-                    case Uint32Array:   type = this.gl.UNSIGNED_INT; break;
-                    case Int8Array:     type = this.gl.BYTE; break;
-                    case Int16Array:    type = this.gl.SHORT; break;
-                    case Int32Array:    type = this.gl.INT; break;
-                    case Float32Array:  type = this.gl.FLOAT; break;
-                    case Float64Array:  throw new Error("WebGL does not support Float64Array for vertex attributes.");
-                    default:
-                        throw new Error("bindToAttribute could not determine the correct WebGL type for the provided data. Please specify the 'type' parameter explicitly.");
+                type = bufferType(type);
+                if(typeof type !== 'number') {
+                    throw new Error("bindToAttribute could not determine the WebGL type for the buffer data. Please provide a valid WebGL type as the third argument.");
                 }
             }
 
-            this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffer);
-            this.gl.enableVertexAttribArray(location);
+            gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+            gl.enableVertexAttribArray(location);
 
-            // while (this.gl.getError() !== this.gl.NO_ERROR) {}
-            if((this.isInt || this.isUInt) && normalized === false) {
-                this.gl.vertexAttribIPointer(location, size, type, stride, offset);
+            // while (gl.getError() !== gl.NO_ERROR) {}
+            if(isInt && normalized === false) {
+                gl.vertexAttribIPointer(location, size, type, stride, offset);
             } else {
-                this.gl.vertexAttribPointer(location, size, type, normalized, stride, offset);
+                gl.vertexAttribPointer(location, size, type, normalized, stride, offset);
             }
-            // console.log(this.gl.getError());
+            // console.log(gl.getError());
 
             // verify that it is active:
-            const isEnabled = this.gl.getVertexAttrib(location, this.gl.VERTEX_ATTRIB_ARRAY_ENABLED);
+            const isEnabled = gl.getVertexAttrib(location, gl.VERTEX_ATTRIB_ARRAY_ENABLED);
             if (!isEnabled) {
                 console.warn(`bindToAttribute: Failed to enable vertex attribute at location ${location}.`);
             }
 
             if (divisor !== undefined) {
-                this.gl.vertexAttribDivisor(location, divisor); // For instanced rendering
+                gl.vertexAttribDivisor(location, divisor); // For instanced rendering
             }
-            return this;
         }
 
         /**
@@ -2613,12 +2766,12 @@ void main() {
                 LS.GlobalWebGLRenderer.canvas.style.position = "fixed";
                 LS.GlobalWebGLRenderer.canvas.style.top = "0px";
                 LS.GlobalWebGLRenderer.canvas.style.left = "0px";
+                LS.GlobalWebGLRenderer.canvas.style.zIndex = "1";
                 LS.GlobalWebGLRenderer.canvas.style.pointerEvents = "none";
-                LS.GlobalWebGLRenderer.canvas.style.zIndex = "9999";
                 LS.GlobalWebGLRenderer.canvas.classList.add("ls-global-webgl-renderer");
 
                 LS.once("ready", () => {
-                    LS._topLayer.appendChild(LS._compositeLayer = LS.Create({
+                    (options.compositeLayerParent || LS._topLayer).appendChild(LS._compositeLayer = LS.Create({
                         class: "ls-gl-composite-layer",
                         inner: LS.GlobalWebGLRenderer.canvas
                     }));
@@ -2782,11 +2935,9 @@ ${quad}
 
 in vec2 iOffset;
 in vec2 iSize;
-in vec3 iColor;
 ${extra_attributes? extra_attributes.map(attr => `in ${attr.type} i${attr.name};${attr.type === "uint"? "flat ": ""}out ${attr.type} v${attr.name};`).join(""): ""}
 
 out vec2 vUV;
-out vec3 vColor;
 out vec2 vSize;
 out vec2 vOffset;
 
@@ -2804,7 +2955,6 @@ void main() {
 
     vSize = size;
     vOffset = offset;
-    vColor = iColor;
     ${extra_attributes? extra_attributes.map(attr => `v${attr.name} = i${attr.name};`).join(""): ""}
 
     vec2 pos = vUV * (size / uResolution) + (offset / uResolution);
@@ -2910,6 +3060,15 @@ void main() {
     float fill = (1.0 - smoothstep(-aa, aa, inner)) * shapeAlpha;
 
     fragColor = vec4(color, border + fill * 0.2);
+}`,
+
+            basic_color_fragment: `#version 300 es
+precision highp float;
+out vec4 fragColor;
+uniform vec4 uColor;
+
+void main() {
+    fragColor = vec4(uColor);
 }`,
 
 

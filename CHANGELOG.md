@@ -31,7 +31,7 @@ Major update (2026 release)!
 - & more general improvements
 #### Added in 6.0.0-alpha.3
 - Sibling support to LS.Resize
-- LS.View is now under the LS namespace and included by default instead of LS.Multipane.View
+- LS.View and LS.Slot are now under the LS namespace and included by default instead of LS.Multipane.View and LS.Multipane.Slot
 - LS.View now extends LS.Context instead of LS.EventEmitter for better lifecycle management
 - LS.Tooltips have been enhanced and now scan globally by default.
 - Some possible memory leaks have been fixed.
@@ -41,10 +41,19 @@ Major update (2026 release)!
 - LS.Util.FrameScheduler now always calculates delta time, allows disabling vSync, and has a built-in sampling mode for measuring framerate/frametimes.
 - Some changes to the design language
 - Modals now allow safe HTML content
+- Rewrite of the previously very low quality component LS.Menu
+- Enhanced color & animations & new toggle style (ls-toggle-button)
+- 360deg support for LS.Knob
+- Removed the deprecated LS.DragDrop
+- Added LS.WindowManager
 
 #### Misc
 - Introduced a GUI for generating CDN Links: https://lstv.space/tools/ls-loader
 - Documentation is *finally* here (yeah after 6 major releases)
+- The project is no longer "open source" because of issues with foss license bypassing (applies to releases since 6.0.0-alpha.3).
+- This decision hurts to make as I always stood for free software, but I cannot allow my work to be plainly stolen or used for AI training, I hope you understand. I will still provide support and accept contributions.
+- GPLv3 license was removed, now source-available with restrictions.
+License before 6.0.0-alpha.3 (6.0.0-alpha.2 and lower) was GPLv3, MIT before 5.0.0 (4.1.0 and lower). These licenses apply only to those versions and do not apply to any newer versions.
 
 #### Breaking changes:
 - Removed legacy TinyFramework (LS.Tiny, Q, O, S, N, M). Now entirely under the LS namespace! (Temporarily, a "enableV5Compat" option exists that restores this.)

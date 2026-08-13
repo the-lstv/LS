@@ -110,3 +110,9 @@ Only things that went through intense review and testing get the 5/5 rating, oth
 It is unlikely everything will be get that 5/5 rating as it is intentionally a high bar, but it marks the maturity of each component.
 
 </details>
+
+## License/terms
+This project is partially source-available, but not open source to prevent license removal (look up AI code laundering if you want to know why).<br>
+You can read the code and make contributions, but you are forbidden from using it for any AI training or analysis or source redistribution.<br>
+This is a temporary measure to protect the project from ill-minded plagiarism.<br>
+Comercial use remains allowed as long as the terms are met.

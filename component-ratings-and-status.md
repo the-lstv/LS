@@ -29,9 +29,11 @@ The goal is to have all built-in components reach the highest quality rating so 
 | LS.Multipane | ★★★★☆ (4/5) | Not bad but lacks some features.
 | LS.Stack/StackItem | ★★★★☆ (4/5) | Simple
 | LS.Knob | ★★★★☆ (4/5) | Extensive feature set, pretty robust
-| LS.Timeline | ★★★★☆ (4/5) | Recently migrated and stable, bugs may still show up
+| LS.Timeline | ★★★★☆ (4/5) | Recently fully revamped, has a few bugs to fix and some missing features, but is a major improvement over the previous DOM based version.
+| LS.Patcher | ★★★★☆ (4/5) | New component, needs rendering optimizations
 | LS.Tree | ★★★★☆ (4/5) | Stable, but might still need some polishing.
 | LS.Animation | ★★★★☆ (4/5) | Works, but way too few features (being replaced by LS.Animation2)
+| LS.Menu | ★★★★☆ (4/5) | Recently refactored (further work could be done to reduce per-instance overhead)
 | LS.ShortcutManager (builtin) | ★★★☆☆ (3/5) | Needs API solidification, incomplete
 | LS.Reactive | ★★★☆☆ (3/5) | Solid code for what it does, but needs a strategy redesign
 | LS.Tabs | ★★★☆☆ (3/5) | Not terrible but could be better.
@@ -39,22 +41,17 @@ The goal is to have all built-in components reach the highest quality rating so 
 | LS.Context (builtin) | ★★★☆☆ (3/5) | Too opinionated but functional
 | LS.CompileTemplate (builtin) | ★★★☆☆ (3/5) | Experimental
 | LS.Range | ★★★☆☆ (3/5) | Functional, but code review needed
-| LS.ImageCropper | ★★★☆☆ (3/5) | Spaghetti/rushed but functional. Not much attention has been given to this component, but it works.
-| LS.Menu | ★★★☆☆ (3/5) | In early development, requires some polishing and bug fixes
+| LS.ImageCropper | ★★★☆☆ (3/5) | Rushed but functional. Not enough attention has been given.
+| LS.WindowManager | ★★★☆☆ (3/5) | Incomplete
 | LS.GL | ★★★☆☆ (3/5) | Experimental stage
 | LS.DragDrop | ★★☆☆☆ (2/5) | Recently migrated from v3, needs refactoration, but is more or less useless now.
 | LS.Network | ★★☆☆☆ (2/5) | Just a WebSocket wrapper as of now
 | LS.i18n | ★★☆☆☆ (2/5) | Work needs to be done here
 | LS.Node | ★☆☆☆☆ (1/5) | Doesn't really do anything yet
-| LS.Native | ★☆☆☆☆ (1/5) | Deprecated
-| LS.TimelineGL | ☆☆☆☆☆ (?) | Work in progress
 | LS.Animation2 | ☆☆☆☆☆ (?) | Incomplete
 | LS.Layout | ☆☆☆☆☆ (?) | Incomplete
-| LS.Patcher | ☆☆☆☆☆ (?) | Incomplete
-| LS.WindowManager | ☆☆☆☆☆ (?) | Incomplete
 | LS.CommandPalette | ☆☆☆☆☆ (?) | Incomplete
 | LS.ColorPicker | ☆☆☆☆☆ (?) | Incomplete
-| LS.GLMultiShader | ☆☆☆☆☆ (-) | Moved to LS.GL
 | LS.SPA | ☆☆☆☆☆ (-) | Unreleased. Currently functional only in a specific environment.
 
 Misc utilities or smaller components (all built-in):
@@ -89,30 +86,33 @@ I have a certain software engineering standard. I rate components objectively ba
 
 
 ## Migration Status
-Migration progress of older LS v3 components into v5.  
+Migration progress of components from older versions into v6.
+Components are usually backwards compatible, except components before v3.
 Components marked **Not Started** are not available yet and may be rejected.
 
 | Component | Progress |
 |---|---|
 | LS.Sheet | Not Started
+| LS.GraphGL | Not Started (it has the worst code you've ever seen 😭 - for the time being please use a different graphing library)
 | LS.Workspace | Not Started
-| LS.GraphGL | Not Started (worst code 😭)
 
 ## Deleted Components
 These are ***very old*** LS v3 components that have been removed and not considered for migration, either due to very low quality or simply lack of usefulness. Their idea may be re-added in the future. Otherwise they have no significance other than historical purposes.
 - LS.Toolbox (crazy ideas (like hello? a full shell emulator, desktop environment, and integrated debugger in a single component?), but never proved to be useful and was discontinued)
-- LS.Dialog (now a part of LS.Modal)
-- LS.Manipulator (deemed unnecessary, was supposed to be "regex" for string manipulation)
-- LS.Notif (low quality (incomplete, intrusive), replaced by LS.Toast)
-- LS.React (replaced by LS.Reactive)
-- LS.Terminal (low quality, robust libraries like xterm.js are better and well maintained)
-- LS.Editor (low quality and unfinished, may be re-added in some way in the future, if time ever allows)
+- LS.React (renamed to LS.Reactive to aviod confusion with bad **libraries**) ^-^
+- LS.CodeEditor (unfinished, may be re-added in some way in the future, if time ever allows (there was an attempt, but is currently abandoned due to massive complexity, low need and lack of time))
+- LS.Terminal (low quality, robust libraries like xterm.js are better and well maintained (update: we now have a AcceleratedTextGridRenderer that can achieve the fast rendering functionality of a terminal, but is still not a full terminal emulator implementation as of now))
 - LS.Steps (it was just tabs but with index controls. use LS.Tabs.)
 - LS.Form (low quality implementation, internally LS.Steps with added form validation/collection.)
 - LS.Chips (low quality and honestly quite useless)
 - LS.Fragment (not very useful nor well implemented)
+- LS.Present (replaced by https://github.com/the-lstv/slides)
+- LS.Notif (low quality, had intrusive behavior, replaced by LS.Toast)
+- LS.Manipulator (was supposed to be "regex" for string manipulation or whatever... poor choice of name)
+- LS.Dialog (replaced by LS.Modal)
+- LS.Nav (functionally replaced by LS.Menu)
+- LS.MultiSelect (bad abstraction)
+- LS.DragDrop (bad abstraction, mainly replaced by LS.Util.TouchHandle)
+- LS.Native (unfinished, direction uncertain)
 - LS.Debugger (never completed)
 - LS.Menubar (never completed)
-- LS.MultiSelect (implementation uncertain)
-- LS.Present (yes, it was a DOM based presentation library. i made it in one evening for a school project out of hate for powerpoint)
-- LS.Nav (functionally replaced by LS.Menu)

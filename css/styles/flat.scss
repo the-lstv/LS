@@ -2,15 +2,27 @@
 
 [ls-style="flat"] {
 
-    --border-radius-tiny:     2px;
-    --border-radius-small:    4px;
-    --border-radius:          7px;
-    --border-radius-medium:   12px;
-    --border-radius-large:    16px;
-    --border-radius-xlarge:   20px;
-    --border-radius-xxlarge:  24px;
-    --border-radius-full:     100px;
-    --border-radius-circle:   50%;
+    // --border-radius-tiny:     2px;
+    // --border-radius-small:    4px;
+    // --border-radius:          7px;
+    // --border-radius-medium:   12px;
+    // --border-radius-large:    16px;
+    // --border-radius-xlarge:   20px;
+    // --border-radius-xxlarge:  24px;
+    // --border-radius-full:     100px;
+    // --border-radius-circle:   50%;
+
+
+    --border-radius-multiplier: 1;
+    --border-radius-tiny:    calc(2px * var(--border-radius-multiplier, 1));
+    --border-radius-small:   calc(4px * var(--border-radius-multiplier, 1));
+    --border-radius:         calc(7px * var(--border-radius-multiplier, 1));
+    --border-radius-medium:  calc(12px * var(--border-radius-multiplier, 1));
+    --border-radius-large:   calc(16px * var(--border-radius-multiplier, 1));
+    --border-radius-xlarge:  calc(20px * var(--border-radius-multiplier, 1));
+    --border-radius-xxlarge: calc(24px * var(--border-radius-multiplier, 1));
+    --border-radius-full:    calc(100px * var(--border-radius-multiplier, 1));
+    --border-radius-circle: 50%;
 
     #{$control} {
         border-radius: var(--border-radius);
@@ -234,7 +246,7 @@
         width: calc(1em - 4px);
         height: calc(1em - 4px);
         background: var(--background);
-        border-radius: 50%;
+        border-radius: var(--border-radius-full);
         transition: transform 0.2s, background-color 0.2s;
     }
 
@@ -246,6 +258,50 @@
     .ls-switch > input:checked ~ span::after {
         background-color: var(--accent-95);
         transform: translateX(100%);
+    }
+}
+
+.ls-toggle-button {
+    padding-left: calc(1em + 5px);
+    position: relative;
+    display: inline-block;
+    -webkit-user-select: none;
+    user-select: none;
+
+    > input {
+        opacity: 0;
+        width: 0 !important;
+        height: 0 !important;
+        position: absolute !important;
+    }
+
+    > span {
+        width: calc(1em - 2px);
+        height: calc(1em - 2px);
+        position: absolute;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        top: 50%;
+        left: 0;
+        transform: translateY(-50%);
+        border-radius: 50%;
+        border: 2px solid var(--surface-0);
+        outline: 1px solid var(--elevate-2);
+    }
+
+    > input:checked ~ span::after {
+        background: radial-gradient(20px 15px ellipse at center top, var(--accent-20) 0%, var(--accent-95) 100%);
+        filter: brightness(1.4); /* Not sure how efficient this is */
+    }
+
+    > span::after {
+        content: "";
+        position: absolute;
+        border-radius: 50%;
+        inset: 0px;
+        background: radial-gradient(15px 10px ellipse at center bottom , var(--elevate-2) 0%, var(--elevate-0) 100%);
+        box-shadow: inset 0 2px 2px -2px #fffa;
     }
 }
 

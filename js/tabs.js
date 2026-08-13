@@ -55,6 +55,10 @@ class Tabs extends LS.Component {
 
         this.element = this.container = element? LS.SelectOne(element): LS.Create("div");
         this.element.classList.add("ls-tabs");
+        
+        if(options.parent) {
+            options.parent.appendChild(this.element);
+        }
 
         this.setOptions(options);
 
@@ -519,6 +523,10 @@ class Tabs extends LS.Component {
         content.classList.add("ls-tab-content");
         this.renderList();
         return id;
+    }
+
+    has(id) {
+        return this.tabs.has(id);
     }
 
     destroy() {

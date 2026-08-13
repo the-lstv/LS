@@ -510,7 +510,7 @@
     }
 
     class Reactive extends LS.Component {
-        static { LS.register(this, { name: "Reactive", global: true }) }
+        static { LS.register(this, { name: "Reactive", global: true, singleton: true }) }
 
         EMPTY_PATH = Object.freeze([ null, null, null ]);
 
