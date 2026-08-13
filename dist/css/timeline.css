@@ -11,10 +11,6 @@
   border-top: 1px solid var(--elevate-2);
 }
 
-.ls-timeline {
-  background: var(--surface-1);
-}
-
 [ls-theme=light] .ls-timeline {
   background: var(--surface-0);
 }

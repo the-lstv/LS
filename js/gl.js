@@ -677,7 +677,9 @@ void main() {
                 alpha:     options.alpha !== false,
                 depth:     options.depth !== false,
                 stencil:   options.stencil !== false,
-                preserveDrawingBuffer: options.preserveDrawingBuffer === true
+                preserveDrawingBuffer: options.preserveDrawingBuffer === true, // this could be awesome if only it wasn't slow apparently
+                powerPreference: options.powerPreference || "high-performance",
+                failIfMajorPerformanceCaveat: options.failIfMajorPerformanceCaveat !== false,
             });
 
             if(!this.gl) {
@@ -741,6 +743,7 @@ void main() {
 
             if (this.pendingResize[0]) {
                 this.#resize(this.pendingResize[1], this.pendingResize[2]);
+                console.log(`Renderer resized to ${this.pendingResize[1]}x${this.pendingResize[2]}`);
                 this.pendingResize[0] = false;
             }
 
@@ -750,9 +753,9 @@ void main() {
             const canvasWidth = this.width;
             const canvasHeight = this.height;
 
-            // if(clear && this.options.clear !== false) {
-            //     gl.clear(gl.COLOR_BUFFER_BIT);
-            // }
+            if(clear && this.options.clear !== false) {
+                gl.clear(gl.COLOR_BUFFER_BIT);
+            }
 
             const updatedDimensions = canvasWidth !== this.lastRenderWidth || canvasHeight !== this.lastRenderHeight;
             if (updatedDimensions) {
@@ -768,8 +771,13 @@ void main() {
             if(target) {
                 this.renderOne(target, delta, now, camera, false, updatedDimensions);
             } else {
-                const targets = this.renderTargets.size > 0 ? this.renderTargets : this.renderables;
-                for(const renderable of targets) {
+                // const targets = this.renderTargets.size > 0 ? this.renderTargets : this.renderables;
+                // for(const renderable of targets) {
+                //     this.renderOne(renderable, delta, now, camera, false, updatedDimensions);
+                // }
+
+                // Nevermind, we have to redraw everything every frame, since WebGL clears the screen every frame.
+                for(const renderable of this.renderables) {
                     this.renderOne(renderable, delta, now, camera, false, updatedDimensions);
                 }
             }
@@ -885,6 +893,8 @@ void main() {
                 height *= pixelRatio;
             }
 
+            console.log(`Resizing renderer to ${width}x${height}`);
+
             if (width !== undefined) this.canvas.width = width;
             if (height !== undefined) this.canvas.height = height;
 
@@ -931,9 +941,8 @@ void main() {
         /**
          * Clear the screen
         */
-        clear() {
-            const gl = this.gl;
-            gl.clear(gl.COLOR_BUFFER_BIT);
+        clear(enum_ = this.gl.COLOR_BUFFER_BIT) {
+            this.gl.clear(enum_);
         }
 
         compileShader(type, name, source) {
@@ -1023,7 +1032,8 @@ void main() {
             }
 
             if(renderNow) {
-                this.renderOne(renderable, 0, performance.now(), this.activeCamera, false, true);
+                // this.renderOne(renderable, 0, performance.now(), this.activeCamera, false, true);
+                this.schedule(renderable);
             }
         }
 

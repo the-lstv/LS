@@ -125,7 +125,7 @@ class Window extends LS.Slot {
     //             { class: 'window-header-buttons', inner: [
     //                 {
     //                     tag: 'button',
-    //                     class: 'window-maximize-button circle elevated',
+    //                     class: 'window-pin-button circle elevated',
     //                     inner: { tag: 'i', class: 'bi-window' },
     //                     tooltip: 'Toggle Window View',
     //                     onclick: data.toggleView
@@ -181,6 +181,7 @@ class Window extends LS.Slot {
         });
 
         contentTarget.classList.add("ls-window-content-container");
+        this.contentTarget = contentTarget;
 
         this.windowElement = window.root;
         this.headerElement = window.header;
@@ -188,9 +189,35 @@ class Window extends LS.Slot {
         this.__titleElement = window.title;
         this.destroying = false;
 
+        if(options.header === false) {
+            this.setHeaderEnabled(false);
+        }
+
+        if(options.frame !== false) {
+            this.setFrameEnabled(true);
+        }
+
         const headerButtons = this.windowElement.querySelectorAll(".window-header-buttons > button");
         this.toggleViewButton = headerButtons[0] || null;
+        this.minimizeButton = headerButtons[1] || null;
         this.maximizeButton = headerButtons[2] || null;
+        this.closeButton = headerButtons[3] || null;
+
+        if(options.closeable === false) {
+            this.setCloseButtonEnabled(false);
+        }
+
+        if(options.minimizable === false) {
+            this.setMinimizeButtonEnabled(false);
+        }
+
+        if(options.maximizable === false) {
+            this.setMaximizeButtonEnabled(false);
+        }
+
+        if(options.pinButton === false) {
+            this.setToggleViewButtonEnabled(false);
+        }
 
         // x, y, width, height
         this.restoreState = [0, 0, 0, 0];
@@ -274,14 +301,16 @@ class Window extends LS.Slot {
             this.windowElement.style.backgroundColor = "transparent";
         }
 
+        if(options.content) {
+            this.setWindowContent(options.content);
+        }
+
         this.on("rendered", (content) => {
             if(this.destroyed) return;
 
-            if(content instanceof LS.View) {
-                this.set(content);
-            } else if(content instanceof LS.Slot) {
-                this.swapWith(content);
-            } else if(content instanceof HTMLElement) {}
+            if(content && content !== this.currentView) {
+                this.setWindowContent(content);
+            }
 
             // Update title and icon based on content
             this.setTitle(this.getTitle());
@@ -295,8 +324,7 @@ class Window extends LS.Slot {
         
                 if (openAnimation) {
                     requestAnimationFrame(() => {
-                        if(this.destroyed) return;
-                        LS.Animation.fadeIn(this.windowElement, "backward", null, true);
+                        this.show();
                     });
                 }
         
@@ -314,6 +342,57 @@ class Window extends LS.Slot {
         }
 
         LS.WindowManager.push(this);
+    }
+
+    setWindowContent(content) {
+        if(this.currentView === content) return;
+
+        // if(this.currentView && this.currentView !== this && this.ownsContent) {
+        //     this.currentView.destroy?.();
+        // }
+
+        if(content instanceof LS.View) {
+            this.set(content);
+        } else if(content instanceof LS.Slot) {
+            this.swapWith(content);
+        } else if(content instanceof HTMLElement) {
+            this.contentTarget.appendChild(content);
+        }
+    }
+
+    setFrameEnabled(enabled, disableHeader = false) {
+        this.windowElement.classList.toggle("window-framed", enabled);
+        if (disableHeader) {
+            this.setHeaderEnabled(false);
+        }
+    }
+
+    setHeaderEnabled(enabled) {
+        this.windowElement.querySelector(".window-header").style.display = enabled ? "flex" : "none";
+    }
+
+    setCloseButtonEnabled(enabled) {
+        if (this.closeButton) {
+            this.closeButton.style.display = enabled ? "inline-flex" : "none";
+        }
+    }
+
+    setMaximizeButtonEnabled(enabled) {
+        if (this.maximizeButton) {
+            this.maximizeButton.style.display = enabled ? "inline-flex" : "none";
+        }
+    }
+
+    setToggleViewButtonEnabled(enabled) {
+        if (this.toggleViewButton) {
+            this.toggleViewButton.style.display = enabled ? "inline-flex" : "none";
+        }
+    }
+
+    setMinimizeButtonEnabled(enabled) {
+        if (this.minimizeButton) {
+            this.minimizeButton.style.display = enabled ? "inline-flex" : "none";
+        }
     }
 
     setResizeEnabled(enabled) {
@@ -401,7 +480,7 @@ class Window extends LS.Slot {
 
     getIcon(context) {
         context ??= this.currentView;
-        return this.icon || (context && (context.icon || context.constructor.manifest.icon || null)) || null;
+        return this.icon || (context && (context.icon || context?.constructor?.manifest?.icon || null)) || null;
     }
 
     setTitle(title) {
@@ -421,16 +500,30 @@ class Window extends LS.Slot {
         }
     }
 
-    minimize() {
+    minimize(animation = true, hiding = false) {
         this.suspended = true;
         if(this.currentView && this.currentView.suspend) this.currentView.suspend();
         this.quickEmit("minimize");
+
+        if(!animation) {
+            this.windowElement.style.display = "none";
+            return;
+        }
+        return LS.Animation.fadeOut(this.windowElement, hiding? "backward": "up", null, true);
     }
 
-    restore() {
+    restore(animation = true) {
         this.suspended = false;
         if(this.currentView && this.currentView.resume) this.currentView.resume();
         this.quickEmit("restore");
+
+        if(!animation) {
+            this.windowElement.style.display = "";
+            this.windowElement.style.transform = `translate3d(${this.x}px, ${this.y}px, 0)`;
+            this.windowElement.style.opacity = 1;
+            return;
+        }
+        return LS.Animation.fadeIn(this.windowElement, "up", null, true);
     }
 
     maximize(forceState = null) {
@@ -479,6 +572,40 @@ class Window extends LS.Slot {
         this.quickEmit("blur");
     }
 
+    show(animation = true) {
+        if(this.destroyed) return;
+        this.applyLayout();
+        this.focus();
+
+        if(this.suspended) {
+            return this.restore(animation);
+        }
+
+        if(!animation) {
+            this.windowElement.style.display = "";
+            this.windowElement.style.transform = `translate3d(${this.x}px, ${this.y}px, 0)`;
+            this.windowElement.style.opacity = 1;
+            return;
+        }
+
+        return LS.Animation.fadeIn(this.windowElement, "backward", null, true);
+    }
+
+    hide(animation = true, suspend = true) {
+        if(this.destroyed) return;
+
+        if(suspend) {
+            return this.minimize(animation, true);
+        }
+
+        if(!animation) {
+            this.windowElement.style.display = "none";
+            return;
+        }
+
+        return LS.Animation.fadeOut(this.windowElement, "backward", null, true);
+    }
+
     // Closes the window with animation
     close(animation = true) {
         if (!animation) {
@@ -487,7 +614,7 @@ class Window extends LS.Slot {
         }
 
         this.destroying = true;
-        LS.Animation.fadeOut(this.windowElement, "backward", null, true).then(() => {
+        return LS.Animation.fadeOut(this.windowElement, "backward", null, true).then(() => {
             this.destroy(null, true);
         });
     }

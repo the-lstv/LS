@@ -25,19 +25,27 @@
   position: fixed;
   display: flex;
   flex-direction: column;
-  border-radius: var(--border-radius-large);
-  outline: 2px solid var(--surface-4);
   background: var(--surface-0);
   --ls-resize-corner-size: 20px;
-  box-shadow: 0 10px 30px 0 rgba(0, 0, 0, 0.2);
   top: 0;
   left: 0;
 }
-.window-container.top {
-  box-shadow: 0 10px 30px 5px rgba(0, 0, 0, 0.4);
-}
 .window-container.window-pinned .window-header, .window-container.window-maximized .window-header {
   cursor: default;
+}
+.window-container.window-framed {
+  border-radius: var(--border-radius-large);
+  outline: 2px solid var(--surface-4);
+  box-shadow: 0 10px 30px 0 rgba(0, 0, 0, 0.2);
+}
+.window-container.window-framed.top {
+  box-shadow: 0 10px 30px 5px rgba(0, 0, 0, 0.4);
+}
+.window-container.window-framed .window-header {
+  border-radius: 0;
+}
+.window-container.window-framed .ls-window-content-container {
+  border-radius: 0;
 }
 .window-container.window-maximized {
   --ls-resize-corner-size: 0;
@@ -54,7 +62,7 @@
 .window-container .window-header {
   display: flex;
   align-items: center;
-  background: var(--surface-1);
+  background-color: var(--surface-1);
   padding-left: 12px;
   flex-wrap: nowrap;
   justify-content: space-between;
@@ -71,7 +79,10 @@
   align-items: center;
 }
 .window-container:not(.top) .window-header {
-  opacity: 0.5;
+  background-color: color-mix(in oklab, var(--surface-1) 100%, #000 10%);
+}
+.window-container:not(.top) .window-header * {
+  color: var(--surface-5);
 }
 .window-container .ls-window-content-container {
   width: 100%;

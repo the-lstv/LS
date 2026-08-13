@@ -26,23 +26,34 @@
     position: fixed;
     display: flex;
     flex-direction: column;
-    border-radius: var(--border-radius-large);
-    outline: 2px solid var(--surface-4);
     background: var(--surface-0);
     --ls-resize-corner-size: 20px;
-    box-shadow: 0 10px 30px 0 rgba(0, 0, 0, 0.2);
 
     top: 0;
     left: 0;
-
-    &.top {
-        box-shadow: 0 10px 30px 5px rgba(0, 0, 0, 0.4);
-    }
 
     &.window-pinned,
     &.window-maximized {
         .window-header {
             cursor: default;
+        }
+    }
+
+    &.window-framed {
+        border-radius: var(--border-radius-large);
+        outline: 2px solid var(--surface-4);
+        box-shadow: 0 10px 30px 0 rgba(0, 0, 0, 0.2);
+
+        &.top {
+            box-shadow: 0 10px 30px 5px rgba(0, 0, 0, 0.4);
+        }
+
+        .window-header {
+            border-radius: 0;
+        }
+
+        .ls-window-content-container {
+            border-radius: 0;
         }
     }
 
@@ -64,7 +75,7 @@
     .window-header {
         display: flex;
         align-items: center;
-        background: var(--surface-1);
+        background-color: var(--surface-1);
         padding-left: 12px;
         flex-wrap: nowrap;
         justify-content: space-between;
@@ -83,7 +94,10 @@
     }
 
     &:not(.top) .window-header {
-        opacity: .5;
+        background-color: color-mix(in oklab, var(--surface-1) 100%, #000 10%);
+        * {
+            color: var(--surface-5);
+        }
     }
 
     .ls-window-content-container {

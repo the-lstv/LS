@@ -358,7 +358,7 @@ class TimelineGL extends LS.Component {
 
     #updateBackgroundColor() {
         if(!this.container.isConnected) return;
-        this.backgroundColor = LS.Color.parse(getComputedStyle(this.container).backgroundColor);
+        this.backgroundColor = LS.Color.parse(getComputedStyle(this.container).getPropertyValue("--surface-1"));
     }
 
     /**

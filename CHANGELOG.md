@@ -1,5 +1,3 @@
-
-
 # Version 6.0.0
 Major update (2026 release)!
 - **New components**: `LS.Multipane`, `LS.Layout`, `LS.View`, `LS.Patcher`, `LS.List`, `LS.SPA.*`, `LS.WindowManager`, `LS.CommandPalette`, `LS.ColorPicker`, `LS.Tree`, `LS.i18n`
