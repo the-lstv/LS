@@ -7,7 +7,6 @@
  * @description Extensive color library and theme utilities
  * @copyright 2026 Lukas (thelstv) <https://lstv.space>
  * @see https://github.com/thelstv/LS
- * @license GPL-3.0
  * 
  * TODO: Split advanced color features into a separate module, this has grown too big
 */

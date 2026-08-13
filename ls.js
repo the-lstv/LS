@@ -1,6 +1,5 @@
 /**
  * @author lstv.space
- * @license GPL-3.0
  * 
  * @version 6.0.0-alpha.3
  * @see https://github.com/thelstv/LS
@@ -813,10 +812,6 @@
 
             super.destroy(); // Clear events
 
-            if (Object.prototype.hasOwnProperty.call(this, "ctx")) {
-                try { this.ctx = null; } catch {}
-            }
-
             const destroyables = this.#destroyables;
             const container = this.container;
 
@@ -854,16 +849,6 @@
                     this.container = null;
                 }
             }
-        }
-
-        static #ctxBinds = new WeakMap();
-
-        static get(item) {
-            return this.#ctxBinds.get(item) || null;
-        }
-
-        static bind(item, context) {
-            this.#ctxBinds.set(item, context);
         }
 
 
@@ -983,26 +968,14 @@
     /**
      * To be refactored
      */
-    class Component extends Context {
-        constructor(){
-            super();
-            if(this.init) this.init();
-        }
+    // class Component extends Context {
+    //     constructor(){
+    //         super();
+    //     }
+    // }
 
-        /**
-         * Memory safety feature;
-         * Allows components to be bound to a context
-         */
-        get ctx(){
-            return LS.Context.get(this) || LS.Context.global;
-        }
-
-        // Components should extend this method for cleanup
-        destroy(){
-            if(this.destroyed) return;
-            super.destroy();
-        }
-    }
+    // Welp. At this point Component doesn't provide any additional functionality over Context, so it's just an alias for now
+    const Component = Context;
 
     /**
      * A global modal escape stack.
@@ -1168,7 +1141,6 @@
                 Object.assign(HTMLElement.prototype, LS.TinyFactory);
             }
 
-            // TODO:
             if(options.theme || options.accent || options.autoScheme || options.autoAccent) {
                 const colorOptions = {
                     theme: options.theme,
@@ -1210,13 +1182,15 @@
                 return;
             }
 
+            const isSingleton = !!options.singleton || !!options.singular; // "singular" is a legacy option
+
             const component = {
                 isConstructor: typeof componentFactory === "function",
                 class: componentFactory,
                 metadata: options.metadata,
                 global: !!options.global,
                 hasEvents: options.events !== false,
-                singular: !!options.singular || !!options.singleton,
+                singular: isSingleton,
                 name
             }
 
@@ -1235,7 +1209,7 @@
 
             // Meh API
             if(component.global){
-                this[options.name] = options.singular && component.isConstructor? (component.instance = new componentFactory()): componentFactory;
+                this[options.name] = isSingleton && component.isConstructor? (component.instance = new componentFactory()): componentFactory;
             }
 
             this.emit("component-loaded", [component]);
@@ -3497,7 +3471,7 @@
                 }
 
                 this.container = container;
-                this.container.classList.add('editor-view');
+                this.container.classList.add('ls-view');
                 this.__name = name || null;
                 this.title = title || null;
 
@@ -3519,6 +3493,152 @@
                     this.currentSlot.set(null);
                 }
 
+                super.destroy();
+            }
+        }
+        
+        /**
+         * Slot class
+         * Represents a slot in the layout where views can be placed
+         */
+        Slot = class Slot extends EventEmitter {
+            constructor(options = {}) {
+                super();
+
+                this.options = options;
+                this.expectedView = options.view || null;
+                this.currentView = null;
+
+                this.__emptyMessage = LS.Create({ class: 'ls-view ls-layout-slot-empty', inner: [{ tag: "i", class: "bi-info-circle" }, `This slot is empty.`] });
+
+                // Windows provide their own header
+                options.header = options.header ?? options.isWindow !== true;
+
+                if(options.header === false) {
+                    this.__header = null;
+                    this.__titleElement = null;
+                } else {
+                    this.__header = options.header && LS.Create({
+                        class: "ls-layout-slot-header", inner: [
+                            [
+                                {
+                                    tag: "svg", attributes: {
+                                        xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 256 256",
+                                        width: "16", height: "16",
+                                        fill: "currentColor"
+                                    }, innerHTML: `<path d="M108,60A16,16,0,1,1,92,44,16,16,0,0,1,108,60Zm56,16a16,16,0,1,0-16-16A16,16,0,0,0,164,76ZM92,112a16,16,0,1,0,16,16A16,16,0,0,0,92,112Zm72,0a16,16,0,1,0,16,16A16,16,0,0,0,164,112ZM92,180a16,16,0,1,0,16,16A16,16,0,0,0,92,180Zm72,0a16,16,0,1,0,16,16A16,16,0,0,0,164,180Z"></path>`
+
+                                }, this.__titleElement = LS.Create("span{Empty slot}")
+                            ],
+                            [
+                                {
+                                    tag: "button", class: "square clear small layout-slot-close-button", inner: { tag: "i", class: "bi-x-lg" }, onclick: () => {
+                                        this.set(null);
+                                    }
+                                }
+                            ]
+                        ]
+                    }) || null;
+                }
+
+                this.container = LS.Create({
+                    class: 'ls-layout-slot',
+                    inner: [
+                        this.__header,
+                        this.__emptyMessage
+                    ]
+                });
+
+                this.container._slotInstance = this;
+
+                if (options.minSize) {
+                    this.container.style.minWidth = options.minSize.width + 'px';
+                    this.container.style.minHeight = options.minSize.height + 'px';
+                }
+
+                if (options.minWidth) {
+                    this.container.style.minWidth = options.minWidth + 'px';
+                }
+
+                if (options.minHeight) {
+                    this.container.style.minHeight = options.minHeight + 'px';
+                }
+
+                if (options.maxSize) {
+                    this.container.style.maxWidth = options.maxSize.width + 'px';
+                    this.container.style.maxHeight = options.maxSize.height + 'px';
+                }
+
+                if (options.width) {
+                    this.container.style.width = options.width + (typeof options.width === "number" ? 'px' : '');
+                }
+
+                if (options.height) {
+                    this.container.style.height = options.height + (typeof options.height === "number" ? 'px' : '');
+                }
+            }
+
+            set(view) {
+                const oldView = this.currentView;
+
+                for (const child of this.container.children) {
+                    if (child === this.__header || child.classList.contains('ls-resize-handle')) continue;
+                    child.remove();
+                }
+
+                if (oldView) {
+                    oldView.currentSlot = null;
+                    oldView.off?.('destroy', this.__onViewDestroyed);
+                    this.__onViewDestroyed = null;
+                }
+
+                this.currentView = view;
+
+                if (!view || view.destroyed) {
+                    this.container.appendChild(this.__emptyMessage);
+                    this.__titleElement && (this.__titleElement.textContent = "Empty slot");
+                    if (view && view.destroyed) {
+                        console.warn(`Slot.set: cannot set destroyed view ${view.constructor.name} to slot ${this.name}`);
+                        view.currentSlot = null;
+                        return;
+                    }
+                    return;
+                }
+
+                this.__titleElement && (this.__titleElement.textContent = view.title || view.__name || view.constructor.name);
+                view.currentSlot = this;
+
+                view.on?.('destroy', this.__onViewDestroyed = () => {
+                    if (this.currentView === view) {
+                        this.set(null);
+                    }
+                });
+
+                this.container.appendChild(view.container);
+            }
+
+            swapWith(otherSlot) {
+                const myView = this.currentView;
+                const otherView = otherSlot.currentView;
+
+                otherSlot.set(myView);
+                this.set(otherView);
+            }
+
+            destroy() {
+                this.set(null);
+
+                if (this.container) {
+                    this.container.removeEventListener('mouseenter', this.__mouseEnter);
+                    this.container.removeEventListener('mouseleave', this.__mouseLeave);
+                    this.container.remove();
+                    this.container = null;
+                }
+
+                this.options = null;
+                this.__emptyMessage = null;
+                this.__header = null;
+                this.__titleElement = null;
                 super.destroy();
             }
         }

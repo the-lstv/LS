@@ -155,6 +155,7 @@
             const currentTransform = options.preserveTransform ? getComputedStyle(element).transform : 'none';
             const baseTransform = currentTransform === 'none' ? '' : currentTransform;
             const directionTransform = options.direction ? (transforms[options.direction] || options.direction) : '';
+
             const combinedStartTransform = directionTransform && baseTransform ? `${baseTransform} ${directionTransform}` : (directionTransform || baseTransform);
 
             const animation = element.animate([

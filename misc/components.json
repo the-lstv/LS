@@ -21,16 +21,20 @@
         "layout",
         "tabs",
         "timeline",
+        "timeline-dom",
         "toast",
         "tooltips",
         "tree",
         "range",
         "spa",
-        "list"
+        "list",
+        "windowmanager"
     ],
     "css": [
         "flat",
         "knob",
-        "timeline"
+        "timeline",
+        "timeline-dom",
+        "windowmanager"
     ]
 }

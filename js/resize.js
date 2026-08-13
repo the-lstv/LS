@@ -7,7 +7,7 @@
  */
 
 class Resize extends LS.Component {
-    static { LS.register(this, { name: "Resize", singular: true, global: true }) }
+    static { LS.register(this, { name: "Resize", singleton: true, global: true }) }
 
     constructor(){
         super();

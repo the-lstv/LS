@@ -245,8 +245,7 @@ class Patcher extends LS.Component {
          * @type {PatcherNode[]}
          * Array of nodes in the patcher.
          */
-        this.nodes = options.nodes || [];
-        options.nodes = null;
+        this.nodes = [];
 
         /**
          * @type {Connection[]}
@@ -274,6 +273,7 @@ class Patcher extends LS.Component {
         this.targettingPort = [];
 
         this.container.classList.add("ls-patcher-container");
+        this.container.classList.add("level-n1");
         this.container.style.width = "100%";
         this.container.style.height = "100%";
         this.container.__lsComponent = this;
@@ -326,6 +326,11 @@ class Patcher extends LS.Component {
             this.bankMenu = new LS.Menu();
         }
 
+        if (Array.isArray(this.options.nodes)) {
+            this.setNodes(this.options.nodes);
+            this.options.nodes = null;
+        }
+
         this.loadPromise.then(() => {
             // Force redraw of labels just in case
             this.__prevScrollX = null;
@@ -347,18 +352,18 @@ class Patcher extends LS.Component {
                 this.contrast = theme === "dark"? dContrast: lContrast;
                 const tColor = this.contrast * 255;
                 this.textEngine.staticColor = this.iconEngine.staticColor = [tColor, tColor, tColor];
-                this.renderer.render();
+                this.renderer.schedule(this);
             });
             
             this.addExternalEventListener(LS.Color, "accent-changed", () => {
-                this.renderer.render();
+                this.renderer.schedule(this);
             });
 
             if (this.options.addRenderable !== false) {
                 this.renderer.addRenderable(this);
             }
 
-            if(this.options.renderImmediately && !this.__dedicatedRenderer) this.renderer.render();
+            if(this.options.renderImmediately && !this.__dedicatedRenderer) this.renderer.schedule(this);
         });
     }
 
@@ -367,14 +372,14 @@ class Patcher extends LS.Component {
     select(item) {
         this.focusedItem = item;
         this.quickEmit("item-select", item);
-        this.renderer.render();
+        this.renderer.schedule(this);
     }
 
     deselectAll() {
         if (this.selectedItems.length > 0) {
             this.selectedItems.length = 0;
             this.__focusedItemIndex = -1;
-            this.renderer.render();
+            this.renderer.schedule(this);
             this.quickEmit("item-deselect");
         }
     }
@@ -455,13 +460,13 @@ class Patcher extends LS.Component {
         }
 
         this.__needsSort = true;
-        this.renderer.render();
+        this.renderer.schedule(this);
     }
 
     selectAll() {
         this.selectedItems.length = 0;
         for (const item of this.nodes) this.selectedItems.push(item);
-        this.renderer.render();
+        this.renderer.schedule(this);
     }
 
     deleteSelected(destroy = true) {
@@ -478,7 +483,7 @@ class Patcher extends LS.Component {
             this.remove(item, destroy, true);
         }
         this.selectedItems.length = 0;
-        this.renderer.render();
+        this.renderer.schedule(this);
     }
 
     copySelected(cut = false) {
@@ -559,7 +564,7 @@ class Patcher extends LS.Component {
         }
 
         this.__needsSort = true;
-        this.renderer.render();
+        this.renderer.schedule(this);
         return clonedItems;
     }
 
@@ -733,6 +738,7 @@ class Patcher extends LS.Component {
         // Temporary SVG renderer as per the note above
         this.connectionRenderable = {
             render: (delta, now, gl, cw, ch, updatedDimensions) => {
+                if(self.destroyed) return;
                 const anchorX = this.options.anchorX ?? 0.5;
                 const anchorY = this.options.anchorY ?? 0.5;
 
@@ -920,6 +926,7 @@ void main() {
             },
 
             onRender(delta, now, gl, cw, ch, updatedDimensions, uniforms, attributes) {
+                if(self.destroyed) return;
                 if(self.#zoomX < 0.5) return;
 
                 const [ax, ay] = self.anchorOffset();
@@ -1064,6 +1071,7 @@ void main() {
             },
 
             onRender(delta, now, gl, cw, ch, updatedDimensions, uniforms, attributes) {
+                if(self.destroyed) return;
                 const buffers = this.buffers;
                 const offsetBuffer = buffers.iOffset;
                 const sizeBuffer = buffers.iSize;
@@ -1142,6 +1150,8 @@ void main() {
                     }
                 }
 
+                // this.renderer.scissor(0, 0, cw, ch);
+
                 if(j > 0) {
                     // -- Upload buffers
                     offsetBuffer.updateWithStride(0, j);
@@ -1153,8 +1163,6 @@ void main() {
                     gl.uniform2f(uniforms.uOffset,     self.#scrollX - ax, self.#scrollY - ay);
                     gl.uniform2f(uniforms.uZoom, self.#zoomX, self.#zoomY);
                     gl.uniform1f(uniforms.uOutset, 1.0);
-
-                    this.renderer.scissor(0, 0, cw, ch);
 
                     // -- Render nodes
                     gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, j);
@@ -1180,7 +1188,7 @@ void main() {
                     self.iconLabels.clip(0, 0);
                 }
 
-                this.renderer.endScissor();
+                // this.renderer.endScissor();
             }
         });
 
@@ -1190,6 +1198,7 @@ void main() {
             uniforms: ["uOffset", "uSize", "uResolution", "uColor"],
 
             onRender(delta, now, gl, cw, ch, updatedDimensions, uniforms, attributes) {
+                if(self.destroyed) return;
                 if (!self.selectionRect[0]) return;
                 let x = self.selectionRect[1] - self.#scrollX;
                 let y = self.selectionRect[2] - self.#scrollY;
@@ -1257,7 +1266,7 @@ void main() {
                     } else if (event.domEvent.shiftKey) {
                         this.scrollX += deltaY;
                     } else {
-                        const rect = this.renderer.canvas.getBoundingClientRect();
+                        const rect = this.container.getBoundingClientRect();
                         const mouseX = event.domEvent.clientX - rect.left;
                         const mouseY = event.domEvent.clientY - rect.top;
                         this.zoomFrom(mouseX, mouseY, deltaY, 1.1, 1.1);
@@ -1281,7 +1290,7 @@ void main() {
             onStart: (event) => {
                 // Reset state
                 const button = +event.domEvent.button?? 0;
-                this.renderer.canvas.style.cursor = "";
+                this.container.style.cursor = "";
                 event.__scrolled = false;
                 edgeScrollOffset[0] = 0;
                 edgeScrollOffset[1] = 0;
@@ -1312,7 +1321,7 @@ void main() {
                         this.selectionRect[4] = event.boundY + this.scrollY;
                         this.selectedItems.length = 0;
                         initialSelection = this.selectedItems;
-                        this.renderer.render();
+                        this.renderer.schedule(this);
                         return;
                     } else {
                         const [x, y] = this.transformCoords(event.boundX, event.boundY, false);
@@ -1346,7 +1355,7 @@ void main() {
                                 //     this.cloneSelected();
                                 // }
     
-                                this.renderer.render();
+                                this.renderer.schedule(this);
                                 return;
                             }
                         }
@@ -1398,7 +1407,7 @@ void main() {
                             if(port && port.nodeId !== activeConnection.nodeId && !this.connections.some(c => c.sourceNodeId === activeConnection.nodeId && c.sourcePortId === activeConnection.port.id && c.targetNodeId === port.nodeId && c.targetPortId === port.port.id)) {
                                 this.targettingPort[0] = port.nodeId;
                                 this.targettingPort[1] = port.port.id;
-                                this.renderer.render();
+                                this.renderer.schedule(this);
                                 return;
                             }
                             this.targettingPort.length = 0;
@@ -1439,13 +1448,13 @@ void main() {
                         break;
                 }
 
-                this.renderer.render();
+                this.renderer.schedule(this);
             },
 
             onEnd: (event) => {
                 if (this.selectionRect[0]) {
                     this.selectionRect[0] = false;
-                    this.renderer.render();
+                    this.renderer.schedule(this);
                 }
 
                 initialSelection = null;
@@ -1466,7 +1475,7 @@ void main() {
                     });
 
                     this.targettingPort.length = 0;
-                    this.renderer.render();
+                    this.renderer.schedule(this);
                 }
 
                 if(activeConnection) {
@@ -1485,17 +1494,17 @@ void main() {
                     // todo: O(n) is not great
                     for(const node of this.nodes) {
                         // if(this.nodeIntersects(node, x, y)) {
-                        //     this.renderer.canvas.style.cursor = "pointer";
+                        //     this.container.style.cursor = "pointer";
                         //     return;
                         // }
                         if(this.intersectsPort(node, x, y)) {
-                            this.renderer.canvas.style.cursor = "crosshair";
+                            this.container.style.cursor = "crosshair";
                             return;
                         }
                     }
                 }
 
-                this.renderer.canvas.style.cursor = "default";
+                this.container.style.cursor = "default";
             },
         });
 
@@ -1597,7 +1606,7 @@ void main() {
                     }).then((newLabel) => {
                         if (newLabel !== null) {
                             focusedItem.label = newLabel;
-                            this.renderer.render();
+                            this.renderer.schedule(this);
                         }
                     });
                 }
@@ -1942,7 +1951,7 @@ void main() {
         this.transformAnchor(out);
 
         if (fromViewport) {
-            const rect = this.renderer.canvas.getBoundingClientRect();
+            const rect = this.container.getBoundingClientRect();
             out[0] -= this.rect.x + rect.left;
             out[1] -= this.rect.y + rect.top;
         }
@@ -1955,7 +1964,7 @@ void main() {
     setConnections(connections) {
         this.connections = Array.isArray(connections) ? connections : [];
         this.connectionsDirty = true;
-        this.renderer.render();
+        this.renderer.schedule(this);
         this.quickEmit(this.__changedEventRef);
         return this;
     }
@@ -1963,7 +1972,7 @@ void main() {
     addConnection(connection) {
         this.connections.push(connection);
         this.connectionsDirty = true;
-        this.renderer.render();
+        this.renderer.schedule(this);
         this.quickEmit(this.__changedEventRef);
         return this;
     }
@@ -1971,7 +1980,7 @@ void main() {
     clearConnections() {
         this.connections.length = 0;
         this.connectionsDirty = true;
-        this.renderer.render();
+        this.renderer.schedule(this);
         this.quickEmit(this.__changedEventRef);
         return this;
     }
@@ -1991,7 +2000,7 @@ void main() {
         }
 
         this.quickEmit(this.__changedEventRef);
-        this.renderer.render();
+        this.renderer.schedule(this);
         return this;
     }
 
@@ -2005,7 +2014,7 @@ void main() {
         node.bypassed = value !== null? !!value: !node.bypassed;
         this.quickEmit("item-bypass", node, node.bypassed);
         this.quickEmit(this.__changedEventRef);
-        this.renderer.render();
+        this.renderer.schedule(this);
         return this;
     }
 
@@ -2022,16 +2031,18 @@ void main() {
         this.nodes = Array.isArray(nodes) ? nodes : [];
         this.#updateNodeMap();
         this.quickEmit(this.__changedEventRef);
-        this.renderer.render();
+        this.renderer.schedule(this);
         return this;
     }
+
+    // todo: reset()
 
     add(node) {
         if (!node || !node.id) return;
         this.nodes.push(node);
         this.nodeMap.set(node.id, node);
         this.quickEmit(this.__changedEventRef);
-        this.renderer.render();
+        this.renderer.schedule(this);
         return this;
     }
 
@@ -2054,7 +2065,7 @@ void main() {
         if (index >= 0) {
             this.nodes.splice(index, 1);
             this.__needsSort = true;
-            this.renderer.render();
+            this.renderer.schedule(this);
         }
 
         if (!__internal__SkipSelectionUpdate) {
@@ -2095,7 +2106,7 @@ void main() {
     clearNodes() {
         this.nodes.length = 0;
         this.nodeMap.clear();
-        this.renderer.render();
+        this.renderer.schedule(this);
         this.quickEmit(this.__changedEventRef);
         return this;
     }
@@ -2119,7 +2130,7 @@ void main() {
             this.nodes[index] = newNode;
             this.nodeMap.delete(id);
             this.nodeMap.set(id, newNode);
-            this.renderer.render();
+            this.renderer.schedule(this);
 
             this.quickEmit("item-replaced", oldNode, newNode);
             this.quickEmit(this.__changedEventRef);
@@ -2135,7 +2146,7 @@ void main() {
         if (isNaN(value)) return;
         if (value === this.#scrollX) return;
         this.#scrollX = value;
-        this.renderer.render();
+        this.renderer.schedule(this);
     }
 
     get scrollX() {
@@ -2146,7 +2157,7 @@ void main() {
         if (isNaN(value)) return;
         if (value === this.#scrollY) return;
         this.#scrollY = value;
-        this.renderer.render();
+        this.renderer.schedule(this);
     }
 
     get scrollY() {
@@ -2224,7 +2235,7 @@ void main() {
 
         if (value === this.#zoomX) return;
         this.#zoomX = value;
-        this.renderer.render();
+        this.renderer.schedule(this);
     }
 
     set zoomY(value) {
@@ -2237,7 +2248,7 @@ void main() {
 
         if (value === this.#zoomY) return;
         this.#zoomY = value;
-        this.renderer.render();
+        this.renderer.schedule(this);
     }
 
     get zoomY() {
@@ -2289,7 +2300,7 @@ void main() {
 
         if (mutate) {
             this.nodes = sortedNodes;
-            this.renderer.render();
+            this.renderer.schedule(this);
         }
 
         return { sorted: sortedNodes, sortedNodeIds, consumers, deps };
@@ -2374,6 +2385,10 @@ void main() {
         this.__changedEventRef = null;
         this.__actionEventRef = null;
 
+        this.bankMenu.destroy();
+        this.bankMenu = null;
+        this.bank = null;
+
         if(this.domContainer) {
             this.domContainer.remove();
             this.domContainer = null;
@@ -2394,6 +2409,7 @@ void main() {
         } else {
             this.renderer.destroyRenderable(this);
         }
+
         this.compositeDOMLayers = null;
         this.renderables = null;
         this.renderer = null;
