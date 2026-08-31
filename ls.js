@@ -965,6 +965,294 @@
         }
     }
 
+    function toCSSSize(value) {
+        if (typeof value === "number") return value + "px";
+        if (typeof value === "string") {
+            if (/^\d+$/.test(value)) return value + "px";
+            return value;
+        }
+        return null;
+    }
+
+    /**
+     * @concept
+     * @experimental
+     * 
+     * Abstract input class that holds a value with an interactive element.
+     * It unifies the concept & APIs of various input types.
+     */
+    class Input {
+        ELEMENT_MAP = {
+            select: "ls-select",
+            knob: "ls-knob",
+            textarea: "textarea",
+            range: "ls-range",
+        }
+
+        constructor(type, options) {
+            if(typeof type === "object") {
+                options = type;
+                type = options.type;
+            }
+
+            if(type) options? (options.type = type): options = { type };
+
+            this.element = null;
+            this.inputElement = null;
+
+            this.default = options?.default ?? null;
+            this.inputType = options?.inputType ?? options?.type ?? "text"; // Describes the type of the input element
+            this.valueType = options?.valueType ?? null;                    // Describes the desired data unit/type of the value
+
+            this.options = options || {};
+            this.id = options?.id || LS.Misc.uuidv4();
+            this.group = options?.group || null;
+
+            this.userData = options?.userData || null;
+
+            this.isBinary = false;
+            this.isText = false;
+
+            this.createElement();
+            this.reset(); // Set default value
+        }
+
+        processChange(isFinal = false) {
+            let value = this.value;
+
+            if(this.isBinary) value = !!value;
+            if(this.inputType === "number") value = parseFloat(value);
+
+            if(this.valueType === "angle") value = value * (Math.PI / 180);
+            if(this.valueType === "percentage") value = value / 100;
+
+            if(this.groupScope) {
+                this.groupScope.quickEmit("change", this, isFinal, value);
+
+                if(this.groupScope.options.changeCallback && typeof this.groupScope.options.changeCallback === "function") {
+                    this.groupScope.options.changeCallback(this, isFinal, value);
+                }
+            } else {
+                LS.quickEmit(this.group? ("input-change-" + this.group): "input-change", this, isFinal, value);
+            }
+
+            if(typeof this.options.callback === "function") {
+                this.options.callback(value, isFinal);
+            }
+        }
+
+        createElement() {
+            const type = this.inputType || "text";
+
+            const tagName = this.ELEMENT_MAP[type] || "input";
+
+            this.isBinary = type === "checkbox" || type === "radio" || type === "switch";
+            this.isText = type === "text" || type === "textarea";
+
+            this.inputElement = LS.Create({
+                ...this.options.attributes || {},
+                tag: tagName,
+                class: (this.options.className || "") + (type === "select" ? " clear" : ""),
+                options: this.options.options || null,
+                
+                ...(this.options.placeholder? { placeholder: this.options.placeholder }: null),
+                ...(type === "textarea"? null: { type: this.isBinary? type === "radio" ? "radio" : "checkbox" : type }),
+
+                min: this.options.min ?? null,
+                max: this.options.max ?? null,
+                step: this.options.step ?? null,
+
+                oninput: () => {
+                    this.processChange(false);
+                },
+
+                onchange: () => {
+                    this.processChange(true);
+                },
+
+                ondblclick: (event) => {
+                    if(type === "knob") this.reset();
+                }
+            });
+
+            if(this.options.width) this.inputElement.style.width = toCSSSize(this.options.width);
+            if(this.options.width && this.options.width.endsWith("%") && tagName === "textarea") {
+                this.inputElement.style.resize = "vertical";
+            }
+            if(this.options.height) this.inputElement.style.height = toCSSSize(this.options.height);
+            if(this.options.minWidth ) this.inputElement.style.minWidth  = toCSSSize(this.options.minWidth);
+            if(this.options.minHeight) this.inputElement.style.minHeight = toCSSSize(this.options.minHeight);
+            if(this.options.maxWidth ) this.inputElement.style.maxWidth  = toCSSSize(this.options.maxWidth);
+            if(this.options.maxHeight) this.inputElement.style.maxHeight = toCSSSize(this.options.maxHeight);
+
+            this.inputElement.dataset.inputId = this.id;
+            this.inputElement.dataset.inputType = this.valueType || type;
+            
+            const label = this.options.label? { tag: "span", class: "ls-input-label-text", inner: this.options.label }: null;
+
+            if(this.isBinary) {
+                this.inputElement.checked = !!this.default;
+
+                const labelElement = LS.Create({ tag: "label", class: "ls-" + type, inner: [
+                    this.inputElement,
+                    { tag: "span" },
+                    [
+                        label,
+                        this.options.description? { tag: "span", class: "ls-input-description", inner: this.options.description }: null
+                    ]
+                ] });
+
+                this.element = labelElement;
+            } else {
+                if(label) {
+                    const labelElement = LS.Create({ tag: "label", class: "ls-input-label", inner: [label, { tag: "br" }, this.inputElement, { tag: "br" }, this.options.description? { tag: "span", class: "ls-input-description", inner: this.options.description }: null] });
+                    this.element = labelElement;
+                } else {
+                    this.element = this.inputElement;
+                }
+            }
+
+            this.value = this.options.value ?? this.default;
+        }
+
+        get value() {
+            if(this.isBinary) {
+                return this.inputElement.checked;
+            }
+            return this.inputElement.value;
+        }
+
+        set value(val) {
+            if(this.isBinary) {
+                this.inputElement.checked = !!val;
+            } else {
+                this.inputElement.value = val;
+            }
+        }
+
+        reset() {
+            this.value = this.default ?? (this.isBinary? false: this.isText? "": 0);
+        }
+
+        setSelectOptions(options) {
+            if(Array.isArray(options.options)) {
+                this.options.options = options.options;
+                if(this.type === "select") this.inputElement.setOptions(options.options);
+            }
+        }
+
+        destroy() {
+            if(this.element && this.element.parentNode) {
+                this.element.remove();
+            }
+
+            this.element = null;
+            this.options = null;
+            this.group = null;
+            this.groupScope = null;
+        }
+    }
+
+    class InputGroup extends EventEmitter {
+        constructor(id, inputs, options) {
+            super();
+            this.inputs = new Set();
+            this.id = id || LS.Misc.uuidv4();
+
+            if(inputs) for(const input of inputs) {
+                this.add(input);
+            }
+
+            if(options) {
+                this.options = options;
+            }
+
+            options ??= {};
+        }
+
+        create(...args) {
+            const input = new Input(...args);
+            this.add(input);
+            return input;
+        }
+
+        add(input) {
+            if(!(input instanceof Input)) {
+                throw new Error("InputGroup can only contain instances of Input.");
+            }
+
+            input.group = this.id;
+            input.groupScope = this;
+            this.inputs.add(input);
+        }
+
+        reset() {
+            for(const input of this.inputs) {
+                input.reset();
+            }
+        }
+
+        get(inputId) {
+            for(const input of this.inputs) {
+                if(input.id === inputId) return input;
+            }
+            return null;
+        }
+
+        async updateData(data = undefined) {
+            if(this.options.updateCallback && typeof this.options.updateCallback === "function") {
+                if(data === undefined && this.options.fetchData && typeof this.options.fetchData === "function") {
+                    try {
+                        data = await this.options.fetchData();
+                    } catch (error) {
+                        console.error("Error fetching data for InputGroup update:", error);
+                        return;
+                    }
+                }
+
+                for(const input of this.inputs) {
+                    const value = this.options.updateCallback(input, data);
+                    if(value !== undefined) input.value = value;
+                }
+            }
+        }
+
+        async updateOne(inputId, value = undefined) {
+            const input = this.get(inputId);
+            if(input) {
+                let data;
+                if(value === undefined && this.options.fetchData && typeof this.options.fetchData === "function") {
+                    try {
+                        data = await this.options.fetchData(input);
+                    } catch (error) {
+                        console.error("Error fetching data for InputGroup update:", error);
+                        return;
+                    }
+                }
+
+                if(value === undefined) value = input.value; else if(this.options.updateCallback && typeof this.options.updateCallback === "function") {
+                    const value = this.options.updateCallback(input, data);
+                    if(value !== undefined) input.value = value;
+                }
+            }
+        }
+
+        remove(input) {
+            if(this.inputs.has(input)) {
+                this.inputs.delete(input);
+                input.group = null;
+                input.groupScope = null;
+            }
+        }
+
+        destroy() {
+            for(const input of this.inputs) {
+                input.destroy();
+            }
+            this.inputs.clear();
+        }
+    }
+
     /**
      * To be refactored
      */
@@ -1100,6 +1388,9 @@
         EventEmitter = EventEmitter;
         Stack = Stack;
         StackItem = StackItem;
+
+        Input = Input;
+        InputGroup = InputGroup;
 
         Component = Component;
         get DestroyableComponent() {
@@ -3302,13 +3593,10 @@
              * @deprecated
              */
             uuidv4() {
-                if(!crypto?.randomUUID) {
-                    return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, c =>
-                        (+c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> +c / 4).toString(16)
-                    );
-                }
-
-                return crypto.randomUUID();
+                if(crypto && crypto.randomUUID) return crypto.randomUUID();
+                return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, c =>
+                    (+c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> +c / 4).toString(16)
+                );
             }
         }
 

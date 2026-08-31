@@ -70,12 +70,12 @@ body {
         @extend %font;
 
         box-sizing: border-box;
-        border: 0;
         outline: none;
         position: relative;
 
         &:not(textarea) {
             line-height: 1;
+            border: 0;
         }
     }
 
@@ -258,6 +258,19 @@ body {
 // Custom selection color based on accent.
 body::selection, [ls-accent]::selection {
     background: var(--accent-mix-40, #006dff5c);
+}
+
+.ls-input-label-text {
+    display: inline-block;
+    margin: 4px 0;
+}
+
+.ls-input-description {
+    display: inline-block;
+    color: var(--surface-7);
+    font-size: smaller;
+    white-space: pre-wrap;
+    margin: 4px 0;
 }
 
 /* A fix around the aggressively forced autofill style (a hardcoded white background, resets font, completely ignores theme or accessibility).

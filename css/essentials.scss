@@ -284,6 +284,7 @@ ls-group {
     padding: 0 1em;
     padding-bottom: 1em;
     gap: 1em;
+    z-index: 10;
 }
 
 .ls-toast {
@@ -753,6 +754,7 @@ button#{priority(".ls-toast-close", 3)} {
     position: fixed;
     top: 0;
     left: 0;
+    z-index: 100;
 }
 
 .ls-menu-container {

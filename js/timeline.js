@@ -2240,7 +2240,7 @@ void main() {
                         if(this.options.tooltipOnResize && this.selectedItems.length === 1) {
                             const itemHWidth = (this.focusedItem.duration * this.#zoomX) * 0.5;
                             LS.Tooltips.position(this.focusedItem.start * this.#zoomX - this.#scrollX + this.touchHandle.boundingRect.x + itemHWidth, (this.focusedItem.row * this.rowHeight * this.#zoomY) - this.#scrollY + this.touchHandle.boundingRect.y - 35);
-                            LS.Tooltips.show(`Start: ${this.formatMarker(this.focusedItem.start)}, Length: ${this.formatMarker(this.focusedItem.duration)}`);
+                            // LS.Tooltips.show(`Start: ${this.formatMarker(this.focusedItem.start)}, Length: ${this.formatMarker(this.focusedItem.duration)}`);
                         }
                         break;
                     }
@@ -2270,7 +2270,7 @@ void main() {
                         if(this.options.tooltipOnResize && this.selectedItems.length === 1) {
                             const itemHWidth = (this.focusedItem.duration * this.#zoomX) * 0.5;
                             LS.Tooltips.position(this.focusedItem.start * this.#zoomX - this.#scrollX + this.touchHandle.boundingRect.x + itemHWidth, (this.focusedItem.row * this.rowHeight * this.#zoomY) - this.#scrollY + this.touchHandle.boundingRect.y - 35);
-                            LS.Tooltips.show(`Start: ${this.formatMarker(this.focusedItem.start)}, Length: ${this.formatMarker(this.focusedItem.duration)}`);
+                            // LS.Tooltips.show(`Start: ${this.formatMarker(this.focusedItem.start)}, Length: ${this.formatMarker(this.focusedItem.duration)}`);
                         }
                         break;
                     }

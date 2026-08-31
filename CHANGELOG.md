@@ -1,3 +1,6 @@
+todo:
+- LS.Modal apply shade to the top modal rather than the layer
+
 # Version 6.0.0
 Major update (2026 release)!
 - **New components**: `LS.Multipane`, `LS.Layout`, `LS.View`, `LS.Patcher`, `LS.List`, `LS.SPA.*`, `LS.WindowManager`, `LS.CommandPalette`, `LS.ColorPicker`, `LS.Tree`, `LS.i18n`
@@ -44,6 +47,8 @@ Major update (2026 release)!
 - 360deg support for LS.Knob
 - Removed the deprecated LS.DragDrop
 - Added LS.WindowManager
+- Fixes to minor CSS issues.
+- Added LS.Input and LS.InputGroup. Similar to the old LS.Form, but with much simpler and lighter API designed to abstract input functionality.
 
 #### Misc
 - Introduced a GUI for generating CDN Links: https://lstv.space/tools/ls-loader

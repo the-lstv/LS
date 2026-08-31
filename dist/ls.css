@@ -337,6 +337,7 @@ ls-group > *:not(:only-child):last-child {
   padding: 0 1em;
   padding-bottom: 1em;
   gap: 1em;
+  z-index: 10;
 }
 
 .ls-toast {
@@ -809,6 +810,7 @@ button.ls-toast-close.ls-toast-close.ls-toast-close {
   position: fixed;
   top: 0;
   left: 0;
+  z-index: 100;
 }
 
 .ls-menu-container {
@@ -2572,12 +2574,12 @@ body {
 }
 [ls] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), input, textarea, :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore) {
   box-sizing: border-box;
-  border: 0;
   outline: none;
   position: relative;
 }
 [ls] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), input, textarea, :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore):not(textarea) {
   line-height: 1;
+  border: 0;
 }
 [ls] :is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), [ls] :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore) {
   padding: var(--padding-control-v) var(--padding-control-h);
@@ -2920,6 +2922,19 @@ body {
 
 body::selection, [ls-accent]::selection {
   background: var(--accent-mix-40, rgba(0, 109, 255, 0.3607843137));
+}
+
+.ls-input-label-text {
+  display: inline-block;
+  margin: 4px 0;
+}
+
+.ls-input-description {
+  display: inline-block;
+  color: var(--surface-7);
+  font-size: smaller;
+  white-space: pre-wrap;
+  margin: 4px 0;
 }
 
 /* A fix around the aggressively forced autofill style (a hardcoded white background, resets font, completely ignores theme or accessibility).

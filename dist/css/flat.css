@@ -144,6 +144,9 @@
   border: 2px solid var(--accent-focus, var(--accent));
   --background: var(--accent-mix-10);
 }
+[ls-style=flat] textarea:not(.clear) {
+  padding: 3px var(--padding-input-h);
+}
 [ls-style=flat] .ls-checkbox > span, [ls-style=flat] .ls-radio > span {
   border: 2px solid var(--elevate-2);
   border-radius: var(--border-radius-small);

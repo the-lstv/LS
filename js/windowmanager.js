@@ -20,6 +20,7 @@ class WindowManager extends LS.Component {
         this.WINDOW_TOP_STACK_GAP = 10;
         this.WINDOW_TOP_STACK = [];
         this.WINDOW_MAXIMIZE_DRAG_RESTORE_BUFFER = 18;
+        this.SUSPEND_ON_CLOSE = options.suspendOnClose ?? false;
 
         this.target = options.target || LS._topLayer || document.body;
         this.target.appendChild(this.container);
@@ -197,6 +198,8 @@ class Window extends LS.Slot {
             this.setFrameEnabled(true);
         }
 
+        this.suspendOnClose = options.suspendOnClose ?? LS.WindowManager.SUSPEND_ON_CLOSE;
+
         const headerButtons = this.windowElement.querySelectorAll(".window-header-buttons > button");
         this.toggleViewButton = headerButtons[0] || null;
         this.minimizeButton = headerButtons[1] || null;
@@ -207,7 +210,7 @@ class Window extends LS.Slot {
             this.setCloseButtonEnabled(false);
         }
 
-        if(options.minimizable === false) {
+        if(options.minimizable === false || this.suspendOnClose === true) {
             this.setMinimizeButtonEnabled(false);
         }
 
@@ -317,7 +320,7 @@ class Window extends LS.Slot {
             this.setIcon(this.getIcon());
             this.emit("ready");
 
-            options.open ??= true;
+            options.open ??= options.show !== false;
             if(options.open || options.show) {
                 const openAnimation  = !(options.disableOpenAnimation || options.openAnimation === false) && LS.Animation && LS.Animation.fadeIn;
                 this.windowElement.style.opacity = openAnimation? 1: 0;
@@ -501,6 +504,7 @@ class Window extends LS.Slot {
     }
 
     minimize(animation = true, hiding = false) {
+        if(this.destroyed) return;
         this.suspended = true;
         if(this.currentView && this.currentView.suspend) this.currentView.suspend();
         this.quickEmit("minimize");
@@ -513,6 +517,7 @@ class Window extends LS.Slot {
     }
 
     restore(animation = true) {
+        if(this.destroyed) return;
         this.suspended = false;
         if(this.currentView && this.currentView.resume) this.currentView.resume();
         this.quickEmit("restore");
@@ -608,6 +613,12 @@ class Window extends LS.Slot {
 
     // Closes the window with animation
     close(animation = true) {
+        if(this.suspendOnClose) {
+            return this.minimize(animation, true);
+        }
+
+        if(this.destroyed) return;
+
         if (!animation) {
             this.destroy();
             return;
@@ -615,6 +626,7 @@ class Window extends LS.Slot {
 
         this.destroying = true;
         return LS.Animation.fadeOut(this.windowElement, "backward", null, true).then(() => {
+            if(this.destroyed) return;
             this.destroy(null, true);
         });
     }
