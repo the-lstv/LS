@@ -1587,11 +1587,13 @@
                         ? { inner: content }
                         : content || {};
 
-            const { class: className, tooltip, ns, inner, content: innerContent, i18n, html, text, accent, style, parent, reactive, attr, options, attributes, sanitize, state, ...rest } = content;
+            const { class: className, tooltip, ns, inner, content: innerContent, i18n, html, text, accent, style, parent, reactive, attr, options, attributes, sanitize, state, ephemeral, animation, animationOptions, ...rest } = content;
             const element = Object.assign(
                 LS.Util.parseEmmet(emmet, { ns, singleNode: true }),
                 rest
             );
+
+            // ! don't use ephemeral, animation, animationOptions in production, they are not in final implementation yet.
 
             // Special case for ls-select
             if(element.tagName === "LS-SELECT" && options){
@@ -1695,11 +1697,31 @@
             }
 
             if (parent) {
-                const parentElement = typeof parent === "string" ? document.querySelector(parent) : parent;
+                const parentElement = typeof parent === "string"? parent === "top"? LS._topLayer: document.querySelector(parent): parent;
                 if (parentElement) {
                     parentElement.appendChild(element);
                 } else {
                     console.warn("LS.Create: Parent element not found for selector:", parent);
+                }
+            }
+
+            // temporary api
+            if (animation) {
+                // todo: use LS.Animation/LS.Animation2
+                if (typeof animation === "string") {
+                    element.setAttribute("ls-animate", animation);
+                } else if (typeof animation === "object") {
+                    const a = element.animate(animation, animationOptions || {
+                        duration: LS.Animation?.DEFAULT_DURATION || 300,
+                        easing: LS.Animation?.DEFAULT_EASING || "ease",
+                        fill: "forwards"
+                    });
+
+                    if(ephemeral) {
+                        a.onfinish = () => {
+                            element.remove();
+                        };
+                    }
                 }
             }
 

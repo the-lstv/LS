@@ -14,9 +14,18 @@ class WindowManager extends LS.Component {
         this.container.style.top = "0";
         this.container.style.left = "0";
 
-        this.topOffset = options.topOffset || 0;
+        this.topOffset    = options.topOffset    || 0;
+        this.bottomOffset = options.bottomOffset || 0;
+        this.leftOffset   = options.leftOffset   || 0;
+        this.rightOffset  = options.rightOffset  || 0;
+
         this.globalWindowZIndex = 1000;
+        this.topWindowZIndex = 99999999; // Could be a separate stack
+
         this.WINDOW_EDGE_MARGIN = 12;
+
+        this.MOBILE_VIEWPORT = options.mobileViewport ?? false;
+
         this.WINDOW_TOP_STACK_GAP = 10;
         this.WINDOW_TOP_STACK = [];
         this.WINDOW_MAXIMIZE_DRAG_RESTORE_BUFFER = 18;
@@ -100,10 +109,15 @@ class WindowManager extends LS.Component {
         }
     }
 
+    isMobileViewport() {
+        return this.MOBILE_VIEWPORT || (window.innerWidth <= 820 || window.innerHeight <= 680);
+    }
+
     destroy(replacing = false) {
         if(this.destroyed) return;
         this.closeAllWindows();
         this.windows = null;
+        this.WINDOW_TOP_STACK = null;
         this.windowBoundsScheduler.destroy();
         this.windowBoundsScheduler = null;
         LS.WindowManager = replacing? new WindowManager(): null;
@@ -335,7 +349,8 @@ class Window extends LS.Slot {
                     this.maximize(true);
                 }
 
-                this.focus();
+                this.alwaysOnTop = options.alwaysOnTop || false; // This setter calls focus
+                // this.focus();
             }
         });
 
@@ -443,9 +458,8 @@ class Window extends LS.Slot {
         if (!Number.isFinite(left)) left = Number.isFinite(this.x) ? this.x : 0;
         if (!Number.isFinite(top)) top = Number.isFinite(this.y) ? this.y : 0;
 
-        const NET = LS.WindowManager.topOffset;
-        left = Math.max(NET + 90 - this.width, Math.min(left, screenW - NET));
-        top = Math.max(NET, Math.min(top, screenH - NET));
+        left = Math.max(LS.WindowManager.topOffset + 90 - this.width, Math.min(left, screenW - LS.WindowManager.bottomOffset));
+        top = Math.max(LS.WindowManager.leftOffset, Math.min(top, screenH - LS.WindowManager.rightOffset));
 
         this.x = left;
         this.y = top;
@@ -558,8 +572,13 @@ class Window extends LS.Slot {
     }
 
     focus() {
-        LS.WindowManager.globalWindowZIndex += 1;
-        this.windowElement.style.zIndex = LS.WindowManager.globalWindowZIndex;
+        if(this.alwaysOnTop) {
+            LS.WindowManager.topWindowZIndex += 1;
+            this.windowElement.style.zIndex = LS.WindowManager.topWindowZIndex;
+        } else {
+            LS.WindowManager.globalWindowZIndex += 1;
+            this.windowElement.style.zIndex = LS.WindowManager.globalWindowZIndex;
+        }
 
         for (const win of LS.WindowManager.windows) {
             if (win !== this && win.windowElement) {
@@ -632,20 +651,38 @@ class Window extends LS.Slot {
     }
 
     isMobileViewport() {
-        return window.innerWidth <= 820 || window.innerHeight <= 680;
+        return LS.WindowManager.isMobileViewport();
+    }
+
+    getViewportBounds() {
+        const top = Math.max(LS.WindowManager.WINDOW_EDGE_MARGIN, LS.WindowManager.topOffset);
+        const bottom = Math.max(LS.WindowManager.WINDOW_EDGE_MARGIN, LS.WindowManager.bottomOffset);
+        const left = Math.max(LS.WindowManager.WINDOW_EDGE_MARGIN, LS.WindowManager.leftOffset);
+        const right = Math.max(LS.WindowManager.WINDOW_EDGE_MARGIN, LS.WindowManager.rightOffset);
+        return {
+            top,
+            left,
+            right,
+            bottom,
+            maxWidth:  Math.max(180, window.innerWidth - (LS.WindowManager.WINDOW_EDGE_MARGIN * 2) - left - right),
+            maxHeight: Math.max(120, window.innerHeight - top - bottom - (LS.WindowManager.WINDOW_EDGE_MARGIN * 2)),
+        };
     }
 
     getViewportTopOffset() {
         return LS.WindowManager.topOffset;
     }
 
-    getViewportBounds() {
-        const top = Math.max(LS.WindowManager.WINDOW_EDGE_MARGIN, this.getViewportTopOffset());
-        return {
-            top,
-            maxWidth: Math.max(180, window.innerWidth - (LS.WindowManager.WINDOW_EDGE_MARGIN * 2)),
-            maxHeight: Math.max(120, window.innerHeight - top - LS.WindowManager.WINDOW_EDGE_MARGIN),
-        };
+    getViewportLeftOffset() {
+        return LS.WindowManager.leftOffset;
+    }
+
+    getViewportBottomOffset() {
+        return LS.WindowManager.bottomOffset;
+    }
+
+    getViewportRightOffset() {
+        return LS.WindowManager.rightOffset;
     }
 
     captureLayout(out = []) {
@@ -751,6 +788,15 @@ class Window extends LS.Slot {
         this.windowElement.classList.toggle("window-maximized", this.isMaximized);
     }
 
+    get alwaysOnTop() {
+        return this._alwaysOnTop;
+    }
+
+    set alwaysOnTop(value) {
+        this._alwaysOnTop = !!value;
+        this.focus();
+    }
+
     destroy(destroyContent = true, _force = false) {
         if(this.destroyed || (this.destroying && !_force)) return;
 
@@ -782,5 +828,5 @@ class Window extends LS.Slot {
 }
 
 /*@ls-export*/ if (typeof module !== "undefined" && module.exports) {
-    module.exports = WindowManager;
+    module.exports = { Window, WindowManager };
 }
