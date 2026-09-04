@@ -655,10 +655,14 @@ class Window extends LS.Slot {
     }
 
     getViewportBounds() {
-        const top = Math.max(LS.WindowManager.WINDOW_EDGE_MARGIN, LS.WindowManager.topOffset);
-        const bottom = Math.max(LS.WindowManager.WINDOW_EDGE_MARGIN, LS.WindowManager.bottomOffset);
-        const left = Math.max(LS.WindowManager.WINDOW_EDGE_MARGIN, LS.WindowManager.leftOffset);
-        const right = Math.max(LS.WindowManager.WINDOW_EDGE_MARGIN, LS.WindowManager.rightOffset);
+        // const top    = Math.max(LS.WindowManager.WINDOW_EDGE_MARGIN, LS.WindowManager.topOffset);
+        // const bottom = Math.max(LS.WindowManager.WINDOW_EDGE_MARGIN, LS.WindowManager.bottomOffset);
+        // const left   = Math.max(LS.WindowManager.WINDOW_EDGE_MARGIN, LS.WindowManager.leftOffset);
+        // const right  = Math.max(LS.WindowManager.WINDOW_EDGE_MARGIN, LS.WindowManager.rightOffset);
+        const top    = LS.WindowManager.topOffset;
+        const bottom = LS.WindowManager.bottomOffset;
+        const left   = LS.WindowManager.leftOffset;
+        const right  = LS.WindowManager.rightOffset;
         return {
             top,
             left,
@@ -696,9 +700,9 @@ class Window extends LS.Slot {
 
     applyLayout() {
         if (this.isMaximized) {
-            const topOffset = this.getViewportTopOffset();
-            this.setSize(window.innerWidth, Math.max(120, window.innerHeight - topOffset), false, true);
-            this.setPosition(0, topOffset, false, true);
+            const bounds = this.getViewportBounds();
+            this.setSize((window.innerWidth - bounds.left - bounds.right), Math.max(120, window.innerHeight - bounds.top - bounds.bottom), false, true);
+            this.setPosition(bounds.left, bounds.top, false, true);
             return;
         }
 
