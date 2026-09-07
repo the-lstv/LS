@@ -31,7 +31,7 @@ class WindowManager extends LS.Component {
         this.WINDOW_MAXIMIZE_DRAG_RESTORE_BUFFER = 18;
         this.SUSPEND_ON_CLOSE = options.suspendOnClose ?? false;
 
-        this.target = options.target || LS._topLayer || document.body;
+        this.target = options.target || window.__windowManagerTarget || LS._topLayer || document.body;
         this.target.appendChild(this.container);
 
         // Keep floating windows in view on resize

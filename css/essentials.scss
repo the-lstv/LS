@@ -1023,6 +1023,8 @@ ls-select ls-option, ls-select option, ls-select optgroup {
     min-height: 0;
     min-width: 0;
     flex: 1;
+    container-name: ls-view;
+    container-type: inline-size;
 }
 
 .ls-layout-slot {
