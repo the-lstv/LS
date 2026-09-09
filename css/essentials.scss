@@ -566,7 +566,7 @@ button#{priority(".ls-toast-close", 3)} {
 }
 
 .ls-modal-layer.ls-modal-layer.is-open {
-    background: #0004;
+    background: rgba(0, 0, 0, 0.5);
     pointer-events: auto;
 }
 

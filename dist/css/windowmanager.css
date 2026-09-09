@@ -79,9 +79,6 @@
   gap: 8px;
   align-items: center;
 }
-.window-container:not(.top) .window-header {
-  background-color: color-mix(in oklab, var(--surface-1) 100%, #000 10%);
-}
 .window-container:not(.top) .window-header * {
   color: var(--surface-5);
 }
@@ -90,6 +87,10 @@
   height: 100%;
   border-radius: 0 0 var(--border-radius-large) var(--border-radius-large);
   overflow: hidden;
+}
+
+[ls-theme=dark] .window-container:not(.top) .window-header {
+  background-color: color-mix(in oklab, var(--surface-1) 100%, #000 10%);
 }
 
 /*# sourceMappingURL=windowmanager.css.map */

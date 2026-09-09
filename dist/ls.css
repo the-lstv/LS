@@ -628,7 +628,7 @@ button.ls-toast-close.ls-toast-close.ls-toast-close {
 }
 
 .ls-modal-layer.ls-modal-layer.is-open {
-  background: rgba(0, 0, 0, 0.2666666667);
+  background: rgba(0, 0, 0, 0.5);
   pointer-events: auto;
 }
 
@@ -826,6 +826,15 @@ button.ls-toast-close.ls-toast-close.ls-toast-close {
 
 .ls-menu-item:not(.ls-menu-label):not(.ls-menu-separator), .ls-list-item {
   margin: 0 4px;
+  padding: var(--space-tiny) var(--space-small);
+  white-space: nowrap;
+  border-radius: var(--border-radius-small);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  overflow: hidden;
+  min-height: fit-content;
 }
 .ls-menu-item:not(.ls-menu-label):not(.ls-menu-separator):last-child, .ls-list-item:last-child {
   margin-bottom: 4px;
@@ -838,17 +847,6 @@ button.ls-toast-close.ls-toast-close.ls-toast-close {
 }
 .ls-menu-item:not(.ls-menu-label):not(.ls-menu-separator).ls-checkbox > span, .ls-menu-item:not(.ls-menu-label):not(.ls-menu-separator).ls-radio > span, .ls-menu-item:not(.ls-menu-label):not(.ls-menu-separator).ls-switch > span, .ls-list-item.ls-checkbox > span, .ls-list-item.ls-radio > span, .ls-list-item.ls-switch > span {
   left: 5px;
-}
-.ls-menu-item:not(.ls-menu-label):not(.ls-menu-separator), .ls-list-item {
-  padding: var(--space-tiny) var(--space-small);
-  white-space: nowrap;
-  border-radius: var(--border-radius-small);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  overflow: hidden;
-  min-height: fit-content;
 }
 
 .ls-list-item:hover, .ls-list-item.selected {
@@ -1039,6 +1037,11 @@ ls-select ls-option, ls-select option, ls-select optgroup {
     border-bottom: 4px solid transparent;
     border-left: 4px solid var(--surface-10);
 } */
+.ls-tree-styled {
+  /* .ls-tree-indent-guide-empty {
+      border-bottom: 1px solid var(--elevate-1);
+  } */
+}
 .ls-tree-styled .ls-tree-node {
   padding-left: 0;
 }
@@ -1047,11 +1050,6 @@ ls-select ls-option, ls-select option, ls-select optgroup {
 }
 .ls-tree-styled .ls-tree-indent-guide {
   border-left: 1px solid var(--elevate-1);
-}
-.ls-tree-styled {
-  /* .ls-tree-indent-guide-empty {
-      border-bottom: 1px solid var(--elevate-1);
-  } */
 }
 
 .ls-view {
