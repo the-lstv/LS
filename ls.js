@@ -3222,30 +3222,88 @@
             },
 
             /**
-             * Normalizes an URL string, removing index.html, .html, backslashes, and resolving relative segments.
+             * Normalize a path to a canonical form OR split into an array of canonical parts.
              * @param {string} path The path to normalize.
              * @param {boolean|null} isAbsolute Optional. If true, the returned path will be absolute (starting with /). If false, it will be relative. If null, it will be inferred from the input path.
-             * @returns {string} The normalized path.
+             * @param {boolean} allowExit If true, relative paths can go outside of their directory. If false, they can't.
+             * @param {boolean} returnParts If true, returns an array of path parts instead of a string.
+             * @param {boolean} normalizeHTMLExt For URLs, remove index.html and .html - WARNING: this is true by default for legacy reasons
+             * @returns {string|Array<string>} The normalized path.
+             * 
+             * Also this implementation is 2x to 4x faster than the previous one in LinuxJS :P
              */
-            normalizePath(path, isAbsolute = null) {
-                // Replace backslashes with forward slashes
-                path = path.replace(/index\.html$|\.html$/i, "").replace(/\\/g, "/").trim();
+            normalizePath(path, isAbsolute = null, allowExit = true, returnParts = false, normalizeHTMLExt = true) {
+                const parts = [];
+                const len = path.length;
 
-                const parts = path.split('/');
-                const normalizedParts = [];
-            
-                for (const part of parts) {
-                    if (part === '..') {
-                        normalizedParts.pop();
-                    } else if (part !== '.' && part !== '') {
-                        normalizedParts.push(part);
+                const fc = path.charCodeAt(0);
+                if (isAbsolute === null) isAbsolute = fc === 47 || fc === 92;
+                
+                if(len === 0) {
+                    return returnParts? parts: (isAbsolute? "/": ".");
+                }
+                
+                let cleanParts = 0;
+                let sStart = 0, seqBroken = false;
+                for (let i = 0; i < len; i++) {
+                    const char = path.charCodeAt(i);
+
+                    const isSeparator = char === 47 || char === 92;
+                    const isEnd = !isSeparator && (i === len - 1);
+
+                    if (isSeparator || isEnd) {
+                        if (isEnd) {
+                            if (char !== 46) seqBroken = true;
+                            i++;
+                        }
+
+                        const dCount = i - sStart;
+                        if (!seqBroken && (isAbsolute || !allowExit || dCount === 1 || cleanParts > 0)) {
+                            // Go up ("..")
+                            if(dCount === 2) {
+                                parts.pop();
+                                cleanParts--
+                            }
+
+                            // Otherwise do nothing
+                        } else if (dCount > 0) {
+                            const p = path.slice(sStart, i);
+                            if(p && !(normalizeHTMLExt && p === "index.html")) {
+                                if(normalizeHTMLExt && p.endsWith(".html")) p = p.slice(0, -5);
+
+                                parts.push(p);
+                                if(seqBroken) cleanParts++;
+                            }
+                        }
+
+                        sStart = i + 1;
+                        seqBroken = false;
+                        continue;
                     }
+
+                    if (char !== 46) seqBroken = true;
                 }
 
-                const normalizedPath = normalizedParts.join('/');
+                if(returnParts) return parts;
 
-                if(isAbsolute === null) isAbsolute = path.startsWith('/');
-                return (isAbsolute ? '/' : '') + normalizedPath;
+                if(parts.length === 0) {
+                    return isAbsolute? "/": ".";
+                }
+
+                const normalizedPath = parts.join('/');
+                return isAbsolute ? '/' + normalizedPath : normalizedPath;
+            },
+
+            /**
+             * Helper to normalize and split a path into segments.
+             * Same as normalize(path, .., true, false);
+             * @param {string} path Path to split.
+             * @param {boolean|null} isAbsolute Same as normalize
+             * @param {boolean} allowExit Same as normalize
+             * @returns {Array<string>} Path segments as an array.
+             */
+            splitPath(path, isAbsolute = null, allowExit = true) {
+                return LS.Util.normalizePath(path, isAbsolute, allowExit, true, false);
             },
 
             /**

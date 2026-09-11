@@ -2,6 +2,7 @@ todo:
 - LS.Modal apply shade to the top modal rather than the layer
 
 # Version 6.0.0
+
 Major update (2026 release)!
 - **New components**: `LS.Multipane`, `LS.Layout`, `LS.View`, `LS.Patcher`, `LS.List`, `LS.SPA.*`, `LS.WindowManager`, `LS.CommandPalette`, `LS.ColorPicker`, `LS.Tree`, `LS.i18n`
 - LS.Create now supports Emmet abbreviations! (eg. LS.Create("#myId") instead of LS.Create("div", { id: "myId" }))
@@ -30,8 +31,9 @@ Major update (2026 release)!
 - Added LS.Modal.alert, LS.Modal.confirm and LS.Modal.prompt helpers for quick modals
 - Added a built-in JSONC parser (JSON with comments) - LS.Util.parseJSONC, LS.Util.stripJsonComments
 - & more general improvements
+
 #### Added in 6.0.0-alpha.3
-- Sibling support to LS.Resize
+
 - LS.View and LS.Slot are now under the LS namespace and included by default instead of LS.Multipane.View and LS.Multipane.Slot
 - LS.View now extends LS.Context instead of LS.EventEmitter for better lifecycle management
 - LS.Tooltips have been enhanced and now scan globally by default.
@@ -49,8 +51,15 @@ Major update (2026 release)!
 - Added LS.WindowManager
 - Fixes to minor CSS issues.
 - Added LS.Input and LS.InputGroup. Similar to the old LS.Form, but with much simpler and lighter API designed to abstract input functionality.
+- LS.Util.normalizePath is now 2-4x faster while offering more featuers.
+- Sibling support to LS.Resize
+
+#### Added in 6.0.0-alpha.4
+
+Final alpha release before 6.0.0 relases as stable!
 
 #### Misc
+
 - Introduced a GUI for generating CDN Links: https://lstv.space/tools/ls-loader
 - Documentation is *finally* here (yeah after 6 major releases)
 - The project is no longer "open source" because of issues with foss license bypassing (applies to releases since 6.0.0-alpha.3).
@@ -59,6 +68,7 @@ Major update (2026 release)!
 License before 6.0.0-alpha.3 (6.0.0-alpha.2 and lower) was GPLv3, MIT before 5.0.0 (4.1.0 and lower). These licenses apply only to those versions and do not apply to any newer versions.
 
 #### Breaking changes:
+
 - Removed legacy TinyFramework (LS.Tiny, Q, O, S, N, M). Now entirely under the LS namespace! (Temporarily, a "enableV5Compat" option exists that restores this.)
 - Removed shared event listeners for lastKey, shiftDown, controlDown, mouseDown!
 - Removed legacyEvents from TouchHandle API! Please use the new event object.
@@ -73,11 +83,13 @@ License before 6.0.0-alpha.3 (6.0.0-alpha.2 and lower) was GPLv3, MIT before 5.0
 - [state] attribute is now [data-ls-state]
 
 ### Version 5.3.0 (farewell update)
+
 - Polishes, optimizations & bug fixes
 - Stable enhancements adapted from 6.0.0-beta without any breaking changes.
 - Fix LS.Color.copyTo not working (it was copying from the copy...)
 
 ### Version 5.2.9 (polish update)
+
 - Breaking: LS.ShortcutManager and LS.CompileTemplate are now separate components, don't forget to include them! (this is to reduce core size)
 - Breaking: Removed the deprecated M.LoadStyle, M.LoadScript and M.LoadDocument methods, removed the deprecated "C" global (use LS.Color).
 - Optimized LS.Color.update and HSL operations
@@ -94,6 +106,7 @@ License before 6.0.0-alpha.3 (6.0.0-alpha.2 and lower) was GPLv3, MIT before 5.0
 Sorry for the aggressively implemented memory safety features, the current objective is to ensure stricter safety standards across the whole framework to make it production-ready, I will ease out later.
 
 ### Version 5.2.8 (feature update)
+
 - LS.Reactive now supports recursive properties and has been upgraded all around
 - Significantly improved expression parsing performance of LS.Reactive
 - LS.Color internal data format changed from an {r,g,b,a} to [r,g,b,a] | Uint8Array
@@ -116,6 +129,7 @@ Sorry for the aggressively implemented memory safety features, the current objec
 - Renamed "body-available" event to "ready" (backwards compatible)
 
 ### Version 5.2.7 (feature update)
+
 - Listeners can be removed by returning LS.REMOVE_LISTENER
 - Data support for completed events
 - A global event for component registration
@@ -136,12 +150,14 @@ Sorry for the aggressively implemented memory safety features, the current objec
 - Various other smaller fixes and improvements
 
 ### Version 5.2.6 (hotfix)
+
 - Fixes to LS.Animation when multiple animations are triggered
 - Fixed focus on modals (keyboard navigation)
 - Fixed tooltips not being hidden on esbuilt (backwards-compatible) builds
 - API now supports esbuild transpilation when enabled to bring better support to old browsers
 
 # Version 5.0.0
+
 Major update (2025 release)!
 - 🚀 Performance and resource efficiency enhancements
 - 🎨 New and better dynamic color system
@@ -156,18 +172,22 @@ Major update (2025 release)!
 ---
 
 ### Version 4.1.0 (yearly LTS maintenance update)
+
 - Brought some small optimizations & fixes from v5 to v4.
-- This marks the last v4 release, v5 is now stable, with v6 becomming the recommended version.
+- This marks the last v4 release and v4 is officially end of life.
 
 ### Version 4.0.2
+
 - Selector fixes.
 
 ### Version 4.0.1
+
 - Added a console note to suggest upgrading to v5
 - Minor API bugfixes
 - Add version information to LS.version and LS.v
 
 # Version 4.0.0 (legacy)
+
 V4 is not a major release, but rather a "LTS" version of v3.6.5.<br>
 It is deprecated but favored over the older 3.6.5 that it is based on, intended to keep old projects running.<br>
 It has also been upgraded to the new distribution format & file structure with latest API compatibility, moving from the old magical preprocessor, so it can be used reliably where needed.<br>
