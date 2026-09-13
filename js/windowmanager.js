@@ -4,7 +4,12 @@ class WindowManager extends LS.Component {
     static { LS.register(this, { name: "WindowManager", global: true }) }
 
     // on-demand singleton instance of the window manager
-    static default = null;
+    static get default() {
+        if (!this._default) {
+            this._default = new WindowManager();
+        }
+        return this._default;
+    }
 
     constructor(options = {}){
         super();
