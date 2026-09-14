@@ -21,9 +21,6 @@ button:active::after {
     transform: none;
 }
 
-button:active::after {
-}
-
 @keyframes bp {
     from { background-position: -7px 0 }
     to { background-position: 7px 0 }

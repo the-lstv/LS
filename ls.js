@@ -965,13 +965,16 @@
         }
     }
 
-    function toCSSSize(value) {
-        if (typeof value === "number") return value + "px";
+    function toCSSSize(value, defaultUnit) {
+        if(!value) return "0";
+        if (typeof value === "number") return value + defaultUnit;
+
         if (typeof value === "string") {
-            if (/^\d+$/.test(value)) return value + "px";
+            if (/^\d+$/.test(value)) return value + defaultUnit;
             return value;
         }
-        return null;
+
+        return `${value?.value || 0}${value?.unit || defaultUnit}`;
     }
 
     /**
@@ -1587,7 +1590,7 @@
                         ? { inner: content }
                         : content || {};
 
-            const { class: className, tooltip, ns, inner, content: innerContent, i18n, html, text, accent, style, parent, reactive, attr, options, attributes, sanitize, state, ephemeral, animation, animationOptions, ...rest } = content;
+            const { class: className, tooltip, ns, inner, content: innerContent, i18n, html, text, accent, style, parent, reactive, attr, options, attributes, sanitize, state, ephemeral, effects, animation, animationOptions, ...rest } = content;
             const element = Object.assign(
                 LS.Util.parseEmmet(emmet, { ns, singleNode: true }),
                 rest
@@ -1702,6 +1705,15 @@
                     parentElement.appendChild(element);
                 } else {
                     console.warn("LS.Create: Parent element not found for selector:", parent);
+                }
+            }
+
+            // temporary api
+            if(effects) {
+                if(LS.Effect) {
+                    LS.Effect.replaceEffects(element, effects);
+                } else {
+                    console.error("LS.Effect is not available.");
                 }
             }
 
@@ -2320,7 +2332,7 @@
              * @param {boolean} options.detached Whether to start detached (not attached to any element). Default is false.
              * @param {Array} options.targets Array of additional elements to listen for drag events on. Default is null (only the initial element is used).
              * @param {Array} options.startEvents Array of additional events to listen for to start the drag. Default is null (only pointerdown is used).
-             * @param {Array} options.buttons Array of mouse buttons to accept (0 = left, 1 = middle, 2 = right). Default is all buttons.
+             * @param {Array} options.buttons Array of mouse buttons to allow (0 = left, 1 = middle, 2 = right, etc.). Default is all buttons.
              * @param {boolean} options.frameTimed Whether to emit move events on animation frames instead of every pointermove event. Default is false, but I strongly recommend setting it to true for smoother performance.
              * @param {boolean} options.fluentFrames If true, the move callback will continue calling on every frame while the drag is active, even if the pointer hasn't actually moved. Default is false. Requires options.frameTimed to be true. Useful for continuous updates like edge scrolling.
              * @param {function} options.onStart Optional callback function to call when the drag starts. Receives an event object (see below).
@@ -2342,7 +2354,9 @@
              *   domEvent: Event, // The original DOM event
              *   cancel: function, // Call this to cancel the drag
              *   cancelled: boolean, // True if the drag has been cancelled
+             *   preventDefault: boolean, // Whether preventDefault is called on events to prevent default behavior. True by default
              *   isTouch: boolean, // True if the event is from a touch input
+             *   button: number, // Mouse button pressed. Defaults to 0.
              *   dx: number, // Delta x position (since last event)
              *   dy: number, // Delta y position (since last event)
              *   x: number, // Current x position (relative to the viewport)
@@ -2367,7 +2381,7 @@
                     super();
 
                     this.options = {
-                        buttons: [0, 1, 2],
+                        buttons: null,
                         disablePointerEvents: true,
                         frameTimed: !!(options.fluentFrames),
                         fluentFrames: false,
@@ -2444,8 +2458,10 @@
                         // scrollOffsetY: 0,
                         cancel: this.cancel,
                         isTouch: false,
+                        button: 0,
                         hasMoved: false,
                         cancelled: false,
+                        preventDefault: true,
                         domEvent: null
                     };
 
@@ -2611,7 +2627,7 @@
                         }
                     }
 
-                    if (event.pointerType === 'mouse' && !this.options.buttons.includes(event.button)) return;
+                    if (event.pointerType === 'mouse' && Array.isArray(this.options.buttons) && !this.options.buttons.includes(event.button)) return;
 
                     this.activeTarget = event.currentTarget;
 
@@ -2638,7 +2654,9 @@
                     // this._eventData.scrollOffsetY = 0;
                     this._eventData.domEvent = event;
                     this._eventData.isTouch = isTouch;
+                    this._eventData.button = (event.pointerType === 'mouse' && event.button) || 0;
                     this._eventData.hasMoved = false;
+                    this._eventData.preventDefault = true;
 
                     if(this.options.calculateBounds) {
                         this._calculateBounds(true);
@@ -2657,7 +2675,7 @@
                     const isGlobal = target === window || target === document || target === document.body || target === document.documentElement;
 
                     // Prevent default to stop text selection, etc.
-                    if (event.cancelable) event.preventDefault();
+                    if (event.cancelable && this._eventData.preventDefault) event.preventDefault();
 
                     if(this.inertia) {
                         this.velocityX = 0;
@@ -2841,7 +2859,7 @@
 
                 processMove(event) {
                     const isTouch = event.pointerType === "touch";
-                    if (!isTouch && event.cancelable) event.preventDefault();
+                    if (!isTouch && event.cancelable && this._eventData.preventDefault) event.preventDefault();
 
                     let x, y;
                     const prevX = this._eventData.x;
@@ -2942,24 +2960,25 @@
                 }
 
                 onRelease(event) {
-                    this.seeking = false;
                     this._eventData.cancelled = false;
                     this.frameQueued = false;
                     this.latestMoveEvent = null;
-
 
                     if (this.dragTarget) {
                         this.dragTarget.classList.remove("ls-drag-target");
                         this.dragTarget = null;
                     }
 
+                    if(!this.seeking) return;
+                    this.seeking = false;
+
                     if (this.pointerLockActive) {
                         document.exitPointerLock();
                     }
 
                     const captureTarget = this.activeTarget;
-                    if(captureTarget) {
-                        if (event && typeof event.pointerId === "number" && captureTarget.hasPointerCapture(event.pointerId)) {
+                    if(captureTarget instanceof HTMLElement) {
+                        if (event && typeof event.pointerId === "number" && captureTarget.hasPointerCapture?.(event.pointerId)) {
                             captureTarget.releasePointerCapture(event.pointerId);
                         }
     
@@ -3220,6 +3239,8 @@
                     .replace(/\s+/g, space)
                     .trim();
             },
+
+            toCSSSize,
 
             /**
              * Normalize a path to a canonical form OR split into an array of canonical parts.
