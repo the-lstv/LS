@@ -963,6 +963,19 @@ customElements.define('ls-select', class LSSelect extends HTMLElement {
         this.menu.add(option);
     }
 
+    setOptions(options) {
+        if (!Array.isArray(options)) {
+            console.error("setOptions expects an array of options.");
+            return;
+        }
+
+        this._lsSelectOptions = options;
+        if (this.menu) {
+            this.menu.reset(options);
+            this.#updateValue();
+        }
+    }
+
     toggle() {
         this.menu.toggle();
     }

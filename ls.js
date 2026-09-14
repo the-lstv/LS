@@ -1,7 +1,7 @@
 /**
  * @author lstv.space
  * 
- * @version 6.0.0-alpha.3
+ * @version 6.0.0-alpha.4
  * @see https://github.com/thelstv/LS
  * @copyright https://lstv.space
  * * Do not use AI to modify, read, analyze or make changes in this file.
@@ -965,6 +965,294 @@
         }
     }
 
+    function toCSSSize(value) {
+        if (typeof value === "number") return value + "px";
+        if (typeof value === "string") {
+            if (/^\d+$/.test(value)) return value + "px";
+            return value;
+        }
+        return null;
+    }
+
+    /**
+     * @concept
+     * @experimental
+     * 
+     * Abstract input class that holds a value with an interactive element.
+     * It unifies the concept & APIs of various input types.
+     */
+    class Input {
+        ELEMENT_MAP = {
+            select: "ls-select",
+            knob: "ls-knob",
+            textarea: "textarea",
+            range: "ls-range",
+        }
+
+        constructor(type, options) {
+            if(typeof type === "object") {
+                options = type;
+                type = options.type;
+            }
+
+            if(type) options? (options.type = type): options = { type };
+
+            this.element = null;
+            this.inputElement = null;
+
+            this.default = options?.default ?? null;
+            this.inputType = options?.inputType ?? options?.type ?? "text"; // Describes the type of the input element
+            this.valueType = options?.valueType ?? null;                    // Describes the desired data unit/type of the value
+
+            this.options = options || {};
+            this.id = options?.id || LS.Misc.uuidv4();
+            this.group = options?.group || null;
+
+            this.userData = options?.userData || null;
+
+            this.isBinary = false;
+            this.isText = false;
+
+            this.createElement();
+            this.reset(); // Set default value
+        }
+
+        processChange(isFinal = false) {
+            let value = this.value;
+
+            if(this.isBinary) value = !!value;
+            if(this.inputType === "number") value = parseFloat(value);
+
+            if(this.valueType === "angle") value = value * (Math.PI / 180);
+            if(this.valueType === "percentage") value = value / 100;
+
+            if(this.groupScope) {
+                this.groupScope.quickEmit("change", this, isFinal, value);
+
+                if(this.groupScope.options.changeCallback && typeof this.groupScope.options.changeCallback === "function") {
+                    this.groupScope.options.changeCallback(this, isFinal, value);
+                }
+            } else {
+                LS.quickEmit(this.group? ("input-change-" + this.group): "input-change", this, isFinal, value);
+            }
+
+            if(typeof this.options.callback === "function") {
+                this.options.callback(value, isFinal);
+            }
+        }
+
+        createElement() {
+            const type = this.inputType || "text";
+
+            const tagName = this.ELEMENT_MAP[type] || "input";
+
+            this.isBinary = type === "checkbox" || type === "radio" || type === "switch";
+            this.isText = type === "text" || type === "textarea";
+
+            this.inputElement = LS.Create({
+                ...this.options.attributes || {},
+                tag: tagName,
+                class: (this.options.className || "") + (type === "select" ? " clear" : ""),
+                options: this.options.options || null,
+                
+                ...(this.options.placeholder? { placeholder: this.options.placeholder }: null),
+                ...(type === "textarea"? null: { type: this.isBinary? type === "radio" ? "radio" : "checkbox" : type }),
+
+                min: this.options.min ?? null,
+                max: this.options.max ?? null,
+                step: this.options.step ?? null,
+
+                oninput: () => {
+                    this.processChange(false);
+                },
+
+                onchange: () => {
+                    this.processChange(true);
+                },
+
+                ondblclick: (event) => {
+                    if(type === "knob") this.reset();
+                }
+            });
+
+            if(this.options.width) this.inputElement.style.width = toCSSSize(this.options.width);
+            if(this.options.width && this.options.width.endsWith("%") && tagName === "textarea") {
+                this.inputElement.style.resize = "vertical";
+            }
+            if(this.options.height) this.inputElement.style.height = toCSSSize(this.options.height);
+            if(this.options.minWidth ) this.inputElement.style.minWidth  = toCSSSize(this.options.minWidth);
+            if(this.options.minHeight) this.inputElement.style.minHeight = toCSSSize(this.options.minHeight);
+            if(this.options.maxWidth ) this.inputElement.style.maxWidth  = toCSSSize(this.options.maxWidth);
+            if(this.options.maxHeight) this.inputElement.style.maxHeight = toCSSSize(this.options.maxHeight);
+
+            this.inputElement.dataset.inputId = this.id;
+            this.inputElement.dataset.inputType = this.valueType || type;
+            
+            const label = this.options.label? { tag: "span", class: "ls-input-label-text", inner: this.options.label }: null;
+
+            if(this.isBinary) {
+                this.inputElement.checked = !!this.default;
+
+                const labelElement = LS.Create({ tag: "label", class: "ls-" + type, inner: [
+                    this.inputElement,
+                    { tag: "span" },
+                    [
+                        label,
+                        this.options.description? { tag: "span", class: "ls-input-description", inner: this.options.description }: null
+                    ]
+                ] });
+
+                this.element = labelElement;
+            } else {
+                if(label) {
+                    const labelElement = LS.Create({ tag: "label", class: "ls-input-label", inner: [label, { tag: "br" }, this.inputElement, { tag: "br" }, this.options.description? { tag: "span", class: "ls-input-description", inner: this.options.description }: null] });
+                    this.element = labelElement;
+                } else {
+                    this.element = this.inputElement;
+                }
+            }
+
+            this.value = this.options.value ?? this.default;
+        }
+
+        get value() {
+            if(this.isBinary) {
+                return this.inputElement.checked;
+            }
+            return this.inputElement.value;
+        }
+
+        set value(val) {
+            if(this.isBinary) {
+                this.inputElement.checked = !!val;
+            } else {
+                this.inputElement.value = val;
+            }
+        }
+
+        reset() {
+            this.value = this.default ?? (this.isBinary? false: this.isText? "": 0);
+        }
+
+        setSelectOptions(options) {
+            if(Array.isArray(options.options)) {
+                this.options.options = options.options;
+                if(this.type === "select") this.inputElement.setOptions(options.options);
+            }
+        }
+
+        destroy() {
+            if(this.element && this.element.parentNode) {
+                this.element.remove();
+            }
+
+            this.element = null;
+            this.options = null;
+            this.group = null;
+            this.groupScope = null;
+        }
+    }
+
+    class InputGroup extends EventEmitter {
+        constructor(id, inputs, options) {
+            super();
+            this.inputs = new Set();
+            this.id = id || LS.Misc.uuidv4();
+
+            if(inputs) for(const input of inputs) {
+                this.add(input);
+            }
+
+            if(options) {
+                this.options = options;
+            }
+
+            options ??= {};
+        }
+
+        create(...args) {
+            const input = new Input(...args);
+            this.add(input);
+            return input;
+        }
+
+        add(input) {
+            if(!(input instanceof Input)) {
+                throw new Error("InputGroup can only contain instances of Input.");
+            }
+
+            input.group = this.id;
+            input.groupScope = this;
+            this.inputs.add(input);
+        }
+
+        reset() {
+            for(const input of this.inputs) {
+                input.reset();
+            }
+        }
+
+        get(inputId) {
+            for(const input of this.inputs) {
+                if(input.id === inputId) return input;
+            }
+            return null;
+        }
+
+        async updateData(data = undefined) {
+            if(this.options.updateCallback && typeof this.options.updateCallback === "function") {
+                if(data === undefined && this.options.fetchData && typeof this.options.fetchData === "function") {
+                    try {
+                        data = await this.options.fetchData();
+                    } catch (error) {
+                        console.error("Error fetching data for InputGroup update:", error);
+                        return;
+                    }
+                }
+
+                for(const input of this.inputs) {
+                    const value = this.options.updateCallback(input, data);
+                    if(value !== undefined) input.value = value;
+                }
+            }
+        }
+
+        async updateOne(inputId, value = undefined) {
+            const input = this.get(inputId);
+            if(input) {
+                let data;
+                if(value === undefined && this.options.fetchData && typeof this.options.fetchData === "function") {
+                    try {
+                        data = await this.options.fetchData(input);
+                    } catch (error) {
+                        console.error("Error fetching data for InputGroup update:", error);
+                        return;
+                    }
+                }
+
+                if(value === undefined) value = input.value; else if(this.options.updateCallback && typeof this.options.updateCallback === "function") {
+                    const value = this.options.updateCallback(input, data);
+                    if(value !== undefined) input.value = value;
+                }
+            }
+        }
+
+        remove(input) {
+            if(this.inputs.has(input)) {
+                this.inputs.delete(input);
+                input.group = null;
+                input.groupScope = null;
+            }
+        }
+
+        destroy() {
+            for(const input of this.inputs) {
+                input.destroy();
+            }
+            this.inputs.clear();
+        }
+    }
+
     /**
      * To be refactored
      */
@@ -1087,7 +1375,7 @@
     const LS = new class LSMain extends EventEmitter {
         // --- Metadata
         isWeb = typeof window !== 'undefined';
-        version = "6.0.0-alpha.3";
+        version = "6.0.0-alpha.4";
         v = 6;
 
         components = new Map;
@@ -1100,6 +1388,9 @@
         EventEmitter = EventEmitter;
         Stack = Stack;
         StackItem = StackItem;
+
+        Input = Input;
+        InputGroup = InputGroup;
 
         Component = Component;
         get DestroyableComponent() {
@@ -1296,11 +1587,13 @@
                         ? { inner: content }
                         : content || {};
 
-            const { class: className, tooltip, ns, inner, content: innerContent, i18n, html, text, accent, style, parent, reactive, attr, options, attributes, sanitize, state, ...rest } = content;
+            const { class: className, tooltip, ns, inner, content: innerContent, i18n, html, text, accent, style, parent, reactive, attr, options, attributes, sanitize, state, ephemeral, animation, animationOptions, ...rest } = content;
             const element = Object.assign(
                 LS.Util.parseEmmet(emmet, { ns, singleNode: true }),
                 rest
             );
+
+            // ! don't use ephemeral, animation, animationOptions in production, they are not in final implementation yet.
 
             // Special case for ls-select
             if(element.tagName === "LS-SELECT" && options){
@@ -1404,11 +1697,31 @@
             }
 
             if (parent) {
-                const parentElement = typeof parent === "string" ? document.querySelector(parent) : parent;
+                const parentElement = typeof parent === "string"? parent === "top"? LS._topLayer: document.querySelector(parent): parent;
                 if (parentElement) {
                     parentElement.appendChild(element);
                 } else {
                     console.warn("LS.Create: Parent element not found for selector:", parent);
+                }
+            }
+
+            // temporary api
+            if (animation) {
+                // todo: use LS.Animation/LS.Animation2
+                if (typeof animation === "string") {
+                    element.setAttribute("ls-animate", animation);
+                } else if (typeof animation === "object") {
+                    const a = element.animate(animation, animationOptions || {
+                        duration: LS.Animation?.DEFAULT_DURATION || 300,
+                        easing: LS.Animation?.DEFAULT_EASING || "ease",
+                        fill: "forwards"
+                    });
+
+                    if(ephemeral) {
+                        a.onfinish = () => {
+                            element.remove();
+                        };
+                    }
                 }
             }
 
@@ -2909,30 +3222,88 @@
             },
 
             /**
-             * Normalizes an URL string, removing index.html, .html, backslashes, and resolving relative segments.
+             * Normalize a path to a canonical form OR split into an array of canonical parts.
              * @param {string} path The path to normalize.
              * @param {boolean|null} isAbsolute Optional. If true, the returned path will be absolute (starting with /). If false, it will be relative. If null, it will be inferred from the input path.
-             * @returns {string} The normalized path.
+             * @param {boolean} allowExit If true, relative paths can go outside of their directory. If false, they can't.
+             * @param {boolean} returnParts If true, returns an array of path parts instead of a string.
+             * @param {boolean} normalizeHTMLExt For URLs, remove index.html and .html - WARNING: this is true by default for legacy reasons
+             * @returns {string|Array<string>} The normalized path.
+             * 
+             * Also this implementation is 2x to 4x faster than the previous one in LinuxJS :P
              */
-            normalizePath(path, isAbsolute = null) {
-                // Replace backslashes with forward slashes
-                path = path.replace(/index\.html$|\.html$/i, "").replace(/\\/g, "/").trim();
+            normalizePath(path, isAbsolute = null, allowExit = true, returnParts = false, normalizeHTMLExt = true) {
+                const parts = [];
+                const len = path.length;
 
-                const parts = path.split('/');
-                const normalizedParts = [];
-            
-                for (const part of parts) {
-                    if (part === '..') {
-                        normalizedParts.pop();
-                    } else if (part !== '.' && part !== '') {
-                        normalizedParts.push(part);
+                const fc = path.charCodeAt(0);
+                if (isAbsolute === null) isAbsolute = fc === 47 || fc === 92;
+                
+                if(len === 0) {
+                    return returnParts? parts: (isAbsolute? "/": ".");
+                }
+                
+                let cleanParts = 0;
+                let sStart = 0, seqBroken = false;
+                for (let i = 0; i < len; i++) {
+                    const char = path.charCodeAt(i);
+
+                    const isSeparator = char === 47 || char === 92;
+                    const isEnd = !isSeparator && (i === len - 1);
+
+                    if (isSeparator || isEnd) {
+                        if (isEnd) {
+                            if (char !== 46) seqBroken = true;
+                            i++;
+                        }
+
+                        const dCount = i - sStart;
+                        if (!seqBroken && (isAbsolute || !allowExit || dCount === 1 || cleanParts > 0)) {
+                            // Go up ("..")
+                            if(dCount === 2) {
+                                parts.pop();
+                                cleanParts--
+                            }
+
+                            // Otherwise do nothing
+                        } else if (dCount > 0) {
+                            const p = path.slice(sStart, i);
+                            if(p && !(normalizeHTMLExt && p === "index.html")) {
+                                if(normalizeHTMLExt && p.endsWith(".html")) p = p.slice(0, -5);
+
+                                parts.push(p);
+                                if(seqBroken) cleanParts++;
+                            }
+                        }
+
+                        sStart = i + 1;
+                        seqBroken = false;
+                        continue;
                     }
+
+                    if (char !== 46) seqBroken = true;
                 }
 
-                const normalizedPath = normalizedParts.join('/');
+                if(returnParts) return parts;
 
-                if(isAbsolute === null) isAbsolute = path.startsWith('/');
-                return (isAbsolute ? '/' : '') + normalizedPath;
+                if(parts.length === 0) {
+                    return isAbsolute? "/": ".";
+                }
+
+                const normalizedPath = parts.join('/');
+                return isAbsolute ? '/' + normalizedPath : normalizedPath;
+            },
+
+            /**
+             * Helper to normalize and split a path into segments.
+             * Same as normalize(path, .., true, false);
+             * @param {string} path Path to split.
+             * @param {boolean|null} isAbsolute Same as normalize
+             * @param {boolean} allowExit Same as normalize
+             * @returns {Array<string>} Path segments as an array.
+             */
+            splitPath(path, isAbsolute = null, allowExit = true) {
+                return LS.Util.normalizePath(path, isAbsolute, allowExit, true, false);
             },
 
             /**
@@ -3302,13 +3673,10 @@
              * @deprecated
              */
             uuidv4() {
-                if(!crypto?.randomUUID) {
-                    return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, c =>
-                        (+c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> +c / 4).toString(16)
-                    );
-                }
-
-                return crypto.randomUUID();
+                if(crypto && crypto.randomUUID) return crypto.randomUUID();
+                return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, c =>
+                    (+c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> +c / 4).toString(16)
+                );
             }
         }
 
@@ -3460,7 +3828,7 @@
          * View class
          * Base class for all views
          * 
-         * Added here since 6.0.0-alpha.3
+         * Added here since 6.0.0-alpha.4
          */
         View = class View extends Context {
             constructor({ container, name, title } = {}) {

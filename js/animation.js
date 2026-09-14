@@ -76,7 +76,7 @@
                 duration = LS.Animation.DEFAULT_DURATION;
             }
 
-            const options = typeof duration === 'object' && duration !== null ? duration : { duration, direction, preserveTransform };
+            const options = typeof direction === 'object' && direction !== null ? direction : { duration, direction, preserveTransform };
 
             this._cancelAll(element);
 
@@ -138,7 +138,7 @@
                 duration = LS.Animation.DEFAULT_DURATION;
             }
 
-            const options = typeof duration === 'object' && duration !== null ? duration : { duration, direction, preserveTransform };
+            const options = typeof direction === 'object' && direction !== null ? direction : { duration, direction, preserveTransform };
 
             this._cancelAll(element);
 

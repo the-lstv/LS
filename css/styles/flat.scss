@@ -175,12 +175,15 @@
         --background: var(--elevate-0, var(--surface-n2));
         background: var(--background);
         border: 2px solid var(--background);
-        // border: 2px solid var(--elevate-0);
 
         &:focus {
             border: 2px solid var(--accent-focus, var(--accent));
             --background: var(--accent-mix-10);
         }
+    }
+
+    textarea:not(.clear) {
+        padding: 3px var(--padding-input-h);
     }
 
     .ls-checkbox > span, .ls-radio > span {

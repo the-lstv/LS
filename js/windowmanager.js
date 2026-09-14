@@ -1,7 +1,15 @@
 // Work in progress
 
 class WindowManager extends LS.Component {
-    static { LS.register(this, { name: "WindowManager", global: true, singleton: true }) }
+    static { LS.register(this, { name: "WindowManager", global: true }) }
+
+    // on-demand singleton instance of the window manager
+    static get default() {
+        if (!this._default) {
+            this._default = new WindowManager();
+        }
+        return this._default;
+    }
 
     constructor(options = {}){
         super();
@@ -14,14 +22,24 @@ class WindowManager extends LS.Component {
         this.container.style.top = "0";
         this.container.style.left = "0";
 
-        this.topOffset = options.topOffset || 0;
+        this.topOffset    = options.topOffset    || 0;
+        this.bottomOffset = options.bottomOffset || 0;
+        this.leftOffset   = options.leftOffset   || 0;
+        this.rightOffset  = options.rightOffset  || 0;
+
         this.globalWindowZIndex = 1000;
+        this.topWindowZIndex = 99999999; // Could be a separate stack
+
         this.WINDOW_EDGE_MARGIN = 12;
+
+        this.MOBILE_VIEWPORT = options.mobileViewport ?? false;
+
         this.WINDOW_TOP_STACK_GAP = 10;
         this.WINDOW_TOP_STACK = [];
         this.WINDOW_MAXIMIZE_DRAG_RESTORE_BUFFER = 18;
+        this.SUSPEND_ON_CLOSE = options.suspendOnClose ?? false;
 
-        this.target = options.target || LS._topLayer || document.body;
+        this.target = options.target || window.__windowManagerTarget || LS._topLayer || document.body;
         this.target.appendChild(this.container);
 
         // Keep floating windows in view on resize
@@ -68,6 +86,11 @@ class WindowManager extends LS.Component {
         this.windows.clear();
     }
 
+    createWindow(options = {}) {
+        options.manager = this;
+        return new Window(options);
+    }
+
     relayoutWindowTopStack() {
         for (let i = this.WINDOW_TOP_STACK.length - 1; i >= 0; i--) {
             const win = this.WINDOW_TOP_STACK[i];
@@ -99,13 +122,25 @@ class WindowManager extends LS.Component {
         }
     }
 
+    isMobileViewport() {
+        return this.MOBILE_VIEWPORT || (window.innerWidth <= 820 || window.innerHeight <= 680);
+    }
+
+    /**
+     * Destroy the window manager and clean up all resources.
+     * @param {boolean} replacing - Whether the global window manager is being replaced.
+     */
     destroy(replacing = false) {
         if(this.destroyed) return;
         this.closeAllWindows();
         this.windows = null;
+        this.WINDOW_TOP_STACK = null;
         this.windowBoundsScheduler.destroy();
         this.windowBoundsScheduler = null;
-        LS.WindowManager = replacing? new WindowManager(): null;
+
+        if(LS.WindowManager.default === this) {
+            LS.WindowManager.default = replacing? new WindowManager(): null;
+        }
         super.destroy();
     }
 }
@@ -125,7 +160,7 @@ class Window extends LS.Slot {
     //             { class: 'window-header-buttons', inner: [
     //                 {
     //                     tag: 'button',
-    //                     class: 'window-maximize-button circle elevated',
+    //                     class: 'window-pin-button circle elevated',
     //                     inner: { tag: 'i', class: 'bi-window' },
     //                     tooltip: 'Toggle Window View',
     //                     onclick: data.toggleView
@@ -159,10 +194,21 @@ class Window extends LS.Slot {
     static TEMPLATE = function(d){'use strict';var e0=document.createElement("div");e0.className="window-container";var e1=document.createElement("div");e1.className="level-1 window-header";var e2=document.createElement("div");var e3=document.createElement("img");e3.className="window-icon";e2.appendChild(e3);var e4=document.createElement("span");e4.textContent=d.name;e4.className="window-title text-overflow-nowrap";e2.appendChild(e4);var e5=document.createElement("div");e5.className="window-header-buttons";var e6=document.createElement("button");e6.onclick=d.toggleView;e6.setAttribute("ls-tooltip","Toggle Window View");LS.Tooltips.updateElement(e6);e6.className="window-maximize-button circle elevated";var e7=document.createElement("i");e7.className="bi-window";e6.appendChild(e7);var e8=document.createElement("button");e8.onclick=d.minimize;e8.className="window-minimize-button circle elevated";var e9=document.createElement("i");e9.className="bi-dash-lg";e8.appendChild(e9);var e10=document.createElement("button");e10.onclick=d.maximize;e10.className="window-maximize-button circle elevated";var e11=document.createElement("i");e11.className="bi-square";e10.appendChild(e11);var e12=document.createElement("button");e12.onclick=d.close;e12.className="window-close-button circle elevated";var e13=document.createElement("i");e13.className="bi-x-lg";e12.appendChild(e13);e5.append(e6,e8,e10,e12);e1.append(e2,e5);var dyn14=LS.toNode(d.target);e0.append(e1,dyn14);var __rootValue=e0;return{"header":e1,"icon":e3,"title":e4,root:__rootValue};}
 
     constructor(options = {}){
+        if (typeof options === "string") {
+            options = { title: options };
+        } else if (options instanceof LS.View || options instanceof LS.Slot || options instanceof HTMLElement) {
+            options = { content: options };
+        } else if (!options || typeof options !== "object") {
+            console.warn("Invalid options for Window constructor:", options);
+            options = {};
+        }
+
         super({
             isWindow: true,
             windowOptions: options
         });
+
+        this.manager = options.manager || LS.WindowManager.default || (LS.WindowManager.default = new WindowManager());
 
         this.isWindow = true;
         this.isPinnedView = false;
@@ -181,6 +227,7 @@ class Window extends LS.Slot {
         });
 
         contentTarget.classList.add("ls-window-content-container");
+        this.contentTarget = contentTarget;
 
         this.windowElement = window.root;
         this.headerElement = window.header;
@@ -188,9 +235,37 @@ class Window extends LS.Slot {
         this.__titleElement = window.title;
         this.destroying = false;
 
+        if(options.header === false) {
+            this.setHeaderEnabled(false);
+        }
+
+        if(options.frame !== false) {
+            this.setFrameEnabled(true);
+        }
+
+        this.suspendOnClose = options.suspendOnClose ?? this.manager.SUSPEND_ON_CLOSE;
+
         const headerButtons = this.windowElement.querySelectorAll(".window-header-buttons > button");
         this.toggleViewButton = headerButtons[0] || null;
+        this.minimizeButton = headerButtons[1] || null;
         this.maximizeButton = headerButtons[2] || null;
+        this.closeButton = headerButtons[3] || null;
+
+        if(options.closeable === false) {
+            this.setCloseButtonEnabled(false);
+        }
+
+        if(options.minimizable === false || this.suspendOnClose === true) {
+            this.setMinimizeButtonEnabled(false);
+        }
+
+        if(options.maximizable === false) {
+            this.setMaximizeButtonEnabled(false);
+        }
+
+        if(options.pinButton === false) {
+            this.setToggleViewButtonEnabled(false);
+        }
 
         // x, y, width, height
         this.restoreState = [0, 0, 0, 0];
@@ -215,7 +290,7 @@ class Window extends LS.Slot {
                 if (this.isMaximized) {
                     const dx = event.x - this.restoreState[0];
                     const dy = event.y - this.restoreState[1];
-                    if (Math.hypot(dx, dy) < LS.WindowManager.WINDOW_MAXIMIZE_DRAG_RESTORE_BUFFER) return;
+                    if (Math.hypot(dx, dy) < this.manager.WINDOW_MAXIMIZE_DRAG_RESTORE_BUFFER) return;
 
                     this.maximize(false);
 
@@ -232,7 +307,7 @@ class Window extends LS.Slot {
 
             onEnd: (event) => {
                 // todo: indicator that the window will be maximized
-                if (!this.isMaximized && event.y < this.getViewportTopOffset() + LS.WindowManager.WINDOW_MAXIMIZE_DRAG_RESTORE_BUFFER) {
+                if (!this.isMaximized && event.y < this.getViewportTopOffset() + this.manager.WINDOW_MAXIMIZE_DRAG_RESTORE_BUFFER) {
                     this.maximize(true);
                     startX = event.x - (this.width / 2);
                     startY = event.y - 20;
@@ -266,37 +341,48 @@ class Window extends LS.Slot {
 
         this.setSize(options.width || 600, options.height || 400, false);
         this.setPosition(options.x || ((innerWidth / 2) - (this.width / 2)), options.y || ((innerHeight / 2) - (this.height / 2)), false);
-        this.applyLayout();
-        this.updateControlButtons();
+
+        if(options.maximized) {
+            this.maximize(true);
+        } else if(options.pinned) {
+            this.toggleView(true);
+        } else if(options.minimized) {
+            this.minimize(false);
+        } else {
+            this.applyLayout();
+            this.updateControlButtons();
+        }
+
 
         if(options.transparent) {
             this.windowElement.classList.add("window-transparent");
             this.windowElement.style.backgroundColor = "transparent";
         }
 
+        if(options.content) {
+            this.setWindowContent(options.content);
+        }
+
         this.on("rendered", (content) => {
             if(this.destroyed) return;
 
-            if(content instanceof LS.View) {
-                this.set(content);
-            } else if(content instanceof LS.Slot) {
-                this.swapWith(content);
-            } else if(content instanceof HTMLElement) {}
+            if(content && content !== this.currentView) {
+                this.setWindowContent(content);
+            }
 
             // Update title and icon based on content
             this.setTitle(this.getTitle());
             this.setIcon(this.getIcon());
             this.emit("ready");
 
-            options.open ??= true;
+            options.open ??= options.show !== false;
             if(options.open || options.show) {
                 const openAnimation  = !(options.disableOpenAnimation || options.openAnimation === false) && LS.Animation && LS.Animation.fadeIn;
                 this.windowElement.style.opacity = openAnimation? 1: 0;
         
                 if (openAnimation) {
                     requestAnimationFrame(() => {
-                        if(this.destroyed) return;
-                        LS.Animation.fadeIn(this.windowElement, "backward", null, true);
+                        this.show();
                     });
                 }
         
@@ -304,7 +390,8 @@ class Window extends LS.Slot {
                     this.maximize(true);
                 }
 
-                this.focus();
+                this.alwaysOnTop = options.alwaysOnTop || false; // This setter calls focus
+                // this.focus();
             }
         });
 
@@ -313,7 +400,59 @@ class Window extends LS.Slot {
             this.emit("rendered");
         }
 
-        LS.WindowManager.push(this);
+        this.manager.push(this);
+        this.manager.quickEmit("window-created", this);
+    }
+
+    setWindowContent(content) {
+        if(this.currentView === content) return;
+
+        // if(this.currentView && this.currentView !== this && this.ownsContent) {
+        //     this.currentView.destroy?.();
+        // }
+
+        if(content instanceof LS.View) {
+            this.set(content);
+        } else if(content instanceof LS.Slot) {
+            this.swapWith(content);
+        } else if(content instanceof HTMLElement) {
+            this.contentTarget.appendChild(content);
+        }
+    }
+
+    setFrameEnabled(enabled, disableHeader = false) {
+        this.windowElement.classList.toggle("window-framed", enabled);
+        if (disableHeader) {
+            this.setHeaderEnabled(false);
+        }
+    }
+
+    setHeaderEnabled(enabled) {
+        this.windowElement.querySelector(".window-header").style.display = enabled ? "flex" : "none";
+    }
+
+    setCloseButtonEnabled(enabled) {
+        if (this.closeButton) {
+            this.closeButton.style.display = enabled ? "inline-flex" : "none";
+        }
+    }
+
+    setMaximizeButtonEnabled(enabled) {
+        if (this.maximizeButton) {
+            this.maximizeButton.style.display = enabled ? "inline-flex" : "none";
+        }
+    }
+
+    setToggleViewButtonEnabled(enabled) {
+        if (this.toggleViewButton) {
+            this.toggleViewButton.style.display = enabled ? "inline-flex" : "none";
+        }
+    }
+
+    setMinimizeButtonEnabled(enabled) {
+        if (this.minimizeButton) {
+            this.minimizeButton.style.display = enabled ? "inline-flex" : "none";
+        }
     }
 
     setResizeEnabled(enabled) {
@@ -333,7 +472,7 @@ class Window extends LS.Slot {
                 this.y = nY;
 
                 if (this.isPinnedView) {
-                    LS.WindowManager.relayoutWindowTopStack();
+                    this.manager.relayoutWindowTopStack();
                 } else {
                     this.applyLayout();
                 }
@@ -361,9 +500,8 @@ class Window extends LS.Slot {
         if (!Number.isFinite(left)) left = Number.isFinite(this.x) ? this.x : 0;
         if (!Number.isFinite(top)) top = Number.isFinite(this.y) ? this.y : 0;
 
-        const NET = LS.WindowManager.topOffset;
-        left = Math.max(NET + 90 - this.width, Math.min(left, screenW - NET));
-        top = Math.max(NET, Math.min(top, screenH - NET));
+        left = Math.max(this.manager.topOffset + 90 - this.width, Math.min(left, screenW - this.manager.bottomOffset));
+        top = Math.max(this.manager.leftOffset, Math.min(top, screenH - this.manager.rightOffset));
 
         this.x = left;
         this.y = top;
@@ -401,7 +539,7 @@ class Window extends LS.Slot {
 
     getIcon(context) {
         context ??= this.currentView;
-        return this.icon || (context && (context.icon || context.constructor.manifest.icon || null)) || null;
+        return this.icon || (context && (context.icon || context?.constructor?.manifest?.icon || null)) || null;
     }
 
     setTitle(title) {
@@ -421,16 +559,32 @@ class Window extends LS.Slot {
         }
     }
 
-    minimize() {
+    minimize(animation = true, hiding = false) {
+        if(this.destroyed) return;
         this.suspended = true;
         if(this.currentView && this.currentView.suspend) this.currentView.suspend();
         this.quickEmit("minimize");
+
+        if(!animation) {
+            this.windowElement.style.display = "none";
+            return;
+        }
+        return LS.Animation.fadeOut(this.windowElement, hiding? "backward": "up", null, true);
     }
 
-    restore() {
+    restore(animation = true) {
+        if(this.destroyed) return;
         this.suspended = false;
         if(this.currentView && this.currentView.resume) this.currentView.resume();
         this.quickEmit("restore");
+
+        if(!animation) {
+            this.windowElement.style.display = "";
+            this.windowElement.style.transform = `translate3d(${this.x}px, ${this.y}px, 0)`;
+            this.windowElement.style.opacity = 1;
+            return;
+        }
+        return LS.Animation.fadeIn(this.windowElement, "up", null, true);
     }
 
     maximize(forceState = null) {
@@ -460,10 +614,15 @@ class Window extends LS.Slot {
     }
 
     focus() {
-        LS.WindowManager.globalWindowZIndex += 1;
-        this.windowElement.style.zIndex = LS.WindowManager.globalWindowZIndex;
+        if(this.alwaysOnTop) {
+            this.manager.topWindowZIndex += 1;
+            this.windowElement.style.zIndex = this.manager.topWindowZIndex;
+        } else {
+            this.manager.globalWindowZIndex += 1;
+            this.windowElement.style.zIndex = this.manager.globalWindowZIndex;
+        }
 
-        for (const win of LS.WindowManager.windows) {
+        for (const win of this.manager.windows) {
             if (win !== this && win.windowElement) {
                 win.windowElement.classList.remove("top");
             }
@@ -473,40 +632,107 @@ class Window extends LS.Slot {
         this.quickEmit("focus");
     }
 
+    get isFocused() {
+        return this.windowElement && this.windowElement.classList.contains("top");
+    }
+
     blur() {
         if(!this.windowElement) return;
         this.windowElement.classList.remove("top");
         this.quickEmit("blur");
     }
 
+    show(animation = true) {
+        if(this.destroyed) return;
+        this.applyLayout();
+        this.focus();
+
+        if(this.suspended) {
+            return this.restore(animation);
+        }
+
+        if(!animation) {
+            this.windowElement.style.display = "";
+            this.windowElement.style.transform = `translate3d(${this.x}px, ${this.y}px, 0)`;
+            this.windowElement.style.opacity = 1;
+            return;
+        }
+
+        return LS.Animation.fadeIn(this.windowElement, "backward", null, true);
+    }
+
+    hide(animation = true, suspend = true) {
+        if(this.destroyed) return;
+
+        if(suspend) {
+            return this.minimize(animation, true);
+        }
+
+        if(!animation) {
+            this.windowElement.style.display = "none";
+            return;
+        }
+
+        return LS.Animation.fadeOut(this.windowElement, "backward", null, true);
+    }
+
     // Closes the window with animation
     close(animation = true) {
+        if(this.suspendOnClose) {
+            return this.minimize(animation, true);
+        }
+
+        if(this.destroyed) return;
+
         if (!animation) {
             this.destroy();
             return;
         }
 
         this.destroying = true;
-        LS.Animation.fadeOut(this.windowElement, "backward", null, true).then(() => {
+        return LS.Animation.fadeOut(this.windowElement, "backward", null, true).then(() => {
+            if(this.destroyed) return;
             this.destroy(null, true);
         });
     }
 
     isMobileViewport() {
-        return window.innerWidth <= 820 || window.innerHeight <= 680;
-    }
-
-    getViewportTopOffset() {
-        return LS.WindowManager.topOffset;
+        return this.manager.isMobileViewport();
     }
 
     getViewportBounds() {
-        const top = Math.max(LS.WindowManager.WINDOW_EDGE_MARGIN, this.getViewportTopOffset());
+        // const top    = Math.max(this.manager.WINDOW_EDGE_MARGIN, this.manager.topOffset);
+        // const bottom = Math.max(this.manager.WINDOW_EDGE_MARGIN, this.manager.bottomOffset);
+        // const left   = Math.max(this.manager.WINDOW_EDGE_MARGIN, this.manager.leftOffset);
+        // const right  = Math.max(this.manager.WINDOW_EDGE_MARGIN, this.manager.rightOffset);
+        const top    = this.manager.topOffset;
+        const bottom = this.manager.bottomOffset;
+        const left   = this.manager.leftOffset;
+        const right  = this.manager.rightOffset;
         return {
             top,
-            maxWidth: Math.max(180, window.innerWidth - (LS.WindowManager.WINDOW_EDGE_MARGIN * 2)),
-            maxHeight: Math.max(120, window.innerHeight - top - LS.WindowManager.WINDOW_EDGE_MARGIN),
+            left,
+            right,
+            bottom,
+            maxWidth:  Math.max(180, window.innerWidth - (this.manager.WINDOW_EDGE_MARGIN * 2) - left - right),
+            maxHeight: Math.max(120, window.innerHeight - top - bottom - (this.manager.WINDOW_EDGE_MARGIN * 2)),
         };
+    }
+
+    getViewportTopOffset() {
+        return this.manager.topOffset;
+    }
+
+    getViewportLeftOffset() {
+        return this.manager.leftOffset;
+    }
+
+    getViewportBottomOffset() {
+        return this.manager.bottomOffset;
+    }
+
+    getViewportRightOffset() {
+        return this.manager.rightOffset;
     }
 
     captureLayout(out = []) {
@@ -520,9 +746,9 @@ class Window extends LS.Slot {
 
     applyLayout() {
         if (this.isMaximized) {
-            const topOffset = this.getViewportTopOffset();
-            this.setSize(window.innerWidth, Math.max(120, window.innerHeight - topOffset), false, true);
-            this.setPosition(0, topOffset, false, true);
+            const bounds = this.getViewportBounds();
+            this.setSize((window.innerWidth - bounds.left - bounds.right), Math.max(120, window.innerHeight - bounds.top - bounds.bottom), false, true);
+            this.setPosition(bounds.left, bounds.top, false, true);
             return;
         }
 
@@ -537,10 +763,10 @@ class Window extends LS.Slot {
         const overflows =
             (this.width || 0) > bounds.maxWidth ||
             (this.height || 0) > bounds.maxHeight ||
-            (this.x || 0) < LS.WindowManager.WINDOW_EDGE_MARGIN ||
+            (this.x || 0) < this.manager.WINDOW_EDGE_MARGIN ||
             (this.y || 0) < bounds.top ||
-            right > (window.innerWidth - LS.WindowManager.WINDOW_EDGE_MARGIN) ||
-            bottom > (window.innerHeight - LS.WindowManager.WINDOW_EDGE_MARGIN);
+            right > (window.innerWidth - this.manager.WINDOW_EDGE_MARGIN) ||
+            bottom > (window.innerHeight - this.manager.WINDOW_EDGE_MARGIN);
 
         if (!overflows) return;
 
@@ -562,11 +788,11 @@ class Window extends LS.Slot {
             this.captureLayout(this.restoreState);
 
             this.isPinnedView = true;
-            LS.WindowManager.addToWindowTopStack(this);
+            this.manager.addToWindowTopStack(this);
             this.focus();
         } else {
             this.isPinnedView = false;
-            LS.WindowManager.removeFromWindowTopStack(this);
+            this.manager.removeFromWindowTopStack(this);
 
             if (this.restoreState) {
                 this.setPosition(this.restoreState[0], this.restoreState[1], false, true);
@@ -590,11 +816,11 @@ class Window extends LS.Slot {
 
         this.setSize(pinnedWidth, pinnedHeight, false, true);
 
-        const top = Math.min(bounds.top + offsetY, Math.max(bounds.top, window.innerHeight - this.height - LS.WindowManager.WINDOW_EDGE_MARGIN));
+        const top = Math.min(bounds.top + offsetY, Math.max(bounds.top, window.innerHeight - this.height - this.manager.WINDOW_EDGE_MARGIN));
         const left = Math.round((window.innerWidth - this.width) / 2);
 
         this.setPosition(left, top, false, true);
-        return (top - bounds.top) + this.height + LS.WindowManager.WINDOW_TOP_STACK_GAP;
+        return (top - bounds.top) + this.height + this.manager.WINDOW_TOP_STACK_GAP;
     }
 
     updateControlButtons() {
@@ -612,11 +838,23 @@ class Window extends LS.Slot {
         this.windowElement.classList.toggle("window-maximized", this.isMaximized);
     }
 
+    get alwaysOnTop() {
+        return this._alwaysOnTop;
+    }
+
+    set alwaysOnTop(value) {
+        this._alwaysOnTop = !!value;
+        this.focus();
+    }
+
     destroy(destroyContent = true, _force = false) {
         if(this.destroyed || (this.destroying && !_force)) return;
 
-        LS.WindowManager.removeFromWindowTopStack(this);
-        LS.WindowManager.remove(this);
+        this.manager.removeFromWindowTopStack(this);
+        this.manager.remove(this);
+
+        // Reminder that the window instance passed to this event must NOT be used or referenced again by whatever listener after it is done.
+        this.manager.quickEmit("window-closed", this);
 
         this.setResizeEnabled(false);
 
@@ -643,5 +881,5 @@ class Window extends LS.Slot {
 }
 
 /*@ls-export*/ if (typeof module !== "undefined" && module.exports) {
-    module.exports = WindowManager;
+    module.exports = { Window, WindowManager };
 }

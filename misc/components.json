@@ -28,7 +28,9 @@
         "range",
         "spa",
         "list",
-        "windowmanager"
+        "windowmanager",
+
+        "progress"
     ],
     "css": [
         "flat",

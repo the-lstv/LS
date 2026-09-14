@@ -7,7 +7,7 @@
 class ImageCropper extends LS.Component {
     static { LS.register(this, { name: "ImageCropper", global: true }) }
 
-    DEFAULTS = LS.Util.staticDefaults({
+    static DEFAULTS = LS.Util.staticDefaults({
         width: 100,
         height: 100,
         styled: true,

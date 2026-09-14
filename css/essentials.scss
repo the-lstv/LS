@@ -284,6 +284,7 @@ ls-group {
     padding: 0 1em;
     padding-bottom: 1em;
     gap: 1em;
+    z-index: 10;
 }
 
 .ls-toast {
@@ -565,7 +566,7 @@ button#{priority(".ls-toast-close", 3)} {
 }
 
 .ls-modal-layer.ls-modal-layer.is-open {
-    background: #0004;
+    background: rgba(0, 0, 0, 0.5);
     pointer-events: auto;
 }
 
@@ -753,6 +754,7 @@ button#{priority(".ls-toast-close", 3)} {
     position: fixed;
     top: 0;
     left: 0;
+    z-index: 100;
 }
 
 .ls-menu-container {
@@ -1021,6 +1023,8 @@ ls-select ls-option, ls-select option, ls-select optgroup {
     min-height: 0;
     min-width: 0;
     flex: 1;
+    container-name: ls-view;
+    container-type: inline-size;
 }
 
 .ls-layout-slot {
