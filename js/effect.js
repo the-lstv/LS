@@ -106,9 +106,11 @@ class EffectManager extends LS.Component {
                 for(let i = 0; i < effects.length; i++) {
                     const effectString = effects[i];
 
-                    const [effectName, options] = effectString.split(":");                    
+                    let [effectName, options] = effectString.split(":");                    
                     const effect = this.effects.get(effectName);
                     if(!effect) continue;
+
+                    options = this.parseOptions(options);
 
                     const effectData = { options };
                     this.currentTarget.__lsEffect[i] = effectData;
@@ -174,6 +176,16 @@ class EffectManager extends LS.Component {
                 yield value === undefined? fallback: value;
             }
         }
+    }
+
+    parseOptions(options) {
+        // TODO: this is temporary; proper parser for options is needed
+        // & cached options
+        // & probably unify attribute parsing
+        return options? Object.fromEntries(options.split(";").map(opt => {
+            const [key, value] = opt.split("=");
+            return [key.trim(), value === undefined? true: value.trim()];
+        })): {};
     }
 
     processModifier(data, event, target) {
@@ -308,15 +320,36 @@ class EffectManager extends LS.Component {
     }
 }
 
+function noop () {}
+
 class Effect {
-    static dragStart(event)   {} // Like TouchHandle start
-    static move(event)    {} // Like TouchHandle move
-    static release(event) {} // Like TouchHandle end
-    static wheel(event)   {} // Like TouchHandle wheel
-    static scroll(event)  {}
-    static enter(event)   {}
-    static leave(event)   {}
-    static hover(event)   {} // Like TouchHandle hover
+    // Reactivity & content
+    static data        = noop;
+    static i18n        = noop;
+
+    // Handle
+    static dragStart   = noop; // TouchHandle start
+    static move        = noop; // TouchHandle move
+    static release     = noop; // TouchHandle end
+    static wheel       = noop; // TouchHandle wheel
+    static hover       = noop; // TouchHandle hover
+
+    // Browser
+    static scroll      = noop;
+    static enter       = noop;
+    static leave       = noop;
+    static focus       = noop;
+    static blur        = noop;
+
+    // Keyboard and mouse
+    static click       = noop;
+    static dblclick    = noop;
+    static contextmenu = noop;
+    static keypress    = noop;
+    static keydown     = noop;
+    static keyup       = noop;
+    static input       = noop;
+    static change      = noop;
 }
 
 /**
@@ -328,34 +361,20 @@ class Spring {
     static dragStart(event, data) {
         event.preventDefault = false;
 
-        data.moveX = true;
-        data.moveY = true;
-        this.max      = 8;
-        this.strength = 0.18;
+        const xy = data.options.x === undefined && data.options.y === undefined;
 
-        if(data.options) {
-            data.moveX = false;
-            data.moveY = false;
-
-            data.options.split(";").forEach(option => {
-                const [key, value] = option.split("=");
-                if(key === "max") this.max = parseFloat(value) || this.max;
-                if(key === "strength") this.strength = parseFloat(value) || this.strength;
-                if(key === "x") data.moveX = true;
-                if(key === "y") data.moveY = true;
-                console.log("Spring effect option:", key, value, data.moveX, data.moveY, this.max, this.strength);
-            });
-        }
+        data.moveX    =  xy || !!data.options.x;
+        data.moveY    =  xy || !!data.options.y;
+        this.max      = +(data.options.max      ?? 8);
+        this.strength = +(data.options.strength ?? 0.18);
 
         data.box = this.getBoundingClientRect();
         data.ofs = [event.x - data.box.left, event.y - data.box.top];
-
     }
 
     static move(event, data) {
         const x = event.offsetX - (data.box.width  / 2) + data.ofs[0];
         const y = event.offsetY - (data.box.height / 2) + data.ofs[1];
-
     
         const distance = Math.hypot(x, y);
         if (!distance || distance < 2) return { translate: [0, 0] };
@@ -364,6 +383,7 @@ class Spring {
         const amount = this.max * (1 - Math.exp(-distance * this.strength / this.max));
 
         return {
+            out: distance, // For piping
             translate: [
                 data.moveX? x / distance * amount: 0,
                 data.moveY? y / distance * amount: 0
@@ -380,7 +400,11 @@ class Spring {
             keyframes: [
                 { translate: `${x}px ${y}px` },
                 { translate: "0 0" }
-            ]
+            ],
+            // animationOptions: {
+            //     duration: 300,
+            //     easing: LS.Animation.spring()
+            // }
         } }
     }
 }

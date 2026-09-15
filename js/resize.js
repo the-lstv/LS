@@ -174,9 +174,11 @@ class Resize extends LS.Component {
                 const raw = storage.getItem(storeKey);
                 if(raw) {
                     const data = typeof raw === 'string' ? JSON.parse(raw) : raw;
+
                     if(data && typeof data === 'object') {
-                        if(data.width != null) target.style.width = typeof data.width === "number" ? `${data.width}px` : data.width;
-                        if(data.height != null) target.style.height = typeof data.height === "number" ? `${data.height}px` : data.height;
+                        if(data.width  != null) target.style.width  = LS.Util.toCSSSize(data.width);
+                        if(data.height != null) target.style.height = LS.Util.toCSSSize(data.height);
+
                         if(options.translate) {
                             if(data.translateX != null || data.translateY != null) {
                                 const tx = data.translateX ?? 0;
@@ -184,9 +186,10 @@ class Resize extends LS.Component {
                                 target.style.transform = `translate3d(${tx}px, ${ty}px, 0)`;
                             }
                         } else {
-                            if(data.left != null) target.style.left = typeof data.left === "number" ? `${data.left}px` : data.left;
-                            if(data.top != null) target.style.top = typeof data.top === "number" ? `${data.top}px` : data.top;
+                            if(data.left != null) target.style.left = LS.Util.toCSSSize(data.left);
+                            if(data.top  != null) target.style.top  = LS.Util.toCSSSize(data.top);
                         }
+
                         if(data.state === 'collapsed') target.classList.add('ls-resize-collapsed');
                         else if(data.state === 'expanded') target.classList.add('ls-resize-expanded');
                     }
@@ -341,6 +344,7 @@ class Resize extends LS.Component {
                     }
                 }
             },
+
             onMove: (event) => {
                 let newWidth = startWidth;
                 let newHeight = startHeight;
@@ -570,6 +574,7 @@ class Resize extends LS.Component {
                     handler.cursor = cur;
                 }
             },
+
             onEnd: (event) => {
                 try {
                     const data = {

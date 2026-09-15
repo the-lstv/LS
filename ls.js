@@ -1082,7 +1082,7 @@
             if(this.options.width && this.options.width.endsWith("%") && tagName === "textarea") {
                 this.inputElement.style.resize = "vertical";
             }
-            if(this.options.height) this.inputElement.style.height = toCSSSize(this.options.height);
+            if(this.options.height   ) this.inputElement.style.height    = toCSSSize(this.options.height);
             if(this.options.minWidth ) this.inputElement.style.minWidth  = toCSSSize(this.options.minWidth);
             if(this.options.minHeight) this.inputElement.style.minHeight = toCSSSize(this.options.minHeight);
             if(this.options.maxWidth ) this.inputElement.style.maxWidth  = toCSSSize(this.options.maxWidth);
@@ -1090,7 +1090,7 @@
 
             this.inputElement.dataset.inputId = this.id;
             this.inputElement.dataset.inputType = this.valueType || type;
-            
+
             const label = this.options.label? { tag: "span", class: "ls-input-label-text", inner: this.options.label }: null;
 
             if(this.isBinary) {
@@ -3240,6 +3240,21 @@
                     .trim();
             },
 
+            /**
+             * Normalize a JavaScript value to a CSS unit.
+             * By default, numbers & strings without an unit get converted to "<value>px", and
+             * { value, unit } objects are also accepted.
+             * 
+             * @example toCSSSize(5) -> "5px"
+             * @example toCSSSize("5") -> "5px"
+             * @example toCSSSize("5%") -> "5%"
+             * @example toCSSSize(5, "%") -> "5%"
+             * @example toCSSSize({ value: 10, unit: "rem" }) -> "10rem"
+             * 
+             * @param {string|number|object} value Value
+             * @param {string} defaultUnit Value
+             * @returns {string} CSS value
+             */
             toCSSSize,
 
             /**
@@ -3251,7 +3266,7 @@
              * @param {boolean} normalizeHTMLExt For URLs, remove index.html and .html - WARNING: this is true by default for legacy reasons
              * @returns {string|Array<string>} The normalized path.
              * 
-             * Also this implementation is 2x to 4x faster than the previous one in LinuxJS :P
+             * Also this implementation is 2x to 4x faster than the previous one in LinuxJS and other implementations :P
              */
             normalizePath(path, isAbsolute = null, allowExit = true, returnParts = false, normalizeHTMLExt = true) {
                 const parts = [];
@@ -3457,6 +3472,18 @@
                     return samples;
                 }
 
+                /**
+                 * Helper that calls startSampling & stopSampling over a specific period and returns an average.
+                 * @param {Number} period Period in ms to sample
+                 * @returns {object} { samples[], average: Number }
+                 * 
+                 * @example
+                 * console.log("FPS:", (await measureFramerate()).average);
+                 * 
+                 * @example
+                 * while(running) if((await measureFramerate()).average < 60)
+                 *     console.warn("FPS dropped below 60");
+                 */
                 measureFramerate(period = 1000) {
                     return new Promise(resolve => {
                         this.startSampling();
@@ -3590,6 +3617,7 @@
             /**
              * Ensures a callback is only run once.
              * Top 5 useless abstractions
+             * @deprecated
              */
             RunOnce: class RunOnce {
                 constructor(callback, runNow = false) {
@@ -3636,8 +3664,8 @@
             },
 
             /**
-             * Fast utilities for optimization
-             * They must remain simple & best-case as much as possible as to be safely relied on
+             * Small & fast utilities used in optimization-sensitive tasks
+             * They must remain simple and fast, which is the reason for this namespace.
              */
             fast: {
                 /**
@@ -3647,17 +3675,34 @@
                  */
                 // "(c > 57? c + 9: c) & 15" is technically faster (~20%) but doesn't handle invalid characters; it's not worth the tradeoff
                 h2i: (c) => (c >= 48 && c <= 57)? c - 48: (c >= 97 && c <= 102)? c - 87: (c >= 65 && c <= 70)? c - 55: -1,
-                twoh2i: (high, low) => (LS.Util.fast.h2i(high) << 4) | LS.Util.fast.h2i(low)
+                twoh2i: (high, low) => (LS.Util.fast.h2i(high) << 4) | LS.Util.fast.h2i(low),
+
+                /**
+                 * Takes either Array or String, finds an element/text, and slices up to that element.
+                 * @param {Array|String} str Target
+                 * @param {*} find What to find
+                 * @returns {Array|String} Sliced array/string, or target if not found
+                 */
+                sliceUntil(str, find) {
+                    const index = str.indexOf(find);
+                    if(index === -1) return str;
+                    return str.slice(0, str.indexOf(find));
+                }
             }
         }
 
         /**
+         * Misc utilities. Used to contain controls, now primarily contains UID/UUID utils.
          * @deprecated
          */
         Misc = {
             globalState: {
                 count: 0,
-                prefix: Math.round(Math.random() * 1e3).toString(36) + Math.round(Math.random() * 1e3).toString(36)
+                _prefix: null,
+                get prefix() {
+                    if(LS.Misc.globalState._prefix) return LS.Misc.globalState._prefix;
+                    return LS.Misc.globalState._prefix = Math.round(Math.random() * 1e3).toString(36) + crypto.getRandomValues(new Uint32Array(1))[0].toString(36);
+                }
             },
 
             /**
@@ -3680,7 +3725,7 @@
             },
 
             /**
-             * Generates a unique ID with a random component, using 128 bits of randomness.
+             * Generates a globally unique ID with a random component, using 128 bits of randomness.
              * Note: This includes a timestamp, counter and random session prefix, you can use UUID if you don't want those exposed, although it will be less unique.
              * @deprecated
              */
@@ -3691,13 +3736,14 @@
             /**
              * Generates a UUID v4 using the Web Crypto API with a fallback for contexts where it's not available.
              * @returns {string} A UUID v4 string.
-             * @deprecated
              */
             uuidv4() {
                 if(crypto && crypto.randomUUID) return crypto.randomUUID();
-                return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, c =>
-                    (+c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> +c / 4).toString(16)
-                );
+
+                let i = 0;
+                const rv = crypto.getRandomValues(new Uint8Array(31));
+                return "10000000-1000-4000-8000-100000000000"
+                    .replace(/[018]/g, c => (+c ^ rv[i++] & 15 >> +c / 4).toString(16));
             }
         }
 
@@ -4030,6 +4076,14 @@
                 this.__titleElement = null;
                 super.destroy();
             }
+        }
+
+        DEFAULT_LOG_OUTPUT = {
+            info: console.debug,
+            log: console.log,
+            warn: console.warn,
+            error: console.error,
+            fatal: console.error,
         }
     }
 
