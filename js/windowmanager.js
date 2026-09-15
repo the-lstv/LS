@@ -465,8 +465,9 @@ class Window extends LS.Slot {
             this.setHeaderEnabled(false);
         }
     }
-
+    
     setHeaderEnabled(enabled) {
+        this.windowElement.classList.toggle("window-header-hidden", !enabled);
         this.windowElement.querySelector(".window-header").style.display = enabled ? "flex" : "none";
     }
 
