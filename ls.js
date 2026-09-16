@@ -965,7 +965,7 @@
         }
     }
 
-    function toCSSSize(value, defaultUnit) {
+    function toCSSSize(value, defaultUnit = "px") {
         if(!value) return "0";
         if (typeof value === "number") return value + defaultUnit;
 
