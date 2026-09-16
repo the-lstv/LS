@@ -400,11 +400,7 @@ class Spring {
             keyframes: [
                 { translate: `${x}px ${y}px` },
                 { translate: "0 0" }
-            ],
-            // animationOptions: {
-            //     duration: 300,
-            //     easing: LS.Animation.spring()
-            // }
+            ]
         } }
     }
 }

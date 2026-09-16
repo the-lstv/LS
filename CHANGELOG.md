@@ -4,7 +4,7 @@ todo:
 # Version 6.0.0
 
 Major update (2026 release)!
-- **New components**: `LS.Multipane`, `LS.Layout`, `LS.View`, `LS.Patcher`, `LS.List`, `LS.SPA.*`, `LS.WindowManager`, `LS.CommandPalette`, `LS.ColorPicker`, `LS.Tree`, `LS.i18n`
+- **New components**: `LS.Multipane`, `LS.Layout`, `LS.View`, `LS.Patcher`, `LS.List`, `LS.SPA.*`, `LS.WindowManager`, `LS.CommandPalette`, `LS.ColorPicker`, `LS.Tree`, `LS.Effect`, `LS.i18n`
 - LS.Create now supports Emmet abbreviations! (eg. LS.Create("#myId") instead of LS.Create("div", { id: "myId" }))
 - Added LS.Util.parseEmmet
 - Added UI effects!
@@ -55,6 +55,9 @@ Major update (2026 release)!
 - Sibling support to LS.Resize
 
 #### Added in 6.0.0-alpha.4
+
+- Added LS.CommandPallete
+- Fixes
 
 Final alpha release before 6.0.0 relases as stable!
 
