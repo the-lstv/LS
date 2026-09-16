@@ -276,15 +276,15 @@ class CommandPalette extends LS.Component {
             this.clearValue();
         }
 
-        if(!command) {
-            this.options.logger.warn(`Command not found: ${value}`);
+        if(!command || rootLevel) {
+            this.options.logger.error(`Command not found: ${value}`);
             return;
         }
 
-        if(rootLevel) {
-            this.options.logger.warn(`Cannot execute root-level command: ${value}`);
-            return;
-        }
+        // if(rootLevel) {
+        //     this.options.logger.error(`Cannot execute root-level command: ${value}`);
+        //     return;
+        // }
 
         const callback = command.onCalled || command.callback;
 
