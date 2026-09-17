@@ -5,31 +5,31 @@ todo:
 
 Major update (2026 release)!
 - **New components**: `LS.Multipane`, `LS.Layout`, `LS.View`, `LS.Patcher`, `LS.List`, `LS.SPA.*`, `LS.WindowManager`, `LS.CommandPalette`, `LS.ColorPicker`, `LS.Tree`, `LS.Effect`, `LS.i18n`
+
 - LS.Create now supports Emmet abbreviations! (eg. LS.Create("#myId") instead of LS.Create("div", { id: "myId" }))
-- Added LS.Util.parseEmmet
-- Added UI effects!
-- Added sanitize option to LS.Create
+- New DOM concepts: dynamic effects & factories!
 - Optimized startup/load time and reduced overall library overhead
+- Added sanitize option to LS.Create
+- Added LS.Util.parseEmmet
 - Added LS.Util.staticDefaults
 - LS now has it's own [icon library](https://github.com/the-lstv/ls-icons)!
-- Tabs: tab list can now be reordered by dragging with the reordableList option
-- Tabs: tabs.add now returns the tab ID
-- Enhancements to the default tab handle style
-- LS.Tabs change event is now change instead of changed
 - Deprecated the ambiguous LS.Color.autoScheme() in favor of LS.Color.autoSchemeEnabled
 - Renamed LS.LoadComponent -> LS.register, LS.GetComponent -> LS.getComponentByName, and LS.UnregisterComponent -> LS.unregisterComponent for consistency (methods starting with lowercase).
-- API changes: ESM export is now available (using the mjs extension), and browser compatibility level can be specified (?compat=legacy|modern|latest)
 - EventEmitter.alias is now EventEmitter.aliasEvent for clarity
-- Enhancements to LS.ImageCropper
 - Enhancements to LS.Toast (smoother animations, responsive)
 - Enhancements to LS.Range (vertical support & ability to use as a progress bar)
 - Enhancements to LS.Knob
-- Updated LS.Tabs
-- Enhancements to modal behavior
+- Enhancements to LS.ImageCropper
+- Tabs: tab list can now be reordered by dragging with the reordableList option
+- Tabs: tabs.add now returns the tab ID
+- LS.Tabs change event is now change instead of changed
+- Enhancements to the default tab handle style
 - LS.Util.clone now supports advanced filtering and object mapping/transformation capabilities
 - Added tools, grid snapping, and other enhancements to LS.Timeline
+- Enhancements to modal behavior
 - Added LS.Modal.alert, LS.Modal.confirm and LS.Modal.prompt helpers for quick modals
 - Added a built-in JSONC parser (JSON with comments) - LS.Util.parseJSONC, LS.Util.stripJsonComments
+- API changes: ESM export is now available (using the mjs extension), and browser compatibility level can be specified (?compat=legacy|modern|latest)
 - & more general improvements
 
 #### Added in 6.0.0-alpha.3
@@ -57,6 +57,7 @@ Major update (2026 release)!
 #### Added in 6.0.0-alpha.4
 
 - Added LS.CommandPallete
+- Removed LS.TimelineDOM
 - Fixes
 
 Final alpha release before 6.0.0 relases as stable!
@@ -70,22 +71,27 @@ Final alpha release before 6.0.0 relases as stable!
 - GPLv3 license was removed, now source-available with restrictions.
 License before 6.0.0-alpha.3 (6.0.0-alpha.2 and lower) was GPLv3, MIT before 5.0.0 (4.1.0 and lower). These licenses apply only to those versions and do not apply to any newer versions.
 
-#### Breaking changes:
+#### Breaking changes in v6:
 
-- Removed legacy TinyFramework (LS.Tiny, Q, O, S, N, M). Now entirely under the LS namespace! (Temporarily, a "enableV5Compat" option exists that restores this.)
+- Removed legacy TinyFramework aliases (LS.Tiny; Q, O, S, N, M). Now everything is entirely under the LS namespace (eg. N -> LS.Create)!
 - Removed shared event listeners for lastKey, shiftDown, controlDown, mouseDown!
 - Removed legacyEvents from TouchHandle API! Please use the new event object.
 - Removed LS.Util.map
 - Removed TinyFactory's isInView, isEntirelyInView, on, off, get, getAll, attr, delAttr, wrapIn and clear methods!
 - Removed enforceContextSafety option, replaced with experimental Context.debugEnforceContextSafety() and Context.debugWarnContextSafety() methods intended for debugging purposes.
 - Every component now extends LS.Context & DestroyableComponent is deprecated.
-- No v5compat component will exist unlike v4compat, but this isn't a problem since the API differences aren't that major and it's mostly solved with aliases.
 - LS.Native is deprecated in favor of a future API
 - Removed LS.Color.all and LS.Color.randomAccent methods
-- Removed deprecated EventEmitter.alias method, now EventEmitter.aliasEvent
+- Removed deprecated EventEmitter.alias method, is now EventEmitter.aliasEvent
 - [state] attribute is now [data-ls-state]
 
-### Version 5.3.0 (farewell update)
+There is a temporary `enableV5Compat` option that restores a few of the removed/renamed v5 features, but it is not recommended as a long-term solution and doesn't guarantee compatibility.
+
+v6 is also the first version that removes the legacy TinyFramework architecture and fully transitions to a modern architecture with updated philosophy first introduced in v5.
+
+This probably doesn't mean much to like, anybody, but just know that there once was a different era of this framework before it became LS, and I like to keep things compatible no matter how ridiculously unimportant they are for those 2 projects abandoned 5 years ago.
+
+### Version 5.3.0 (v5 farewell update)
 
 - Polishes, optimizations & bug fixes
 - Stable enhancements adapted from 6.0.0-beta without any breaking changes.

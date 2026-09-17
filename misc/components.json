@@ -22,7 +22,6 @@
         "layout",
         "tabs",
         "timeline",
-        "timeline-dom",
         "toast",
         "tooltips",
         "tree",
