@@ -2196,6 +2196,8 @@
                     } else if(type === "object" && !(item instanceof Node)){
                         if(item.element instanceof Node) {
                             if(isArray) result.push(item.element); else result.appendChild(item.element);
+                        } else if(item.container instanceof Node) {
+                            if(isArray) result.push(item.container); else result.appendChild(item.container);
                         } else {
                             const created = LS.Create(item);
                             if(isArray) result.push(created); else result.appendChild(created);

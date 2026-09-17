@@ -40,8 +40,9 @@
 
         isRendered(element) {
             if (!element || !element.isConnected) return false;
+            if (element.offsetParent === null || element.offsetWidth === 0 || element.offsetHeight === 0) return false;
             if (getComputedStyle(element).display === 'none') return false;
-            return element.getClientRects().length > 0;
+            return element.checkVisibility?.() ?? true;
         },
 
         set prefersReducedMotion(value) {

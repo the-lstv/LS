@@ -845,7 +845,7 @@ class CommandPalette extends LS.Component {
             
             case 'number':
                 return {
-                    '(enter a number)': { value: '', icon: inputDef.icon || "bi-123", description: inputDef.description || "Enter a number" },
+                    '(enter a number)': { icon: inputDef.icon || "bi-123", description: inputDef.description || "Enter a number" },
                     '0':    { name: '0', icon: inputDef.icon || "bi-123", description: "Zero" },
                     '1':    { name: '1', icon: inputDef.icon || "bi-123", description: "One" },
                     '10':   { name: '10', icon: inputDef.icon || "bi-123", description: "Ten" },
@@ -855,7 +855,7 @@ class CommandPalette extends LS.Component {
 
             case 'color':
                 return {
-                    'Pick a color': { value: '', source: "colorPicker", icon: inputDef.icon || "bi-palette", description: inputDef.description || "Pick a color" },
+                    'Pick a color': { source: "colorPicker", icon: inputDef.icon || "bi-palette", description: inputDef.description || "Pick a color" },
                     '#000000': { name: '#000000', icon: 'bi-circle', description: "Black" },
                     '#FFFFFF': { name: '#FFFFFF', icon: 'bi-circle-fill', description: "White" },
                     '#FF0000': { name: '#FF0000', icon: 'bi-circle-fill', description: "Red", accentColor: 'red' },
@@ -892,6 +892,10 @@ class CommandPalette extends LS.Component {
                 return {
                     '(enter text)': { value: '""', icon: inputDef.icon || "bi-type", description: inputDef.description || "Enter text" }
                 };
+
+            // todo: path completion
+            case 'path':
+                return {};
 
             default:
                 return {};

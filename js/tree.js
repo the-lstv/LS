@@ -13,11 +13,44 @@
  * @version 0.2.0
  */
 
+/**
+ * @typedef TreeOptions - Configuration options for the tree.
+ * @property {boolean} options.tree - If true, the component will enable rendering as a tree structure. If false, it will render a flat list.
+ * @property {function(object, Element)} options.updateNode - A function that will be called when it is time to update a node's content. It will receive the node data and the corresponding DOM element as arguments.
+ * @property {function(object)} options.createNode - A function that will be called when it is time to create a new node. It should return a DOM element.
+ * @property {function(object)} options.loadData - A function that will be called when a lazy node is expanded and needs to load its children. It will receive the node data as an argument, and should populate the node's `children` property with the loaded data.
+ * @property {number} options.overscan - The number of rows to render outside the visible area.
+ * @property {number} options.rowHeight - The height of each row in pixels.
+ * @property {TreeNode[]} options.data - The initial tree data to load.
+ * @property {Element} options.target - The DOM element to which the tree should be appended. If not provided, the tree will simply not be appended automatically, and you can do it manually (tree.container).
+ * @property {boolean} options.lazy - Whether to always enable lazy loading behavior (load-on-demand), even for nodes without the `lazy` property.
+ * @property {boolean} options.styled - Whether to apply default styles to the tree. You can set this to false if you want to provide your own styles.
+ * @property {boolean} options.guides - Whether to display indent guides (lines). Setting to false will only set padding.
+ * @property {boolean} options.icons - Whether to display icons.
+ * @property {string} options.iconClass - The base CSS classname to use for node icons.
+ * @property {string} options.caretIconClass - The CSS class to use for the caret icon. If null, the default caret will be used.
+ * @property {number} options.space - The amount of space to use for each level of indentation.
+ */
+
+/**
+ * @typedef TreeNode - Represents a node in the tree.
+ * @property {string} id - Unique identifier for the node.
+ * @property {string|null} parentId - Identifier of the parent node (null for root nodes).
+ * @property {string} label - Text to display for the node.
+ * @property {TreeNode[]} [children] - Optional array of child nodes.
+ * @property {object} [state] - State object for the node, e.g., { expanded: boolean }.
+ * @property {boolean} [lazy] - Whether the node should be loaded lazily (load-on-demand).
+ * @property {string} [icon] - Optional CSS class for a custom icon for the node.
+ * @property {object} [i18n] - Optional internationalization data for the node label, e.g., { key: string, vars: object }.
+ * ...Anything else, TreeNode is mainly an "any" object.
+ */
+
 class Tree extends LS.Component {
     static { LS.register(this, { name: "Tree", global: true }) }
 
     // See constructor for documentation on options
     static defaults = LS.Util.staticDefaults({
+        tree: true,
         rowHeight: 24,
         updateNode: null,
         createNode: null,
@@ -55,22 +88,7 @@ class Tree extends LS.Component {
 
     /**
      * Create a new Tree component.
-     * @param {*} options - Configuration options for the tree.
-     * @param {boolean} options.tree - If true, the component will enable rendering as a tree structure. If false, it will render a flat list.
-     * @param {function} options.updateNode - A function that will be called when it is time to update a node's content. It will receive the node data and the corresponding DOM element as arguments.
-     * @param {function} options.createNode - A function that will be called when it is time to create a new node. It should return a DOM element.
-     * @param {function} options.loadData - A function that will be called when a lazy node is expanded and needs to load its children. It will receive the node data as an argument, and should populate the node's `children` property with the loaded data.
-     * @param {number} options.overscan - The number of rows to render outside the visible area.
-     * @param {number} options.rowHeight - The height of each row in pixels.
-     * @param {Array} options.data - The initial tree data to load.
-     * @param {Element} options.target - The DOM element to which the tree should be appended. If not provided, the tree will simply not be appended automatically, and you can do it manually (tree.container).
-     * @param {boolean} options.lazy - Whether to always enable lazy loading behavior (load-on-demand), even for nodes without the `lazy` property.
-     * @param {boolean} options.styled - Whether to apply default styles to the tree. You can set this to false if you want to provide your own styles.
-     * @param {boolean} options.guides - Whether to display indent guides (lines). Setting to false will only set padding.
-     * @param {boolean} options.icons - Whether to display icons.
-     * @param {string} options.iconClass - The base CSS classname to use for node icons.
-     * @param {string} options.caretIconClass - The CSS class to use for the caret icon. If null, the default caret will be used.
-     * @param {number} options.space - The amount of space to use for each level of indentation.
+     * @param {TreeOptions} options 
      */
     constructor(options) {
         super();
@@ -192,8 +210,8 @@ class Tree extends LS.Component {
      *   lazy: boolean,     // Whether the node should be loaded lazily (load-on-demand)
      *   ...any other user data, the component only uses the ones mentioned above.
      * }
-     * @param {Array} data - The tree data to load.
-     * @param {Object} parent - The parent node to which the data should replaced, otherwise the whole tree will be replaced.
+     * @param {TreeNode[]} data - The tree data to load.
+     * @param {TreeNode|null} parent - The parent node to which the data should replaced, otherwise the whole tree will be replaced.
      * @param {Object} options - Additional options for loading data.
      * @param {boolean} options.lazy - Lazy load (skips existing node IDs and avoids full tree reset)
      */
@@ -251,6 +269,10 @@ class Tree extends LS.Component {
         return this.flatNodes[index] || null;
     }
 
+    /**
+     * Collapse a node.
+     * @param {TreeNode} node
+     */
     collapse(node) {
         if (!node.state?.expanded) return;
         node.state.expanded = false;
@@ -258,6 +280,10 @@ class Tree extends LS.Component {
         this.render();
     }
 
+    /**
+     * Expand a node.
+     * @param {TreeNode} node
+     */
     async expand(node) {
         if (node.state?.expanded) return;
         node.state ??= {};
@@ -288,6 +314,10 @@ class Tree extends LS.Component {
         this.render();
     }
 
+    /**
+     * Toggle the expanded state of a node.
+     * @param {TreeNode} node
+     */
     toggle(node) {
         if (node.state?.expanded) this.collapse(node); else this.expand(node);
     }
@@ -366,8 +396,8 @@ class Tree extends LS.Component {
 
     /**
      * Add a new node to the tree.
-     * @param {*} nodeData - The data for the new node.
-     * @param {*} parentId - The ID of the parent node to attach to, or null to add to the root.
+     * @param {TreeNode} nodeData - The data for the new node.
+     * @param {string|null} parentId - The ID of the parent node to attach to, or null to add to the root.
      */
     addNode(nodeData, parentId = null) {
         if (parentId !== null) nodeData.parentId = typeof parentId === "string" ? parentId : parentId.id;
@@ -414,7 +444,7 @@ class Tree extends LS.Component {
      * Update the content of a node by its ID.
      * @experimental
      * @param {*} id - The ID of the node to update.
-     * @param {*} newData - An object containing new data for the node. Only provided properties will be updated (assigned).
+     * @param {TreeNode} newData - An object containing new data for the node. Only provided properties will be updated (assigned).
      */
     updateNode(id, newData) {
         const node = typeof id === "string" ? this.nodeMap.get(id) : id;
