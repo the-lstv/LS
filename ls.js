@@ -527,7 +527,23 @@
         #aggressiveCleanup = false;
         #deleteProperties = true;
 
+        /**
+         * @type {AbortController|null}
+         */
+        #abortController = null;
+
         destroyed = false;
+
+        /**
+         * @type {AbortSignal|null}
+         */
+        get abortSignal() {
+            if(!this.#abortController) {
+                const controller = new AbortController();
+                this.#abortController = controller;
+            }
+            return this.#abortController.signal;
+        }
 
         constructor(options) {
             super();
@@ -776,6 +792,11 @@
 
             this.quickEmit("destroy");
             this.events?.clear?.();
+
+            if(this.#abortController) {
+                this.#abortController.abort();
+                this.#abortController = null;
+            }
 
             const timeouts = this.#timeouts;
             if (timeouts) {
@@ -1566,22 +1587,28 @@
          * @returns {Element} Created element
          */
         Create(emmet = "div", content){
+            let element;
             if(typeof emmet !== "string"){
-                content = emmet;
-                if(content) {
-                    // Technically tag/tagName are compatible with emmet, but they should be separate at some point
-                    emmet = content.emmet || content.tag || content.tagName || "div";
-                    delete content.emmet;
-                    delete content.tag;
-                    delete content.tagName;
-                } else if(content === null) return null;
+                if(emmet instanceof Element) {
+                    element = emmet;
+                    emmet = null;
+                } else {
+                    content = emmet;
+                    if(content) {
+                        // Technically tag/tagName are compatible with emmet, but they should be separate at some point
+                        emmet = content.emmet || content.tag || content.tagName || "div";
+                        delete content.emmet;
+                        delete content.tag;
+                        delete content.tagName;
+                    } else if(content === null) return null;
+                }
             }
 
             // Default
-            if(!content && !emmet) return document.createElement("div");
+            if(!element && !content && !emmet) return document.createElement("div");
 
             // Simple element (fast path)
-            if(!content) return LS.Util.parseEmmet(emmet, { singleNode: true });
+            if(!element && !content) return LS.Util.parseEmmet(emmet, { singleNode: true });
 
             content =
                 typeof content === "string"
@@ -1591,7 +1618,9 @@
                         : content || {};
 
             const { class: className, tooltip, ns, inner, content: innerContent, i18n, html, text, accent, style, parent, reactive, attr, options, attributes, sanitize, state, ephemeral, effects, animation, animationOptions, ...rest } = content;
-            const element = Object.assign(
+
+            // Create the element
+            if(!element) element = Object.assign(
                 LS.Util.parseEmmet(emmet, { ns, singleNode: true }),
                 rest
             );
@@ -1738,6 +1767,26 @@
             }
 
             return element;
+        }
+
+        /**
+         * Applies content or options to an existing element.
+         * This is a very high-level utility, meant to be used only if you require some specific LS.Create functionality, otherwise you should avoid it for performance reasons.
+         * 
+         * @param {HTMLElement} element Element to apply to.
+         * @param {*} content Content/options to apply.;
+         * @returns {HTMLElement} element
+         * 
+         * @example
+         * LS.Apply(document.body, { class: "new-class", text: "New content" });
+         */
+        Apply(element, content) {
+            if(!(element instanceof HTMLElement)) {
+                console.error("LS.Apply: Invalid element provided:", element);
+                return null;
+            }
+
+            return LS.Create(element, content);
         }
 
         /**

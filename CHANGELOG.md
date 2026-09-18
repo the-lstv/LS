@@ -56,7 +56,7 @@ Major update (2026 release)!
 
 #### Added in 6.0.0-alpha.4
 
-- Added LS.CommandPallete
+- Added LS.CommandPalette
 - Removed LS.TimelineDOM
 - Fixes
 

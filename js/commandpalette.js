@@ -19,11 +19,12 @@
  * @typedef {Object} PaletteOptions
  * @property {Object} [logger] - Custom logger object with info/log/warn/error/fatal methods
  * @property {number} [fontWidth] - The width of a single character in the input element (used for caret positioning)
- * @property {HTMLElement} [wrapperElement] - The wrapper element for the command palette
- * @property {HTMLElement} [inputElement] - The input element for the command palette
- * @property {HTMLElement} [menuElement] - The menu element for the command palette
- * @property {HTMLElement} [hintElement] - The hint element for the command palette
- * @property {HTMLElement} [iconElement] - The icon element for the command palette
+ * @property {HTMLElement} [container] - The wrapper element for the command palette (optional)
+ * @property {HTMLElement} [textContainer] - The text display element (optional)
+ * @property {HTMLElement} [inputElement] - The input element for the command palette (optional)
+ * @property {HTMLElement} [menuElement] - The menu element for the command palette (optional)
+ * @property {HTMLElement} [hintElement] - The hint element for the command palette (optional)
+ * @property {HTMLElement} [iconElement] - The icon element for the command palette (optional)
  */
 
 /**
@@ -146,27 +147,36 @@ class CommandPalette extends LS.Component {
         this.StackRef = this;
 
         // --- Elements
-        this.wrapperElement = this.options.wrapperElement  || null;
-        this.inputElement   = this.options.inputElement    || LS.Create("input");
-        this.menuElement    = this.options.menuElement     || LS.Create("div.completion-menu");
+        this.container = this.options.container  || LS.Create();
+        this.container.classList.add("ls-command-palette");
 
+        this.container.onclick = () => this.focus();
+
+        this.menuElement    = this.options.menuElement     || LS.Create(".completion-menu").addTo(this.container);
         this.menuElement.style.display = "none";
-        this.wrapperElement.appendChild(this.menuElement);
 
-        if (!this.wrapperElement && this.inputElement) {
-            this.wrapperElement = this.inputElement.parentElement;
-        }
+        this.iconElement    = this.options.iconElement     || LS.Create("i.command-icon", { class: this.options.defaultIcon }).addTo(this.container);
 
-        this.hintElement        = this.options.hintElement        || null;
-        this.iconElement        = this.options.iconElement        || null;
-        this.terminalOutput     = this.options.terminalOutput     || null;
-        this.textDisplayElement = this.options.textDisplayElement || null;
+        const textContainer = this.options.textContainer   || LS.Create(".textContainer").addTo(this.container);
+
+        this.selectionHighlight = this.options.selectionHighlight    ||
+            this.container?.querySelector('.command-selection') || LS.Create("span.command-selection").addTo(textContainer);
 
         this.caretElement = this.options.caretElement ||
-            this.wrapperElement?.querySelector('.command-caret') || null;
+            this.container?.querySelector('.command-caret')     || LS.Create("span.command-caret").addTo(textContainer);
 
-        this.selectionHighlight = this.options.selectionHighlight ||
-            this.wrapperElement?.querySelector('.command-selection') || null;
+        this.textDisplayElement = this.options.textDisplayElement ?? LS.Create("span.command-text").addTo(textContainer);
+        this.hintElement        = this.options.hintElement        ?? LS.Create("span.command-hint").addTo(textContainer);
+
+        this.inputElement       = this.options.inputElement       || LS.Create("input.command-input[type='text']", {
+            attributes: {
+                autocomplete: "off",
+                autocorrect: "off",
+                autocapitalize: "off",
+                spellcheck: "off",
+                "aria-label": "Command Palette Input"
+            }
+        }).addTo(textContainer);
 
         this.#setupHandlers();
     }
@@ -570,8 +580,8 @@ class CommandPalette extends LS.Component {
         this.inputElement.addEventListener('mouseup', ()  => this.#updateCaretPosition(), eventOpt);
         this.inputElement.addEventListener('scroll',  ()  => this.#updateCaretPosition(), eventOpt);
 
-        this.inputElement.addEventListener('focus',   ()  => { this.wrapperElement?.classList.add('focused'); this.autoCompletion(); },    eventOpt);
-        this.inputElement.addEventListener('blur',    ()  => this.wrapperElement?.classList.remove('focused'), eventOpt);
+        this.inputElement.addEventListener('focus',   ()  => { this.container?.classList.add('focused'); this.autoCompletion(); },    eventOpt);
+        this.inputElement.addEventListener('blur',    ()  => this.container?.classList.remove('focused'), eventOpt);
 
         // Is this necessary?
         this.inputElement.addEventListener('touchend', () => {
@@ -588,7 +598,7 @@ class CommandPalette extends LS.Component {
 
         document.addEventListener('pointerdown', (e) => {
             if (!this.isMenuVisible) return;
-            if(!this.wrapperElement?.contains(e.target)) return this.hideCompletions();
+            if(!this.container?.contains(e.target)) return this.hideCompletions();
 
             const item = e.target.closest('.completion-item');
             if(!item) return;
@@ -939,8 +949,8 @@ class CommandPalette extends LS.Component {
             }
         }
 
-        if (this.wrapperElement) {
-            this.wrapperElement.classList.toggle('selection', hasSelection);
+        if (this.container) {
+            this.container.classList.toggle('selection', hasSelection);
         }
     }
 

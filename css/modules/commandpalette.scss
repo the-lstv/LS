@@ -1,0 +1,212 @@
+/*
+    Part: Command Palette
+*/
+
+.ls-command-palette {
+    position: relative;
+    padding: 8px 16px;
+    display: flex;
+    gap: .8em;
+    flex: 1;
+    width: 100%;
+    cursor: text;
+
+    .textContainer {
+        min-height: var(--command-text-size);
+        position: relative;
+        width: 100%;
+    }
+
+    &:not(.focused) .command-caret {
+        outline: 1px solid var(--accent-50);
+    }
+
+    &:not(.focused) .command-selection {
+        display: none;
+    }
+
+    &.selection .command-selection {
+        display: block;
+    }
+
+    &.selection .command-caret {
+        display: none;
+    }
+
+    &.focused .command-caret {
+        background: var(--accent-50);
+    }
+
+    &.focused .command-caret.blink {
+        background: var(--accent-mix-80);
+    }
+}
+
+.ls-command-palette-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    user-select: none;
+}
+
+#topOverlay {
+    position: absolute;
+    left: 0;
+    right: 0;
+    max-width: 650px;
+    padding: 0 10px;
+    margin: 0 auto;
+    z-index: 5000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    top: var(--topOffset);
+
+    --command-text-size: 1.2rem;
+}
+
+.ls-command-palette-wrapper, .command-input, .ls-command-palette .textContainer, #commandTerminal {
+    font-family: "JetBrains Mono", "IBM Plex Mono", monospace !important;
+}
+
+.ls-command-palette-buttons {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 8px;
+}
+
+.command-input, .ls-command-palette .textContainer {
+    font-size: var(--command-text-size);
+    line-height: var(--command-text-size);
+}
+
+#commandTerminal, .ls-command-palette-wrapper {
+    width: 100%;
+    border-radius: var(--border-radius);
+    outline: 1px solid var(--surface-2);
+    box-shadow: 0 10px 20px 0 rgba(0, 0, 0, .1333333333);
+}
+
+#commandTerminal {
+    overflow: auto;
+    max-height: min(calc(100vh - 130px), 400px);
+    padding: 8px;
+}
+
+.terminal-line {
+    white-space: pre-wrap;
+    user-select: text;
+}
+
+.terminal-line:hover {
+    background: var(--elevate-1);
+}
+
+.terminal-line.level-info {
+    color: var(--surface-8);
+}
+
+.terminal-line.level-warn {
+    color: orange;
+}
+
+.terminal-line.level-error {
+    color: rgb(237, 60, 60);
+}
+
+.terminal-line.level-fatal {
+    color: red;
+    font-weight: bold;
+}
+
+.command-input {
+    opacity: 0;
+    position: absolute !important;
+    inset: 0;
+    margin: 0 !important;
+    border: none !important;
+    padding: 0 !important;
+    z-index: 10;
+    top: -8px;
+}
+
+.command-caret, .command-selection {
+    position: absolute;
+    top: 0;
+    height: var(--command-text-size);
+    width: 9.6px;
+}
+
+.completion-menu {
+    background: var(--surface-1);
+    border: 1px solid var(--surface-0);
+    position: absolute;
+    top: 90%;
+    display: flex;
+    flex-direction: column;
+    max-height: 300px;
+    overflow: auto;
+    padding: 5px;
+    border-radius: var(--border-radius-medium);
+    outline: 1px solid var(--surface-2);
+    box-shadow: 0 10px 20px 0 rgba(0, 0, 0, .14);
+}
+
+[ls-theme=light] .completion-menu {
+    background: var(--surface-n2);
+}
+
+.completion-item {
+    padding: 2px 8px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    display: flex;
+    gap: 8px;
+    border-radius: var(--border-radius);
+    align-items: center;
+    white-space: nowrap;
+}
+
+.completion-item.has-accent {
+    color: var(--accent-60);
+}
+
+[ls-theme=light] .completion-item.has-accent {
+    color: var(--accent-40);
+}
+
+.completion-description {
+    color: var(--surface-8);
+}
+
+.completion-item:hover {
+    background: var(--surface-3);
+}
+
+[ls-theme=light] .completion-item:hover {
+    background: var(--surface-1);
+}
+
+.completion-item.selected {
+    background: var(--surface-4);
+}
+
+[ls-theme=light] .completion-item.selected {
+    background: var(--surface-0);
+}
+
+.command-hint {
+    opacity: .5;
+}
+
+.command-text {
+    white-space: pre;
+    position: relative;
+    z-index: 1;
+}
+
+.command-selection {
+    background: var(--accent-mix-80);
+}

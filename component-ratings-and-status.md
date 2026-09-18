@@ -31,7 +31,7 @@ The goal is to have all built-in components reach the highest quality rating so 
 | LS.Knob | ★★★★☆ (4/5) | Extensive feature set, pretty robust
 | LS.Timeline | ★★★★☆ (4/5) | Recently fully revamped, has a few bugs to fix and some missing features, but is a major improvement over the previous DOM based version.
 | LS.Patcher | ★★★★☆ (4/5) | New component, needs rendering optimizations
-| LS.CommandPallete | ★★★★☆ (4/5) | New component, some features & API are WIP
+| LS.CommandPalette | ★★★★☆ (4/5) | New component, some features & API are WIP
 | LS.Tree | ★★★★☆ (4/5) | Stable, but might still need some polishing.
 | LS.Animation | ★★★★☆ (4/5) | Works, but way too few features (being replaced by LS.Animation2)
 | LS.Menu | ★★★★☆ (4/5) | Recently refactored (further work could be done to reduce per-instance overhead)

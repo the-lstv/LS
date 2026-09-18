@@ -38,6 +38,8 @@
         "knob",
         "timeline",
         "timeline-dom",
-        "windowmanager"
+        "windowmanager",
+        "commandpalette",
+        "cursors"
     ]
 }
