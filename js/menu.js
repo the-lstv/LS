@@ -272,6 +272,11 @@ class Menu extends LS.Component {
         return required;
     }
 
+    add(option) {
+        this.items.push(option);
+        this.renderItems();
+    }
+
     renderItem(node, item) {
         let iconContainer = node.querySelector('.ls-menu-item-icon');
         if (item.icon) {
@@ -907,8 +912,9 @@ customElements.define('ls-select', class LSSelect extends HTMLElement {
         }).addTo(this);
 
         if (!this._lsSelectOptions) {
-            if(this.hasAttribute('ls-options-values')) {
-                this.getAttribute('ls-options-values').split(',').forEach((value) => {
+            if(this.hasAttribute('data-ls-options-values') || this.hasAttribute('ls-options-values')) {
+                (this.getAttribute('data-ls-options-values') || this.getAttribute('ls-options-values'))
+                .split(',').forEach((value) => {
                     let selected = false;
                     value = value.trim();
                     if(value.startsWith("[") && value.endsWith("]")) {
@@ -920,7 +926,7 @@ customElements.define('ls-select', class LSSelect extends HTMLElement {
                         value,
                         text: value,
                         selected
-                    }
+                    };
 
                     this.menu.add(option);
 

@@ -12,7 +12,7 @@ class Tooltips extends LS.Component {
      * This causes more overhead when moving the mouse (each event is scanned for a possible matching tooltip even if there are none), but allows for tooltips
      * to be detected even if they are added dynamically and is more memory efficient (significantly less event listeners).
      * 
-     * This is the new default mode since 6.0.0-alpha.4, and is recommended for most use cases.
+     * This is the new default mode since 6.0.0-alpha.5, and is recommended for most use cases.
      */
     SCAN_GLOBAL = "global";
 
@@ -21,7 +21,7 @@ class Tooltips extends LS.Component {
      * This can be more efficient when there is only a few tooltips, but requires rescanning the element if new tooltips are added.
      * The downside is it uses more memory and requires more manual management.
      * 
-     * This was the default behavior in < 6.0.0-alpha.4 and is now deprecated and should be avoided.
+     * This was the default behavior in < 6.0.0-alpha.5 and is now deprecated and should be avoided.
      * 
      * To switch back to this mode, you can use:
      * LS.Tooltips.resetGlobalInstance({ scanMode: LS.Tooltips.SCAN_LOCAL });

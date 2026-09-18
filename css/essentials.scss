@@ -1024,12 +1024,12 @@ ls-select ls-option, ls-select option, ls-select optgroup {
     min-width: 0;
     flex: 1;
     container-name: ls-view;
-    container-type: inline-size;
+    container-type: size;
 }
 
 .ls-layout-slot {
     display: flex;
-    container-type: inline-size;
+    container-type: size;
     min-height: 0;
     flex-direction: column;
 }
@@ -1038,7 +1038,10 @@ ls-select ls-option, ls-select option, ls-select optgroup {
     width: 100%;
     height: 100%;
     position: relative;
-    outline: 1px solid var(--surface-1);
+
+    &:not(.ls-window-content-container) {
+        outline: 1px solid var(--surface-1);
+    }
 }
 
 .ls-layout-slot:last-of-type {

@@ -28,7 +28,7 @@ class WindowManager extends LS.Component {
         this.rightOffset  = options.rightOffset  || 0;
 
         this.globalWindowZIndex = 1000;
-        this.topWindowZIndex = 99999999; // Could be a separate stack
+        this.topWindowZIndex = 999999999; // Could be a separate stack
 
         this.WINDOW_EDGE_MARGIN = 12;
 
@@ -41,6 +41,11 @@ class WindowManager extends LS.Component {
 
         this.target = options.target || window.__windowManagerTarget || LS._topLayer || document.body;
         this.target.appendChild(this.container);
+
+        this.resizeGhost = LS.Create({
+            parent: this.container,
+            style: "display: none; pointer-events: none; z-index: 1000; position: fixed; inset: 10px; background: var(--surface-top); opacity: 0.25; transform-origin: center top; border-radius: var(--border-radius, 10px)"
+        });
 
         // Keep floating windows in view on resize
         this.windowBoundsScheduler = new LS.Util.FrameScheduler(() => {
@@ -156,8 +161,14 @@ class Window extends LS.Slot {
     //                 logic.export("icon", { class: 'window-icon', tag: 'img' }),
     //                 logic.export("title", { class: 'window-title text-overflow-nowrap', textContent: data.name, tag: 'span' }),
     //             ],
-
     //             { class: 'window-header-buttons', inner: [
+    //                 {
+    //                     tag: 'button',
+    //                     class: 'window-top-button circle elevated',
+    //                     inner: { tag: 'i', class: 'bi-arrow-bar-up' }, // todo
+    //                     tooltip: 'Always On Top',
+    //                     onclick: data.toggleAlwaysOnTop
+    //                 },
     //                 {
     //                     tag: 'button',
     //                     class: 'window-pin-button circle elevated',
@@ -191,7 +202,7 @@ class Window extends LS.Slot {
     // }));
 
     // Precompiled
-    static TEMPLATE = function(d){'use strict';var e0=document.createElement("div");e0.className="window-container";var e1=document.createElement("div");e1.className="level-1 window-header";var e2=document.createElement("div");var e3=document.createElement("img");e3.className="window-icon";e2.appendChild(e3);var e4=document.createElement("span");e4.textContent=d.name;e4.className="window-title text-overflow-nowrap";e2.appendChild(e4);var e5=document.createElement("div");e5.className="window-header-buttons";var e6=document.createElement("button");e6.onclick=d.toggleView;e6.setAttribute("ls-tooltip","Toggle Window View");LS.Tooltips.updateElement(e6);e6.className="window-maximize-button circle elevated";var e7=document.createElement("i");e7.className="bi-window";e6.appendChild(e7);var e8=document.createElement("button");e8.onclick=d.minimize;e8.className="window-minimize-button circle elevated";var e9=document.createElement("i");e9.className="bi-dash-lg";e8.appendChild(e9);var e10=document.createElement("button");e10.onclick=d.maximize;e10.className="window-maximize-button circle elevated";var e11=document.createElement("i");e11.className="bi-square";e10.appendChild(e11);var e12=document.createElement("button");e12.onclick=d.close;e12.className="window-close-button circle elevated";var e13=document.createElement("i");e13.className="bi-x-lg";e12.appendChild(e13);e5.append(e6,e8,e10,e12);e1.append(e2,e5);var dyn14=LS.toNode(d.target);e0.append(e1,dyn14);var __rootValue=e0;return{"header":e1,"icon":e3,"title":e4,root:__rootValue};}
+    static TEMPLATE = function(d){'use strict';var e0=document.createElement("div");e0.className="window-container";var e1=document.createElement("div");e1.className="level-1 window-header";var e2=document.createElement("div");var e3=document.createElement("img");e3.className="window-icon";e2.appendChild(e3);var e4=document.createElement("span");e4.textContent=d.name;e4.className="window-title text-overflow-nowrap";e2.appendChild(e4);var e5=document.createElement("div");e5.className="window-header-buttons";var e6=document.createElement("button");e6.onclick=d.toggleAlwaysOnTop;e6.setAttribute("ls-tooltip","Always On Top");LS.Tooltips.updateElement(e6);e6.className="window-top-button circle elevated";var e7=document.createElement("i");e7.className="bi-arrow-bar-up";e6.appendChild(e7);var e8=document.createElement("button");e8.onclick=d.toggleView;e8.setAttribute("ls-tooltip","Toggle Window View");LS.Tooltips.updateElement(e8);e8.className="window-pin-button circle elevated";var e9=document.createElement("i");e9.className="bi-window";e8.appendChild(e9);var e10=document.createElement("button");e10.onclick=d.minimize;e10.className="window-minimize-button circle elevated";var e11=document.createElement("i");e11.className="bi-dash-lg";e10.appendChild(e11);var e12=document.createElement("button");e12.onclick=d.maximize;e12.className="window-maximize-button circle elevated";var e13=document.createElement("i");e13.className="bi-square";e12.appendChild(e13);var e14=document.createElement("button");e14.onclick=d.close;e14.className="window-close-button circle elevated";var e15=document.createElement("i");e15.className="bi-x-lg";e14.appendChild(e15);e5.append(e6,e8,e10,e12,e14);e1.append(e2,e5);var dyn16=LS.toNode(d.target);e0.append(e1,dyn16);var __rootValue=e0;return{"header":e1,"icon":e3,"title":e4,root:__rootValue};}
 
     constructor(options = {}){
         if (typeof options === "string") {
@@ -220,10 +231,11 @@ class Window extends LS.Slot {
         const window = Window.TEMPLATE({
             name: this.getTitle(),
             target: contentTarget,
-            minimize: () => this.minimize(),
-            maximize: () => this.maximize(),
-            close: () => this.close(),
-            toggleView: () => this.toggleView(),
+            minimize:          () => this.minimize(),
+            maximize:          () => this.maximize(),
+            close:             () => this.close(),
+            toggleView:        () => this.toggleView(),
+            toggleAlwaysOnTop: () => this.toggleAlwaysOnTop()
         });
 
         contentTarget.classList.add("ls-window-content-container");
@@ -246,10 +258,11 @@ class Window extends LS.Slot {
         this.suspendOnClose = options.suspendOnClose ?? this.manager.SUSPEND_ON_CLOSE;
 
         const headerButtons = this.windowElement.querySelectorAll(".window-header-buttons > button");
-        this.toggleViewButton = headerButtons[0] || null;
-        this.minimizeButton = headerButtons[1] || null;
-        this.maximizeButton = headerButtons[2] || null;
-        this.closeButton = headerButtons[3] || null;
+        this.alwaysOnTopButton = headerButtons[0] || null;
+        this.toggleViewButton = headerButtons[1] || null;
+        this.minimizeButton = headerButtons[2] || null;
+        this.maximizeButton = headerButtons[3] || null;
+        this.closeButton = headerButtons[4] || null;
 
         if(options.closeable === false) {
             this.setCloseButtonEnabled(false);
@@ -265,6 +278,10 @@ class Window extends LS.Slot {
 
         if(options.pinButton === false) {
             this.setToggleViewButtonEnabled(false);
+        }
+
+        if(options.topButton === false) {
+            this.setAlwaysOnTopButtonEnabled(false);
         }
 
         // x, y, width, height
@@ -299,6 +316,26 @@ class Window extends LS.Slot {
 
                     startX = event.x - this.x;
                     startY = event.y - this.y;
+                } else {
+                    if (event.y < this.getViewportTopOffset() + this.manager.WINDOW_MAXIMIZE_DRAG_RESTORE_BUFFER) {
+                        if(!this.manager.resizeGhost.shown) {
+                            this.manager.resizeGhost.shown = true;
+                            this.manager.resizeGhost.style.zIndex = this.manager.globalWindowZIndex;
+                            this.manager.resizeGhost.style.display = "block";
+                            this.manager.resizeGhost.style.inset = `${this.manager.topOffset + 10}px ${this.manager.rightOffset + 10}px ${this.manager.bottomOffset + 10}px ${this.manager.leftOffset + 10}px`;
+                            this.manager.resizeGhost.style.transformOrigin = `${event.x}px top`;
+    
+                            this.manager.resizeGhost.animate([
+                                { scale: "0" },
+                                { scale: "1" }
+                            ], {
+                                easing: "ease", duration: 250
+                            });
+                        }
+                    } else {
+                        this.manager.resizeGhost.shown = false;
+                        this.manager.resizeGhost.style.display = "none";
+                    }
                 }
 
                 if (this.isMaximized) return;
@@ -312,6 +349,9 @@ class Window extends LS.Slot {
                     startX = event.x - (this.width / 2);
                     startY = event.y - 20;
                 }
+
+                this.manager.resizeGhost.shown = false;
+                this.manager.resizeGhost.style.display = "none";
             }
         });
 
@@ -352,7 +392,6 @@ class Window extends LS.Slot {
             this.applyLayout();
             this.updateControlButtons();
         }
-
 
         if(options.transparent) {
             this.windowElement.classList.add("window-transparent");
@@ -426,8 +465,9 @@ class Window extends LS.Slot {
             this.setHeaderEnabled(false);
         }
     }
-
+    
     setHeaderEnabled(enabled) {
+        this.windowElement.classList.toggle("window-header-hidden", !enabled);
         this.windowElement.querySelector(".window-header").style.display = enabled ? "flex" : "none";
     }
 
@@ -446,6 +486,12 @@ class Window extends LS.Slot {
     setToggleViewButtonEnabled(enabled) {
         if (this.toggleViewButton) {
             this.toggleViewButton.style.display = enabled ? "inline-flex" : "none";
+        }
+    }
+
+    setAlwaysOnTopButtonEnabled(enabled) {
+        if (this.alwaysOnTopButton) {
+            this.alwaysOnTopButton.style.display = enabled ? "inline-flex" : "none";
         }
     }
 
@@ -584,6 +630,8 @@ class Window extends LS.Slot {
             this.windowElement.style.opacity = 1;
             return;
         }
+
+        this.focus();
         return LS.Animation.fadeIn(this.windowElement, "up", null, true);
     }
 
@@ -829,6 +877,11 @@ class Window extends LS.Slot {
             this.toggleViewButton.querySelector("i").className = this.isPinnedView ? "bi-pin-angle-fill" : "bi-window";
         }
 
+        console.log("asd")
+        if (this.alwaysOnTopButton) {
+            this.alwaysOnTopButton.classList.toggle("elevated", !this.alwaysOnTop);
+        }
+
         if (this.maximizeButton) {
             this.maximizeButton.setAttribute("ls-tooltip", this.isMaximized ? "Restore Window" : "Maximize Window");
             this.maximizeButton.querySelector("i").className = this.isMaximized ? "bi-fullscreen-exit" : "bi-square";
@@ -844,7 +897,12 @@ class Window extends LS.Slot {
 
     set alwaysOnTop(value) {
         this._alwaysOnTop = !!value;
+        this.updateControlButtons();
         this.focus();
+    }
+
+    toggleAlwaysOnTop() {
+        this.alwaysOnTop = !this.alwaysOnTop;
     }
 
     destroy(destroyContent = true, _force = false) {

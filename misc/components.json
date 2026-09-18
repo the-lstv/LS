@@ -5,6 +5,7 @@
         "automationgraph",
         "color",
         "compiletemplate",
+        "commandpalette",
         "dragdrop",
         "gl",
         "imagecropper",
@@ -21,7 +22,6 @@
         "layout",
         "tabs",
         "timeline",
-        "timeline-dom",
         "toast",
         "tooltips",
         "tree",
@@ -29,7 +29,8 @@
         "spa",
         "list",
         "windowmanager",
-
+        "soundbox",
+        "effect",
         "progress"
     ],
     "css": [
@@ -37,6 +38,8 @@
         "knob",
         "timeline",
         "timeline-dom",
-        "windowmanager"
+        "windowmanager",
+        "commandpalette",
+        "cursors"
     ]
 }
