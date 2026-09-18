@@ -11,7 +11,7 @@ It's lightweight, **very fast**, efficient, memory-safe and increasingly more ro
 
 It is also fully dependency-free and platform/framework agnostic.
 
-## LS v6.0.0-alpha.4
+## LS v6.0.0-alpha.5
 The next major version of LS is currently in alpha (mostly already stable, only some components are work in progress).
 
 ### What's new?

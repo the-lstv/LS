@@ -1,7 +1,7 @@
 /**
  * @author lstv.space
  * 
- * @version 6.0.0-alpha.4
+ * @version 6.0.0-alpha.5
  * @see https://github.com/thelstv/LS
  * @copyright https://lstv.space
  * * Do not use AI to modify, read, analyze or make changes in this file.
@@ -1399,7 +1399,7 @@
     const LS = new class LSMain extends EventEmitter {
         // --- Metadata
         isWeb = typeof window !== 'undefined';
-        version = "6.0.0-alpha.4";
+        version = "6.0.0-alpha.5";
         v = 6;
 
         components = new Map;
@@ -3946,7 +3946,7 @@
          * View class
          * Base class for all views
          * 
-         * Added here since 6.0.0-alpha.4
+         * Added here since 6.0.0-alpha.5
          */
         View = class View extends Context {
             constructor({ container, name, title } = {}) {
