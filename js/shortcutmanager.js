@@ -3,6 +3,12 @@
  * @experimental May completely change in future versions, use carefully
  */
 LS.ShortcutManager = class ShortcutManager extends LS.EventEmitter {
+    /**
+     * Whether to block input.
+     * @type {boolean}
+     */
+    blockInput = false;
+
     constructor({ target = document, signal = null, shortcuts = {} } = {}){
         super();
 
@@ -123,7 +129,18 @@ LS.ShortcutManager = class ShortcutManager extends LS.EventEmitter {
         return false;
     }
 
+    /**
+     * Sets whether to block input.
+     * @param {boolean} block - Whether to block input.
+     */
+    setBlockInput(block) {
+        this.blockInput = block;
+        return this;
+    }
+
     #handleKeyDown(event) {
+        if(this.blockInput) return;
+
         // Skip if user is typing in an input element
         const target = event.target;
         if (target && (

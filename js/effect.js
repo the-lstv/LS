@@ -406,6 +406,40 @@ class Spring {
 }
 
 /**
+ * Squish
+ */
+LS.Effect.register("squish", {
+    dragStart: {
+        animation: {
+            keyframes: [
+                { scale: "1 1" },
+                { scale: "1.05 0.95" }
+            ],
+            animationOptions: {
+                duration: LS.Animation.DEFAULT_DURATION,
+                easing: LS.Animation.DEFAULT_EASING,
+                fill: "forwards"
+            }
+        }
+    },
+
+    release: {
+        animation: {
+            keyframes: [
+                { scale: "1.05 0.95" },
+                { scale: "1 1" }
+            ],
+            animationOptions: {
+                duration: LS.Animation.DEFAULT_DURATION,
+                easing: LS.Animation.DEFAULT_EASING,
+                fill: "forwards"
+            }
+        }
+    }
+});
+
+
+/**
  * Element will scale down when pressed and scale back up when released.
  * I guess this could also be done via CSS.
  * 

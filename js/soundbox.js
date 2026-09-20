@@ -1,23 +1,38 @@
 /**
  * SoundBox class
- * It is used for playing system sound effects and other simple audio with user-overridable sound packs.
- * A revamped version of my old jukebox.js mini-library.
  * 
- * This functions separetely from the global media player.
+ * Lightweight utility for playing and managing sounds/sfx and other simple audio with user-overridable sound packs.
+ * A revamped & modernized version of my old jukebox.js mini-library.
+ * 
+ * Sounds are first registered, then loaded on-demand and cached & can be shared between instances.
+ * Supports fallbacks, scopes, custom controls, and effects.
  * 
  * @param {Object} options - The options for the SoundBox.
  * @param {number} options.volume - The global volume of the SoundBox.
  * @param {SoundBox} parent - Optional parent SoundBox. Will inherit the sound map but have its own volume and threads for context isolation.
  * @param {string} nameScope - Optional scope for sound names to also isolate created sounds under a namespace.
  * 
- * 
  * @example
- * new SoundBox({
- *  sounds: {
- *      "click":           { src: base + "click_desk.ogg" },
- *      "click_container": { src: base + "click_container.ogg" },
- *  }
+ * const soundBox = new LS.SoundBox({
+ *     volume: 0.8,
+ *     sounds: {
+ *         "click": { src: "./click.ogg", fallback: ["./click.mp3"] },
+ *         "music": { src: "./music.ogg" },
+ *     }
  * });
+ * 
+ * // You can register, unregister, update, and load sounds as needed.
+ * 
+ * // Simple playback
+ * soundBox.play("click");
+ * 
+ * // Creating custom threads
+ * const bgmThread = await soundBox.createThread("music", { volume: 0.5, loop: true, fadeIn: 0.5, fadeOut: 0.5, speed: 1.5, offset: 0, duration: 2 });
+ * bgmThread.play();
+ * // You can control the thread
+ * 
+ * soundBox.stopAll();
+ * soundBox.destroy();
  */
 class SoundBox {
     static { LS.register(this, { name: "SoundBox", global: true }) }
@@ -135,20 +150,6 @@ class SoundBox {
         this.soundMap.set(soundName, options);
     }
 
-    update(soundName, options) {
-        if(this.nameScope) {
-            soundName = `${this.nameScope}:${soundName}`;
-        }
-
-        const existingOptions = this.soundMap.get(soundName);
-        if(!existingOptions) {
-            this.log.warn("Sound not registered:", soundName);
-            return;
-        }
-
-        Object.assign(existingOptions, options);
-    }
-
     /**
      * Registers multiple sounds at once.
      * @param {Object} sounds - An object where keys are sound names and values are options.
@@ -179,6 +180,26 @@ class SoundBox {
     unregisterMany(soundNames) {
         for(const soundName of soundNames) {
             this.unregister(soundName);
+        }
+    }
+
+    update(soundName, options) {
+        if(this.nameScope) {
+            soundName = `${this.nameScope}:${soundName}`;
+        }
+
+        const existingOptions = this.soundMap.get(soundName);
+        if(!existingOptions) {
+            this.log.warn("Sound not registered:", soundName);
+            return;
+        }
+
+        Object.assign(existingOptions, options);
+    }
+
+    updateMany(sounds) {
+        for(const [soundName, options] of Object.entries(sounds)) {
+            this.update(soundName, options);
         }
     }
 
@@ -278,6 +299,17 @@ class SoundBox {
  * This class has no awareness of loading or managing media, it simply provides an interface for controlling an existing sound buffer.
  */
 class SoundBoxThread {
+    created   = false;
+    source    = null;
+    gainNode  = null;
+    outputNode = null;
+
+    __volume = 1;
+    __speed = 1;
+    __loop = false;
+
+    destroyed = false;
+
     constructor(parent, sound, options = {}) {
         if(!(parent instanceof SoundBox) || !sound) {
             throw new Error("SoundBoxThread requires a parent SoundBox and a source.");
@@ -288,13 +320,15 @@ class SoundBoxThread {
         this.options = options ?? {};
         this.parent.threads.add(this);
 
-        this.created = false;
-        this.source  = null;
-        this.destroyed = false;
+        this._requiresGainNode =
+            this.volume !== 1 ||
+            this.options.fadeIn ||
+            this.options.fadeOut ||
+            this.options.effects?.length > 0;
 
-        this._speed = this.options.speed ?? 1;
-        this._loop = this.options.loop   ?? false;
-        this.volume = this.options.volume ?? 1;
+        this.__volume = this.options.volume ?? 1;
+        this.__speed  = this.options.speed  ?? 1;
+        this.__loop   = this.options.loop   ?? false;
 
         this.userId = this.options.userId ?? null;
 
@@ -319,10 +353,24 @@ class SoundBoxThread {
         this.source = this.parent.ctx.createBufferSource();
         this.source.buffer = this.sound.buffer;
 
+        // This sets the destination, so it needs to be done first.
+        this.volume = this.__volume;
+
+        if(Array.isArray(this.options.effects) && this.options.effects.length > 0) {
+            for(const effect of this.options.effects) {
+                if(effect instanceof AudioNode) {
+                    this.source.connect(effect);
+                    effect.connect(this.outputNode);
+                } else {
+                    this.log.error("Invalid effect provided to SoundBoxThread:", effect);
+                }
+            }
+        }
+
         this.source.connect(this.outputNode);
 
-        this.loop = this._loop;
-        this.speed = this._speed;
+        this.loop   = this.__loop;
+        this.speed  = this.__speed;
 
         this.created = true;
     }
@@ -333,7 +381,7 @@ class SoundBoxThread {
      * @param {number} offset - The offset in seconds to start playing from.
      * @param {number} duration - The duration in seconds to play. If negative, plays the entire sound.
      */
-    play(offset = 0, duration = -1) {
+    play(offset = this.options.offset ?? 0, duration = this.options.duration ?? -1) {
         if(this.destroyed) {
             throw new Error("Cannot play a destroyed SoundBoxThread.");
         }
@@ -346,9 +394,22 @@ class SoundBoxThread {
             duration = this.duration;
         }
 
+        if(this.options.fadeIn) {
+            this.gainNode.gain.setValueAtTime(0, this.parent.ctx.currentTime);
+            this.gainNode.gain.linearRampToValueAtTime(this.volume, this.parent.ctx.currentTime + this.options.fadeIn);
+        }
+
         this.source.start(0, offset, duration);
 
+        if(this.options.fadeOut) {
+            this.source.stop(this.parent.ctx.currentTime + duration);
+            this.gainNode.gain.setValueAtTime(this.volume, this.parent.ctx.currentTime + duration - this.options.fadeOut);
+            this.gainNode.gain.linearRampToValueAtTime(0, this.parent.ctx.currentTime + duration);
+        }
+
         this.completedPromise().then(() => {
+            if(this.destroyed) return;
+
             if(this.options.ephemeral) {
                 // Terminate & delete the thread after the sound has finished playing.
                 this.terminate();
@@ -380,18 +441,20 @@ class SoundBoxThread {
     }
 
     get volume() {
-        return this.gainNode?.gain.value ?? 1;
+        return this.__volume ?? 1;
     }
 
     set volume(value) {
         value = Math.max(0, Math.min(1, value ?? 1));
 
+        this.__volume = value;
         if(this.gainNode) {
             this.gainNode.gain.value = value;
+            this.outputNode = this.gainNode;
             return;
         }
 
-        if(value === 1) {
+        if(value === 1 && !this._requiresGainNode) {
             // We can skip creating a gain node if the volume is 1.
             this.gainNode = null;
             this.outputNode = this.parent.gainNode;
@@ -405,24 +468,24 @@ class SoundBoxThread {
     }
 
     get loop() {
-        return this._loop;
+        return this.__loop;
     }
 
     set loop(value) {
-        this._loop = !!value;
+        this.__loop = !!value;
         if(this.source) {
-            this.source.loop = this._loop;
+            this.source.loop = this.__loop;
         }
     }
 
     get speed() {
-        return this._speed;
+        return this.__speed;
     }
 
     set speed(value) {
         if(!this.source) return;
         this.source.playbackRate.value = value;
-        this._speed = this.source.playbackRate.value;
+        this.__speed = this.source.playbackRate.value;
     }
 
     pause() {
@@ -432,7 +495,7 @@ class SoundBoxThread {
 
     resume() {
         if(!this.source) return;
-        this.source.playbackRate.value = this._speed;
+        this.source.playbackRate.value = this.__speed;
     }
 
     stop() {
@@ -454,10 +517,12 @@ class SoundBoxThread {
 
     terminate() {
         this.disposeSource();
+
         if(this.gainNode) {
             this.gainNode.disconnect();
             this.gainNode = null;
         }
+
         this.parent.threads.delete(this);
         this.parent = null;
         this.sound = null;
