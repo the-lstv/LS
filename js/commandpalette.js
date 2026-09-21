@@ -7,6 +7,8 @@
     Last modified: 2026
     See: https://github.com/the-lstv/lstv-web
 
+    Command palette
+
     New, better and proper version of the command palette, replacing the previous AI slop trash,
     which in turn replaced the old FOSSHome implementation.
     This one is finally clean and human-written (though still work-in-progress).
@@ -277,8 +279,9 @@ class CommandPalette extends LS.Component {
      * Executes a command from a string. This can be run independent of the current input.
      * @param {string} [value] - The command to execute. If not provided, the current input value is used.
      * @param {boolean} [clear=true] - Whether to clear the input after executing the command.
+     * @param {boolean} [dataOnly=false] - Tell the command to only return data without performing any side effects (such as displaying a message). Depends on the command.
      */
-    execute(value = null, clear = true) {
+    async execute(value = null, clear = true, dataOnly = false) {
         value ??= this.getValue();
         const { command, args, segments, currentPart, rootLevel } = this.#locateCommand(value);
 
@@ -288,58 +291,97 @@ class CommandPalette extends LS.Component {
 
         if(!command || rootLevel) {
             this.options.logger.error(`Command not found: ${value}`);
-            return;
+            return null;
         }
 
         // if(rootLevel) {
         //     this.options.logger.error(`Cannot execute root-level command: ${value}`);
-        //     return;
+        //     return null;
         // }
 
-        const callback = command.onCalled || command.callback;
+        const callback = (dataOnly && command.data) || command.onCalled || command.callback;
 
         if(!callback) {
             this.options.logger.warn(`Command '${command.name}' has no action defined.`);
-            return;
+            return null;
         }
 
         // Validate and convert arguments based on command input definitions
         for(let i = 0; i < args.length; i++) {
             const inputDef = command.inputs?.[i];
+            let value = args[i];
+            console.log(`Processing argument ${i + 1} for command '${command.name}':`, value);
+
+            if(value[0] === "$") {
+                console.log("Detected variable or sub-command substitution:", value);
+
+                // Execute & substitute ($(command))
+                if(value[1] === "(") {
+                    const varName = value.slice(2, value[value.length - 1] === ")" ? -1 : undefined);
+
+                    // Collect sub-command arguments
+                    const subCommand = [varName];
+
+                    while(i + 1 < args.length) {
+                        i++;
+
+                        const nextArg = args[i];
+                        if(nextArg.endsWith(")")) {
+                            subCommand.push(nextArg.slice(0, -1));
+                            break;
+                        } else {
+                            subCommand.push(nextArg);
+                        }
+                    }
+
+                    value = await this.execute(subCommand.join(" "), false, true);
+
+                    console.log("Executing sub-command for variable substitution:", subCommand.join(" "), "Result:", value);
+                } else {
+                    // Variable substitution ($var)
+                    const varName = value.slice(1);
+                    value = this.options.variables?.[varName] ?? varName;
+                    console.log(`Substituting variable '${varName}' with value:`, value);
+                }
+            }
+
             try {
                 if(inputDef && typeof inputDef.validate === 'function') {
-                    if(!inputDef.validate(args[i])) {
-                        this.options.logger.error(`Invalid argument for command '${command.name}': ${args[i]}`);
-                        return;
+                    if(!inputDef.validate(value)) {
+                        this.options.logger.error(`Invalid argument for command '${command.name}': ${value}`);
+                        return null;
                     }
                 }
 
                 switch(inputDef?.type) {
                     case 'number':
-                        args[i] = Number(args[i]);
+                        value = Number(value);
                         break;
 
                     case 'boolean':
-                        args[i] = ['true', '1', 'yes', 'on'].includes(args[i].toLowerCase());
+                        value = ['true', '1', 'yes', 'on'].includes(value.toLowerCase());
                         break;
                     
                     case 'color':
-                        if(LS.Color) args[i] = LS.Color.parse(args[i]);
+                        if(LS.Color) value = LS.Color.parse(value);
                         break;
                     
                     case 'file':
                         break;
                 }
+
+                args[i] = value;
             } catch (error) {
                 this.options.logger.error(`Error processing argument ${i + 1} for command '${command.name}': ${error.message}`);
-                return;
+                return null;
             }
         }
 
         try {
-            callback(...args);
+            return await callback(...args);
         } catch (error) {
             this.options.logger.error(`Error executing command '${command.name}': ${error.message}`);
+            return null;
         }
     }
 
@@ -526,9 +568,9 @@ class CommandPalette extends LS.Component {
 
         const results = [];
         for (const candidate of candidates) {
-            let text = LS.Util.normalize(candidate);
+            if (candidate.startsWith('_')) continue;
 
-            if (text.startsWith('_')) continue;
+            let text = LS.Util.normalize(candidate);
 
             if (location && location[candidate]) {
                 const item = location[candidate];
@@ -689,11 +731,11 @@ class CommandPalette extends LS.Component {
         const args = rootLevel? null: segments.length - depth > 0? segments.slice(depth): [];
         const currentPart = (!hasTrailingSpace && segments.length > 0)? segments.at(-1) : '';
 
-        const inputCount = command.inputs? command.inputs.length : 0;
+        const inputCount = command && command.inputs? command.inputs.length : 0;
 
         const atEnd = !!(!command || (rootLevel && segments.length > 1) || ((args && args.length >= inputCount) && (!command.children || Object.keys(command.children).length === 0)));
 
-        // console.log("Command:", command, "Args:", args, "Current Part:", currentPart, "Segments:", segments, "Root Level:", rootLevel, "At End:", atEnd, "Input Count:", inputCount);
+        console.log("Command:", command, "Args:", args, "Current Part:", currentPart, "Segments:", segments, "Root Level:", rootLevel, "At End:", atEnd, "Input Count:", inputCount);
         return { command, args, atEnd, segments, currentPart, rootLevel };
     }
 
@@ -712,16 +754,23 @@ class CommandPalette extends LS.Component {
             this.#execAutoCompletion = false;
         }
 
-        this.#currentPartLen = currentPart.length;
+        this.#currentPartLen = currentPart?.length || 0;
 
-        if(atEnd) {
+        // todo: better handling for argument suggestions
+        if(
+            (atEnd && this.#currentPartLen === 0) ||
+            (rootLevel && (
+                (segments.length !== 1) ||
+                (segments.length === 1 && segments[0] !== '' && !this.#currentPartLen)
+            ))
+        ) {
             this.hideCompletions();
             return;
         }
 
         let completions = rootLevel? command: command.children;
         if(command.inputs && command.inputs.length > 0) {
-            completions = this.#inputCompletion(command.inputs[args.length]);
+            completions = this.#inputCompletion(command.inputs[args.length - (this.#currentPartLen === 0? 0 : 1)]);
         }
 
         const keys = Object.keys(completions);

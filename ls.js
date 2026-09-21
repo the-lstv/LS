@@ -1344,7 +1344,10 @@
         }
 
         static pop() {
-            if(this.items.length === 0) return null;
+            if(this.items.length === 0) {
+                LS.Toast.closeAll();
+                return null;
+            }
 
             const item = this.top;
             if (item && item.isCloseable !== false) {
