@@ -80,6 +80,7 @@ class EffectManager extends LS.Component {
 
             onStart: (event) => {
                 const domEvent = event.domEvent;
+                // I think per-element handling would be much faster given my experience writing a html engine but js is js
                 const target = domEvent.target.closest("[data-ls-effect]");
                 if (!target || !(target instanceof HTMLElement)) return event.cancel();
 
@@ -103,6 +104,8 @@ class EffectManager extends LS.Component {
 
                 if(!effects || effects.length < 1) return event.cancel();
 
+                let dragEnabled = false, pointerDownEnabled = false;
+
                 for(let i = 0; i < effects.length; i++) {
                     const effectString = effects[i];
 
@@ -112,9 +115,26 @@ class EffectManager extends LS.Component {
 
                     options = this.parseOptions(options);
 
+                    if(typeof effect.dragStart === "function") {
+                        dragEnabled = true;
+                    }
+
+                    if(typeof effect.pointerdown === "function") {
+                        pointerDownEnabled = true;
+                    }
+
                     const effectData = { options };
                     this.currentTarget.__lsEffect[i] = effectData;
                     this.currentEffects.push(effect);
+                }
+
+                if(pointerDownEnabled) {
+                    this._iterateTarget(event, (fx, data, target) => typeof fx.pointerdown === "function"? fx.pointerdown.call(target, event, data): fx.pointerdown);
+                }
+
+                if(!dragEnabled) {
+                    // If no effect has dragStart, we don't want to handle the drag
+                    return event.cancel();
                 }
 
                 // sadly we iterate 2x for consistency
@@ -136,6 +156,30 @@ class EffectManager extends LS.Component {
             onEnd: (event) => {
                 this.releaseAll(event);
             },
+        });
+
+        // Todo: click & dblclick could be handled by the handle too
+        this.addExternalEventListener(document, "click", (event) => {
+            const target = event.target.closest("[data-ls-effect]");
+            if (!target || !(target instanceof HTMLElement)) return;
+
+            const effects = (target.getAttribute("data-ls-effect") || "").split(",").filter(Boolean);
+            if(!effects || effects.length < 1) return;
+
+            for(let i = 0; i < effects.length; i++) {
+                const effectString = effects[i];
+
+                let [effectName, options] = effectString.split(":");                    
+                const effect = this.effects.get(effectName);
+                if(!effect) continue;
+
+                options = this.parseOptions(options);
+
+                const effectData = { options };
+                if(typeof effect.click === "function") {
+                    effect.click.call(target, event, effectData);
+                }
+            }
         });
     }
 
@@ -299,9 +343,16 @@ class EffectManager extends LS.Component {
         return target.removeAttribute("data-ls-effect");
     }
 
-    register(name, effect) {
+    register(name, effect, options = {}) {
         // if(!LS.Util.isClass(effect)) throw new Error("Invalid effect passed to LS.Effect.register");
         this.effects.set(name, effect);
+
+        if(options.dieWith) {
+            const dieWith = options.dieWith;
+            if(typeof dieWith.once === "function") {
+                dieWith.once("destroy", () => this.unregister(name));
+            }
+        }
     }
 
     unregister(name) {
@@ -333,8 +384,9 @@ class Effect {
     static release     = noop; // TouchHandle end
     static wheel       = noop; // TouchHandle wheel
     static hover       = noop; // TouchHandle hover
-
+    
     // Browser
+    static pointerdown = noop;
     static scroll      = noop;
     static enter       = noop;
     static leave       = noop;
@@ -432,43 +484,6 @@ LS.Effect.register("squish", {
             animationOptions: {
                 duration: LS.Animation.DEFAULT_DURATION,
                 easing: LS.Animation.DEFAULT_EASING,
-                fill: "forwards"
-            }
-        }
-    }
-});
-
-
-/**
- * Element will scale down when pressed and scale back up when released.
- * I guess this could also be done via CSS.
- * 
- * Same as element:active { transform: scale(0.95); transition: transform 150ms ease-out; }
- */
-LS.Effect.register("push", {
-    dragStart: {
-        animation: {
-            keyframes: [
-                { scale: "1 1" },
-                { scale: "0.95 0.95" }
-            ],
-            animationOptions: {
-                duration: 150,
-                easing: "ease-out",
-                fill: "forwards"
-            }
-        }
-    },
-
-    release: {
-        animation: {
-            keyframes: [
-                { scale: "0.95 0.95" },
-                { scale: "1 1" }
-            ],
-            animationOptions: {
-                duration: 150,
-                easing: "ease-out",
                 fill: "forwards"
             }
         }
