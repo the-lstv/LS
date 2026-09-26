@@ -64,6 +64,8 @@ Major update (2026 release)!
 
 - LS.CommandPalette now supports variable substitution <!-- and command chaining syntax --> (eg. `command1 $var $(command2)`).
 - Feature additions to LS.SoundBox
+- Feature additions to LS.ShortcutManager
+- Added Ansi color support to LS.CommandPalette (parser available at `LS.CommandPalette.parseAnsi`)
 - Fixes
 
 Final alpha release before 6.0.0 relases as stable!
