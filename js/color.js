@@ -1457,7 +1457,7 @@ LS.Color = class Color {
             const safeName = typeof CSS !== "undefined" && typeof CSS.escape === "function"
                 ? CSS.escape(String(name))
                 : String(name).replace(/\\/g, "\\\\").replace(/"/g, "\\\"");
-            accent.selector = `[ls-accent="${safeName}"]`;
+            accent.selector = `[ls-accent="${safeName}"], [data-ls-accent="${safeName}"]`;
             const ruleIndex = this.sheet.insertRule(`${accent.selector} {}`, this.sheet.cssRules.length);
             accent.ruleIndex = ruleIndex;
         }

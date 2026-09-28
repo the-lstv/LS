@@ -183,15 +183,15 @@ ls-knob[preset=default] {
     }
 }
 
-[ls-theme=light] ls-knob[preset=default] {
+[ls-theme=light] ls-knob[preset=default], [data-ls-theme=light] ls-knob[preset=default] {
     background: linear-gradient(180deg, var(--surface-2), var(--surface-0));
 }
 
-[ls-theme=light] [preset=default] .ls-knob-stator::after {
+[ls-theme=light] [preset=default] .ls-knob-stator::after, [data-ls-theme=light] [preset=default] .ls-knob-stator::after {
     background: radial-gradient(100% 100% at 50% 0, var(--surface-0) 0%, var(--surface-4) 100%);
 }
 
-[ls-theme=light] [preset=default] .ls-knob-stator {
+[ls-theme=light] [preset=default] .ls-knob-stator, [data-ls-theme=light] [preset=default] .ls-knob-stator {
     background: linear-gradient(var(--surface-1), var(--surface-6), var(--surface-7));
 }
 
@@ -210,10 +210,10 @@ ls-knob[preset=chrome] .ls-knob-stator {
     }
 }
 
-[ls-theme=light] .ls-knob-stator {
+[ls-theme=light] .ls-knob-stator, [data-ls-theme=light] .ls-knob-stator {
     filter: drop-shadow(0px 7px 0px rgba(0, 0, 0, 0.2));
 }
 
-[ls-theme=light] [preset=chrome] .ls-knob-stator {
+[ls-theme=light] [preset=chrome] .ls-knob-stator, [data-ls-theme=light] [preset=chrome] .ls-knob-stator {
     background: conic-gradient(var(--surface-6), var(--surface-5), var(--surface-6) 130deg, var(--surface-2), var(--surface-6), var(--surface-3), 340deg, var(--surface-6)) content-box;
 }

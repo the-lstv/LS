@@ -89,7 +89,7 @@
   overflow: hidden;
 }
 
-[ls-theme=dark] .window-container:not(.top) .window-header {
+[ls-theme=dark] .window-container:not(.top) .window-header, [data-ls-theme=dark] .window-container:not(.top) .window-header {
   background-color: color-mix(in oklab, var(--surface-1) 100%, #000 10%);
 }
 

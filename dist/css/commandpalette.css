@@ -145,8 +145,12 @@
   box-shadow: 0 10px 20px 0 rgba(0, 0, 0, 0.14);
 }
 
-[ls-theme=light] .completion-menu {
+[ls-theme=light] .completion-menu, [data-ls-theme=light] .completion-menu {
   background: var(--surface-n2);
+}
+
+[ls-theme=light] .completion-item.has-accent, [data-ls-theme=light] .completion-item.has-accent {
+  color: var(--accent-40);
 }
 
 .completion-item {
@@ -164,10 +168,6 @@
   color: var(--accent-60);
 }
 
-[ls-theme=light] .completion-item.has-accent {
-  color: var(--accent-40);
-}
-
 .completion-description {
   color: var(--surface-8);
 }
@@ -176,7 +176,7 @@
   background: var(--surface-3);
 }
 
-[ls-theme=light] .completion-item:hover {
+[ls-theme=light] .completion-item:hover, [data-ls-theme=light] .completion-item:hover {
   background: var(--surface-1);
 }
 
@@ -184,7 +184,7 @@
   background: var(--surface-4);
 }
 
-[ls-theme=light] .completion-item.selected {
+[ls-theme=light] .completion-item.selected, [data-ls-theme=light] .completion-item.selected {
   background: var(--surface-0);
 }
 

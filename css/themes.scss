@@ -1,4 +1,4 @@
-#{priority('[ls-theme="light"]', 3)}, [ls-theme="light"][ls-accent], [ls-theme="light"] [ls-accent] {
+#{priority('[ls-theme="light"], [data-ls-theme="light"]', 3)}, [ls-theme="light"][ls-accent], [ls-theme="light"] [ls-accent], [data-ls-theme="light"][data-ls-accent], [data-ls-theme="light"] [data-ls-accent] {
     --background: var(--base-90);
     --color: var(--base-20);
 
@@ -22,19 +22,19 @@
     --ui-border: var(--base-40);
 
 
-    &, [ls-accent], :disabled {
+    &, [ls-accent], :disabled, [data-ls-accent] {
         --on-background: var(--accent-40);
         --on-accent: var(--accent-90);
         --on-transparent: var(--accent-30);
     }
 
-    [ls-accent = "auto"], &[ls-accent = "auto"] {
+    [ls-accent = "auto"], &[ls-accent = "auto"], [data-ls-accent = "auto"], &[data-ls-accent = "auto"] {
         --accent: var(--accent-10);
         --on-accent: var(--accent-95);
     }
 }
 
-#{priority('[ls-theme="dark"]', 3)}, body:not([ls-theme]), [ls-theme="dark"][ls-accent], [ls-theme="dark"] [ls-accent] {
+#{priority('[ls-theme="dark"], [data-ls-theme="dark"]', 3)}, body:not([ls-theme]), [ls-theme="dark"][ls-accent], [ls-theme="dark"] [ls-accent], [data-ls-theme="dark"][data-ls-accent], [data-ls-theme="dark"] [data-ls-accent] {
     --background: var(--base-10);
     --color: var(--accent-90);
 
@@ -57,14 +57,13 @@
     --ui-element: var(--base-20);
     --ui-border: var(--base-0);
 
-
-    &, [ls-accent], :disabled {
+    &, [ls-accent], [data-ls-accent], :disabled {
         --on-background: var(--accent-70);
         --on-transparent: var(--accent-80);
         --on-accent: var(--accent-95);
     }
 
-    [ls-accent = "auto"], &[ls-accent = "auto"] {
+    [ls-accent = "auto"], &[ls-accent = "auto"], [data-ls-accent = "auto"], &[data-ls-accent = "auto"] {
         --accent: var(--accent-90);
         --on-accent: var(--accent-10);
     }

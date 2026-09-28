@@ -23,7 +23,7 @@
 /*
     Things that look and behave like buttons.
 */
-[ls-theme=light][ls-theme=light][ls-theme=light], [ls-theme=light][ls-accent], [ls-theme=light] [ls-accent] {
+[ls-theme=light], [data-ls-theme=light][ls-theme=light], [data-ls-theme=light][ls-theme=light], [data-ls-theme=light], [ls-theme=light][ls-accent], [ls-theme=light] [ls-accent], [data-ls-theme=light][data-ls-accent], [data-ls-theme=light] [data-ls-accent] {
   --background: var(--base-90);
   --color: var(--base-20);
   --surface-n3: var(--base-100);
@@ -44,17 +44,17 @@
   --ui-element: var(--base-95);
   --ui-border: var(--base-40);
 }
-[ls-theme=light][ls-theme=light][ls-theme=light], [ls-theme=light][ls-theme=light][ls-theme=light] [ls-accent], [ls-theme=light][ls-theme=light][ls-theme=light] :disabled, [ls-theme=light][ls-accent], [ls-theme=light][ls-accent] [ls-accent], [ls-theme=light][ls-accent] :disabled, [ls-theme=light] [ls-accent], [ls-theme=light] [ls-accent] [ls-accent], [ls-theme=light] [ls-accent] :disabled {
+[ls-theme=light], [ls-theme=light] [ls-accent], [ls-theme=light] :disabled, [ls-theme=light] [data-ls-accent], [data-ls-theme=light][ls-theme=light], [data-ls-theme=light][ls-theme=light] [ls-accent], [data-ls-theme=light][ls-theme=light] :disabled, [data-ls-theme=light][ls-theme=light] [data-ls-accent], [data-ls-theme=light][ls-theme=light], [data-ls-theme=light][ls-theme=light] [ls-accent], [data-ls-theme=light][ls-theme=light] :disabled, [data-ls-theme=light][ls-theme=light] [data-ls-accent], [data-ls-theme=light], [data-ls-theme=light] [ls-accent], [data-ls-theme=light] :disabled, [data-ls-theme=light] [data-ls-accent], [ls-theme=light][ls-accent], [ls-theme=light][ls-accent] [ls-accent], [ls-theme=light][ls-accent] :disabled, [ls-theme=light][ls-accent] [data-ls-accent], [ls-theme=light] [ls-accent], [ls-theme=light] [ls-accent] [ls-accent], [ls-theme=light] [ls-accent] :disabled, [ls-theme=light] [ls-accent] [data-ls-accent], [data-ls-theme=light][data-ls-accent], [data-ls-theme=light][data-ls-accent] [ls-accent], [data-ls-theme=light][data-ls-accent] :disabled, [data-ls-theme=light][data-ls-accent] [data-ls-accent], [data-ls-theme=light] [data-ls-accent], [data-ls-theme=light] [data-ls-accent] [ls-accent], [data-ls-theme=light] [data-ls-accent] :disabled, [data-ls-theme=light] [data-ls-accent] [data-ls-accent] {
   --on-background: var(--accent-40);
   --on-accent: var(--accent-90);
   --on-transparent: var(--accent-30);
 }
-[ls-theme=light][ls-theme=light][ls-theme=light] [ls-accent=auto], [ls-theme=light][ls-theme=light][ls-theme=light][ls-accent=auto], [ls-theme=light][ls-accent] [ls-accent=auto], [ls-theme=light][ls-accent][ls-accent=auto], [ls-theme=light] [ls-accent] [ls-accent=auto], [ls-theme=light] [ls-accent][ls-accent=auto] {
+[ls-theme=light] [ls-accent=auto], [ls-theme=light][ls-accent=auto], [ls-theme=light] [data-ls-accent=auto], [ls-theme=light][data-ls-accent=auto], [data-ls-theme=light][ls-theme=light] [ls-accent=auto], [data-ls-theme=light][ls-theme=light][ls-accent=auto], [data-ls-theme=light][ls-theme=light] [data-ls-accent=auto], [data-ls-theme=light][ls-theme=light][data-ls-accent=auto], [data-ls-theme=light][ls-theme=light] [ls-accent=auto], [data-ls-theme=light][ls-theme=light][ls-accent=auto], [data-ls-theme=light][ls-theme=light] [data-ls-accent=auto], [data-ls-theme=light][ls-theme=light][data-ls-accent=auto], [data-ls-theme=light] [ls-accent=auto], [data-ls-theme=light][ls-accent=auto], [data-ls-theme=light] [data-ls-accent=auto], [data-ls-theme=light][data-ls-accent=auto], [ls-theme=light][ls-accent] [ls-accent=auto], [ls-theme=light][ls-accent][ls-accent=auto], [ls-theme=light][ls-accent] [data-ls-accent=auto], [ls-theme=light][ls-accent][data-ls-accent=auto], [ls-theme=light] [ls-accent] [ls-accent=auto], [ls-theme=light] [ls-accent][ls-accent=auto], [ls-theme=light] [ls-accent] [data-ls-accent=auto], [ls-theme=light] [ls-accent][data-ls-accent=auto], [data-ls-theme=light][data-ls-accent] [ls-accent=auto], [data-ls-theme=light][data-ls-accent][ls-accent=auto], [data-ls-theme=light][data-ls-accent] [data-ls-accent=auto], [data-ls-theme=light][data-ls-accent][data-ls-accent=auto], [data-ls-theme=light] [data-ls-accent] [ls-accent=auto], [data-ls-theme=light] [data-ls-accent][ls-accent=auto], [data-ls-theme=light] [data-ls-accent] [data-ls-accent=auto], [data-ls-theme=light] [data-ls-accent][data-ls-accent=auto] {
   --accent: var(--accent-10);
   --on-accent: var(--accent-95);
 }
 
-[ls-theme=dark][ls-theme=dark][ls-theme=dark], body:not([ls-theme]), [ls-theme=dark][ls-accent], [ls-theme=dark] [ls-accent] {
+[ls-theme=dark], [data-ls-theme=dark][ls-theme=dark], [data-ls-theme=dark][ls-theme=dark], [data-ls-theme=dark], body:not([ls-theme]), [ls-theme=dark][ls-accent], [ls-theme=dark] [ls-accent], [data-ls-theme=dark][data-ls-accent], [data-ls-theme=dark] [data-ls-accent] {
   --background: var(--base-10);
   --color: var(--accent-90);
   --surface-n3: var(--base-0);
@@ -75,12 +75,12 @@
   --ui-element: var(--base-20);
   --ui-border: var(--base-0);
 }
-[ls-theme=dark][ls-theme=dark][ls-theme=dark], [ls-theme=dark][ls-theme=dark][ls-theme=dark] [ls-accent], [ls-theme=dark][ls-theme=dark][ls-theme=dark] :disabled, body:not([ls-theme]), body:not([ls-theme]) [ls-accent], body:not([ls-theme]) :disabled, [ls-theme=dark][ls-accent], [ls-theme=dark][ls-accent] [ls-accent], [ls-theme=dark][ls-accent] :disabled, [ls-theme=dark] [ls-accent], [ls-theme=dark] [ls-accent] [ls-accent], [ls-theme=dark] [ls-accent] :disabled {
+[ls-theme=dark], [ls-theme=dark] [ls-accent], [ls-theme=dark] [data-ls-accent], [ls-theme=dark] :disabled, [data-ls-theme=dark][ls-theme=dark], [data-ls-theme=dark][ls-theme=dark] [ls-accent], [data-ls-theme=dark][ls-theme=dark] [data-ls-accent], [data-ls-theme=dark][ls-theme=dark] :disabled, [data-ls-theme=dark][ls-theme=dark], [data-ls-theme=dark][ls-theme=dark] [ls-accent], [data-ls-theme=dark][ls-theme=dark] [data-ls-accent], [data-ls-theme=dark][ls-theme=dark] :disabled, [data-ls-theme=dark], [data-ls-theme=dark] [ls-accent], [data-ls-theme=dark] [data-ls-accent], [data-ls-theme=dark] :disabled, body:not([ls-theme]), body:not([ls-theme]) [ls-accent], body:not([ls-theme]) [data-ls-accent], body:not([ls-theme]) :disabled, [ls-theme=dark][ls-accent], [ls-theme=dark][ls-accent] [ls-accent], [ls-theme=dark][ls-accent] [data-ls-accent], [ls-theme=dark][ls-accent] :disabled, [ls-theme=dark] [ls-accent], [ls-theme=dark] [ls-accent] [ls-accent], [ls-theme=dark] [ls-accent] [data-ls-accent], [ls-theme=dark] [ls-accent] :disabled, [data-ls-theme=dark][data-ls-accent], [data-ls-theme=dark][data-ls-accent] [ls-accent], [data-ls-theme=dark][data-ls-accent] [data-ls-accent], [data-ls-theme=dark][data-ls-accent] :disabled, [data-ls-theme=dark] [data-ls-accent], [data-ls-theme=dark] [data-ls-accent] [ls-accent], [data-ls-theme=dark] [data-ls-accent] [data-ls-accent], [data-ls-theme=dark] [data-ls-accent] :disabled {
   --on-background: var(--accent-70);
   --on-transparent: var(--accent-80);
   --on-accent: var(--accent-95);
 }
-[ls-theme=dark][ls-theme=dark][ls-theme=dark] [ls-accent=auto], [ls-theme=dark][ls-theme=dark][ls-theme=dark][ls-accent=auto], body:not([ls-theme]) [ls-accent=auto], body:not([ls-theme])[ls-accent=auto], [ls-theme=dark][ls-accent] [ls-accent=auto], [ls-theme=dark][ls-accent][ls-accent=auto], [ls-theme=dark] [ls-accent] [ls-accent=auto], [ls-theme=dark] [ls-accent][ls-accent=auto] {
+[ls-theme=dark] [ls-accent=auto], [ls-theme=dark][ls-accent=auto], [ls-theme=dark] [data-ls-accent=auto], [ls-theme=dark][data-ls-accent=auto], [data-ls-theme=dark][ls-theme=dark] [ls-accent=auto], [data-ls-theme=dark][ls-theme=dark][ls-accent=auto], [data-ls-theme=dark][ls-theme=dark] [data-ls-accent=auto], [data-ls-theme=dark][ls-theme=dark][data-ls-accent=auto], [data-ls-theme=dark][ls-theme=dark] [ls-accent=auto], [data-ls-theme=dark][ls-theme=dark][ls-accent=auto], [data-ls-theme=dark][ls-theme=dark] [data-ls-accent=auto], [data-ls-theme=dark][ls-theme=dark][data-ls-accent=auto], [data-ls-theme=dark] [ls-accent=auto], [data-ls-theme=dark][ls-accent=auto], [data-ls-theme=dark] [data-ls-accent=auto], [data-ls-theme=dark][data-ls-accent=auto], body:not([ls-theme]) [ls-accent=auto], body:not([ls-theme])[ls-accent=auto], body:not([ls-theme]) [data-ls-accent=auto], body:not([ls-theme])[data-ls-accent=auto], [ls-theme=dark][ls-accent] [ls-accent=auto], [ls-theme=dark][ls-accent][ls-accent=auto], [ls-theme=dark][ls-accent] [data-ls-accent=auto], [ls-theme=dark][ls-accent][data-ls-accent=auto], [ls-theme=dark] [ls-accent] [ls-accent=auto], [ls-theme=dark] [ls-accent][ls-accent=auto], [ls-theme=dark] [ls-accent] [data-ls-accent=auto], [ls-theme=dark] [ls-accent][data-ls-accent=auto], [data-ls-theme=dark][data-ls-accent] [ls-accent=auto], [data-ls-theme=dark][data-ls-accent][ls-accent=auto], [data-ls-theme=dark][data-ls-accent] [data-ls-accent=auto], [data-ls-theme=dark][data-ls-accent][data-ls-accent=auto], [data-ls-theme=dark] [data-ls-accent] [ls-accent=auto], [data-ls-theme=dark] [data-ls-accent][ls-accent=auto], [data-ls-theme=dark] [data-ls-accent] [data-ls-accent=auto], [data-ls-theme=dark] [data-ls-accent][data-ls-accent=auto] {
   --accent: var(--accent-90);
   --on-accent: var(--accent-10);
 }
@@ -826,6 +826,15 @@ button.ls-toast-close.ls-toast-close.ls-toast-close {
 
 .ls-menu-item:not(.ls-menu-label):not(.ls-menu-separator), .ls-list-item {
   margin: 0 4px;
+  padding: var(--space-tiny) var(--space-small);
+  white-space: nowrap;
+  border-radius: var(--border-radius-small);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  overflow: hidden;
+  min-height: fit-content;
 }
 .ls-menu-item:not(.ls-menu-label):not(.ls-menu-separator):last-child, .ls-list-item:last-child {
   margin-bottom: 4px;
@@ -838,17 +847,6 @@ button.ls-toast-close.ls-toast-close.ls-toast-close {
 }
 .ls-menu-item:not(.ls-menu-label):not(.ls-menu-separator).ls-checkbox > span, .ls-menu-item:not(.ls-menu-label):not(.ls-menu-separator).ls-radio > span, .ls-menu-item:not(.ls-menu-label):not(.ls-menu-separator).ls-switch > span, .ls-list-item.ls-checkbox > span, .ls-list-item.ls-radio > span, .ls-list-item.ls-switch > span {
   left: 5px;
-}
-.ls-menu-item:not(.ls-menu-label):not(.ls-menu-separator), .ls-list-item {
-  padding: var(--space-tiny) var(--space-small);
-  white-space: nowrap;
-  border-radius: var(--border-radius-small);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  overflow: hidden;
-  min-height: fit-content;
 }
 
 .ls-list-item:hover, .ls-list-item.selected {
@@ -1039,6 +1037,11 @@ ls-select ls-option, ls-select option, ls-select optgroup {
     border-bottom: 4px solid transparent;
     border-left: 4px solid var(--surface-10);
 } */
+.ls-tree-styled {
+  /* .ls-tree-indent-guide-empty {
+      border-bottom: 1px solid var(--elevate-1);
+  } */
+}
 .ls-tree-styled .ls-tree-node {
   padding-left: 0;
 }
@@ -1047,11 +1050,6 @@ ls-select ls-option, ls-select option, ls-select optgroup {
 }
 .ls-tree-styled .ls-tree-indent-guide {
   border-left: 1px solid var(--elevate-1);
-}
-.ls-tree-styled {
-  /* .ls-tree-indent-guide-empty {
-      border-bottom: 1px solid var(--elevate-1);
-  } */
 }
 
 .ls-view {
@@ -1225,7 +1223,7 @@ ls-select ls-option, ls-select option, ls-select optgroup {
   --base-100: rgb(255, 255, 255);
 }
 
-[ls-accent=navy] {
+[ls-accent=navy], [data-ls-accent=navy] {
   --base-6: rgb(14, 13, 16);
   --base-8: rgb(19, 18, 22);
   --base-10: rgb(23, 23, 27);
@@ -1262,7 +1260,7 @@ ls-select ls-option, ls-select option, ls-select optgroup {
   --accent-95: rgb(237, 234, 249);
 }
 
-[ls-accent=blue], :root {
+[ls-accent=blue], [data-ls-accent=blue], :root {
   --base-6: rgb(12, 15, 17);
   --base-8: rgb(17, 20, 23);
   --base-10: rgb(21, 25, 29);
@@ -1299,7 +1297,7 @@ ls-select ls-option, ls-select option, ls-select optgroup {
   --accent-95: rgb(229, 242, 255);
 }
 
-[ls-accent=pastel-indigo] {
+[ls-accent=pastel-indigo], [data-ls-accent=pastel-indigo] {
   --base-6: rgb(14, 15, 16);
   --base-8: rgb(18, 20, 21);
   --base-10: rgb(23, 25, 27);
@@ -1336,7 +1334,7 @@ ls-select ls-option, ls-select option, ls-select optgroup {
   --accent-95: rgb(236, 241, 247);
 }
 
-[ls-accent=lapis] {
+[ls-accent=lapis], [data-ls-accent=lapis] {
   --base-6: rgb(13, 15, 16);
   --base-8: rgb(18, 21, 22);
   --base-10: rgb(22, 26, 28);
@@ -1373,7 +1371,7 @@ ls-select ls-option, ls-select option, ls-select optgroup {
   --accent-95: rgb(234, 244, 250);
 }
 
-[ls-accent=teal] {
+[ls-accent=teal], [data-ls-accent=teal] {
   --base-6: rgb(12, 17, 17);
   --base-8: rgb(17, 23, 23);
   --base-10: rgb(21, 29, 29);
@@ -1410,7 +1408,7 @@ ls-select ls-option, ls-select option, ls-select optgroup {
   --accent-95: rgb(229, 255, 255);
 }
 
-[ls-accent=pastel-teal] {
+[ls-accent=pastel-teal], [data-ls-accent=pastel-teal] {
   --base-6: rgb(13, 16, 16);
   --base-8: rgb(18, 22, 22);
   --base-10: rgb(23, 27, 27);
@@ -1447,7 +1445,7 @@ ls-select ls-option, ls-select option, ls-select optgroup {
   --accent-95: rgb(234, 248, 249);
 }
 
-[ls-accent=aquamarine] {
+[ls-accent=aquamarine], [data-ls-accent=aquamarine] {
   --base-6: rgb(14, 16, 15);
   --base-8: rgb(18, 21, 20);
   --base-10: rgb(23, 27, 26);
@@ -1484,7 +1482,7 @@ ls-select ls-option, ls-select option, ls-select optgroup {
   --accent-95: rgb(236, 248, 244);
 }
 
-[ls-accent=green] {
+[ls-accent=green], [data-ls-accent=green] {
   --base-6: rgb(13, 16, 15);
   --base-8: rgb(18, 22, 20);
   --base-10: rgb(22, 28, 25);
@@ -1521,7 +1519,7 @@ ls-select ls-option, ls-select option, ls-select optgroup {
   --accent-95: rgb(233, 251, 242);
 }
 
-[ls-accent=lime] {
+[ls-accent=lime], [data-ls-accent=lime] {
   --base-6: rgb(15, 16, 13);
   --base-8: rgb(20, 22, 18);
   --base-10: rgb(25, 28, 22);
@@ -1558,7 +1556,7 @@ ls-select ls-option, ls-select option, ls-select optgroup {
   --accent-95: rgb(242, 250, 234);
 }
 
-[ls-accent=neon] {
+[ls-accent=neon], [data-ls-accent=neon] {
   --base-6: rgb(14, 17, 12);
   --base-8: rgb(19, 23, 17);
   --base-10: rgb(24, 29, 21);
@@ -1595,7 +1593,7 @@ ls-select ls-option, ls-select option, ls-select optgroup {
   --accent-95: rgb(240, 255, 229);
 }
 
-[ls-accent=yellow] {
+[ls-accent=yellow], [data-ls-accent=yellow] {
   --base-6: rgb(17, 17, 12);
   --base-8: rgb(23, 23, 17);
   --base-10: rgb(29, 28, 21);
@@ -1632,7 +1630,7 @@ ls-select ls-option, ls-select option, ls-select optgroup {
   --accent-95: rgb(255, 252, 229);
 }
 
-[ls-accent=orange] {
+[ls-accent=orange], [data-ls-accent=orange] {
   --base-6: rgb(17, 15, 12);
   --base-8: rgb(23, 20, 17);
   --base-10: rgb(29, 25, 21);
@@ -1669,7 +1667,7 @@ ls-select ls-option, ls-select option, ls-select optgroup {
   --accent-95: rgb(255, 241, 229);
 }
 
-[ls-accent=deep-orange] {
+[ls-accent=deep-orange], [data-ls-accent=deep-orange] {
   --base-6: rgb(17, 14, 12);
   --base-8: rgb(23, 19, 17);
   --base-10: rgb(29, 23, 21);
@@ -1706,7 +1704,7 @@ ls-select ls-option, ls-select option, ls-select optgroup {
   --accent-95: rgb(255, 237, 229);
 }
 
-[ls-accent=red] {
+[ls-accent=red], [data-ls-accent=red] {
   --base-6: rgb(17, 13, 13);
   --base-8: rgb(23, 17, 17);
   --base-10: rgb(29, 21, 21);
@@ -1743,7 +1741,7 @@ ls-select ls-option, ls-select option, ls-select optgroup {
   --accent-95: rgb(253, 230, 230);
 }
 
-[ls-accent=rusty-red] {
+[ls-accent=rusty-red], [data-ls-accent=rusty-red] {
   --base-6: rgb(17, 13, 13);
   --base-8: rgb(22, 18, 18);
   --base-10: rgb(28, 22, 23);
@@ -1780,7 +1778,7 @@ ls-select ls-option, ls-select option, ls-select optgroup {
   --accent-95: rgb(251, 233, 234);
 }
 
-[ls-accent=pink] {
+[ls-accent=pink], [data-ls-accent=pink] {
   --base-6: rgb(17, 13, 15);
   --base-8: rgb(22, 17, 21);
   --base-10: rgb(28, 22, 26);
@@ -1817,7 +1815,7 @@ ls-select ls-option, ls-select option, ls-select optgroup {
   --accent-95: rgb(252, 232, 244);
 }
 
-[ls-accent=hotpink] {
+[ls-accent=hotpink], [data-ls-accent=hotpink] {
   --base-6: rgb(17, 13, 15);
   --base-8: rgb(23, 17, 20);
   --base-10: rgb(29, 21, 25);
@@ -1854,7 +1852,7 @@ ls-select ls-option, ls-select option, ls-select optgroup {
   --accent-95: rgb(253, 231, 241);
 }
 
-[ls-accent=purple] {
+[ls-accent=purple], [data-ls-accent=purple] {
   --base-6: rgb(15, 14, 16);
   --base-8: rgb(21, 19, 21);
   --base-10: rgb(26, 23, 27);
@@ -1891,7 +1889,7 @@ ls-select ls-option, ls-select option, ls-select optgroup {
   --accent-95: rgb(245, 237, 247);
 }
 
-[ls-accent=soap] {
+[ls-accent=soap], [data-ls-accent=soap] {
   --base-6: rgb(15, 14, 16);
   --base-8: rgb(20, 18, 22);
   --base-10: rgb(25, 23, 27);
@@ -1928,7 +1926,7 @@ ls-select ls-option, ls-select option, ls-select optgroup {
   --accent-95: rgb(241, 235, 249);
 }
 
-[ls-accent=burple] {
+[ls-accent=burple], [data-ls-accent=burple] {
   --base-6: rgb(13, 13, 17);
   --base-8: rgb(17, 18, 23);
   --base-10: rgb(21, 22, 29);
@@ -1965,7 +1963,7 @@ ls-select ls-option, ls-select option, ls-select optgroup {
   --accent-95: rgb(230, 233, 253);
 }
 
-[ls-accent=white], [ls-accent=auto], [ls-accent].ls-accent-static {
+[ls-accent=white], [data-ls-accent=white], [data-ls-accent=auto], [ls-accent=auto], [ls-accent].ls-accent-static, [data-ls-accent].ls-accent-static {
   --base-6: rgb(15, 15, 15);
   --base-8: rgb(20, 20, 20);
   --base-10: rgb(25, 25, 25);
@@ -1989,7 +1987,7 @@ ls-select ls-option, ls-select option, ls-select optgroup {
   --base-98: rgb(249, 249, 249);
 }
 
-[ls-accent=white], [ls-accent=auto] {
+[ls-accent=white], [data-ls-accent=white], [data-ls-accent=auto], [ls-accent=auto] {
   --accent-10: rgb(25, 25, 25);
   --accent-20: rgb(51, 51, 51);
   --accent-30: rgb(76, 76, 76);
@@ -2005,7 +2003,7 @@ ls-select ls-option, ls-select option, ls-select optgroup {
   --accent-95: rgb(242, 242, 242);
 }
 
-[class*=level-], ls-box, [ls-accent] {
+[class*=level-], ls-box, [ls-accent], [data-ls-accent] {
   color: var(--color);
 }
 
@@ -2190,7 +2188,7 @@ ls-select ls-option, ls-select option, ls-select optgroup {
   border-radius: var(--border-radius-full);
 }
 
-[ls-accent], ls-box:not(.color), html, [class*=level-]:not(.color), .sidebar-items {
+[ls-accent], [data-ls-accent], ls-box:not(.color), html, [class*=level-]:not(.color), .sidebar-items {
   --accent: var(--accent-40);
   --accent-mix-10: color-mix(in oklab, var(--background) 100%, var(--accent) 10%);
   --accent-mix-20: color-mix(in oklab, var(--background) 100%, var(--accent) 20%);
@@ -2537,7 +2535,7 @@ template {
   display: none;
 }
 
-input:-webkit-autofill, [ls] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), input, textarea, :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore), [ls] {
+input:-webkit-autofill, [ls] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), input, textarea, :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore), .ls :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), input, textarea, :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore), [ls], .ls {
   font-family: var(--font);
 }
 
@@ -2549,7 +2547,7 @@ body {
   color-scheme: only light;
 }
 
-[ls] {
+[ls], .ls {
   --space-tiny: 4px;
   --space-small: 8px;
   --space-medium: 16px;
@@ -2575,80 +2573,80 @@ body {
   color: var(--color);
   overflow-y: overlay;
 }
-[ls] * {
+[ls] *, .ls * {
   box-sizing: border-box;
 }
-[ls] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), input, textarea, :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore) {
+[ls] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), input, textarea, :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore), .ls :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), input, textarea, :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore) {
   box-sizing: border-box;
   outline: none;
   position: relative;
 }
-[ls] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), input, textarea, :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore):not(textarea) {
+[ls] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), input, textarea, :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore):not(textarea), .ls :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), input, textarea, :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore):not(textarea) {
   line-height: 1;
   border: 0;
 }
-[ls] :is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), [ls] :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore) {
+[ls] :is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), [ls] :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore), .ls :is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), .ls :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore) {
   padding: var(--padding-control-v) var(--padding-control-h);
   margin: var(--margin-control-v) var(--margin-control-h);
   cursor: pointer;
 }
-[ls] input, [ls] textarea {
+[ls] input, [ls] textarea, .ls input, .ls textarea {
   height: calc(1em + var(--padding-control-v) * 2);
   padding: 0 var(--padding-input-h);
   margin: var(--margin-control-v) var(--margin-control-h);
   color: inherit;
 }
-[ls] textarea {
+[ls] textarea, .ls textarea {
   line-height: normal;
 }
-[ls] :is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore):is(.square, .circle) {
+[ls] :is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore):is(.square, .circle), .ls :is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore):is(.square, .circle) {
   height: calc(1em + var(--padding-control-v) * 2);
   width: calc(1em + var(--padding-control-v) * 2);
   padding: 0;
 }
-[ls] :is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore):is(.square, .circle) > :first-child {
+[ls] :is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore):is(.square, .circle) > :first-child, .ls :is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore):is(.square, .circle) > :first-child {
   margin: 0;
   padding: 0;
 }
-[ls] a {
+[ls] a, .ls a {
   text-decoration: none;
 }
-[ls] a.ls-plain {
+[ls] a.ls-plain, .ls a.ls-plain {
   color: inherit;
 }
-[ls] a:not(.ls-button, .ls-plain) {
+[ls] a:not(.ls-button, .ls-plain), .ls a:not(.ls-button, .ls-plain) {
   color: var(--accent-70);
 }
-[ls] a:not(.ls-button, .ls-plain):focus {
+[ls] a:not(.ls-button, .ls-plain):focus, .ls a:not(.ls-button, .ls-plain):focus {
   box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.2666666667);
   outline: 3px solid var(--accent-60);
   outline-offset: 3px;
   border-radius: 3px;
 }
-[ls] hr, [ls] .ls-menu-separator {
+[ls] hr, [ls] .ls-menu-separator, .ls hr, .ls .ls-menu-separator {
   border: 1px solid var(--elevate);
   border-radius: 10px;
   margin: var(--hr-spacing, 18px) 0;
 }
-[ls] :is(input:not([type]), input[type=text], input[type=search], input[type=email], input[type=url], input[type=tel], input[type=password], input[type=number], textarea, .ls-text-input):not(.ls-ignore)::selection {
+[ls] :is(input:not([type]), input[type=text], input[type=search], input[type=email], input[type=url], input[type=tel], input[type=password], input[type=number], textarea, .ls-text-input):not(.ls-ignore)::selection, .ls :is(input:not([type]), input[type=text], input[type=search], input[type=email], input[type=url], input[type=tel], input[type=password], input[type=number], textarea, .ls-text-input):not(.ls-ignore)::selection {
   background-color: var(--accent-mix-40);
 }
-[ls] h1 {
+[ls] h1, .ls h1 {
   font-weight: 800;
 }
-[ls] h2 {
+[ls] h2, .ls h2 {
   font-weight: 600;
 }
-[ls] h3 {
+[ls] h3, .ls h3 {
   font-weight: 500;
 }
-[ls] h4 {
+[ls] h4, .ls h4 {
   font-weight: 300;
 }
-[ls] h3, [ls] h4 {
+[ls] h3, [ls] h4, .ls h3, .ls h4 {
   color: var(--surface-8);
 }
-[ls] table:not(.clear) {
+[ls] table:not(.clear), .ls table:not(.clear) {
   background-color: var(--elevate-0);
   border-radius: var(--border-radius);
   border-collapse: collapse;
@@ -2656,19 +2654,19 @@ body {
   outline: 1px solid var(--elevate-1);
   box-shadow: 0 10px 20px 0 rgba(0, 0, 0, 0.1333333333);
 }
-[ls] table:not(.clear) thead, [ls] table:not(.clear) tfoot {
+[ls] table:not(.clear) thead, [ls] table:not(.clear) tfoot, .ls table:not(.clear) thead, .ls table:not(.clear) tfoot {
   background: var(--elevate);
 }
-[ls] table:not(.clear) th {
+[ls] table:not(.clear) th, .ls table:not(.clear) th {
   font-weight: 600;
 }
-[ls] table:not(.clear) :is(th, td) {
+[ls] table:not(.clear) :is(th, td), .ls table:not(.clear) :is(th, td) {
   padding: var(--space-tiny) var(--space-medium);
 }
-[ls] table:not(.clear) :is(th, td):not(:last-child) {
+[ls] table:not(.clear) :is(th, td):not(:last-child), .ls table:not(.clear) :is(th, td):not(:last-child) {
   border-right: 1px solid var(--elevate-1);
 }
-[ls] table:not(.clear) :is(tr, thead, tbody):not(:last-child) {
+[ls] table:not(.clear) :is(tr, thead, tbody):not(:last-child), .ls table:not(.clear) :is(tr, thead, tbody):not(:last-child) {
   border-bottom: 1px solid var(--elevate-1);
 }
 
@@ -2926,7 +2924,7 @@ body {
   background: var(--elevate-2);
 }
 
-body::selection, [ls-accent]::selection {
+body::selection, [ls-accent]::selection, [data-ls-accent]::selection {
   background: var(--accent-mix-40, rgba(0, 109, 255, 0.3607843137));
 }
 

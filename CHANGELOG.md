@@ -67,6 +67,14 @@ Major update (2026 release)!
 - Feature additions to LS.ShortcutManager
 - Added Ansi color support to LS.CommandPalette (parser available at `LS.CommandPalette.parseAnsi`)
 - Fixes
+- LS attributes are being deprecated in favor of data attributes:
+  - `ls` -> class `.ls`
+  - `ls-accent` -> `data-ls-accent`
+  - `ls-theme` -> `data-ls-theme`
+  - `ls-style` -> `data-ls-style`
+  - Newer attributes are already available as `data-ls-state`, `data-ls-effect` etc. without a legacy attribute.
+  - New applications should use the new data attributes. The old attributes are still supported for backwards compatibility but not guaranteed to work in the future.
+  - *This is not out of my choice, but to conform to HTML standards. I personally dislike it.*
 
 Final alpha release before 6.0.0 relases as stable!
 

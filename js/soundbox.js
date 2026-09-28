@@ -51,6 +51,10 @@ class SoundBox {
 
         this.setVolume(options.volume ?? 1);
 
+        if(options.srcPrefix) {
+            this.srcPrefix = options.srcPrefix;
+        }
+
         if(options.sounds) {
             this.registerMany(options.sounds);
         }
@@ -58,6 +62,10 @@ class SoundBox {
         if(options.logger) {
             this.log = options.logger;
         } else this.log = LS.DEFAULT_LOG_OUTPUT;
+
+        if(options.autoLoad) {
+            this.loadAll();
+        }
 
         if(this.parent) {
             this.parent.once("destroy", () => this.destroy());
@@ -146,6 +154,12 @@ class SoundBox {
         if(typeof options === "string") {
             options = { src: options };
         }
+
+        if(this.srcPrefix && options.src) {
+            options.src = this.srcPrefix + options.src;
+        }
+
+        options.src = LS.Util.normalizePath(options.src);
 
         this.soundMap.set(soundName, options);
     }

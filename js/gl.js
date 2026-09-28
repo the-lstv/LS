@@ -743,7 +743,7 @@ void main() {
 
             if (this.pendingResize[0]) {
                 this.#resize(this.pendingResize[1], this.pendingResize[2]);
-                console.log(`Renderer resized to ${this.pendingResize[1]}x${this.pendingResize[2]}`);
+                // console.log(`Renderer resized to ${this.pendingResize[1]}x${this.pendingResize[2]}`);
                 this.pendingResize[0] = false;
             }
 
@@ -765,8 +765,13 @@ void main() {
                 this.dimensionsVersion++;
             }
 
-            // Update buffers and such
-            // this.quickEmit("render", delta, now, cw, ch, updatedDimensions);
+            if(this.options.preRender) {
+                if(this.options.preRender(delta, now, camera, updatedDimensions) === false) {
+                    this.renderTargets.clear();
+                    this.reEvaluateComponentSizes = false;
+                    return;
+                }
+            }
 
             if(target) {
                 this.renderOne(target, delta, now, camera, false, updatedDimensions);
@@ -2059,8 +2064,10 @@ void main() {
             gl.uniform2f(uniforms.uOffset, this.offsetX, this.offsetY);
 
             gl.activeTexture(gl.TEXTURE0);
-            gl.bindTexture(gl.TEXTURE_2D, this.texture);
             gl.uniform1i(uniforms.uTexture, 0);
+
+            gl.bindTexture(gl.TEXTURE_2D, this.texture);
+
             gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, endIdx - startIdx);
 
             gl.bindVertexArray(null);
