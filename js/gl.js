@@ -791,10 +791,25 @@ void main() {
             this.reEvaluateComponentSizes = false;
         }
 
+        /**
+         * Renders a single renderable.
+         * todo: refactor & cleanup
+         * @param {*} renderable 
+         * @param {*} delta 
+         * @param {*} now 
+         * @param {*} camera 
+         * @param {*} clear 
+         * @param {*} updateDimensions 
+         * @returns 
+         */
         renderOne(renderable, delta = 0, now = null, camera = null, clear = false, updateDimensions = false) {
             if(!renderable || renderable.enabled === false || renderable.destroyed) return;
 
-            const hasRenderMethod = typeof renderable.render === "function";
+            const hasRenderMethod = typeof renderable.renderCallback === "function";
+
+            if(!hasRenderMethod && typeof renderable.render === "function") {
+                console.warn("Renderable has a render() method but no renderCallback. It is possible it is using the legacy renderable API, which is no longer supported");
+            }
 
             if(this.reEvaluateComponentSizes && renderable.boundingContainer) {
                 this.recomputeBoundingRect(renderable, false);
@@ -806,8 +821,8 @@ void main() {
                 this.viewport(rect.x, rect.y, rect.width, rect.height);
             }
 
-            if(renderable.renderables) {
-                renderable = renderable.renderable || renderable.renderables;
+            if(renderable.renderables || renderable.children) {
+                renderable = renderable.renderable || renderable.renderables || renderable.children;
             }
 
             if(Array.isArray(renderable)) {
@@ -846,7 +861,7 @@ void main() {
                 gl.bindVertexArray(renderable.vao);
             }
 
-            renderable.render(delta || 0, now || performance.now(), gl, cw, ch, updateDimensions, renderable.uniforms, renderable.attributes, camera? camera.projectionMatrix: this.activeCamera.projectionMatrix);
+            renderable.renderCallback(delta || 0, now || performance.now(), gl, cw, ch, updateDimensions, renderable.uniforms, renderable.attributes, camera? camera.projectionMatrix: this.activeCamera.projectionMatrix);
 
             if(bindVAO) {
                 gl.bindVertexArray(null);
@@ -1074,13 +1089,14 @@ void main() {
             }
 
             this.renderables.push(renderable);
+            return renderable;
         }
 
         destroyRenderable(renderable) {
             if(!renderable) return;
 
-            if(renderable.renderables) {
-                for(const r of renderable.renderables) {
+            if(renderable.renderables || renderable.children) {
+                for(const r of renderable.renderables || renderable.children) {
                     this.destroyRenderable(r);
                 }
             }
@@ -1365,13 +1381,13 @@ void main() {
             }
 
             if(options.onRender) {
-                this.render = options.onRender.bind(this);
+                this.renderCallback = options.onRender.bind(this);
             }
 
             this.renderer.once("destroy", this.__parentDestroyHandler = () => this.destroy());
         }
 
-        render(delta, now, gl, width, height, updatedDimensions, uniforms, attributes, projectionMatrix) {
+        renderCallback(delta, now, gl, width, height, updatedDimensions, uniforms, attributes, projectionMatrix) {
             // Override in subclass or provide a render function in the constructor
         }
 
@@ -2024,7 +2040,7 @@ void main() {
             this._staticColor = value;
         }
 
-        render(delta, now, gl, cw, ch, updatedDimensions, uniforms, attributes, projectionMatrix) {
+        renderCallback(delta, now, gl, cw, ch, updatedDimensions, uniforms, attributes, projectionMatrix) {
             // if(this.manualRendering || this.nextFree === 0) return;
             if(this.nextFree === 0) return;
             this.updateBuffers();

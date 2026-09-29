@@ -737,7 +737,7 @@ class Patcher extends LS.Component {
 
         // Temporary SVG renderer as per the note above
         this.connectionRenderable = {
-            render: (delta, now, gl, cw, ch, updatedDimensions) => {
+            renderCallback: (delta, now, gl, cw, ch, updatedDimensions) => {
                 if(self.destroyed) return;
                 const anchorX = this.options.anchorX ?? 0.5;
                 const anchorY = this.options.anchorY ?? 0.5;

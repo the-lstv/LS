@@ -137,7 +137,7 @@ class Timeline {
     then(fn) { return this.promise.then(fn); }
 }
 
-class Animation extends LS.Component {
+class Animation2 extends LS.Component {
     static { LS.register(this, { name: "Animation2", global: true }) }
 
     DEFAULT_DURATION = 300;
@@ -202,7 +202,8 @@ class Animation extends LS.Component {
         },
         'ease-in-out-bounce': t => t < 0.5
             ? (1 - Animation.EASING['ease-out-bounce'](1 - 2*t)) / 2
-            : (1 + Animation.EASING['ease-out-bounce'](2*t - 1)) / 2
+            : (1 + Animation.EASING['ease-out-bounce'](2*t - 1)) / 2,
+        'spring': t => 1 - Math.cos(t * Math.PI * (0.2 + 2.5 * t * t * t)) * Math.exp(-t * 6),
     };
 
     static Context = class AnimationContext {
@@ -657,11 +658,11 @@ class Animation extends LS.Component {
     }
 };
 
-LS.Animation2.global = new LS.Animation2();
+Animation2.global = new Animation2();
 
 console.warn("LS.Animation2 is highly experimental. Do not use it in production; things will change a lot and may be unsafe right now.");
 
 
 /*@ls-export*/ if (typeof module !== "undefined" && module.exports) {
-    module.exports = LS.Animation2;
+    module.exports = Animation2;
 }
