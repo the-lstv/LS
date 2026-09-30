@@ -1,9 +1,9 @@
 ![Logo](/misc/banner.png)
 
 # What's LS?
-LS is a lightweight, dependency-free library collection and UI framework for building very fast and accessible interfaces, anything from simple websites to full-featured complex software. It has a rich set of UI components and utilities that are quite useful for nearly any web project.
+LS is a lightweight, dependency-free framework/library collection for building very fast and accessible interfaces, anything from websites and webapps to full-featured complex software. It has a rich set of UI components and utilities that are quite useful for nearly any web project.
 
-It features things like a complete UI framework, color system, utilities, etc., but also more advanced features, and common libraries & utilities, including a WebGL renderer, color library, etc.
+It features things like an UI framework, color system, utilities, parsers, etc., but also advanced features, including a WebGL renderer, sound manager, animation system, window manager, multipane layout, etc.
 
 It supports modern web standards, is modular, easy to use, has first-class support for Emmet, and is designed with accessibility and customization in mind.
 
@@ -12,10 +12,9 @@ It's lightweight, **very fast**, efficient, memory-safe and increasingly more ro
 It is also fully dependency-free and platform/framework agnostic.
 
 ## LS v6.0.0-alpha.5
-The next major version of LS is currently in alpha (mostly already stable, only some components are work in progress).
 
 ### What's new?
-- ✨ New APIs, Emmet support, and overal polish.
+- ✨ New APIs, Emmet support, **13+ new components**, and overal polish.
 - 🚀 Improved performance all around
 - 💾 Optimized for memory efficiency and lifecycle management
 - 💻 Enhanced design language, UI/UX, etc.
@@ -26,9 +25,14 @@ The next major version of LS is currently in alpha (mostly already stable, only 
 ---
 
 <img src=https://cdn.extragon.cloud/file/a771e02dfb37f618.svg> <br>
-LS is made by a human, not by AI.
+LS is made entirely by a human, not by AI.
 
 <br>
+
+```js
+// Example of creating elements with LS & Emmet syntax:
+const element = LS.Create("button.my-class#my-id{Hello world!}");
+```
 
 ### Go see the [docs](docs/index.md) to get started!
 ### For a quick start on importing the library, check out [https://lstv.space/tools/ls-loader](https://lstv.space/tools/ls-loader)
@@ -39,28 +43,27 @@ LS is made by a human, not by AI.
 ## Main advantages:
 - 🦎 **Very versatile**
     - It can be used for things starting with simple landing pages to entire complex, professional interfaces.
-    - It is modular and extensible. You can use what you need and easily make your own components.
-    - It's written in vanilla JS/CSS, so it works anywhere and is platform/framework agnostic. You can use it as just a library if you want.
-    - No vendor lock-in. LS has a lot to offer, but it can just do that within it's own scope and leave the rest to your own code.
+    - It's written in vanilla JS/CSS, so it works anywhere and is platform/framework agnostic, and doesn't bother you with additional setup or build steps.
+    - No vendor lock-in or namespace pollution. LS has a lot to offer, but it can just do that within it's own scope and leave the rest to your own code.
+    - It is modular and extensible. You can use what you need and easily make your own components. All components also offer robust lifecycle management.
 
 - 🐜 **Light, reliable and ridiculously fast**
     - The main focus of LS is performance and stability/memory usage. I got tired of the bloated, low quality and slow framework mess that is the majority of today's web, and wanted to create something that just does its job without hogging resources, and ensure it doesn't trade performance for convenience. That is why I spend a lot of time and effort optimizing LS to be as fast and efficient as it can be.
-    - LS uses its own optimized implementations of core features instead of 3rd party libraries. It has many components that are currently the fastest available implementations in the whole industry.
+    - LS uses its own optimized implementations of core features instead of relying on 3rd party libraries, and as a result has some of the fastest implementations for many common functions in the whole industry.
     - See my [design philosophy](#design-philosophy-and-quality-standards) if you want more details about how LS is written.
 
-- :godmode: **Powerful.**
-    - It's relatively mature (4+ years), went through many iterations, and I am constantly improving it and using it daily. It is quite robust and well tested despite being a single person effort.
-    - I will be providing support for a long time. If you want to help, feel free to contribute <3!
-    - Whenever I make some kind of component for my other projects, I usually later complete and release it as a LS component.
+- :godmode: **Reliable.**
+    - It's relatively mature (maintained for 4+ years with very regular updates), doesn't run on any AI slop, went through several iterations, and I am constantly improving it.
+    - It is robust and well tested despite being a single person effort.
+    - I will keep providing support for a long time to come. If you want to help, feel free to contribute (please)! <3
 
-- 📦 **No dependencies or bloat**
+- 📦 **No dependencies**
     - LS is fully self-contained, meaning that you don't need to do or setup anything else to get the full set of features. Just get it and go.
 
 - ✨ **Honest, human-written and clean code**
-    - Every part of LS is written from scratch, purpose-built for efficiency. Many frameworks rely on random third-party libraries out of convenience. We don't.
-    - There are only two 3rd party libraries bundled in LS: normalize.css for CSS resets and omggif in the ImageCropper component to decode GIFs.
+    - Every part of LS is written from scratch and purpose-built for efficiency. Many frameworks rely on cheap solutions for convenience or trade quality for development speed. LS does not.
     - No AI is used to write LS code. It is made by a human developer and hundreds of hours of work.
-    (Contact me if you want more insight on my stance and use of AI technologies. I will later publish an article on this topic.)
+    - There are only two pieces of 3rd party code bundled in LS: normalize.css for CSS resets and omggif in the ImageCropper component to decode GIFs.
 
 ## See it in action
 Check out the live [example page/demo](https://lstv.space/tech/ls) to see some LS components in action.<br>
@@ -112,7 +115,7 @@ It is unlikely everything will be get that 5/5 rating as it is intentionally a h
 </details>
 
 ## License/terms
-This project is partially source-available, but not open source to prevent license removal (look up AI code laundering if you want to know why).<br>
+This project was formerly open-source. Now, not by choice, it is no longer open-source but partially source-available to at least slightly prevent license removal and theft (look up AI code laundering if you want to know why).<br>
 You can read the code and make contributions, but you are forbidden from using it for any AI training or analysis or source redistribution.<br>
 This is a temporary measure to protect the project from ill-minded plagiarism.<br>
-Comercial use remains allowed as long as the terms are met.
+Comercial use is allowed as long as the terms are met and you are not making profit or redistributing the code itself.

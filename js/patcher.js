@@ -2418,6 +2418,6 @@ void main() {
     }
 }
 
-if(typeof module !== "undefined" && typeof module.exports !== "undefined") {
+/*@ls-export*/ if(typeof module !== "undefined" && typeof module.exports !== "undefined") {
     module.exports = Patcher;
 }

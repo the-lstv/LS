@@ -3,46 +3,61 @@ const lerp = (a, b, t) => a + (b - a) * t;
 console.warn("LS.Animation2 is experimental");
 
 /**
- * CPU animations for animating basically anything.
+ * @typedef {Object} AnimationOptions
+ * @property {number} [offset=0] - The initial time offset of the animation.
+ * @property {number} [duration=1000] - The duration of the animation in milliseconds.
+ * @property {string|function} [easing=0] - The easing function or name to use for the animation.
+ * @property {number} [speed=1] - The speed multiplier for the animation (negative for reverse).
+ * @property {number} [repeat=0] - The number of times to repeat the animation (0 for no repeat).
+ * @property {number} [repeatMode=0] - The repeat mode (0 for normal, 1 for reverse, 2 for alternate).
+ * @property {boolean} [ephemeral=true] - Whether the animation is ephemeral (auto-destroy after completion).
+ * @property {number} [delay=0] - The delay before the animation starts in milliseconds
+ * @property {function|object|HTMLElement} [target] - Target element or function to animate.
+ */
+
+/**
+ * @typedef {function|object|HTMLElement} AnimationTarget
+ * @description The target of the animation. It can be a function that receives the animated value, an object whose properties will be animated, or an HTML element whose style properties will be animated.
+ */
+
+/**
+ * Lighteight CPU animation library for animating basically anything.
+ * Supports keyframes, easing, timelines, and more.
  * 
  * Todo: blending, groups, initial values, sync with parent time, & optimize advancing
  * 
  * For CSS animations, you should use WAAPI methods instead.
+ * 
+ * Animations can be used as renderables, advancd manually, via a timeline, or via the global ticker, and can be ephemeral or persistent.
  */
 class Animation {
-    // Global animations
-    static animations = new Set;
-
-    static {
-        LS.register(this, { name: "Animation2", global: true });
-
-        this.GlobalTicker = new LS.Util.FrameScheduler((delta) => {
-            // Update all active animations
-            for(const animation of Animation.animations) {
-                animation.advance(delta);
-            }
-        });
-
-        this.GlobalTicker.start();
-    }
-
-    static DEFAULT_DURATION = 450;
-    static DEFAULT_EASING   = 'linear(0, 0.0018, 0.007 1.17%, 0.0334, 0.0758, 0.1306 5.54%, 0.2505 8.16%, 0.6477 16.03%, 0.7622 18.65%, 0.8498, 0.9229 23.32%, 0.9878 25.94%, 1.0308 28.27%, 1.0643 30.9%, 1.0791, 1.0886 34.39%, 1.094, 1.0944 38.48%, 1.0903 40.81%, 1.0814 43.43%, 1.0362 53.05%, 1.0184 57.42%, 1.0059, 0.9976 65.58%, 0.9925 70.25%, 0.991 75.79%, 0.9996 99.98%)';
-
     keyframes = [];
-    state     = [/*Time*/0, /*Duration*/0, /*Easing*/0, /*Speed (negative = reverse, 0 = paused, positive = forwards)*/0, /*Repeat*/0, /*Repeat mode*/0, /*Ephemeral*/true, /*State running, paused, stopped*/2];
+    state     = [/*Time*/0, /*Duration*/1000, /*Easing*/0, /*Speed (negative = reverse, 0 = paused, positive = forwards)*/0, /*Repeat*/0, /*Repeat mode*/0, /*Ephemeral*/true, /*State running, paused, stopped*/2, /*Delay*/0];
 
     /**
      * @type {Promise}
      */
-    promise   = null;
-    resolve   = null;
-
-    parent = null;
+    promise = null;
+    resolve = null;
 
     target = null;
+    parent = null;
 
+    /**
+     * Creates a new Animation instance.
+     * 
+     * @param {Array|Object} keyframes - Array of keyframes, or a single keyframe object as a destination state.
+     * @param {AnimationOptions} options - Animation options.
+     * @param {AnimationTarget} target - Target element or function to animate.
+     * @param {Animation} parent - Managing parent (for timelines).
+     */
     constructor(keyframes = [], options = {}, target = null, parent = Animation) {
+        if(!Array.isArray(keyframes) && typeof keyframes === "object" && keyframes !== null) {
+            keyframes = [keyframes];
+        } else if(!Array.isArray(keyframes)) {
+            throw new Error("Keyframes must be an array or an object");
+        }
+
         this.keyframes = keyframes;
         this.parent    = parent;
 
@@ -52,25 +67,37 @@ class Animation {
 
         this.target = options.target || target;
 
+        if(typeof this.target === "string") {
+            this.target = document.querySelectorAll(this.target);
+        }
+
         if(options) {
-            this.state[0] = (-options.delay      || 0) + (options.offset || 0);
-            this.state[1] =   options.duration   || 0;
+            this.state[0] =   options.offset     || 0;
+            this.state[1] =   options.duration   || 1000;
             this.state[2] =   options.easing     || 0;
             this.state[3] =   options.speed      || 1;
             this.state[4] =   options.repeat     || 0;
             this.state[5] =   options.repeatMode || 0;
             this.state[6] =   options.ephemeral  !== false;
+            this.state[8] =   options.delay      || 0;
         }
     }
 
     /**
      * Animate something with an ephemeral animation.
+     * @param {AnimationTarget} target - Target element or function to animate.
+     * @param {Array|Object} keyframes - Array of keyframes, or a single keyframe object as a destination state.
+     * @param {AnimationOptions} options - Animation options.
      * 
-     * @example
+     * @example // Animation with a callback
      * Animation.animate((value) => console.log(value), [{ value: 0 }, { value: 1, at: 0.5 }], { duration: 1000, easing: "ease-in" });
      * 
-     * @example
-     * const animation = Animation.animate({ opacity: 0 }, [{ opacity: 0 }, { opacity: 1 }, { opacity: 0.5, easing: "ease-out" }], { duration: 1000, easing: "ease-in" });
+     * @example // Animating object properties
+     * const animation = Animation.animate({ opacity: 0 }, [{ opacity: 0 }, { opacity: 0.5 }], { duration: 500, easing: "ease-out" });
+     * 
+     * animation.progress = 0.5;
+     * animation.reverse();
+     * // ...
      * await animation.promise;
      * 
      * @returns {Animation} Ephemeral animation
@@ -81,6 +108,10 @@ class Animation {
         const animation = new Animation(keyframes, options, target, this);
         animation.start();
         return animation;
+    }
+
+    static to(target, keyframe = {}, options = {}) {
+        return this.animate(target, keyframe, options);
     }
 
     static sleep(ms) {
@@ -101,6 +132,8 @@ class Animation {
         const repeatMode = stateObj[5];
         const state = stateObj[7];
 
+        const delay = stateObj[8];
+
         if(!parentState && state > 0) {
             // Paused
             return;
@@ -109,10 +142,13 @@ class Animation {
         stateObj[0] = (parentState? parentState[0]: stateObj[0] + delta) * stateObj[3];
 
         let time = stateObj[0];
-        if(time < 0) {
-            // Delay
+
+        // Delay
+        if(time < delay) {
             return;
         }
+
+        time -= delay;
 
         console.log("advancing timeline", time);
 
@@ -161,45 +197,61 @@ class Animation {
         const nextKeyframeAt = nextKeyframe?.at ?? (keyframeIndex + 1) / (this.keyframes.length - 1);
 
         let keyframeProgress = (progress - keyframeAt) / (nextKeyframeAt - keyframeAt);
+
         const keyframeType = typeof keyframe;
 
-        if (keyframeType === "function") {
-            keyframe(keyframeProgress, progress);
-        }
+        if (keyframeType === "object" && keyframe !== null) {
+            // Per-keyframe easing
+            if (keyframe.easing) {
+                const easingFn = typeof keyframe.easing === "string"? Animation.EASING[keyframe.easing]: keyframe.easing;
+                if(typeof easingFn === "function") keyframeProgress = easingFn(keyframeProgress);
+            }
 
-        else if (keyframeType === "object" && keyframe !== null) {
-            if(this.target) {
-                if (keyframe?.easing) {
-                    const easingFn = typeof keyframe.easing === "string"? Animation.EASING[keyframe.easing]: keyframe.easing;
-                    if(typeof easingFn === "function") keyframeProgress = easingFn(keyframeProgress);
-                }
+            for(const prop in keyframe) {
+                if (prop === "easing" || prop === "at") continue;
 
-                for(const prop in keyframe) {
-                    if (prop === "easing" || prop === "at") continue;
+                const value = lerp(keyframe[prop], nextKeyframe[prop], keyframeProgress);
 
-                    const value = lerp(keyframe[prop], nextKeyframe[prop], keyframeProgress);
-
-                    if(typeof this.target === "function") {
-                        this.target(prop, value, keyframeProgress, progress);
-                    } else if(this.target instanceof HTMLElement) {
+                for(const target of this.targetIterator()) {
+                    if(typeof target === "function") {
+                        target(prop, value, keyframeProgress, progress);
+                    } else if(target instanceof HTMLElement) {
                         // We could process CSS values, but CSS animations should use WAAPI anyways
-                        this.target.style[prop] = value;
+                        target.style[prop] = value;
                     } else {
-                        this.target[prop] = value;
+                        target[prop] = value;
                     }
                 }
             }
         }
-        
+
+        else if (keyframeType === "function") {
+            keyframe(keyframeProgress, progress);
+        }
+
         else if (keyframeType === "number") {
-            if(typeof this.target === "function") {
-                this.target(lerp(keyframe, nextKeyframe, keyframeProgress), keyframeProgress, progress);
+            for(const target of this.targetIterator()) {
+                if(typeof target === "function") {
+                    target(null, lerp(keyframe, nextKeyframe, keyframeProgress), keyframeProgress, progress);
+                }
             }
         }
 
         if(time >= duration) {
             this.stop();
         }
+    }
+
+    *targetIterator() {
+        if(!this.target) return;
+
+        if(Array.isArray(this.target) || this.target instanceof Set || this.target instanceof NodeList) {
+            for(const item of this.target) {
+                yield item;
+            }
+        }
+
+        yield this.target;
     }
 
     start(time = 0) {
@@ -217,6 +269,8 @@ class Animation {
         if(typeof this.state[2] === "string") {
             this.state[2] = Animation.EASING[this.state[2]] || Animation.EASING.linear;
         }
+
+        return this.promise;
     }
 
     stop() {
@@ -246,6 +300,10 @@ class Animation {
         this.state[7] = 0;
     }
 
+    play() {
+        this.resume();
+    }
+
     reverse() {
         this.state[3] = -this.state[3];
     }
@@ -260,13 +318,23 @@ class Animation {
         this.state[1] = value;
     }
 
-    get duration() { return this.state[1] }
+    get duration() {
+        if(this.isTimeline) {
+            let maxDuration = 0;
+            for(const animation of this.animations) {
+                maxDuration = Math.max(maxDuration, animation.duration);
+            }
+            return maxDuration;
+        }
 
-    set progress(value) {
-        this.state[0] = value * this.state[1];
+        return this.state[1];
     }
 
-    get progress() { return this.state[0] / this.state[1] }
+    set progress(value) {
+        this.state[0] = value * this.duration;
+    }
+
+    get progress() { return this.state[0] / this.duration; }
 
     set time(value) {
         this.state[0] = value;
@@ -296,6 +364,26 @@ class Animation {
         this.target    = null;
     }
 
+    static {
+        LS.register(this, { name: "Animation2", global: true });
+
+        this.GlobalTicker = new LS.Util.FrameScheduler((delta) => {
+            // Update all active animations
+            for(const animation of Animation.animations) {
+                animation.advance(delta);
+            }
+        });
+
+        this.GlobalTicker.start();
+    }
+
+    static DEFAULT_DURATION = 450;
+    static DEFAULT_EASING   = 'linear(0, 0.0018, 0.007 1.17%, 0.0334, 0.0758, 0.1306 5.54%, 0.2505 8.16%, 0.6477 16.03%, 0.7622 18.65%, 0.8498, 0.9229 23.32%, 0.9878 25.94%, 1.0308 28.27%, 1.0643 30.9%, 1.0791, 1.0886 34.39%, 1.094, 1.0944 38.48%, 1.0903 40.81%, 1.0814 43.43%, 1.0362 53.05%, 1.0184 57.42%, 1.0059, 0.9976 65.58%, 0.9925 70.25%, 0.991 75.79%, 0.9996 99.98%)';
+
+    // Global animations
+    static animations = new Set;
+
+    // Active DOM animations
     static activeAnimations = new WeakMap();
 
     // --- Animation 1 API
@@ -383,6 +471,23 @@ class Animation {
     }
 }
 
+/**
+ * Timeline that can contain multiple animations.
+ * Has the same controls as Animation.
+ * 
+ * @example
+ * const timeline = new Animation.Timeline([
+ *     new Animation([{ value: 0 }, { value: 1 }], { duration: 1000 }),
+ *     new Animation([{ value: 1 }, { value: 0 }], { duration: 1000, delay: 500 })
+ * ]);
+ * 
+ * timeline.start();
+ * 
+ * // Await all animations
+ * await timeline.promise;
+ * 
+ * @extends Animation
+ */
 class AnimationTimeline extends Animation {
     /**
      * @type {Animation[]}
@@ -420,10 +525,6 @@ class AnimationTimeline extends Animation {
         animation.pause();
         animation.parent = null;
         if(destroy) animation.destroy();
-    }
-
-    allFinished() {
-        return Promise.all(this.animations.map(a => a.promise));
     }
 
     destroy() {

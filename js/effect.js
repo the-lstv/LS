@@ -489,3 +489,7 @@ LS.Effect.register("squish", {
         }
     }
 });
+
+/*@ls-export*/ if (typeof module !== "undefined" && module.exports) {
+    module.exports = EffectManager;
+}

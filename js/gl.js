@@ -833,7 +833,7 @@ void main() {
             }
 
             if(!hasRenderMethod) {
-                console.warn("Renderable doesn't provide a render method.");
+                console.warn("Renderable", renderable, "doesn't provide a render method.");
                 return;
             }
 
