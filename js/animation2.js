@@ -1,167 +1,347 @@
+const lerp = (a, b, t) => a + (b - a) * t;
 
-// Properties where we expect color values
-const COLOR_PROPERTIES = new Set([
-    'color', 'background-color', 'background', 'border-color', 'border-top-color', 'border-right-color',
-    'border-bottom-color', 'border-left-color', 'outline-color', 'fill', 'stroke'
-]);
+console.warn("LS.Animation2 is experimental");
 
-const TRANSFORM_ALIASES = {
-    'x': ['translateX', 'px'],
-    'y': ['translateY', 'px'],
-    'z': ['translateZ', 'px'],
-    'rotate': ['rotate', 'deg'],
-    'rotateX': ['rotateX', 'deg'],
-    'rotateY': ['rotateY', 'deg'],
-    'scale': ['scale', ''],
-    'scaleX': ['scaleX', ''],
-    'scaleY': ['scaleY', ''],
-    'skewX': ['skewX', 'deg'],
-    'skewY': ['skewY', 'deg']
-};
+/**
+ * CPU animations for animating basically anything.
+ * 
+ * Todo: blending, groups, initial values, sync with parent time, & optimize advancing
+ * 
+ * For CSS animations, you should use WAAPI methods instead.
+ */
+class Animation {
+    // Global animations
+    static animations = new Set;
 
-class AnimationInstance {
-    constructor(parent, animationData) {
-        this.parent = parent;
-        this.data = animationData;
-        this.data[9] = this; // Store wrapper reference
-        this.id = null;
-        this._resolver = null;
-        this.promise = new Promise(resolve => { this._resolver = resolve; });
-        this.data[15] = this._resolver; // Store resolver
+    static {
+        LS.register(this, { name: "Animation2", global: true });
+
+        this.GlobalTicker = new LS.Util.FrameScheduler((delta) => {
+            // Update all active animations
+            for(const animation of Animation.animations) {
+                animation.advance(delta);
+            }
+        });
+
+        this.GlobalTicker.start();
+    }
+
+    static DEFAULT_DURATION = 450;
+    static DEFAULT_EASING   = 'linear(0, 0.0018, 0.007 1.17%, 0.0334, 0.0758, 0.1306 5.54%, 0.2505 8.16%, 0.6477 16.03%, 0.7622 18.65%, 0.8498, 0.9229 23.32%, 0.9878 25.94%, 1.0308 28.27%, 1.0643 30.9%, 1.0791, 1.0886 34.39%, 1.094, 1.0944 38.48%, 1.0903 40.81%, 1.0814 43.43%, 1.0362 53.05%, 1.0184 57.42%, 1.0059, 0.9976 65.58%, 0.9925 70.25%, 0.991 75.79%, 0.9996 99.98%)';
+
+    keyframes = [];
+    state     = [/*Time*/0, /*Duration*/0, /*Easing*/0, /*Speed (negative = reverse, 0 = paused, positive = forwards)*/0, /*Repeat*/0, /*Repeat mode*/0, /*Ephemeral*/true, /*State running, paused, stopped*/2];
+
+    /**
+     * @type {Promise}
+     */
+    promise   = null;
+    resolve   = null;
+
+    parent = null;
+
+    target = null;
+
+    constructor(keyframes = [], options = {}, target = null, parent = Animation) {
+        this.keyframes = keyframes;
+        this.parent    = parent;
+
+        if(parent) {
+            parent.animations.add(this);
+        }
+
+        this.target = options.target || target;
+
+        if(options) {
+            this.state[0] = (-options.delay      || 0) + (options.offset || 0);
+            this.state[1] =   options.duration   || 0;
+            this.state[2] =   options.easing     || 0;
+            this.state[3] =   options.speed      || 1;
+            this.state[4] =   options.repeat     || 0;
+            this.state[5] =   options.repeatMode || 0;
+            this.state[6] =   options.ephemeral  !== false;
+        }
+    }
+
+    /**
+     * Animate something with an ephemeral animation.
+     * 
+     * @example
+     * Animation.animate((value) => console.log(value), [{ value: 0 }, { value: 1, at: 0.5 }], { duration: 1000, easing: "ease-in" });
+     * 
+     * @example
+     * const animation = Animation.animate({ opacity: 0 }, [{ opacity: 0 }, { opacity: 1 }, { opacity: 0.5, easing: "ease-out" }], { duration: 1000, easing: "ease-in" });
+     * await animation.promise;
+     * 
+     * @returns {Animation} Ephemeral animation
+     */
+    static animate(target, keyframes = [], options = {}) {
+        options.ephemeral ??= true;
+
+        const animation = new Animation(keyframes, options, target, this);
+        animation.start();
+        return animation;
+    }
+
+    static sleep(ms) {
+        return new Promise(r => setTimeout(r, ms));
+    }
+
+    /**
+     * Advance the animation by the given delta time.
+     * @param {number} delta - The time to advance the animation by.
+     * @param {Animation} parentState - The parent animation container's state.
+     */
+    advance(delta, parentState = null) {
+        const stateObj = this.state;
+        if(!stateObj) return;
+
+        const duration = stateObj[1];
+        const repeat = stateObj[4];
+        const repeatMode = stateObj[5];
+        const state = stateObj[7];
+
+        if(!parentState && state > 0) {
+            // Paused
+            return;
+        }
+
+        stateObj[0] = (parentState? parentState[0]: stateObj[0] + delta) * stateObj[3];
+
+        let time = stateObj[0];
+        if(time < 0) {
+            // Delay
+            return;
+        }
+
+        console.log("advancing timeline", time);
+
+        if(this.isTimeline) {
+            for(const animation of this.animations) {
+                animation.advance(delta, stateObj);
+            }
+            return;
+        }
+
+        if(time >= duration) {
+            if(repeat > 0) {
+                time = stateObj[0] = 0;
+                stateObj[4]--;
+            } else {
+                this.stop();
+                return;
+            }
+        }
+
+        // Calculate progress
+        let progress = Math.min(1, Math.max(0, time / duration));
+
+        // Apply easing
+        const globalEasing = stateObj[2];
+        if(typeof globalEasing === "function") progress = globalEasing(progress);
+
+        // Update keyframes
+        // todo: optimize this & add initial values/forward fill/different modes etc.
+
+        let keyframeIndex = 0;
+
+        for (let i = 0; i < this.keyframes.length - 1; i++) {
+            const at = this.keyframes[i].at         ??  i      / (this.keyframes.length - 1);
+            const nextAt = this.keyframes[i + 1].at ?? (i + 1) / (this.keyframes.length - 1);
+
+            if (progress >= at && progress <= nextAt) {
+                keyframeIndex = i;
+                break;
+            }
+        }
+
+        const keyframe       = this.keyframes[keyframeIndex];
+        const nextKeyframe   = this.keyframes[keyframeIndex + 1];
+        const keyframeAt     =     keyframe?.at ??  keyframeIndex      / (this.keyframes.length - 1);
+        const nextKeyframeAt = nextKeyframe?.at ?? (keyframeIndex + 1) / (this.keyframes.length - 1);
+
+        let keyframeProgress = (progress - keyframeAt) / (nextKeyframeAt - keyframeAt);
+        const keyframeType = typeof keyframe;
+
+        if (keyframeType === "function") {
+            keyframe(keyframeProgress, progress);
+        }
+
+        else if (keyframeType === "object" && keyframe !== null) {
+            if(this.target) {
+                if (keyframe?.easing) {
+                    const easingFn = typeof keyframe.easing === "string"? Animation.EASING[keyframe.easing]: keyframe.easing;
+                    if(typeof easingFn === "function") keyframeProgress = easingFn(keyframeProgress);
+                }
+
+                for(const prop in keyframe) {
+                    if (prop === "easing" || prop === "at") continue;
+
+                    const value = lerp(keyframe[prop], nextKeyframe[prop], keyframeProgress);
+
+                    if(typeof this.target === "function") {
+                        this.target(prop, value, keyframeProgress, progress);
+                    } else if(this.target instanceof HTMLElement) {
+                        // We could process CSS values, but CSS animations should use WAAPI anyways
+                        this.target.style[prop] = value;
+                    } else {
+                        this.target[prop] = value;
+                    }
+                }
+            }
+        }
+        
+        else if (keyframeType === "number") {
+            if(typeof this.target === "function") {
+                this.target(lerp(keyframe, nextKeyframe, keyframeProgress), keyframeProgress, progress);
+            }
+        }
+
+        if(time >= duration) {
+            this.stop();
+        }
+    }
+
+    start(time = 0) {
+        if(time !== null) this.state[0] = time;
+        this.state[7] = 0;
+
+        this.promise = new Promise((resolve, reject) => {
+            this.resolve = resolve;
+        });
+
+        if(this.parent && this.parent instanceof AnimationTimeline) {
+            this.parent.ref++;
+        }
+
+        if(typeof this.state[2] === "string") {
+            this.state[2] = Animation.EASING[this.state[2]] || Animation.EASING.linear;
+        }
+    }
+
+    stop() {
+        this.state[7] = 2;
+        if(this.resolve) this.resolve();
+        this.resolve = null;
+
+        if(this.parent && this.parent.destroyed) this.parent = null;
+
+        // We can stop the ticker if no animations are running
+        if(this.parent && this.parent instanceof AnimationTimeline) {
+            this.parent.ref--;
+            if(this.parent.ref <= 0) this.parent.stop();
+        }
+
+        if(this.state[6]) {
+            this.destroy(false);
+        }
     }
 
     pause() {
-        if (this.id !== null) this.parent.pause(this.id);
-        return this;
+        this.state[7] = 1;
     }
 
     resume() {
-        if (this.id !== null) this.parent.resume(this.id);
-        else this.parent.run(this);
-        return this;
-    }
-
-    stop() {
-        if (this.id !== null) {
-            this.parent.stop(this.id, true);
-            this.id = null;
-        }
-        return this;
+        if(this.state[7] === 2) return this.start();
+        this.state[7] = 0;
     }
 
     reverse() {
-        this.data[7] = !this.data[7];
-        return this;
+        this.state[3] = -this.state[3];
     }
 
-    restart() {
-        // Reset time to -delay (index 10)
-        this.data[1] = -this.data[10];
-        this.data[14] = 0; // Reset loop count
-        
-        // Re-create promise
-        this.promise = new Promise(resolve => { this._resolver = resolve; });
-        this.data[15] = this._resolver;
-
-        if (this.id !== null) this.parent.resume(this.id);
-        else this.parent.run(this);
-        return this;
+    set speed(value) {
+        this.state[3] = value;
     }
 
-    // Optional play alias for clarity
-    play() { return this.resume(); }
+    get speed() { return this.state[3] }
 
-    seek(time) {
-        this.data[1] = time;
-        return this;
+    set duration(value) {
+        this.state[1] = value;
     }
 
-    progress(progress) {
-        progress = Math.min(Math.max(progress, 0), 1);
-        this.data[1] = progress * this.data[3];
-        return this;
+    get duration() { return this.state[1] }
+
+    set progress(value) {
+        this.state[0] = value * this.state[1];
     }
 
-    replay() {
-        return this.restart();
+    get progress() { return this.state[0] / this.state[1] }
+
+    set time(value) {
+        this.state[0] = value;
     }
 
-    then(onFulfilled) {
-        return this.promise.then(onFulfilled);
+    get time() { return this.state[0] }
+
+    renderCallback(delta, now) {
+        this.advance(delta);
     }
 
-    destroy() {
-        this.data[0] = null;
-        this.data = null;
-        this.id = null;
-        this.parent = null;
-    }
-}
+    destroy(_stop = true) {
+        if(this.destroyed) return;
+        this.destroyed = true;
 
-class Timeline {
-    constructor() {
-        this.tracks = [];
-        this.animations = [];
-        this.promise = Promise.resolve();
-    }
+        if(_stop) this.stop();
 
-    add(target, properties, options = {}, offset = 0) {
-        this.tracks.push({ target, properties, options, offset });
-        return this;
-    }
-
-    play(startOffset = 0) {
-        this.stop();
-        const anims = [];
-        for (const track of this.tracks) {
-            const opts = { ...track.options, delay: (track.options?.delay || 0) + (track.offset || 0) + startOffset };
-            const anim = LS.Animation2.global.animate(track.target, track.properties, opts);
-            if (anim instanceof Timeline) anims.push(...anim.animations);
-            else if (anim) anims.push(anim);
+        if(this.parent) {
+            this.parent.animations.delete(this);
         }
-        this.animations = anims;
-        this.promise = Promise.all(anims.map(a => a.promise));
-        return this;
+
+        this.keyframes = null;
+        this.state     = null;
+        this.promise   = null;
+        this.resolve   = null;
+        this.parent    = null;
+        this.target    = null;
     }
 
-    pause() { this.animations.forEach(a => a.pause?.()); return this; }
-    resume() { this.animations.forEach(a => a.resume?.()); return this; }
-    stop() {
-        this.animations.forEach(a => a.stop?.());
-        this.animations = [];
-        this.promise = Promise.resolve();
-        return this;
-    }
-    restart() { return this.play(); }
-    reverse() { this.animations.forEach(a => a.reverse?.()); return this; }
-    then(fn) { return this.promise.then(fn); }
-}
+    static activeAnimations = new WeakMap();
 
-class Animation2 extends LS.Component {
-    static { LS.register(this, { name: "Animation2", global: true }) }
+    // --- Animation 1 API
 
-    DEFAULT_DURATION = 300;
-    DEFAULT_EASING = 'ease';
+    static async fadeIn(target, direction = null, duration = LS.Animation2.DEFAULT_DURATION, preserveTransform = false) {
+        if(!target) return;
 
-    constructor() {
-        super();
-        this.scheduler = new LS.Util.FrameScheduler(this.render.bind(this), { deltaTime: true });
-        this.activeProps = new WeakMap(); // target -> Map(prop -> AnimationInstance)
-    }
-
-    // Users have the choice to turn this setting on/off per-site.
-    static get prefersReducedMotion() {
-        const saved = localStorage.getItem('ls-reduced-motion');
-        return saved === 'true' ? true : saved === 'false' ? false : window.matchMedia? window.matchMedia('(prefers-reduced-motion: reduce)').matches: false;
-    }
-
-    static set prefersReducedMotion(value) {
-        if(value === null) {
-            localStorage.removeItem('ls-reduced-motion');
-        } else {
-            localStorage.setItem('ls-reduced-motion', String(!!value));
+        let existing = this.activeAnimations.get(target);
+        if(!existing) {
+            this.activeAnimations.set(target, (existing = {}));
         }
+
+        if(existing.fade) existing.fade.cancel(), existing.fade = null;
+
+        if(duration < 1) {
+            target.style.display = 'none';
+            return;
+        }
+
+        target.classList.add('animating');
+
+        // todo...
     }
+    
+    static async fadeOut(target, direction = null, duration = LS.Animation2.DEFAULT_DURATION, preserveTransform = false) {
+        if(!target) return;
+
+        // todo...
+    }
+
+    static directions = {
+        up: { translate: "0 10px" },
+        down: { translate: "0 -10px" },
+        left: { translate: "-10px 0" },
+        right: { translate: "10px 0" },
+        forward: { scale: 1.1 },
+        backward: { scale: 0.9 },
+        upForward: { translate: "0 10px", scale: 1.1 },
+        upBackward: { translate: "0 10px", scale: 0.9 },
+        downForward: { translate: "0 -10px", scale: 1.1 },
+        downBackward: { translate: "0 -10px", scale: 0.9 },
+        leftForward: { translate: "-10px 0", scale: 1.1 },
+        leftBackward: { translate: "-10px 0", scale: 0.9 },
+        rightForward: { translate: "10px 0", scale: 1.1 },
+        rightBackward: { translate: "10px 0", scale: 0.9 }
+    };
 
     static EASING = {
         'linear': t => t,
@@ -189,9 +369,7 @@ class Animation2 extends LS.Component {
         'ease-in-out-circ': t => t < 0.5 ? (1 - Math.sqrt(1 - Math.pow(2*t, 2))) / 2 : (Math.sqrt(1 - Math.pow(-2*t + 2, 2)) + 1) / 2,
         'ease-in-back': t => (2.70158 * t * t * t) - (1.70158 * t * t),
         'ease-out-back': t => 1 + (2.70158 * Math.pow(t - 1, 3)) + (1.70158 * Math.pow(t - 1, 2)),
-        'ease-in-out-back': t => t < 0.5
-            ? (Math.pow(2 * t, 2) * ((2.5949095) * 2 * t - 2.5949095)) / 2
-            : (Math.pow(2 * t - 2, 2) * ((2.5949095) * (t * 2 - 2) + 2.5949095) + 2) / 2,
+        'ease-in-out-back': t => t < 0.5 ? (Math.pow(2 * t, 2) * ((2.5949095) * 2 * t - 2.5949095)) / 2 : (Math.pow(2 * t - 2, 2) * ((2.5949095) * (t * 2 - 2) + 2.5949095) + 2) / 2,
         'ease-in-bounce': t => 1 - Animation.EASING['ease-out-bounce'](1 - t),
         'ease-out-bounce': t => {
             const n1 = 7.5625, d1 = 2.75;
@@ -200,469 +378,70 @@ class Animation2 extends LS.Component {
             else if (t < 2.5 / d1) return n1 * (t -= 2.25 / d1) * t + 0.9375;
             return n1 * (t -= 2.625 / d1) * t + 0.984375;
         },
-        'ease-in-out-bounce': t => t < 0.5
-            ? (1 - Animation.EASING['ease-out-bounce'](1 - 2*t)) / 2
-            : (1 + Animation.EASING['ease-out-bounce'](2*t - 1)) / 2,
+        'ease-in-out-bounce': t => t < 0.5? (1 - Animation.EASING['ease-out-bounce'](1 - 2*t)) / 2: (1 + Animation.EASING['ease-out-bounce'](2*t - 1)) / 2,
         'spring': t => 1 - Math.cos(t * Math.PI * (0.2 + 2.5 * t * t * t)) * Math.exp(-t * 6),
-    };
-
-    static Context = class AnimationContext {
-        constructor(animationInstance) {
-            this.animationInstance = animationInstance;
-            this.activeAnimations = new Set();
-        }
-
-        animate(target, properties = {}, options = {}) {
-            const anim = this.animationInstance.animate(target, properties, options);
-            // Handle timeline/array return
-            const list = (anim instanceof Timeline) ? anim.animations : [anim];
-            for(let a of list) {
-                    if(a && a.id !== null) this.activeAnimations.add(a.id);
-            }
-            return anim;
-        }
-
-        stop(id) {
-            // Not fully compatible with Timelines via ID, use object methods instead
-            this.activeAnimations.delete(id);
-            this.animationInstance.stop(id);
-        }
-
-        pause(id) {
-            this.animationInstance.pause(id);
-        }
-
-        resume(id) {
-            this.animationInstance.resume(id);
-        }
-
-        stopAll() {
-            for (let id of this.activeAnimations) {
-                this.animationInstance.stop(id);
-            }
-        }
-
-        destroy() {
-            this.stopAll();
-            this.activeAnimations.clear();
-        }
-    };
-
-    static Timeline = Timeline;
-
-    scheduled = [];
-
-    createAnimation(properties = {}, options = {}, group = null) {
-        const animationTargets = Array.isArray(properties) ? properties : Object.entries(properties);
-        const duration = options.duration || 300;
-        const ease = options.easing || 'ease';
-        const cutGroup = options.cutGroup;
-        
-        const delay = options.delay || 0;
-        const repeat = options.repeat === true ? -1 : (options.repeat || 0);
-        const yoyo = !!options.yoyo;
-        const removeOnComplete = !!options.removeOnComplete;
-        const onComplete = options.onComplete || null;
-
-        for (let i = 0; i < animationTargets.length; i++) {
-            const prop = animationTargets[i];
-            let key = prop[0];
-            let isTransform = false;
-            let unit = '';
-
-            if (TRANSFORM_ALIASES[key]) {
-                unit = TRANSFORM_ALIASES[key][1];
-                key = TRANSFORM_ALIASES[key][0];
-            }
-
-            if(!Array.isArray(prop[1])) {
-                // pre-check for color string to ensure correct wrapping
-                if(typeof prop[1] === 'string' && COLOR_PROPERTIES.has(key)) {
-                        try { prop[1] = new LS.Color(prop[1]); } catch(e){}
-                }
-                prop[1] = [null, prop[1]];
-            }
-
-            if(!Array.isArray(prop[1]) || prop[1].length !== 2) {
-                throw new Error(`Invalid property format for "${key}". Expected [from, to].`);
-            }
-
-            // Flatten values
-            animationTargets[i] = [key, this.resolveValue(key, prop[1][0]), this.resolveValue(key, prop[1][1]), isTransform, unit];
-        }
-
-        // Data Structure:
-        // 0: target (single)
-        // 1: time (starts at -delay)
-        // 2: properties
-        // 3: duration
-        // 4: easing
-        // 5: isDOM
-        // 6: paused
-        // 7: reversed
-        // 8: cutGroup
-        // 9: wrapper (Instance)
-        // 10: delay
-        // 11: repeat (-1 infinite)
-        // 12: yoyo (bool)
-        // 13: removeOnComplete (bool)
-        // 14: loopCount
-        // 15: resolver
-        // 16: onComplete (callback)
-
-        return new AnimationInstance(this, [null, -delay, animationTargets, duration, ease === "linear" ? null : this.constructor.EASING[ease] || null, null, false, false, cutGroup, null, delay, repeat, yoyo, removeOnComplete, 0, null, onComplete]);
     }
+}
 
+class AnimationTimeline extends Animation {
     /**
-     * Creates a new animation for the target object.
-     * Note: Animations are short-lived and removed once completed.
-     * @param {object|Array|NodeList|string|function} target The target object to animate. Optionally a selector, function or array.
-     * @param {object|Array} properties The properties to animate, either as an object or entries ([[property, [from, to]]]).
-     * @param {object} [properties.property] The property to animate. Value can be a number or instance of LS.Color. Optionally you can set an initial value as [from, to].
-     * @param {object} options The animation options
-     * @param {string} options.easing The easing function to use (linear, ease-in, ease-out, ease-in-out)
-     * @param {number} options.duration The duration of the animation in milliseconds
-     * @param {number} options.cutGroup The cut group ID. Animating with this ID stops any other animations with the same ID.
-     * @param {string} group The animation group
+     * @type {Animation[]}
      */
-    animate(target, properties = {}, options = {}, group = null) {
-        if(typeof target === 'string') target = document.querySelectorAll(target);
+    animations = new Set;
+    ref = 0;
 
-        if (NodeList.prototype.isPrototypeOf(target) || Array.isArray(target)) {
-            const tl = new Timeline();
-            for (let el of target) tl.add(el, properties, options);
-            return tl.play();
-        }
+    isTimeline = true;
 
-        const isDOM = target instanceof HTMLElement || target instanceof SVGElement;
-        const animation = this.createAnimation(properties, options, group);
-        animation.data[0] = target;
-        animation.data[5] = isDOM;
-
-        this.run(animation);
-        return animation;
+    constructor(animations) {
+        super();
+        this.addAnimations(animations);
+        this.keyframes = null;
     }
 
-    run(animation) {
-        this._stopConflicting(animation);
-        // If we are not removing the last item, we act as swap-pop and must update ID of moved item
-        const id = this.scheduled.push(animation.data) - 1;
-        animation.id = id;
-        this._registerProps(animation);
-        if(!this.scheduler.running) this.scheduler.start();
-        return id;
-    }
+    addAnimations(animations) {
+        if(!Array.isArray(animations)) throw new Error("Animations to add must be an Array");
 
-    stop(id, resolvePromise = false) {
-        if (!this.scheduled[id]) return;
-        const lastIndex = this.scheduled.length - 1;
-        const item = this.scheduled[lastIndex];
-        this._cleanupProps(this.scheduled[id]);
-        if (id !== lastIndex) {
-            this.scheduled[id] = item;
-            if (item[9]) item[9].id = id;
-        }
-        this.scheduled.pop();
-        if (resolvePromise && this.scheduled[id]?.[15]) {
-            try { this.scheduled[id][15](); } catch(e) { console.error(e); }
-        }
-        if (this.scheduled[id]?.[9]) this.scheduled[id][9].id = null;
-    }
-
-    pause(id) {
-        if(this.scheduled[id]) this.scheduled[id][6] = true;
-    }
-
-    resume(id) {
-        if(this.scheduled[id]) this.scheduled[id][6] = false;
-    }
-
-    resolveValue(key, value) {
-        if (value === null || value === undefined) return null;
-        if (COLOR_PROPERTIES.has(key) && !(value instanceof LS.Color)) {
-            try { return new LS.Color(value); } catch(e) {}
-        }
-
-        if (value instanceof LS.Color) {
-            return value.clone();
-        }
-
-        if (typeof value === 'number') {
-            return value;
-        }
-
-        if (typeof value === 'string') {
-            if (value.charCodeAt(0) === 35) { // Probably hex color
-                return LS.Color.fromHex(value);
-            }
-
-            const parsed = parseFloat(value);
-            if (isNaN(parsed)) {
-                    // If it fails to parse as float but we are here, it might be a color string not caught earlier or invalid
-                    // Try color one last time if it looks like rgb/hsl
-                    if (value.startsWith('rgb') || value.startsWith('hsl')) return new LS.Color(value);
-                    return 0; // Fallback
-            }
-
-            return parsed;
-        }
-    }
-
-    getInitialValue(target, property, isTransform) {
-        if (target instanceof HTMLElement || target instanceof SVGElement) {
-            if (isTransform) {
-                if (target._transforms && target._transforms[property] !== undefined) return target._transforms[property].value;
-                if (property.startsWith('scale')) return 1;
-                return 0;
-            }
-
-            const style = getComputedStyle(target);
-            const value = style.getPropertyValue(property);
-            if (COLOR_PROPERTIES.has(property) && value === '') return new LS.Color('rgba(0,0,0,0)');
-            // Return 1 for opacity if not set
-            if(property === 'opacity' && value === '') return 1;
-            return this.resolveValue(property, value);
-        }
-
-        if (typeof target[property] === 'function') {
-            return target[property]();
-        }
-
-        return this.resolveValue(property, target[property]);
-    }
-
-    _lerpColor(from, to, progress, slot) {
-        let out = slot[5];
-        if (!out) {
-            out = from.clone ? from.clone() : new LS.Color(from);
-            slot[5] = out;
-        }
-        if (out.copy) out.copy(from);
-        else if (out.set) out.set(from);
-        else slot[5] = out = from.clone ? from.clone() : new LS.Color(from);
-        return out.lerp(to, progress);
-    }
-
-    _stopConflicting(animation) {
-        const target = animation.data[0];
-        if (!target) return;
-        let map = this.activeProps.get(target);
-        if (!map) return;
-        for (const prop of animation.data[2]) {
-            const existing = map.get(prop[0]);
-            if (existing && existing !== animation) existing.stop();
-        }
-    }
-
-    _registerProps(animation) {
-        const target = animation.data[0];
-        if (!target) return;
-        let map = this.activeProps.get(target);
-        if (!map) { map = new Map(); this.activeProps.set(target, map); }
-        for (const prop of animation.data[2]) map.set(prop[0], animation);
-    }
-
-    _cleanupProps(animationData) {
-        if (!animationData) return;
-        const target = animationData[0];
-        const wrapper = animationData[9];
-        const map = this.activeProps.get(target);
-        if (!map) return;
-        for (const prop of animationData[2]) {
-            if (map.get(prop[0]) === wrapper) map.delete(prop[0]);
-        }
-        if (map.size === 0) this.activeProps.delete(target);
-        if (wrapper) wrapper.id = null;
-    }
-
-    render(deltaTime) {
-        const scheduled = this.scheduled;
-        for (let i = 0; i < scheduled.length; i++) {
-            const item = scheduled[i];
-            if (!item || item[6]) continue;
-
-            // Handle delay
-            item[1] += deltaTime;
-            if (item[1] < 0) continue; // Waiting start
-
-            const duration = item[3];
-            const baseReversed = item[7];
-            const repeat = item[11];
-            const yoyo = item[12];
-            let loopCount = item[14];
-            
-            let time = item[1];
-            let isComplete = false;
-
-            // Loop logic
-            if (time >= duration) {
-                if (repeat === -1 || loopCount < repeat) {
-                    item[1] -= duration; // mod time
-                    time = item[1];
-                    item[14]++; // loopCount++
-                    loopCount++;
+        for(let animation of animations) {
+            if(!(animation instanceof Animation)) {
+                if(Array.isArray(animation)) {
+                    animation = new Animation(animation[0], animation[1], animation[2]);
                 } else {
-                    time = duration; 
-                    isComplete = true;
+                    animation = new Animation(animation.keyframes, animation.options, animation.target);
                 }
             }
 
-            let isEffectiveReverse = baseReversed;
-            if (yoyo && (loopCount % 2 !== 0)) {
-                isEffectiveReverse = !isEffectiveReverse;
-            }
-
-            // Calculate progress
-            let effectiveTime = isEffectiveReverse ? (duration - time) : time;
-            let progress = duration === 0 ? 1 : effectiveTime / duration;
-
-            // Clamp
-            if (progress < 0) progress = 0;
-            if (progress > 1) progress = 1;
-
-            const ease = item[4];
-            if(ease !== null) progress = ease(progress);
-
-            const target = item[0];
-            const animationTargets = item[2];
-            const isDOM = item[5];
-
-            if(isDOM) {
-                const style = target.style;
-                let hasTransform = false;
-
-                for (let j = 0; j < animationTargets.length; j++) {
-                    const prop = animationTargets[j];
-                    const property = prop[0];
-                    const isTransform = prop[3];
-                    const unit = prop[4];
-
-                    let from = prop[1];
-                    const to = prop[2];
-
-                    if(from === null) {
-                        from = prop[1] = this.getInitialValue(target, property, isTransform);
-                    }
-
-                    let value;
-                    if (from instanceof LS.Color) {
-                        const value = this._lerpColor(from, to, progress, prop);
-                        style[property] = value.toString();
-                    } else if (typeof from === 'number' && typeof to === 'number') {
-                        value = from + (to - from) * progress;
-
-                        if (isTransform) {
-                            if (!target._transforms) target._transforms = {};
-                            target._transforms[property] = { value, unit };
-                            hasTransform = true;
-                        } else {
-                            style[property] = value;
-                        }
-                    }
-                }
-
-                if (hasTransform) {
-                    let transformStr = '';
-                    for (const key in target._transforms) {
-                        const t = target._transforms[key];
-                        transformStr += `${key}(${t.value}${t.unit}) `;
-                    }
-                    style.transform = transformStr;
-                }
-            } else {
-                for (let j = 0; j < animationTargets.length; j++) {
-                    const prop = animationTargets[j];
-                    const property = prop[0];
-                    let from = prop[1]; 
-                    const to = prop[2];
-                    
-                    if(from === null) from = prop[1] = this.getInitialValue(target, property, false);
-
-                    let value;
-                    if (from instanceof LS.Color) {
-                        value = this._lerpColor(from, to, progress, prop);
-                    } else {
-                        value = from + (to - from) * progress;
-                    }
-
-                    const slot = target[property];
-                    if (typeof slot === "function") slot.call(target, value);
-                    else target[property] = value;
-                }
-            }
-
-            if (isComplete) {
-                this.stop(i, false);
-                i--;
-                
-                // onComplete handler
-                if(item[16]) try { item[16](); } catch(e) { console.error(e); }
-                // Promise resolve
-                if(item[15]) item[15]();
-                // Remove on complete
-                if(item[13] && isDOM && target.parentNode) {
-                    target.parentNode.removeChild(target);
-                }
-            }
+            animation.parent = this;
+            this.animations.add(animation);
         }
-        if (scheduled.length === 0) this.scheduler.stop();
     }
 
-    /**
-     * Helper method for quick fade out, backwards compatibile with Animation 1.x; animates opacity to 0 and moves in a direction.
-     * @example
-     * LS.Animation.fadeOut(element, { duration: 500, direction: 'down' }).then(() => { console.log("Faded out!"); });
-     * LS.Animation.fadeOut(element, 500, 'down').then(() => { console.log("Faded out!"); });
-     */
-    static fadeOut(target, direction = null, duration = 300, options = {}) {
-        if(typeof direction === 'object') {
-            options = direction;
-        }
-
-        return this.global.animate(target, {
-            opacity: 0,
-            // Assumes 'transforms' map exists in scope or is not used. 
-            // Providing fix: direction is just alias usage in standard CSS usually.
-            transform: direction ? (TRANSFORM_ALIASES[direction] ? undefined : direction) : undefined // Simply pass undefined if not resolved, user code seems to rely on external 'transforms' object for directions
-        }, {
-            duration,
-            easing: 'ease',
-            cutGroup: 1,
-            ...options
-        });
+    removeAnimation(animation, destroy = true) {
+        this.animations.delete(animation);
+        animation.pause();
+        animation.parent = null;
+        if(destroy) animation.destroy();
     }
 
-    /**
-     * Helper method for quick fade in, backwards compatibile with Animation 1.x; animates opacity to 1 and moves in a direction.
-     */
-    static fadeIn(target, direction = null, duration = 300, options = {}) {
-        if(typeof direction === 'object') {
-            options = direction;
-        }
-
-        return this.global.animate(target, {
-            opacity: 1,
-            transform: direction ? (TRANSFORM_ALIASES[direction] ? undefined : direction) : undefined
-        }, {
-            duration,
-            easing: 'ease',
-            cutGroup: 1,
-            ...options
-        });
+    allFinished() {
+        return Promise.all(this.animations.map(a => a.promise));
     }
 
     destroy() {
-        this.scheduler.stop();
-        this.scheduled.length = 0;
-        this.activeProps = new WeakMap();
+        super.destroy();
+
+        if(this.destroyed) return;
+
+        for(const animation of this.animations) {
+            if(animation) animation.destroy();
+        }
+
+        this.animations = null;
+        this.ref = null;
     }
-};
+}
 
-Animation2.global = new Animation2();
-
-console.warn("LS.Animation2 is highly experimental. Do not use it in production; things will change a lot and may be unsafe right now.");
-
+Animation.Timeline = AnimationTimeline;
 
 /*@ls-export*/ if (typeof module !== "undefined" && module.exports) {
-    module.exports = Animation2;
+    module.exports = Animation;
 }
