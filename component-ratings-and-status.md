@@ -5,8 +5,6 @@ This file documents the current and past components and rates their code quality
 Since each component in LS is like a full library on its own, we track their quality rating, since they may vary.
 The goal is to have all built-in components reach the highest quality rating so that they are up to our standards.
 
-#### TIP: v6 is comming sometime soon (sometime in 2026)! This will feature a huge refactor of the whole codebase, a rethink of the structure, and many optimizations/features, new UI system & cleaner code.
-
 ## Rating meaning
 - **★★★★★ (5/5)** — Robust, clean, tested, and efficient. Suitable for production.
 - **★★★★☆ (4/5)** — Solid and usable. May have some missing features, optimization work remaining, or parts of the API still settling. Or just not fully tested enough yet. Generally stable and reliable in production.
@@ -17,7 +15,7 @@ The goal is to have all built-in components reach the highest quality rating so 
 
 **Builtin** = part of LS core and is not a separate component.
 | Component  | Quality Rating | Notes |
-|----------------|-----------------|----------------|
+|------------|----------------|-------|
 | LS Core 6.0.0 | ★★★★★ (5/5) | In a stable & maintainable state
 | LS.Color/ColorView | ★★★★★ (5/5) | Maybe does a bit too much :)
 | LS.EventEmitter (builtin) | ★★★★★ (5/5) | Great event system.
@@ -28,6 +26,7 @@ The goal is to have all built-in components reach the highest quality rating so 
 | LS.Toast | ★★★★☆ (4/5) | Simple
 | LS.Multipane | ★★★★☆ (4/5) | Not bad but lacks some features.
 | LS.Stack/StackItem | ★★★★☆ (4/5) | Simple
+| LS.SoundBox | ★★★★☆ (4/5) | New component, works well, good code and features. Needs some more testing.
 | LS.Knob | ★★★★☆ (4/5) | Extensive feature set, pretty robust
 | LS.Timeline | ★★★★☆ (4/5) | Recently fully revamped, has a few bugs to fix and some missing features, but is a major improvement over the previous DOM based version.
 | LS.Patcher | ★★★★☆ (4/5) | New component, needs rendering optimizations
@@ -57,16 +56,16 @@ The goal is to have all built-in components reach the highest quality rating so 
 
 Misc utilities or smaller components (all built-in):
 
-| Item  | Quality Rating | Notes |
-|----------------|-----------------|----------------|
+| Item | Quality Rating | Notes |
+|------|----------------|-------|
 | LS.Util.FrameScheduler | ★★★★★ (5/5) | Good feature set.
 | LS.Util.parseURLParams | ★★★★★ (5/5) | Ridiculously efficient
 | LS.Util.emmetParser | ★★★★☆ (4/5) | Works well and is fast enough
 | LS.Util.parseJSONC | ★★★★☆ (4/5) | Works, simple and small enough
+| LS.Util.normalizePath | ★★★★☆ (4/5) | Recently updated and is really good
 | LS.Util.clone | ★★★★☆ (4/5) | Faster than klona and has more features. I'm happy.
 | LS.Util.staticDefaults | ★★★☆☆ (3/5) | Works but performance could be improved
 | LS.Util.sanitize | ★★★☆☆ (3/5) | Works but performance could be improved
-| LS.Util.normalizePath | ★★★☆☆ (3/5) | Outdated code, but very simple
 | LS.Util.RunOnce | ★★★★★ (5/5) | Stupid simple.
 | LS.Util.Switch | ★★★★★ (5/5) | Stupid simple.
 | LS.Util.ElementSwitch | ★★★★★ (5/5) | Stupid simple.
@@ -93,9 +92,9 @@ Components marked **Not Started** are not available yet and may be rejected.
 
 | Component | Progress |
 |---|---|
-| LS.Sheet | Not Started
+| LS.Sheet | Not Started (may be replaced in LS.Modal)
 | LS.GraphGL | Not Started (it has the worst code you've ever seen 😭 - for the time being please use a different graphing library)
-| LS.Workspace | Not Started
+| LS.Workspace | Not Started (may not be needed as TouchHandle+LSGL already provides a solid base)
 
 ## Deleted Components
 These are ***very old*** LS v3 components that have been removed and not considered for migration, either due to very low quality or simply lack of usefulness. Their idea may be re-added in the future. Otherwise they have no significance other than historical purposes.
@@ -117,3 +116,8 @@ These are ***very old*** LS v3 components that have been removed and not conside
 - LS.Native (unfinished, direction uncertain)
 - LS.Debugger (never completed)
 - LS.Menubar (never completed)
+
+
+---
+
+This document is not AI assisted and AI contributions are not allowed. Made for human readers only.

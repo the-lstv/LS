@@ -14,7 +14,7 @@
 /*
     Things that look and behave like buttons.
 */
-[ls-style=flat] {
+[ls-style=flat], [data-ls-style=flat] {
   --border-radius-multiplier: 1;
   --border-radius-tiny: calc(2px * var(--border-radius-multiplier, 1));
   --border-radius-small: calc(4px * var(--border-radius-multiplier, 1));
@@ -26,75 +26,75 @@
   --border-radius-full: calc(100px * var(--border-radius-multiplier, 1));
   --border-radius-circle: 50%;
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), input, textarea, :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore) {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), input, textarea, :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore), [data-ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), input, textarea, :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore) {
   border-radius: var(--border-radius);
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore) {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore), [data-ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore) {
   background-color: var(--accent-35);
   color: var(--on-accent);
   transition: background-color 0.2s, color 0.2s, box-shadow 0.2s;
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore):not(:disabled, .no-effect):hover, [ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore):not(:disabled, .no-effect):focus {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore):not(:disabled, .no-effect):hover, [ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore):not(:disabled, .no-effect):focus, [data-ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore):not(:disabled, .no-effect):hover, [data-ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore):not(:disabled, .no-effect):focus {
   background-color: var(--accent-40);
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore):not(:disabled, .no-effect):active {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore):not(:disabled, .no-effect):active, [data-ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore):not(:disabled, .no-effect):active {
   background-color: var(--accent-30);
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore):not(:disabled, .no-effect):focus-visible {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore):not(:disabled, .no-effect):focus-visible, [data-ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore):not(:disabled, .no-effect):focus-visible {
   outline: 3px solid currentColor;
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore):disabled {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore):disabled, [data-ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore):disabled {
   opacity: 0.8;
   filter: saturate(0.6);
   cursor: not-allowed;
   background: var(--elevate-2);
   color: var(--on-transparent);
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore):is(.clear, .outline) {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore):is(.clear, .outline), [data-ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore):is(.clear, .outline) {
   background: none;
   color: var(--on-background);
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore).circle {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore).circle, [data-ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore).circle {
   border-radius: 50%;
   align-items: center;
   justify-content: center;
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore).square {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore).square, [data-ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore).square {
   border-radius: var(--border-radius);
   align-items: center;
   justify-content: center;
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore):is(.clear, .outline, .elevated):not(:disabled):hover, [ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore):is(.clear, .outline, .elevated):not(:disabled):focus {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore):is(.clear, .outline, .elevated):not(:disabled):hover, [ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore):is(.clear, .outline, .elevated):not(:disabled):focus, [data-ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore):is(.clear, .outline, .elevated):not(:disabled):hover, [data-ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore):is(.clear, .outline, .elevated):not(:disabled):focus {
   background-color: var(--accent-mix-40);
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore):is(.clear, .outline, .elevated):not(:disabled):active {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore):is(.clear, .outline, .elevated):not(:disabled):active, [data-ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore):is(.clear, .outline, .elevated):not(:disabled):active {
   background-color: var(--accent-mix-20);
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore).clear:hover, [ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore).clear:focus {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore).clear:hover, [ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore).clear:focus, [data-ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore).clear:hover, [data-ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore).clear:focus {
   color: var(--on-transparent);
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore).outline {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore).outline, [data-ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore).outline {
   border: 1px solid var(--accent-70);
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore).elevated {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore).elevated, [data-ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore).elevated {
   background-color: var(--accent-mix-20);
   color: var(--on-transparent);
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore).elevated:focus-visible {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore).elevated:focus-visible, [data-ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore).elevated:focus-visible {
   outline: 3px solid currentColor;
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore).elevated:disabled {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore).elevated:disabled, [data-ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore).elevated:disabled {
   background: var(--accent-mix-10);
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore).pill {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore).pill, [data-ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore).pill {
   border-radius: var(--border-radius-full);
   padding: var(--padding-control-v) var(--padding-control-h-pill);
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore).small {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore).small, [data-ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore).small {
   --padding-control-h: 10px;
   font-size: x-small;
 }
-[ls-style=flat] [data-ls-state=loading].loading-right::after, [ls-style=flat] [data-ls-state=loading]:not(.loading-right)::before {
+[ls-style=flat] [data-ls-state=loading].loading-right::after, [ls-style=flat] [data-ls-state=loading]:not(.loading-right)::before, [data-ls-style=flat] [data-ls-state=loading].loading-right::after, [data-ls-style=flat] [data-ls-state=loading]:not(.loading-right)::before {
   content: "";
   --border-width: calc(1em / 8);
   border: var(--border-width) solid currentColor;
@@ -111,20 +111,20 @@
   left: calc(50% - var(--width) / 2);
   z-index: 500000;
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore)[data-ls-state=loading]:not(.loading-right)::before {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore)[data-ls-state=loading]:not(.loading-right)::before, [data-ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore)[data-ls-state=loading]:not(.loading-right)::before {
   margin-left: 0;
   position: static;
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore)[data-ls-state=loading].loading-right::after {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore)[data-ls-state=loading].loading-right::after, [data-ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore)[data-ls-state=loading].loading-right::after {
   float: right;
   margin-left: auto;
   position: static;
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore)[data-ls-state=loading] {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore)[data-ls-state=loading], [data-ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore)[data-ls-state=loading] {
   pointer-events: none;
   user-select: none;
 }
-[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore)[data-ls-state=loading]:not(.loading-right) > i:first-child {
+[ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore)[data-ls-state=loading]:not(.loading-right) > i:first-child, [data-ls-style=flat] :is(:is(button, input[type=button], input[type=submit], input[type=reset], ls-button, .ls-button):not(.ls-ignore), :is(select, ls-select, .ls-select .ls-select-handle):not(.ls-ignore)):not(.ls-ignore)[data-ls-state=loading]:not(.loading-right) > i:first-child {
   display: none;
 }
 @keyframes spin {
@@ -135,27 +135,27 @@
     transform: rotate(360deg);
   }
 }
-[ls-style=flat] :is(input:not([type]), input[type=text], input[type=search], input[type=email], input[type=url], input[type=tel], input[type=password], input[type=number], textarea, .ls-text-input):not(.ls-ignore):not(.clear) {
+[ls-style=flat] :is(input:not([type]), input[type=text], input[type=search], input[type=email], input[type=url], input[type=tel], input[type=password], input[type=number], textarea, .ls-text-input):not(.ls-ignore):not(.clear), [data-ls-style=flat] :is(input:not([type]), input[type=text], input[type=search], input[type=email], input[type=url], input[type=tel], input[type=password], input[type=number], textarea, .ls-text-input):not(.ls-ignore):not(.clear) {
   --background: var(--elevate-0, var(--surface-n2));
   background: var(--background);
   border: 2px solid var(--background);
 }
-[ls-style=flat] :is(input:not([type]), input[type=text], input[type=search], input[type=email], input[type=url], input[type=tel], input[type=password], input[type=number], textarea, .ls-text-input):not(.ls-ignore):not(.clear):focus {
+[ls-style=flat] :is(input:not([type]), input[type=text], input[type=search], input[type=email], input[type=url], input[type=tel], input[type=password], input[type=number], textarea, .ls-text-input):not(.ls-ignore):not(.clear):focus, [data-ls-style=flat] :is(input:not([type]), input[type=text], input[type=search], input[type=email], input[type=url], input[type=tel], input[type=password], input[type=number], textarea, .ls-text-input):not(.ls-ignore):not(.clear):focus {
   border: 2px solid var(--accent-focus, var(--accent));
   --background: var(--accent-mix-10);
 }
-[ls-style=flat] textarea:not(.clear) {
+[ls-style=flat] textarea:not(.clear), [data-ls-style=flat] textarea:not(.clear) {
   padding: 3px var(--padding-input-h);
 }
-[ls-style=flat] .ls-checkbox > span, [ls-style=flat] .ls-radio > span {
+[ls-style=flat] .ls-checkbox > span, [ls-style=flat] .ls-radio > span, [data-ls-style=flat] .ls-checkbox > span, [data-ls-style=flat] .ls-radio > span {
   border: 2px solid var(--elevate-2);
   border-radius: var(--border-radius-small);
   transition: background-color 0.2s, transform 0.2s;
 }
-[ls-style=flat] .ls-radio > span {
+[ls-style=flat] .ls-radio > span, [data-ls-style=flat] .ls-radio > span {
   border-radius: 50%;
 }
-[ls-style=flat] :is(.ls-checkbox, .ls-radio) > span::before {
+[ls-style=flat] :is(.ls-checkbox, .ls-radio) > span::before, [data-ls-style=flat] :is(.ls-checkbox, .ls-radio) > span::before {
   content: "";
   border-radius: 50%;
   position: absolute;
@@ -164,35 +164,35 @@
   transform: scale(0.8);
   opacity: 0.5;
 }
-[ls-style=flat] .ls-radio > span::after {
+[ls-style=flat] .ls-radio > span::after, [data-ls-style=flat] .ls-radio > span::after {
   background: var(--accent);
   border-radius: 50%;
 }
-[ls-style=flat] :is(.ls-checkbox, .ls-radio) > input:disabled ~ span::before {
+[ls-style=flat] :is(.ls-checkbox, .ls-radio) > input:disabled ~ span::before, [data-ls-style=flat] :is(.ls-checkbox, .ls-radio) > input:disabled ~ span::before {
   display: none;
 }
-[ls-style=flat] :is(.ls-checkbox, .ls-radio):active > span::before {
+[ls-style=flat] :is(.ls-checkbox, .ls-radio):active > span::before, [data-ls-style=flat] :is(.ls-checkbox, .ls-radio):active > span::before {
   background: var(--accent-mix-20);
   transform: scale(1);
 }
-[ls-style=flat] .ls-checkbox > input:checked ~ span {
+[ls-style=flat] .ls-checkbox > input:checked ~ span, [data-ls-style=flat] .ls-checkbox > input:checked ~ span {
   background: var(--accent);
   border: none;
 }
-[ls-style=flat] .ls-radio > input:checked ~ span {
+[ls-style=flat] .ls-radio > input:checked ~ span, [data-ls-style=flat] .ls-radio > input:checked ~ span {
   border-color: var(--accent);
 }
-[ls-style=flat] :is(.ls-checkbox, .ls-radio) > input:disabled ~ span {
+[ls-style=flat] :is(.ls-checkbox, .ls-radio) > input:disabled ~ span, [data-ls-style=flat] :is(.ls-checkbox, .ls-radio) > input:disabled ~ span {
   border: 2px solid var(--elevate-1);
   cursor: not-allowed;
 }
-[ls-style=flat] .ls-switch > span {
+[ls-style=flat] .ls-switch > span, [data-ls-style=flat] .ls-switch > span {
   transition: background-color 0.2s;
   border-radius: var(--border-radius-full);
   border: 2px solid var(--elevate-2);
   background: var(--elevate-1);
 }
-[ls-style=flat] .ls-switch > span::after {
+[ls-style=flat] .ls-switch > span::after, [data-ls-style=flat] .ls-switch > span::after {
   content: "";
   position: absolute;
   top: 2px;
@@ -203,11 +203,11 @@
   border-radius: var(--border-radius-full);
   transition: transform 0.2s, background-color 0.2s;
 }
-[ls-style=flat] .ls-switch > input:checked ~ span {
+[ls-style=flat] .ls-switch > input:checked ~ span, [data-ls-style=flat] .ls-switch > input:checked ~ span {
   border-color: var(--accent-50);
   background-color: var(--accent-40);
 }
-[ls-style=flat] .ls-switch > input:checked ~ span::after {
+[ls-style=flat] .ls-switch > input:checked ~ span::after, [data-ls-style=flat] .ls-switch > input:checked ~ span::after {
   background-color: var(--accent-95);
   transform: translateX(100%);
 }

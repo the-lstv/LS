@@ -1344,7 +1344,10 @@
         }
 
         static pop() {
-            if(this.items.length === 0) return null;
+            if(this.items.length === 0) {
+                LS.Toast.closeAll();
+                return null;
+            }
 
             const item = this.top;
             if (item && item.isCloseable !== false) {
@@ -4140,7 +4143,7 @@
 
     // --- Export & init
 
-    if(typeof module !== "undefined"){
+    /*@ls-export*/ if(typeof module !== "undefined"){
         module.exports = LS;
     }
 
@@ -4183,3 +4186,7 @@
     return LS;
 
 })();
+
+// I'm contemplating whether to switch to ESM exports.
+// LS is usually not used as a node module or distributed as separate files but rather as a script bundle.
+// This makes installation, tree shaking, and usage far easier than dealing with ESM bullshit, but intellisense isn't working right, which is a bummer.

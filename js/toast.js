@@ -17,7 +17,22 @@ class Toast {
     static TEMPLATE = function(d){'use strict';var e0=document.createElement("div");e0.setAttribute("ls-accent",d.accent);e0.className="ls-toast level-n2";if(!!(d.icon)){var e1=document.createElement("i");e1.className=d.icon;e0.appendChild(e1);}var e2=document.createElement("div");e2.className="ls-toast-content";e2.textContent=d.content;e0.appendChild(e2);if(!!(d.uncancellable)){}else{var e3=document.createElement("button");e3.innerHTML="&times;";e3.onclick=d.closeClicked;e3.className="elevated circle ls-toast-close";e0.appendChild(e3);}var __rootValue=e0;return{root:__rootValue};}
     static openToasts = new Set();
 
+    open = false;
+    once = false;
+
     constructor(content, options = {}){
+        if(options.id) {
+            if([...this.constructor.openToasts].some(toast => toast.id === options.id)) return;
+
+            if(options.once) {
+                const shown = localStorage.getItem(`ls-toast-shown-${options.id}`);
+                if(shown === "true") return;
+                this.once = true;
+            }
+
+            this.id = options.id;
+        }
+
         this.element = this.constructor.TEMPLATE({
             content,
             accent: options.accent,
@@ -62,6 +77,10 @@ class Toast {
 
         if(this.closeCallback) this.closeCallback();
         this.closeCallback = null;
+
+        if(this.once && this.id) {
+            localStorage.setItem(`ls-toast-shown-${this.id}`, "true");
+        }
 
         if(LS.Animation) LS.Animation.fadeOut(this.element, 150, "upBackward").then(() => {
             this.element.remove();

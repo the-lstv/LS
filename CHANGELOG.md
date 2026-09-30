@@ -4,9 +4,9 @@ todo:
 # Version 6.0.0
 
 Major update (2026 release)!
-- **New components**: `LS.Multipane`, `LS.Layout`, `LS.View`, `LS.Patcher`, `LS.List`, `LS.SPA.*`, `LS.WindowManager`, `LS.CommandPalette`, `LS.ColorPicker`, `LS.Tree`, `LS.Effect`, `LS.i18n`
+- **13+ New components**: `LS.Multipane`, `LS.Layout`, `LS.View`, `LS.Patcher`, `LS.List`, `LS.SoundBox`, `LS.WindowManager`, `LS.CommandPalette`, `LS.SPA.*`, `LS.ColorPicker`, `LS.Tree`, `LS.Effect`, `LS.i18n`
 
-- LS.Create now supports Emmet abbreviations! (eg. LS.Create("#myId") instead of LS.Create("div", { id: "myId" }))
+- LS.Create now supports Emmet abbreviations! (eg. `LS.Create("#myId{text}>div.hi")` instead of `LS.Create("div", { id: "myId", textContent: "text", inner: [ { class: "hi" } ] }))`
 - New DOM concepts: dynamic effects & factories!
 - Optimized startup/load time and reduced overall library overhead
 - Added sanitize option to LS.Create
@@ -59,6 +59,22 @@ Major update (2026 release)!
 - Added LS.CommandPalette
 - Removed LS.TimelineDOM
 - Fixes
+
+#### Added in 6.0.0-alpha.5
+
+- LS.CommandPalette now supports variable substitution <!-- and command chaining syntax --> (eg. `command1 $var $(command2)`).
+- Feature additions to LS.SoundBox
+- Feature additions to LS.ShortcutManager
+- Added Ansi color support to LS.CommandPalette (parser available at `LS.CommandPalette.parseAnsi`)
+- Fixes
+- LS attributes are being deprecated in favor of data attributes:
+  - `ls` -> class `.ls`
+  - `ls-accent` -> `data-ls-accent`
+  - `ls-theme` -> `data-ls-theme`
+  - `ls-style` -> `data-ls-style`
+  - Newer attributes are already available as `data-ls-state`, `data-ls-effect` etc. without a legacy attribute.
+  - New applications should use the new data attributes. The old attributes are still supported for backwards compatibility but not guaranteed to work in the future.
+  - *This is not out of my choice, but to conform to HTML standards. I personally dislike it.*
 
 Final alpha release before 6.0.0 relases as stable!
 

@@ -30,7 +30,7 @@ body {
     color-scheme: only light;
 }
 
-[ls] {
+[ls], .ls {
     @extend %font;
 
     --space-tiny: 4px;
@@ -256,7 +256,7 @@ body {
 }
 
 // Custom selection color based on accent.
-body::selection, [ls-accent]::selection {
+body::selection, [ls-accent]::selection, [data-ls-accent]::selection {
     background: var(--accent-mix-40, #006dff5c);
 }
 

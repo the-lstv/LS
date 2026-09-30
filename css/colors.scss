@@ -82,18 +82,18 @@ $colors: (
 
 
 @each $name, $color in $colors {
-    $selector: "[ls-accent=\"#{$name}\"]";
+    $selector: "[ls-accent=\"#{$name}\"], [data-ls-accent=\"#{$name}\"]";
 
     @if $name == "blue" {
         $selector: "#{$selector}, :root";
     }
     
     @else if $name == "white" {
-        $selector: "#{$selector}, [ls-accent=\"auto\"]";
+        $selector: "#{$selector}, [data-ls-accent=\"auto\"], [ls-accent=\"auto\"]";
     }
 
     @if $name == "white" {
-        #{$selector + ", [ls-accent].ls-accent-static"} {
+        #{$selector + ", [ls-accent].ls-accent-static, [data-ls-accent].ls-accent-static"} {
             @include base-colors($color);
         }
     }
@@ -107,7 +107,7 @@ $colors: (
     }
 }
 
-[class*="level-"], ls-box, [ls-accent] {
+[class*="level-"], ls-box, [ls-accent], [data-ls-accent] {
     color: var(--color);
 }
 
@@ -189,7 +189,7 @@ $colors: (
     border-radius: var(--border-radius-full);
 }
 
-[ls-accent], ls-box:not(.color), html, [class*="level-"]:not(.color), .sidebar-items {
+[ls-accent], [data-ls-accent], ls-box:not(.color), html, [class*="level-"]:not(.color), .sidebar-items {
     --accent: var(--accent-40);
     --accent-mix-10: color-mix(in oklab, var(--background) 100%, var(--accent) 10%);
     --accent-mix-20: color-mix(in oklab, var(--background) 100%, var(--accent) 20%);

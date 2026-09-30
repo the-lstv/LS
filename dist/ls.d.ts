@@ -1,0 +1,34 @@
+declare namespace LS {
+    const Animation       : typeof import("../js/animation.js");
+    const Animation2      : typeof import("../js/animation2.js");
+    const AutomationGraph : typeof import("../js/automationgraph.js");
+    const Color           : typeof import("../js/color.js");
+    const ColorPickr      : typeof import("../js/colorpickr.js");
+    const CommandPalette  : typeof import("../js/commandpalette.js");
+    const CompileTemplate : typeof import("../js/compiltemplate.js");
+    const Effect          : typeof import("../js/effect.js");
+    const GL              : typeof import("../js/gl.js");
+    const i18n            : typeof import("../js/i18n.js");
+    const ImageCropper    : typeof import("../js/imagecropper.js");
+    const Knob            : typeof import("../js/knob.js");
+    const Layout          : typeof import("../js/layout.js");
+    const List            : typeof import("../js/list.js");
+    const Menu            : typeof import("../js/menu.js");
+    const Modal           : typeof import("../js/modal.js");
+    const Multipane       : typeof import("../js/multipane.js");
+    const Network         : typeof import("../js/network.js");
+    const Node            : typeof import("../js/node.js");
+    const Patcher         : typeof import("../js/patcher.js");
+    const Range           : typeof import("../js/range.js");
+    const Reactive        : typeof import("../js/reactive.js");
+    const Resize          : typeof import("../js/resize.js");
+    const ShortcutManager : typeof import("../js/shortcutmanager.js");
+    const SoundBox        : typeof import("../js/soundbox.js");
+    const SPA             : typeof import("../js/spa.js");
+    const Tabs            : typeof import("../js/tabs.js");
+    const Timeline        : typeof import("../js/timeline.js");
+    const Toast           : typeof import("../js/toast.js");
+    const Tooltips        : typeof import("../js/tooltips.js");
+    const Tree            : typeof import("../js/tree.js");
+    const WindowManager   : typeof import("../js/windowmanager.js");
+}

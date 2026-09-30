@@ -7,6 +7,8 @@
     Last modified: 2026
     See: https://github.com/the-lstv/lstv-web
 
+    Command palette
+
     New, better and proper version of the command palette, replacing the previous AI slop trash,
     which in turn replaced the old FOSSHome implementation.
     This one is finally clean and human-written (though still work-in-progress).
@@ -53,8 +55,23 @@
  * CommandInput is used to define the expected arguments for a command that will then be passed to the command's callback in order.
  */
 
+const colorPalette = [
+    // Normal colors
+    '000', 'c33', '3c3', 'cc3',
+    '33c', 'c3c', '3cc', 'ccc',
+
+    // Bright colors
+    '666', 'f66', '6f6', 'ff6',
+    '66f', 'f6f', '6ff', 'fff',
+
+    // Extended 256-color palette (from xterm)
+    "000000","00005f","000087","0000af","0000d7","0000ff","005f00","005f5f","005f87","005faf","005fd7","005fff","008700","00875f","008787","0087af","0087d7","0087ff","00af00","00af5f","00af87","00afaf","00afd7","00afff","00d700","00d75f","00d787","00d7af","00d7d7","00d7ff","00ff00","00ff5f","00ff87","00ffaf","00ffd7","00ffff","5f0000","5f005f","5f0087","5f00af","5f00d7","5f00ff","5f5f00","5f5f5f","5f5f87","5f5faf","5f5fd7","5f5fff","5f8700","5f875f","5f8787","5f87af","5f87d7","5f87ff","5faf00","5faf5f","5faf87","5fafaf","5fafd7","5fafff","5fd700","5fd75f","5fd787","5fd7af","5fd7d7","5fd7ff","5fff00","5fff5f","5fff87","5fffaf","5fffd7","5fffff","870000","87005f","870087","8700af","8700d7","8700ff","875f00","875f5f","875f87","875faf","875fd7","875fff","878700","87875f","878787","8787af","8787d7","8787ff","87af00","87af5f","87af87","87afaf","87afd7","87afff","87d700","87d75f","87d787","87d7af","87d7d7","87d7ff","87ff00","87ff5f","87ff87","87ffaf","87ffd7","87ffff","af0000","af005f","af0087","af00af","af00d7","af00ff","af5f00","af5f5f","af5f87","af5faf","af5fd7","af5fff","af8700","af875f","af8787","af87af","af87d7","af87ff","afaf00","afaf5f","afaf87","afafaf","afafd7","afafff","afd700","afd75f","afd787","afd7af","afd7d7","afd7ff","afff00","afff5f","afff87","afffaf","afffd7","afffff","d70000","d7005f","d70087","d700af","d700d7","d700ff","d75f00","d75f5f","d75f87","d75faf","d75fd7","d75fff","d78700","d7875f","d78787","d787af","d787d7","d787ff","d7af00","d7af5f","d7af87","d7afaf","d7afd7","d7afff","d7d700","d7d75f","d7d787","d7d7af","d7d7d7","d7d7ff","d7ff00","d7ff5f","d7ff87","d7ffaf","d7ffd7","d7ffff","ff0000","ff005f","ff0087","ff00af","ff00d7","ff00ff","ff5f00","ff5f5f","ff5f87","ff5faf","ff5fd7","ff5fff","ff8700","ff875f","ff8787","ff87af","ff87d7","ff87ff","ffaf00","ffaf5f","ffaf87","ffafaf","ffafd7","ffafff","ffd700","ffd75f","ffd787","ffd7af","ffd7d7","ffd7ff","ffff00","ffff5f","ffff87","ffffaf","ffffd7","ffffff","080808","121212","1c1c1c","262626","303030","3a3a3a","444444","4e4e4e","585858","626262","6c6c6c","767676","808080","8a8a8a","949494","9e9e9e","a8a8a8","b2b2b2","bcbcbc","c6c6c6","d0d0d0","dadada","e4e4e4","eeeeee"
+];
+
 class CommandPalette extends LS.Component {
     static { LS.register(this, { name: "CommandPalette", global: true }) }
+
+    static colorPalette = colorPalette;
 
     /**
      * @type {PaletteOptions}
@@ -277,8 +294,9 @@ class CommandPalette extends LS.Component {
      * Executes a command from a string. This can be run independent of the current input.
      * @param {string} [value] - The command to execute. If not provided, the current input value is used.
      * @param {boolean} [clear=true] - Whether to clear the input after executing the command.
+     * @param {boolean} [dataOnly=false] - Tell the command to only return data without performing any side effects (such as displaying a message). Depends on the command.
      */
-    execute(value = null, clear = true) {
+    async execute(value = null, clear = true, dataOnly = false) {
         value ??= this.getValue();
         const { command, args, segments, currentPart, rootLevel } = this.#locateCommand(value);
 
@@ -288,58 +306,97 @@ class CommandPalette extends LS.Component {
 
         if(!command || rootLevel) {
             this.options.logger.error(`Command not found: ${value}`);
-            return;
+            return null;
         }
 
         // if(rootLevel) {
         //     this.options.logger.error(`Cannot execute root-level command: ${value}`);
-        //     return;
+        //     return null;
         // }
 
-        const callback = command.onCalled || command.callback;
+        const callback = (dataOnly && command.data) || command.onCalled || command.callback;
 
         if(!callback) {
             this.options.logger.warn(`Command '${command.name}' has no action defined.`);
-            return;
+            return null;
         }
 
         // Validate and convert arguments based on command input definitions
         for(let i = 0; i < args.length; i++) {
             const inputDef = command.inputs?.[i];
+            let value = args[i];
+            console.log(`Processing argument ${i + 1} for command '${command.name}':`, value);
+
+            if(value[0] === "$") {
+                console.log("Detected variable or sub-command substitution:", value);
+
+                // Execute & substitute ($(command))
+                if(value[1] === "(") {
+                    const varName = value.slice(2, value[value.length - 1] === ")" ? -1 : undefined);
+
+                    // Collect sub-command arguments
+                    const subCommand = [varName];
+
+                    while(i + 1 < args.length) {
+                        i++;
+
+                        const nextArg = args[i];
+                        if(nextArg.endsWith(")")) {
+                            subCommand.push(nextArg.slice(0, -1));
+                            break;
+                        } else {
+                            subCommand.push(nextArg);
+                        }
+                    }
+
+                    value = await this.execute(subCommand.join(" "), false, true);
+
+                    console.log("Executing sub-command for variable substitution:", subCommand.join(" "), "Result:", value);
+                } else {
+                    // Variable substitution ($var)
+                    const varName = value.slice(1);
+                    value = this.options.variables?.[varName] ?? varName;
+                    console.log(`Substituting variable '${varName}' with value:`, value);
+                }
+            }
+
             try {
                 if(inputDef && typeof inputDef.validate === 'function') {
-                    if(!inputDef.validate(args[i])) {
-                        this.options.logger.error(`Invalid argument for command '${command.name}': ${args[i]}`);
-                        return;
+                    if(!inputDef.validate(value)) {
+                        this.options.logger.error(`Invalid argument for command '${command.name}': ${value}`);
+                        return null;
                     }
                 }
 
                 switch(inputDef?.type) {
                     case 'number':
-                        args[i] = Number(args[i]);
+                        value = Number(value);
                         break;
 
                     case 'boolean':
-                        args[i] = ['true', '1', 'yes', 'on'].includes(args[i].toLowerCase());
+                        value = ['true', '1', 'yes', 'on'].includes(value.toLowerCase());
                         break;
                     
                     case 'color':
-                        if(LS.Color) args[i] = LS.Color.parse(args[i]);
+                        if(LS.Color) value = LS.Color.parse(value);
                         break;
                     
                     case 'file':
                         break;
                 }
+
+                args[i] = value;
             } catch (error) {
                 this.options.logger.error(`Error processing argument ${i + 1} for command '${command.name}': ${error.message}`);
-                return;
+                return null;
             }
         }
 
         try {
-            callback(...args);
+            return await callback(...args);
         } catch (error) {
             this.options.logger.error(`Error executing command '${command.name}': ${error.message}`);
+            return null;
         }
     }
 
@@ -526,9 +583,9 @@ class CommandPalette extends LS.Component {
 
         const results = [];
         for (const candidate of candidates) {
-            let text = LS.Util.normalize(candidate);
+            if (candidate.startsWith('_')) continue;
 
-            if (text.startsWith('_')) continue;
+            let text = LS.Util.normalize(candidate);
 
             if (location && location[candidate]) {
                 const item = location[candidate];
@@ -689,11 +746,11 @@ class CommandPalette extends LS.Component {
         const args = rootLevel? null: segments.length - depth > 0? segments.slice(depth): [];
         const currentPart = (!hasTrailingSpace && segments.length > 0)? segments.at(-1) : '';
 
-        const inputCount = command.inputs? command.inputs.length : 0;
+        const inputCount = command && command.inputs? command.inputs.length : 0;
 
         const atEnd = !!(!command || (rootLevel && segments.length > 1) || ((args && args.length >= inputCount) && (!command.children || Object.keys(command.children).length === 0)));
 
-        // console.log("Command:", command, "Args:", args, "Current Part:", currentPart, "Segments:", segments, "Root Level:", rootLevel, "At End:", atEnd, "Input Count:", inputCount);
+        console.log("Command:", command, "Args:", args, "Current Part:", currentPart, "Segments:", segments, "Root Level:", rootLevel, "At End:", atEnd, "Input Count:", inputCount);
         return { command, args, atEnd, segments, currentPart, rootLevel };
     }
 
@@ -712,16 +769,23 @@ class CommandPalette extends LS.Component {
             this.#execAutoCompletion = false;
         }
 
-        this.#currentPartLen = currentPart.length;
+        this.#currentPartLen = currentPart?.length || 0;
 
-        if(atEnd) {
+        // todo: better handling for argument suggestions
+        if(
+            (atEnd && this.#currentPartLen === 0) ||
+            (rootLevel && (
+                (segments.length !== 1) ||
+                (segments.length === 1 && segments[0] !== '' && !this.#currentPartLen)
+            ))
+        ) {
             this.hideCompletions();
             return;
         }
 
         let completions = rootLevel? command: command.children;
         if(command.inputs && command.inputs.length > 0) {
-            completions = this.#inputCompletion(command.inputs[args.length]);
+            completions = this.#inputCompletion(command.inputs[args.length - (this.#currentPartLen === 0? 0 : 1)]);
         }
 
         const keys = Object.keys(completions);
@@ -990,7 +1054,7 @@ class CommandPalette extends LS.Component {
         const type = typeof value;
         if(type === "string") {
             // return LS.Create("span.hljs-string", { text: `"${value}"` });
-            return LS.Create("span", { text: value });
+            return this.parseAnsi(value);
         } else if(type === "number") {
             return LS.Create("span.hljs-number", { text: String(value) });
         } else if(type === "boolean") {
@@ -1012,13 +1076,119 @@ class CommandPalette extends LS.Component {
 
     // Log render utilities
 
+    static ansiColor(code) {
+        const color = this.colorPalette[code] || null;
+        if(color.length !== 3 && color.length !== 6) return color;
+        return "#" + color;
+    }
+
+    static parseAnsi(text) {
+        const len = text.length;
+
+        let seq = false, start = 0, style = {};
+
+        const fragment = document.createDocumentFragment();
+
+        const push = (start, end, style) => {
+            if (start >= end) return;
+
+            const css = Object.entries(style).map(([k, v]) => `${k}:${v}`).join(';');
+            const span = document.createElement("span");
+            span.textContent = text.slice(start, end);
+            if(css) span.style.cssText = css;
+            fragment.append(span);
+        };
+
+        for (let i = 0; i < len; i++) {
+            const char = text.charCodeAt(i);
+
+            if(seq) {
+                if(char >= 64 && char <= 126) { // Final byte of ANSI sequence
+                    const args = text.slice(start, i).split(';').map(Number);
+                    
+                    if(char === 109) { // 'm' - SGR (Select Graphic Rendition)
+                        for (let j = 0; j < args.length; j++) {
+                            const code = args[j];
+
+                            if (code === 38 || code === 48) {
+                                // Extended color codes
+                                if (args[j + 1] === 5) {
+                                    const colorCode = args[j + 2];
+                                    if (code === 38) {
+                                        style.color = this.ansiColor(colorCode);
+                                    } else {
+                                        style['background-color'] = this.ansiColor(colorCode);
+                                    }
+                                    j += 2; // Skip the next two arguments
+                                } else if (args[j + 1] === 2) {
+                                    // RGB color codes
+                                    const r = args[j + 2];
+                                    const g = args[j + 3];
+                                    const b = args[j + 4];
+                                    const rgbColor = `rgb(${r}, ${g}, ${b})`;
+                                    if (code === 38) {
+                                        style.color = rgbColor;
+                                    } else {
+                                        style['background-color'] = rgbColor;
+                                    }
+                                    j += 4; // Skip the next four arguments
+                                }
+                            }
+
+                            if (code === 0) style = {};
+
+                            else if (code === 1) style['font-weight'] = 'bold';
+                            else if (code === 2) style.opacity = '.5';
+                            else if (code === 4) style['text-decoration'] = 'underline';
+                            else if (code === 22) {
+                                delete style['font-weight'];
+                                delete style.opacity;
+                            }
+                            else if (code === 24) delete style['text-decoration'];
+                            else if (code === 39) delete style.color;
+                            else if (code === 49) delete style['background-color'];
+                            else if (30 <= code && code <= 37)
+                                style.color = this.ansiColor(code - 30);
+                            else if (90 <= code && code <= 97)
+                                style.color = this.ansiColor(code - 90 + 8);
+                            else if (40 <= code && code <= 47)
+                                style['background-color'] = this.ansiColor(code - 40);
+                            else if (100 <= code && code <= 107)
+                                style['background-color'] = this.ansiColor(code - 100 + 8);
+                        }
+                    } else {
+                        // Unsupported command, as of now
+                    }
+
+                    seq = false;
+                    start = i + 1;
+                }
+                continue;
+            }
+
+            if (char === 27) { // ESC
+                if (text.charCodeAt(i + 1) === 91) { // '['
+                    push(start, i, style);
+
+                    seq = true;
+                    start = i + 2;
+                    i++;
+                    continue;
+                }
+            }
+        }
+
+        push(start, text.length, style);
+
+        return fragment;
+    }
+
     static writeLogTo(container, level, ...args) {
         if (!container) return;
 
         const line = LS.Create("div", { class: "terminal-line " + (["level-info", "level-log", "level-warn", "level-error", "level-fatal"][level]) });
 
         // Check if first arg contains DevTools styles (%c)
-        // Mayhaps ANSI escape codes eventually? By that point the logger will be moved
         if (typeof args[0] === "string" && args[0].indexOf("%c") !== -1) {
             let str = args[0];
             let styleIndex = 1;

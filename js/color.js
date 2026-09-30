@@ -969,7 +969,7 @@ LS.Color = class Color {
      */
 
     static parse(r, g, b, a, target, offset = 0) {
-        target ??= [0, 0, 0, 1];
+        target ??= [0, 0, 0, 255];
 
         if (typeof r === "string") {
             r = r.trim().toLowerCase();
@@ -1457,7 +1457,7 @@ LS.Color = class Color {
             const safeName = typeof CSS !== "undefined" && typeof CSS.escape === "function"
                 ? CSS.escape(String(name))
                 : String(name).replace(/\\/g, "\\\\").replace(/"/g, "\\\"");
-            accent.selector = `[ls-accent="${safeName}"]`;
+            accent.selector = `[ls-accent="${safeName}"], [data-ls-accent="${safeName}"]`;
             const ruleIndex = this.sheet.insertRule(`${accent.selector} {}`, this.sheet.cssRules.length);
             accent.ruleIndex = ruleIndex;
         }
@@ -1853,7 +1853,7 @@ LS.Color = class Color {
 // }
 // JSON.stringify(c);
 
-const LS_ACCENTS_MAP = new Map([["navy",[60,42,162,1]],["blue",[0,105,204,1]],["pastel-indigo",[57,96,147,1]],["lapis",[37,124,167,1]],["teal",[0,204,204,1]],["pastel-teal",[43,153,161,1]],["aquamarine",[54,150,116,1]],["green",[32,172,107,1]],["lime",[104,167,37,1]],["neon",[88,204,0,1]],["yellow",[204,187,0,1]],["orange",[204,99,0,1]],["deep-orange",[204,61,0,1]],["red",[195,9,9,1]],["rusty-red",[173,31,45,1]],["pink",[182,22,123,1]],["hotpink",[192,12,99,1]],["purple",[126,62,142,1]],["soap",[97,48,156,1]],["burple",[10,32,194,1]],["white",[102,102,102,1]]]);
+const LS_ACCENTS_MAP = new Map([["navy",[60,42,162]],["blue",[0,105,204]],["pastel-indigo",[57,96,147]],["lapis",[37,124,167]],["teal",[0,204,204]],["pastel-teal",[43,153,161]],["aquamarine",[54,150,116]],["green",[32,172,107]],["lime",[104,167,37]],["neon",[88,204,0]],["yellow",[204,187,0]],["orange",[204,99,0]],["deep-orange",[204,61,0]],["red",[195,9,9]],["rusty-red",[173,31,45]],["pink",[182,22,123]],["hotpink",[192,12,99]],["purple",[126,62,142]],["soap",[97,48,156]],["burple",[10,32,194]]]);
 LS.Color.accentColors = LS_ACCENTS_MAP;
 
 /*@ls-export*/ if (typeof module !== "undefined" && module.exports) {
