@@ -3453,11 +3453,12 @@
                         }
 
                         if (this.running) {
-                            this._prevTimestamp = timestamp;
                             this.callback(delta, timestamp);
                         } else {
-                            this.callback(0, timestamp);
+                            this.callback(timestamp - this._prevTimestamp, timestamp);
                         }
+
+                        this._prevTimestamp = timestamp;
                     }
 
                     if (this.running) this.schedule();

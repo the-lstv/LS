@@ -431,7 +431,7 @@ void main() {
         if(vertex.shader) vertex = vertex.shader;
         if(fragment.shader) fragment = fragment.shader;
 
-        vertex =   vertex   instanceof WebGLShader ? vertex   : compileShader(renderer, gl.VERTEX_SHADER, vertex)?.shader;
+        vertex   = vertex   instanceof WebGLShader ? vertex   : compileShader(renderer, gl.VERTEX_SHADER, vertex)?.shader;
         fragment = fragment instanceof WebGLShader ? fragment : compileShader(renderer, gl.FRAGMENT_SHADER, fragment)?.shader;
 
         if (!vertex || !fragment) {
@@ -1287,7 +1287,7 @@ void main() {
             if(!this.renderer.gl) throw new Error("Renderable requires a GL context.");
 
             options.fragment ??= options.frag ?? options.fragmentShader;
-            options.vertex ??= options.vert ?? options.vertexShader;
+            options.vertex   ??= options.vert ?? options.vertexShader;
             options.fragment ??= LS.GL.shaders.basic_color_fragment;
 
             const gl = this.renderer.gl;
