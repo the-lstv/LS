@@ -440,6 +440,7 @@ class Resize extends LS.Component {
                     if (horizExpanded) entry.target.style.width = '100%';
                     else entry.target.style.width = newWidth + 'px';
                 }
+
                 if (affectsHeight || heightSnappedCollapsed || heightSnappedExpanded) {
                     if (vertExpanded) entry.target.style.height = '100%';
                     else entry.target.style.height = newHeight + 'px';

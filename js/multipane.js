@@ -331,13 +331,28 @@ class Multipane extends LS.Component {
 
         if (Array.isArray(schema.inner)) {
             let i = 0;
+
+            const count = schema.inner.length;
+
             for (const item of schema.inner) {
                 const child = this._processSchema(item);
                 container.appendChild(child);
 
-                if (i !== schema.inner.length - 1) {
+                let handleSide =
+                    direction === 'column'?
+                    (count - i <= 2)? (count > 2? ((count - i == 1)? 'top':  null): ((count - i !== 1)? 'bottom': null)): 'bottom' :
+                    (count - i <= 2)? (count > 2? ((count - i == 1)? 'left': null): ((count - i !== 1)? 'right':  null)): 'right'  
+                ;
+
+                console.log("Multipane: handleSide", handleSide, "for item", item, "at index", i, "of", count, "in direction", direction);
+
+                if (handleSide) {
+                    if(handleSide === "left") {
+                        child.style.flexShrink = "0";
+                    }
+
                     const handle = LS.Resize.set(child, {
-                        sides: direction === 'column' ? ['bottom'] : ['right'],
+                        sides: [handleSide],
                         siblibngs: true, // TODO
 
                         // Snapping
@@ -359,7 +374,7 @@ class Multipane extends LS.Component {
                         this.quickEmit("resize", e, child);
                     });
 
-                    if (!item.resize) child.style[direction === 'column' ? 'height' : 'width'] = (100 / schema.inner.length) + '%';
+                    if (!item.resize) child.style[direction === 'column' ? 'height' : 'width'] = (100 / count) + '%';
                 }
 
                 i++;
