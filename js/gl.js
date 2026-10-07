@@ -2362,6 +2362,11 @@ void main() {
                 [r, g, b, a] = LS.Color.parse(r, g, b, a);
             }
 
+            const startX = x ?? this.options.x ?? 0;
+            const startY = y ?? this.options.y ?? 0;
+
+            let maxX = x;
+
             let idx = 0;
             for (let i = 0; i < this.size; i++) {
                 const charCode = i < len ? text.charCodeAt(i) : 0;
@@ -2375,16 +2380,27 @@ void main() {
 
                 x += advance;
                 if (charCode === 10) { // Newline
-                    x = 0;
+                    x = startX;
                     y += this.engine.cellHeight * this.engine.lineHeight;
                 }
+
+                maxX = Math.max(maxX, x);
             }
+
+            return { width: maxX - startX, height: y - startY + this.engine.cellHeight * this.engine.lineHeight };
         }
 
-        writeTextAt(text, startIdx = 0, len, x, y, r = 255, g = 255, b = 255, a = 255, size = this.engine.defaultFontSize, style, weight, depth) {
+        writeTextAt(text, startIdx = 0, len = null, x, y, r = 255, g = 255, b = 255, a = 255, size = this.engine.defaultFontSize, style, weight, depth, breakLines = true) {
             if(r && typeof r !== 'number') {
                 [r, g, b, a] = LS.Color.parse(r, g, b, a);
             }
+
+            len ??= text.length;
+
+            const startX = x ?? this.options.x ?? 0;
+            const startY = y ?? this.options.y ?? 0;
+
+            let maxX = x;
 
             let idx = startIdx;
             for (let i = 0; i < len; i++) {
@@ -2398,8 +2414,16 @@ void main() {
                 }
 
                 x += advance;
+
+                if (breakLines && charCode === 10) { // Newline
+                    x = startX;
+                    y += this.engine.cellHeight * this.engine.lineHeight;
+                }
+
+                maxX = Math.max(maxX, x);
             }
-            return this;
+
+            return { width: maxX - startX, height: y - startY + this.engine.cellHeight * this.engine.lineHeight };
         }
 
         clear(startIdx = 0, len = this.size) {
@@ -2502,6 +2526,10 @@ void main() {
             if (g < 0) g = 0; else if (g > 255) g = 255;
             if (b < 0) b = 0; else if (b > 255) b = 255;
             if (a < 0) a = 0; else if (a > 255) a = 255;
+
+            if (typeof charCode === 'string') {
+                charCode = charCode.charCodeAt(0);
+            }
 
             return this.engine._updateVertex(cellIdx, x, y, charCode, r, g, b, a, size, style, weight, depth);
         }
