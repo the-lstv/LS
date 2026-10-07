@@ -21,7 +21,7 @@ console.warn("LS.Animation2 is experimental");
  */
 
 /**
- * Lighteight CPU animation library for animating basically anything.
+ * Lighteight and efficient CPU animation library for animating basically anything.
  * Supports keyframes, easing, timelines, and more.
  * 
  * Todo: blending, groups, initial values, sync with parent time, & optimize advancing
@@ -41,7 +41,17 @@ class Animation {
     resolve = null;
 
     target = null;
+
+    /**
+     * @type {AnimationTimeline}
+     */
     parent = null;
+
+    /**
+     * @type {string|number|null}
+     * An optional animation group identifier.
+     */
+    group = null;
 
     /**
      * Creates a new Animation instance.
@@ -49,28 +59,9 @@ class Animation {
      * @param {Array|Object} keyframes - Array of keyframes, or a single keyframe object as a destination state.
      * @param {AnimationOptions} options - Animation options.
      * @param {AnimationTarget} target - Target element or function to animate.
-     * @param {Animation} parent - Managing parent (for timelines).
+     * @param {AnimationTimeline|Animation} parent - Managing parent (for timelines).
      */
-    constructor(keyframes = [], options = {}, target = null, parent = Animation) {
-        if(!Array.isArray(keyframes) && typeof keyframes === "object" && keyframes !== null) {
-            keyframes = [keyframes];
-        } else if(!Array.isArray(keyframes)) {
-            throw new Error("Keyframes must be an array or an object");
-        }
-
-        this.keyframes = keyframes;
-        this.parent    = parent;
-
-        if(parent) {
-            parent.animations.add(this);
-        }
-
-        this.target = options.target || target;
-
-        if(typeof this.target === "string") {
-            this.target = document.querySelectorAll(this.target);
-        }
-
+    constructor(keyframes = [], options = {}, target = null, parent = Animation, _isTimeline = false) {
         if(options) {
             this.state[0] =   options.offset     || 0;
             this.state[1] =   options.duration   || 1000;
@@ -80,6 +71,29 @@ class Animation {
             this.state[5] =   options.repeatMode || 0;
             this.state[6] =   options.ephemeral  !== false;
             this.state[8] =   options.delay      || 0;
+        }
+
+        if(parent === Animation) {
+            parent.animations.add(this);
+        }
+
+        this.parent = parent;
+        this.group  = options.group || null;
+
+        if(!_isTimeline) {
+            if(!Array.isArray(keyframes) && typeof keyframes === "object" && keyframes !== null) {
+                keyframes = [keyframes];
+            } else if(!Array.isArray(keyframes)) {
+                throw new Error("Keyframes must be an array or an object");
+            }
+
+            target ??= options.target || null;
+            if(typeof target === "string") {
+                target = document.querySelectorAll(target);
+            }
+
+            this.keyframes = keyframes;
+            this.target = target;
         }
     }
 
@@ -104,6 +118,7 @@ class Animation {
      */
     static animate(target, keyframes = [], options = {}) {
         options.ephemeral ??= true;
+        options.group ??= null;
 
         const animation = new Animation(keyframes, options, target, this);
         animation.start();
@@ -127,21 +142,17 @@ class Animation {
         const stateObj = this.state;
         if(!stateObj) return;
 
-        const duration = stateObj[1];
-        const repeat = stateObj[4];
-        const repeatMode = stateObj[5];
         const state = stateObj[7];
-
         const delay = stateObj[8];
 
+        const direction = stateObj[3];
+
+        // Paused
         if(!parentState && state > 0) {
-            // Paused
             return;
         }
 
-        stateObj[0] = (parentState? parentState[0]: stateObj[0] + delta) * stateObj[3];
-
-        let time = stateObj[0];
+        let time = stateObj[0] = parentState? parentState[0]: stateObj[0] + (delta * direction);
 
         // Delay
         if(time < delay) {
@@ -150,8 +161,6 @@ class Animation {
 
         time -= delay;
 
-        console.log("advancing timeline", time);
-
         if(this.isTimeline) {
             for(const animation of this.animations) {
                 animation.advance(delta, stateObj);
@@ -159,31 +168,25 @@ class Animation {
             return;
         }
 
-        if(time >= duration) {
-            if(repeat > 0) {
-                time = stateObj[0] = 0;
-                stateObj[4]--;
-            } else {
-                this.stop();
-                return;
-            }
-        }
-
         // Calculate progress
-        let progress = Math.min(1, Math.max(0, time / duration));
+        const rawProgress = this.progress;
 
         // Apply easing
         const globalEasing = stateObj[2];
+        let progress = Math.min(1, Math.max(0, rawProgress));
         if(typeof globalEasing === "function") progress = globalEasing(progress);
 
         // Update keyframes
         // todo: optimize this & add initial values/forward fill/different modes etc.
 
-        let keyframeIndex = 0;
+        const keyframeCount = this.keyframes.length;
 
-        for (let i = 0; i < this.keyframes.length - 1; i++) {
-            const at = this.keyframes[i].at         ??  i      / (this.keyframes.length - 1);
-            const nextAt = this.keyframes[i + 1].at ?? (i + 1) / (this.keyframes.length - 1);
+        let keyframeIndex = 0;
+        if (keyframeCount < 2) return;
+
+        for (let i = 0; i < keyframeCount - 1; i++) {
+            const at = this.keyframes[i].at         ??  i      / (keyframeCount - 1);
+            const nextAt = this.keyframes[i + 1].at ?? (i + 1) / (keyframeCount - 1);
 
             if (progress >= at && progress <= nextAt) {
                 keyframeIndex = i;
@@ -193,9 +196,10 @@ class Animation {
 
         const keyframe       = this.keyframes[keyframeIndex];
         const nextKeyframe   = this.keyframes[keyframeIndex + 1];
-        const keyframeAt     =     keyframe?.at ??  keyframeIndex      / (this.keyframes.length - 1);
-        const nextKeyframeAt = nextKeyframe?.at ?? (keyframeIndex + 1) / (this.keyframes.length - 1);
+        const keyframeAt     =     keyframe?.at ??  keyframeIndex      / (keyframeCount - 1);
+        const nextKeyframeAt = nextKeyframe?.at ?? (keyframeIndex + 1) / (keyframeCount - 1);
 
+        // Calculate keyframe progress
         let keyframeProgress = (progress - keyframeAt) / (nextKeyframeAt - keyframeAt);
 
         const keyframeType = typeof keyframe;
@@ -203,24 +207,34 @@ class Animation {
         if (keyframeType === "object" && keyframe !== null) {
             // Per-keyframe easing
             if (keyframe.easing) {
-                const easingFn = typeof keyframe.easing === "string"? Animation.EASING[keyframe.easing]: keyframe.easing;
-                if(typeof easingFn === "function") keyframeProgress = easingFn(keyframeProgress);
+                if(typeof keyframe.easing === "function") keyframeProgress = keyframe.easing(keyframeProgress);
             }
 
             for(const prop in keyframe) {
                 if (prop === "easing" || prop === "at") continue;
 
-                const value = lerp(keyframe[prop], nextKeyframe[prop], keyframeProgress);
+                const baseFrom = keyframe[prop];
+                const baseTo   = nextKeyframe[prop];
 
+                const staticValue = (typeof baseFrom !== "object" && typeof baseTo !== "object")? lerp(baseFrom, baseTo, keyframeProgress): null;
+
+                let i = 0;
                 for(const target of this.targetIterator()) {
+                    let value = staticValue;
+                    
+                    if(!staticValue) {
+                        const from = baseFrom?.values? baseFrom.values[i]: baseFrom;
+                        const to   = baseTo?.values?   baseTo.values[i]:   baseTo;
+                        value = lerp(from, to, keyframeProgress);
+                        i++;
+                    }
+
                     if(typeof target === "function") {
                         target(prop, value, keyframeProgress, progress);
-                    } else if(target instanceof HTMLElement) {
-                        // We could process CSS values, but CSS animations should use WAAPI anyways
-                        target.style[prop] = value;
-                    } else {
-                        target[prop] = value;
+                        continue;
                     }
+
+                    this.setValueForProperty(prop, value, target);
                 }
             }
         }
@@ -237,8 +251,38 @@ class Animation {
             }
         }
 
-        if(time >= duration) {
-            this.stop();
+        const repeat = stateObj[4];
+        const repeatMode = stateObj[5];
+
+        if(rawProgress >= 1 && direction > 0 || rawProgress <= 0 && direction < 0) {
+            if(repeat > 1) {
+                stateObj[4]--;
+
+                if(repeatMode === 1) {
+                    stateObj[3] *= -1; // Reverse direction on repeat
+                } else {
+                    stateObj[0] = 0;   // Reset time on repeat
+                }
+            } else {
+                this.stop();
+            }
+        }
+    }
+
+    getDefaultValueForProperty(prop, target) {
+        if(target instanceof HTMLElement) {
+            const computedStyle = getComputedStyle(target);
+            return parseFloat(computedStyle[prop]) || 0;
+        }
+
+        return target[prop] || 0;
+    }
+
+    setValueForProperty(prop, value, target) {
+        if(target instanceof HTMLElement) {
+            target.style[prop] = value;
+        } else {
+            target[prop] = value;
         }
     }
 
@@ -262,18 +306,74 @@ class Animation {
             this.resolve = resolve;
         });
 
-        if(this.parent && this.parent instanceof AnimationTimeline) {
-            this.parent.ref++;
-        }
-
         if(typeof this.state[2] === "string") {
             this.state[2] = Animation.EASING[this.state[2]] || Animation.EASING.linear;
+        }
+
+        if(!this.isTimeline) {
+            if(!this.keyframes || this.keyframes.length === 0) {
+                this.stop();
+
+                console.warn("Animation has no keyframes, cannot start", this);    
+                return this.promise;
+            }
+
+            console.log(this.keyframes[0])
+
+            if(this.keyframes.length === 1 || this.keyframes[0]?.at > 0) {
+                // Generate a default keyframe at the start with the current values of the target
+                const defaultKeyframe = {};
+                for(const prop in this.keyframes[0]) {
+                    if (prop === "easing" || prop === "at") continue;
+                    defaultKeyframe[prop] = null;
+                }
+                this.keyframes.unshift(defaultKeyframe);
+
+                console.warn("Animation has no starting keyframe, generating default keyframe", this.keyframes);
+            }
+
+            for(const keyframe of this.keyframes) {
+                if(typeof keyframe.easing === "string") {
+                    keyframe.easing = Animation.EASING[keyframe.easing] || Animation.EASING.linear;
+                }
+    
+                for(const prop in keyframe) {
+                    if (prop === "easing" || prop === "at") continue;
+    
+                    if(keyframe[prop] === null || (typeof keyframe[prop] === "object" && keyframe[prop]?.isDefaults)) {
+                        keyframe[prop] = {
+                            isDefaults: true,
+                            values: []
+                        };
+    
+                        for(const target of this.targetIterator()) {
+                            keyframe[prop].values.push(this.getDefaultValueForProperty(prop, target));
+                        }
+                    }
+                }
+            }
+        } else {
+            for(const animation of this.animations) {
+                animation.start(time);
+            }
+        }
+
+        if(this.parent && this.parent.destroyed) this.parent = null;
+
+        if(this.parent) {
+            if(this.parent === Animation) {
+                Animation.GlobalTicker.start();
+            } else if(this.parent instanceof AnimationTimeline) {
+                this.parent.ref++;
+            }
         }
 
         return this.promise;
     }
 
-    stop() {
+    stop(destroy = this.state[6]) {
+        if(this.destroyed) return;
+
         this.state[7] = 2;
         if(this.resolve) this.resolve();
         this.resolve = null;
@@ -286,8 +386,19 @@ class Animation {
             if(this.parent.ref <= 0) this.parent.stop();
         }
 
-        if(this.state[6]) {
-            this.destroy(false);
+        if(destroy) {
+            if(this.parent) {
+                this.parent.animations.delete(this);
+            }
+
+            this.keyframes = null;
+            this.state     = null;
+            this.promise   = null;
+            this.resolve   = null;
+            this.parent    = null;
+            this.target    = null;
+
+            this.destroyed = true;
         }
     }
 
@@ -298,10 +409,11 @@ class Animation {
     resume() {
         if(this.state[7] === 2) return this.start();
         this.state[7] = 0;
+        return this.promise;
     }
 
     play() {
-        this.resume();
+        return this.resume();
     }
 
     reverse() {
@@ -330,11 +442,29 @@ class Animation {
         return this.state[1];
     }
 
+    get finished() {
+        return this.state[7] === 2;
+    }
+
+    get running() {
+        return this.state[7] === 0;
+    }
+
+    get paused() {
+        return this.state[7] === 1;
+    }
+
     set progress(value) {
         this.state[0] = value * this.duration;
     }
 
-    get progress() { return this.state[0] / this.duration; }
+    get progress() { return Math.min(1, Math.max(0, (this.state[0] - this.delay) / this.duration)); }
+
+    set delay(value) {
+        this.state[8] = value;
+    }
+
+    get delay() { return this.state[8] }
 
     set time(value) {
         this.state[0] = value;
@@ -346,22 +476,8 @@ class Animation {
         this.advance(delta);
     }
 
-    destroy(_stop = true) {
-        if(this.destroyed) return;
-        this.destroyed = true;
-
-        if(_stop) this.stop();
-
-        if(this.parent) {
-            this.parent.animations.delete(this);
-        }
-
-        this.keyframes = null;
-        this.state     = null;
-        this.promise   = null;
-        this.resolve   = null;
-        this.parent    = null;
-        this.target    = null;
+    destroy() {
+        this.stop(true);
     }
 
     static {
@@ -372,15 +488,18 @@ class Animation {
             for(const animation of Animation.animations) {
                 animation.advance(delta);
             }
-        });
 
-        this.GlobalTicker.start();
+            if(Animation.animations.size === 0) {
+                Animation.GlobalTicker.stop();
+            }
+        });
     }
 
     static DEFAULT_DURATION = 450;
     static DEFAULT_EASING   = 'linear(0, 0.0018, 0.007 1.17%, 0.0334, 0.0758, 0.1306 5.54%, 0.2505 8.16%, 0.6477 16.03%, 0.7622 18.65%, 0.8498, 0.9229 23.32%, 0.9878 25.94%, 1.0308 28.27%, 1.0643 30.9%, 1.0791, 1.0886 34.39%, 1.094, 1.0944 38.48%, 1.0903 40.81%, 1.0814 43.43%, 1.0362 53.05%, 1.0184 57.42%, 1.0059, 0.9976 65.58%, 0.9925 70.25%, 0.991 75.79%, 0.9996 99.98%)';
 
     // Global animations
+    /** @type {Set<Animation>} */
     static animations = new Set;
 
     // Active DOM animations
@@ -489,16 +608,14 @@ class Animation {
  * @extends Animation
  */
 class AnimationTimeline extends Animation {
-    /**
-     * @type {Animation[]}
-     */
+    /** @type {Set<Animation>} */
     animations = new Set;
     ref = 0;
 
     isTimeline = true;
 
-    constructor(animations) {
-        super();
+    constructor(animations, options = {}, parent = Animation) {
+        super(null, options, null, parent, true);
         this.addAnimations(animations);
         this.keyframes = null;
     }
@@ -509,9 +626,9 @@ class AnimationTimeline extends Animation {
         for(let animation of animations) {
             if(!(animation instanceof Animation)) {
                 if(Array.isArray(animation)) {
-                    animation = new Animation(animation[0], animation[1], animation[2]);
+                    animation = new Animation(animation[0], animation[1], animation[2], this);
                 } else {
-                    animation = new Animation(animation.keyframes, animation.options, animation.target);
+                    animation = new Animation(animation.keyframes, animation.options, animation.target, this);
                 }
             }
 
@@ -520,6 +637,11 @@ class AnimationTimeline extends Animation {
         }
     }
 
+    /**
+     * Remove an animation from the timeline.
+     * @param {Animation} animation - The animation to remove.
+     * @param {boolean} destroy - Whether to destroy the animation.
+     */
     removeAnimation(animation, destroy = true) {
         this.animations.delete(animation);
         animation.pause();
@@ -529,8 +651,6 @@ class AnimationTimeline extends Animation {
 
     destroy() {
         super.destroy();
-
-        if(this.destroyed) return;
 
         for(const animation of this.animations) {
             if(animation) animation.destroy();

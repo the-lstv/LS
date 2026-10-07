@@ -101,7 +101,7 @@ class CommandPalette extends LS.Component {
 
     set autoCompletionIndex(value) {
         const itemCount = this.#currentCompletions.length || 0;
-        
+
         value ||= 0;
 
         if(value < 0) {

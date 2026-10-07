@@ -95,19 +95,19 @@ const LS = require("...");
 ```
 
 ## Setup
-LS has a minimal, mostly optional setup process. The most important thing is to add the `ls` attribute when using LS styles.
+LS has a minimal, optional setup process. The most important thing is to add the `ls` class when using LS CSS styles.
 
 ### UI Setup
-If you are using LS.css for UI & styles, there is some minimal boilerplate you should add to wherever you want LS styles to apply. For example:
+Example:
 ```html
-<body ls ls-theme="dark" ls-accent="blue" ls-style="flat"></body>
+<body class="ls" data-ls-theme="dark" data-ls-accent="blue" data-ls-style="flat"></body>
 ```
 
 In detail:
-- `ls` attribute scopes where LS styles apply. LS will style things including default HTML elements (such as buttons & inputs) within this element.
-- `ls-style` sets the overall base UI style. The default style is "flat", which sets the default look & feel of LS. Don't forget to include that theme as a component!
-- `ls-theme` sets the theme. Included are light and dark. Default is dark.
-- `ls-accent` sets the accent color. See more in the color system section. Default is blue.
+- `ls` class scopes where LS styles apply. LS will style things including default HTML elements (such as buttons & inputs) within this element.
+- `data-ls-style` sets the overall base UI style. The default style is "flat", which sets the default look & feel of LS. Don't forget to include that theme as a component!
+- `data-ls-theme` sets the theme. Included are light and dark. Default is dark.
+- `data-ls-accent` sets the accent color. See more in the color system section. Default is blue.
 
 
 ### JS Setup (optional)
@@ -116,11 +116,11 @@ It is not required, but LS can be configured with some options before startup. F
 ```js
 // The following must be set before LS is initialized.
 window.LS_INIT_OPTIONS = {
-    autoScheme: true, // Automatically set the theme based on the user's system preference
-    autoAccent: true, // Automatically set the accent color, eg. reading "ls-accent" from localStorage.
-    theme: null, // Default theme
-    accent: null, // Default accent color
-    optimizeEvents: true, // Whether to compile events. See the EventEmitter documentation for more details.
+    autoScheme: true,     // Automatically set the theme based on the user's system preference
+    autoAccent: true,     // Automatically set the accent color, eg. reading "ls-accent" from localStorage.
+    theme: null,          // Default theme
+    accent: null,         // Default accent color
+    optimizeEvents: true, // Whether to compile events. See the EventEmitter documentation for details.
 };
 
 // You can also set "window.LS_DEFER_INIT = true" to defer the initialization.

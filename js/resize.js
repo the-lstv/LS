@@ -1,21 +1,31 @@
 /**
- * A flexible and robust resizer library for LS.
+ * A flexible and lightweight resizer library for LS.
  * Adds resize bars to any side or corner of an element.
- * Automatically adjusts to absolute/relative positioning and works with touch events as well.
- * Note: ls.css is required.
+ * Automatically adjusts to absolute/relative positioning, supports collapsing, and works with touch events as well.
+ * Note: ls.css and LS.Effect is required.
  * @version 1.0.0
  */
-
-class Resize extends LS.Component {
+class Resize extends LS.EventEmitter {
     static { LS.register(this, { name: "Resize", singleton: true, global: true }) }
 
-    constructor(){
-        super();
-        this.targets = new WeakMap();
+    cursorMap = {
+        top: 'ns-resize',
+        bottom: 'ns-resize',
+        left: 'ew-resize',
+        right: 'ew-resize',
+        topLeft: 'nwse-resize',
+        bottomRight: 'nwse-resize',
+        topRight: 'nesw-resize',
+        bottomLeft: 'nesw-resize'
     }
 
     /**
-     * Adds a resize handle to a target element. It can be called multiple times on the same element to change sides or options (upsert).
+     * @type {WeakMap<HTMLElement, ResizeHandler>}
+     */
+    targets = new WeakMap();
+
+    /**
+     * Adds or updates a resize handle on a target element.
      *
      * Certain options (anchor, size) can also be set per specific handle with CSS (eg. element > .ls-resize-handle.ls-top { --ls-resize-handle-size: 8px; --ls-resize-anchor: 0.5 })
      * @param {*} target - The target element to resize.
@@ -59,68 +69,29 @@ class Resize extends LS.Component {
      * @param {object} [options.storage=null] - Custom storage object (must implement getItem/setItem). Default is localStorage.
      * @param {boolean} [options.translate] - Use translate3d instead of left/top
      * @param {function} [options.map] - A function to apply custom mapping to resizing
-     * @returns An object with the registered handles
+     * @returns {ResizeHandler} - ResizeHandler instance for the target element.
+     * 
      * Events on handle:
      * - resize: Emitted when the element is resized with the new width, height, and state.
      * - start: Emitted when resizing starts.
      * - end: Emitted when resizing ends.
+     * 
      * @example
-     * LS.Resize.set(element, {
+     * const handle = LS.Resize.set(element, {
      *     sides: ["top", "bottom"],
      *     corners: [1, 0, 1, 0]
      * });
+     * 
+     * handle.on("resize", (side, width, height, posX, posY, state) => {});
+     * 
+     * handle.destroy();
      */
-    set(target, options) {
-        let entry = this.targets.get(target);
+    set(target, options = {}) {
+        let entry = this.targets.get(target) || new ResizeHandler(target);
+        console.log(entry);
 
-        if(!options) {
-            options = {
-                top: true,
-                right: true,
-                bottom: true,
-                left: true
-            };
-        }
-
-        // Create a new entry with a resize handler
-        if(!entry) {
-            entry = {
-                target,
-                options: null,
-                handler: null,
-                states: {},
-                handles: {},
-                restored: false,
-                storage: null,
-                storageKey: null,
-            };
-
-            const handler = this.#createHandler(entry);
-            entry.handler = handler;
-
-            this.targets.set(target, entry);
-        }
-
-        options = LS.Util.defaults({
-            styled: entry.options?.styled ?? true,
-            cursors: entry.options?.cursors ?? true,
-            boundsCursors: entry.options?.boundsCursors ?? true,
-            snapArea: entry.options?.snapArea ?? 40,
-            snapCollapse: entry.options?.snapCollapse ?? false,
-            snapExpand: entry.options?.snapExpand ?? false,
-            snapVertical: entry.options?.snapVertical ?? false,
-            snapHorizontal: entry.options?.snapHorizontal ?? false,
-            // --- boundary option ---
-            boundary: entry.options?.boundary ?? null,    // "viewport" or {x, y, width, height}
-            // --- persistence options ---
-            store: entry.options?.store ?? null,          // string key
-            storeStringify: entry.options?.storeStringify ?? true,
-            storage: entry.options?.storage ?? null,      // custom storage (must implement getItem/setItem)
-            translate: entry.options?.translate ?? false, // use transform: translate3d instead of left/top
-            map: entry.options?.map ?? null,              // a function to apply custom mapping to resizing
-        }, options || {});
-
-        entry.options = options;
+        if(options) Object.assign(entry.options, options);
+        options = entry.options;
 
         if(options.sides === "all" || options.sides === true) {
             options.top = true;
@@ -164,10 +135,10 @@ class Resize extends LS.Component {
 
         // --- restore persisted state (once per target) ---
         const storeKey = typeof options?.store === 'string' ? options.store : options.store === true ? "ls-resize-" + target.id : null;
-        const storage = options.storage || (typeof window !== 'undefined' ? window.localStorage : null);
+        const storage  = options.storage || (typeof window !== 'undefined' ? window.localStorage : null);
 
         entry.storeKey = storeKey;
-        entry.storage = storage;
+        entry.storage  = storage;
 
         if(storeKey && !entry.restored && storage) {
             try {
@@ -220,14 +191,13 @@ class Resize extends LS.Component {
 
                 const element = document.createElement("div");
                 element.className = `ls-resize-handle ls-${side}` + (options.styled? " ls-resize-handle-styled": "") + (isCorner? " ls-resize-handle-corner": "");
+                element.setAttribute("data-ls-effect", "resize-bar");
                 element.dataset.side = side;
                 entry.handles[side] = element;
-                entry.handler.addTarget(element);
                 target.appendChild(element);
 
             } else if (entry.handles.hasOwnProperty(side)) {
                 entry.handles[side].remove();
-                entry.handler.removeTarget(entry.handles[side]);
                 delete entry.handles[side];
             }
         }
@@ -236,423 +206,12 @@ class Resize extends LS.Component {
         return entry;
     }
 
-    #createHandler(entry) {
-        let side;
-        let minWidth, minHeight, maxWidth, maxHeight;
-        let isWest, isEast, isNorth, isSouth;
-        let affectsWidth, affectsHeight;
-        let startWidth, startHeight;
-        let startPosX, startPosY;
-        let absolutePositioned = false;
-        let boundaryRect = null;
-        let targetOffsetX = 0;
-        let targetOffsetY = 0;
-        let endWidth, endHeight;
-
-        let handler = new LS.Util.TouchHandle(null, {
-            frameTimed: true,
-
-            onStart: (event) => {
-                targetOffsetX = 0;
-                targetOffsetY = 0;
-                endWidth = null;
-                endHeight = null;
-
-                side = event.domEvent.target?.dataset?.side;
-                if (!side) return event.cancel();
-
-                handler.emit('start', [ side, event.cancel ]);
-                if(event.cancelled) return;
-
-                this.emit('resize-start', [{ target: entry.target, side }]);
-
-                const rect = entry.target.getBoundingClientRect();
-                const style = window.getComputedStyle(entry.target);
-                if (entry.options.cursors !== false) {
-                    const cur = this.constructor.cursorMap[side];
-                    if (cur) {
-                        handler.cursor = cur;
-                    }
-                }
-
-                isWest = side === 'left' || side === 'topLeft' || side === 'bottomLeft';
-                isEast = side === 'right' || side === 'topRight' || side === 'bottomRight';
-                isNorth = side === 'top' || side === 'topLeft' || side === 'topRight';
-                isSouth = side === 'bottom' || side === 'bottomLeft' || side === 'bottomRight';
-                affectsWidth = isWest || isEast;
-                affectsHeight = isNorth || isSouth;
-
-                minWidth = entry.options.minWidth || parseFloat(style.minWidth) || 20;
-                minHeight = entry.options.minHeight || parseFloat(style.minHeight) || 20;
-                maxWidth = entry.options.maxWidth || parseFloat(style.maxWidth) || Infinity;
-                maxHeight = entry.options.maxHeight || parseFloat(style.maxHeight) || Infinity;
-                startWidth = rect.width;
-                startHeight = rect.height;
-
-                // Use style / offsetParent coordinates for adjustments to avoid jump
-                if (entry.options.translate) {
-                    const transform = style.transform;
-                    let mat = transform.match(/^matrix3d\((.+)\)$/);
-                    if (mat) {
-                        startPosX = parseFloat(mat[1].split(', ')[12]);
-                        startPosY = parseFloat(mat[1].split(', ')[13]);
-                    } else {
-                        mat = transform.match(/^matrix\((.+)\)$/);
-                        if (mat) {
-                            startPosX = parseFloat(mat[1].split(', ')[4]);
-                            startPosY = parseFloat(mat[1].split(', ')[5]);
-                        } else {
-                            startPosX = 0;
-                            startPosY = 0;
-                        }
-                    }
-                } else {
-                    startPosX = !isNaN(parseFloat(style.left)) ? parseFloat(style.left) : entry.target.offsetLeft;
-                    startPosY = !isNaN(parseFloat(style.top)) ? parseFloat(style.top) : entry.target.offsetTop;
-                }
-
-                absolutePositioned = style.position === 'absolute' || style.position === 'fixed';
-                
-                // Compute boundary rect
-                if (entry.options.boundary === 'viewport') {
-                    boundaryRect = { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight };
-                } else if (entry.options.boundary && typeof entry.options.boundary === 'object') {
-                    boundaryRect = entry.options.boundary;
-                } else {
-                    boundaryRect = null;
-                }
-                
-                // Calculate offset from boundary to target's positioning context
-                if (boundaryRect && absolutePositioned) {
-                    if (style.position === 'fixed') {
-                        // Fixed position is relative to viewport
-                        targetOffsetX = 0;
-                        targetOffsetY = 0;
-                    } else {
-                        // Absolute position is relative to offsetParent
-                        const offsetParent = entry.target.offsetParent || document.body;
-                        const parentRect = offsetParent.getBoundingClientRect();
-                        targetOffsetX = parentRect.left + window.scrollX - (boundaryRect.x || 0);
-                        targetOffsetY = parentRect.top + window.scrollY - (boundaryRect.y || 0);
-
-                        // If using translate, startPosX is just the transform part. 
-                        // We need to account for the static left/top offset in the boundary calculation.
-                        if (entry.options.translate) {
-                            targetOffsetX += entry.target.offsetLeft;
-                            targetOffsetY += entry.target.offsetTop;
-                        }
-                    }
-                }
-            },
-
-            onMove: (event) => {
-                let newWidth = startWidth;
-                let newHeight = startHeight;
-                let newPosX = startPosX;
-                let newPosY = startPosY;
-
-                // Pre-calc raw candidates (before min/max) for snapping decisions
-                let rawWidthCandidate = startWidth;
-                let rawHeightCandidate = startHeight;
-                if (isWest) rawWidthCandidate = startWidth - event.offsetX;
-                else if (isEast) rawWidthCandidate = startWidth + event.offsetX;
-                if (isNorth) rawHeightCandidate = startHeight - event.offsetY;
-                else if (isSouth) rawHeightCandidate = startHeight + event.offsetY;
-
-                if (isWest) {
-                    let candidate = startWidth - event.offsetX;
-                    if (candidate < minWidth) { candidate = minWidth; event.offsetX = startWidth - candidate; }
-                    else if (candidate > maxWidth) { candidate = maxWidth; event.offsetX = startWidth - candidate; }
-                    newWidth = candidate;
-                    newPosX = startPosX + event.offsetX;
-                } else if (isEast) {
-                    let candidate = startWidth + event.offsetX;
-                    if (candidate < minWidth) candidate = minWidth;
-                    if (candidate > maxWidth) candidate = maxWidth;
-                    newWidth = candidate;
-                }
-
-                if (isNorth) {
-                    let candidate = startHeight - event.offsetY;
-                    if (candidate < minHeight) { candidate = minHeight; event.offsetY = startHeight - candidate; }
-                    else if (candidate > maxHeight) { candidate = maxHeight; event.offsetY = startHeight - candidate; }
-                    newHeight = candidate;
-                    newPosY = startPosY + event.offsetY;
-                } else if (isSouth) {
-                    let candidate = startHeight + event.offsetY;
-                    if (candidate < minHeight) candidate = minHeight;
-                    if (candidate > maxHeight) candidate = maxHeight;
-                    newHeight = candidate;
-                }
-
-                // --- Snapping logic (track per-axis) ---
-                let widthSnappedCollapsed = false, heightSnappedCollapsed = false;
-                let widthSnappedExpanded = false, heightSnappedExpanded = false;
-
-                const snapArea = entry.options.snapArea || 40;
-
-                if (entry.options.snapHorizontal && affectsWidth) {
-                    if (entry.options.snapCollapse && rawWidthCandidate < snapArea) {
-                        newWidth = 0;
-                        widthSnappedCollapsed = true;
-                    } else if (entry.options.snapExpand && entry.target.parentElement) {
-                        const pw = entry.target.parentElement.getBoundingClientRect().width;
-                        if (rawWidthCandidate > (pw - snapArea)) {
-                            newWidth = pw;
-                            widthSnappedExpanded = true;
-                        }
-                    }
-                }
-
-                if (entry.options.snapVertical && affectsHeight) {
-                    if (entry.options.snapCollapse && rawHeightCandidate < snapArea) {
-                        newHeight = 0;
-                        heightSnappedCollapsed = true;
-                    } else if (entry.options.snapExpand && entry.target.parentElement) {
-                        const ph = entry.target.parentElement.getBoundingClientRect().height;
-                        if (rawHeightCandidate > (ph - snapArea)) {
-                            newHeight = ph;
-                            heightSnappedExpanded = true;
-                        }
-                    }
-                }
-
-                const snappedCollapsed = widthSnappedCollapsed || heightSnappedCollapsed;
-                const snappedExpanded = widthSnappedExpanded || heightSnappedExpanded;
-
-                const horizExpanded = widthSnappedExpanded && entry.options.snapExpand;
-                const vertExpanded = heightSnappedExpanded && entry.options.snapExpand;
-
-                // Apply position only if axis affected & absolute
-                if (absolutePositioned) {
-                    if (entry.options.translate) {
-                        if (isWest || isNorth) {
-                            entry.target.style.transform = `translate3d(${newPosX}px, ${newPosY}px, 0)`;
-                        }
-                    } else {
-                        if (isWest) entry.target.style.left = newPosX + 'px';
-                        if (isNorth) entry.target.style.top = newPosY + 'px';
-                    }
-                }
-
-                // Apply dimensions only when that axis is being resized (prevents assigning fixed px values unintentionally)
-                if (affectsWidth || widthSnappedCollapsed || widthSnappedExpanded) {
-                    if (horizExpanded) entry.target.style.width = '100%';
-                    else entry.target.style.width = newWidth + 'px';
-                }
-                if (affectsHeight || heightSnappedCollapsed || heightSnappedExpanded) {
-                    if (vertExpanded) entry.target.style.height = '100%';
-                    else entry.target.style.height = newHeight + 'px';
-                }
-
-                // --- Boundary constraints ---
-                if (boundaryRect) {
-                    const bx = boundaryRect.x || 0;
-                    const by = boundaryRect.y || 0;
-                    const bw = boundaryRect.width;
-                    const bh = boundaryRect.height;
-
-                    if (absolutePositioned) {
-                        // Constrain left edge
-                        const leftInBoundary = newPosX + targetOffsetX;
-                        if (leftInBoundary < bx) {
-                            const diff = bx - leftInBoundary;
-                            newPosX += diff;
-                            if (isWest) {
-                                newWidth -= diff;
-                            }
-                        }
-                        // Constrain top edge
-                        const topInBoundary = newPosY + targetOffsetY;
-                        if (topInBoundary < by) {
-                            const diff = by - topInBoundary;
-                            newPosY += diff;
-                            if (isNorth) {
-                                newHeight -= diff;
-                            }
-                        }
-                        // Constrain right edge
-                        const rightInBoundary = newPosX + targetOffsetX + newWidth;
-                        if (rightInBoundary > bx + bw) {
-                            const diff = rightInBoundary - (bx + bw);
-                            if (isEast) {
-                                newWidth -= diff;
-                            } else if (isWest) {
-                                newPosX -= diff;
-                            }
-                        }
-                        // Constrain bottom edge
-                        const bottomInBoundary = newPosY + targetOffsetY + newHeight;
-                        if (bottomInBoundary > by + bh) {
-                            const diff = bottomInBoundary - (by + bh);
-                            if (isSouth) {
-                                newHeight -= diff;
-                            } else if (isNorth) {
-                                newPosY -= diff;
-                            }
-                        }
-                    } else {
-                        // For non-absolute elements, just constrain dimensions
-                        if (newWidth > bw) newWidth = bw;
-                        if (newHeight > bh) newHeight = bh;
-                    }
-
-                    // Re-apply min constraints after boundary clamping
-                    if (newWidth < minWidth) newWidth = minWidth;
-                    if (newHeight < minHeight) newHeight = minHeight;
-                }
-
-                if (entry.options.map && typeof entry.options.map === 'function') {
-                    const mapped = entry.options.map({
-                        side,
-                        width: newWidth,
-                        height: newHeight,
-                        posX: newPosX,
-                        posY: newPosY,
-                        snappedCollapsed,
-                        snappedExpanded,
-                        event,
-                        cancelIfUnchanged: false
-                    });
-
-                    
-                    if (mapped) {
-                        if (mapped.cancelIfUnchanged && endWidth === newWidth && endHeight === newHeight) {
-                            return;
-                        }
-
-                        if (mapped.width != null) newWidth = mapped.width;
-                        if (mapped.height != null) newHeight = mapped.height;
-                        if (mapped.posX != null) newPosX = mapped.posX;
-                        if (mapped.posY != null) newPosY = mapped.posY;
-                        if (mapped.snappedCollapsed != null) snappedCollapsed = mapped.snappedCollapsed;
-                        if (mapped.snappedExpanded != null) snappedExpanded = mapped.snappedExpanded;
-                    }
-                }
-
-                // Manage classes
-                if (snappedCollapsed) {
-                    entry.target.classList.add('ls-resize-collapsed');
-                    entry.target.classList.remove('ls-resize-expanded');
-                } else if (snappedExpanded) {
-                    entry.target.classList.add('ls-resize-expanded');
-                    entry.target.classList.remove('ls-resize-collapsed');
-                } else {
-                    entry.target.classList.remove('ls-resize-collapsed');
-                    entry.target.classList.remove('ls-resize-expanded');
-                }
-
-                entry.states[side] = 'normal';
-                if (snappedCollapsed || entry.target.classList.contains('ls-resize-collapsed')) entry.states[side] = 'collapsed';
-                else if (snappedExpanded || entry.target.classList.contains('ls-resize-expanded')) entry.states[side] = 'expanded';
-
-                const evtd = [side, newWidth, newHeight, newPosX, newPosY, entry.states[side]];
-                handler.emit('resize', evtd);
-                evtd.unshift({ target: entry.target, side, handler });
-                this.emit('resize', evtd);
-
-                endWidth = newWidth;
-                endHeight = newHeight;
-
-                if (entry.options.cursors !== false && entry.options.boundsCursors !== false) {
-                    const canExpandWidth = newWidth < maxWidth;
-                    const canShrinkWidth = newWidth > minWidth;
-                    const canExpandHeight = newHeight < maxHeight;
-                    const canShrinkHeight = newHeight > minHeight;
-                    let cur = handler.cursor;
-                    if (isWest || isEast) {
-                        if (canExpandWidth && canShrinkWidth) cur = 'ew-resize';
-                        else if (canExpandWidth && !canShrinkWidth) cur = isWest ? 'w-resize' : 'e-resize';
-                        else if (!canExpandWidth && canShrinkWidth) cur = isWest ? 'e-resize' : 'w-resize';
-                        else cur = 'not-allowed';
-                    } else if (isNorth || isSouth) {
-                        if (canExpandHeight && canShrinkHeight) cur = 'ns-resize';
-                        else if (canExpandHeight && !canShrinkHeight) cur = isNorth ? 'n-resize' : 's-resize';
-                        else if (!canExpandHeight && canShrinkHeight) cur = isNorth ? 's-resize' : 'n-resize';
-                        else cur = 'not-allowed';
-                    }
-                    handler.cursor = cur;
-                }
-            },
-
-            onEnd: (event) => {
-                try {
-                    const data = {
-                        width: entry.target.style.width || null,
-                        height: entry.target.style.height || null,
-                        state: entry.target.classList.contains('ls-resize-collapsed') ? 'collapsed' : (entry.target.classList.contains('ls-resize-expanded') ? 'expanded' : 'normal')
-                    };
-
-                    if (entry.options.translate) {
-                        const transform = window.getComputedStyle(entry.target).transform;
-                        let mat = transform.match(/^matrix3d\((.+)\)$/);
-                        if (mat) {
-                            data.translateX = parseFloat(mat[1].split(', ')[12]);
-                            data.translateY = parseFloat(mat[1].split(', ')[13]);
-                        } else {
-                            mat = transform.match(/^matrix\((.+)\)$/);
-                            if (mat) {
-                                data.translateX = parseFloat(mat[1].split(', ')[4]);
-                                data.translateY = parseFloat(mat[1].split(', ')[5]);
-                            } else {
-                                data.translateX = 0;
-                                data.translateY = 0;
-                            }
-                        }
-                    } else {
-                        data.left = entry.target.style.left || null;
-                        data.top = entry.target.style.top || null;
-                    }
-
-                    if(entry.storage) entry.storage.setItem(entry.storeKey, entry.options?.storeStringify !== false ? JSON.stringify(data) : data);
-                } catch(e) { console.error(e) }
-
-                this.emit('resize-end', [{ target: entry.target, handler, side }, endHeight, endWidth, entry.states[side]?.currentState || 'normal']);
-                handler.emit('resize-end', [side, endHeight, endWidth, entry.states[side]?.currentState || 'normal']);
-            },
-        });
-
-        return handler;
-    }
-
-    static cursorMap = {
-        top: 'ns-resize',
-        bottom: 'ns-resize',
-        left: 'ew-resize',
-        right: 'ew-resize',
-        topLeft: 'nwse-resize',
-        bottomRight: 'nwse-resize',
-        topRight: 'nesw-resize',
-        bottomLeft: 'nesw-resize'
-    }
-
     remove(target) {
         const entry = this.targets.get(target);
-        if (entry) {
-            entry.handler?.destroy();
+        if (!entry) return false;
 
-            for (const side in entry.handles) {
-                entry.handles[side].remove();
-            }
-
-            entry.target = null;
-            entry.options = null;
-            entry.handler = null;
-            entry.states = null;
-            entry.handles = null;
-            entry.restored = false;
-            entry.storage = null;
-            entry.storageKey = null;
-
-            this.targets.delete(target);
-
-            if(entry._removalObserver) {
-                entry._removalObserver.disconnect();
-                delete entry._removalObserver;
-            }
-            return true;
-        }
-        return false;
+        entry.destroy();
+        return true;
     }
 
     getHandle(target, side) {
@@ -665,6 +224,482 @@ class Resize extends LS.Component {
 
     getTarget(element) {
         return this.targets.get(element) || null;
+    }
+}
+
+/**
+ * Owns the lifetime of a resize target's resize state & options.
+ */
+class ResizeHandler extends LS.EventEmitter  {
+    target     = null;  // Target element
+    states     = {};    // State of each side/corner
+    handles    = {};    // Handle elements
+
+    // Resize options
+    options    = {
+        styled:         true,
+        cursors:        true,
+        boundsCursors:  true,
+        snapArea:       40,
+        snapCollapse:   false,
+        snapExpand:     false,
+        snapVertical:   false,
+        snapHorizontal: false,
+        translate:      false,
+        map:            null,
+
+        // --- boundary
+        boundary:       null,
+
+        // --- persistence
+        store:          null,
+        storeStringify: true,
+        storage:        null,
+    };
+    
+    // Persistence
+    storage    = null;  // Where to store data
+    storageKey = null;  // Key for storing data
+    restored   = false; // Whether the persisted state has been restored
+
+    constructor(target) {
+        super();
+        this.target = target;
+    }
+
+    /**
+     * @deprecated
+     */
+    get handler() {
+        return this;
+    }
+
+    destroy() {
+        LS.Resize.targets.delete(this.target);
+
+        this.target     = null;
+        this.options    = null;
+        this.states     = null;
+        this.restored   = false;
+        this.storage    = null;
+        this.storageKey = null;
+
+        for (const side in this.handles) {
+            this.handles[side].remove();
+        }
+        this.handles = null;
+
+        if(this._removalObserver) {
+            this._removalObserver.disconnect();
+            delete this._removalObserver;
+        }
+
+        super.destroy();
+    }
+}
+
+/**
+ * Controls the resize behavior.
+ */
+class ResizeBar {
+    static {
+        if(!LS.Effect) throw new Error("LS.Effect is required for LS.Resize to work.");
+        LS.Effect.register("resize-bar", this);
+    }
+
+    // Note: data is a temporary state object, and has no guarantee that it survives between events.
+    static dragStart(event, data) {
+        const side  = this.dataset.side;
+
+        data.target = this.parentElement;
+        data.side   = side;
+
+        const entry = LS.Resize.getTarget(data.target);
+        if (!data.target || !side || !entry) return event.cancel();
+
+        entry.emit('start', [ side, event.cancel ]);
+        if(event.cancelled) return;
+
+        LS.Resize.emit('resize-start', [{ target: data.target, side: side }]);
+
+        const style = window.getComputedStyle(data.target);
+
+        data.entry = entry;
+        data.boundingBox = data.target.getBoundingClientRect();
+        data.targetOffsetX = 0;
+        data.targetOffsetY = 0;
+        data.endWidth  = null;
+        data.endHeight = null;
+
+        data.isWest  = side === 'left'   || side === 'topLeft'    || side === 'bottomLeft';
+        data.isEast  = side === 'right'  || side === 'topRight'   || side === 'bottomRight';
+        data.isNorth = side === 'top'    || side === 'topLeft'    || side === 'topRight';
+        data.isSouth = side === 'bottom' || side === 'bottomLeft' || side === 'bottomRight';
+
+        data.affectsWidth  = data.isWest  || data.isEast;
+        data.affectsHeight = data.isNorth || data.isSouth;
+
+        data.minMax = [
+            entry.options.minWidth  || parseFloat(style.minWidth)  || 20,
+            entry.options.minHeight || parseFloat(style.minHeight) || 20,
+            entry.options.maxWidth  || parseFloat(style.maxWidth)  || Infinity,
+            entry.options.maxHeight || parseFloat(style.maxHeight) || Infinity,
+        ];
+
+        data.absolutePositioned = style.position === 'absolute' || style.position === 'fixed';
+
+        if (entry.options.cursors !== false) {
+            LS.Effect.sharedHandle.cursor = LS.Resize.cursorMap[side] || 'default';
+        }
+
+        // Use style / offsetParent coordinates for adjustments to avoid jump
+        if (entry.options.translate) {
+            const transform = style.transform;
+            let mat = transform.match(/^matrix3d\((.+)\)$/);
+            if (mat) {
+                data.startPosX = parseFloat(mat[1].split(', ')[12]);
+                data.startPosY = parseFloat(mat[1].split(', ')[13]);
+            } else {
+                mat = transform.match(/^matrix\((.+)\)$/);
+                if (mat) {
+                    data.startPosX = parseFloat(mat[1].split(', ')[4]);
+                    data.startPosY = parseFloat(mat[1].split(', ')[5]);
+                } else {
+                    data.startPosX = 0;
+                    data.startPosY = 0;
+                }
+            }
+        } else {
+            data.startPosX = !isNaN(parseFloat(style.left)) ? parseFloat(style.left) : entry.target.offsetLeft;
+            data.startPosY = !isNaN(parseFloat(style.top))  ? parseFloat(style.top)  : entry.target.offsetTop;
+        }
+
+        let boundary = null;
+
+        // Compute boundary rect
+        if (entry.options.boundary === 'viewport') {
+            boundary = { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight };
+        } else if (entry.options.boundary && typeof entry.options.boundary === 'object') {
+            boundary = entry.options.boundary;
+        }
+
+        // Calculate offset from boundary to target's positioning context
+        if (boundary && data.absolutePositioned) {
+            if (style.position === 'fixed') {
+                // Fixed position is relative to viewport
+                data.targetOffsetX = 0;
+                data.targetOffsetY = 0;
+            } else {
+                // Absolute position is relative to offsetParent
+                const offsetParent = data.target.offsetParent || document.body;
+                const parentRect = offsetParent.getBoundingClientRect();
+                data.targetOffsetX = parentRect.left + window.scrollX - (data.boundingBox.x || 0);
+                data.targetOffsetY = parentRect.top + window.scrollY  - (data.boundingBox.y || 0);
+
+                // If using translate, startPosX is just the transform part. 
+                // We need to account for the static left/top offset in the boundary calculation.
+                if (entry.options.translate) {
+                    data.targetOffsetX += data.target.offsetLeft;
+                    data.targetOffsetY += data.target.offsetTop;
+                }
+            }
+        }
+
+        data.boundary = boundary;
+        return data;
+    }
+
+    static move(event, data) {
+        const startWidth  = data.boundingBox.width;
+        const startHeight = data.boundingBox.height;
+
+        // before you ask why this code is so terrible, this is the only remaining part that was written by ai
+
+        let newWidth  = startWidth;
+        let newHeight = startHeight;
+        let newPosX = data.startPosX;
+        let newPosY = data.startPosY;
+
+        const entry = data.entry;
+
+        // Precalculation for snapping
+        let rawWidthCandidate = startWidth;
+        let rawHeightCandidate = startHeight;
+
+        if      (data.isWest)  rawWidthCandidate  = startWidth  - event.offsetX;
+        else if (data.isEast)  rawWidthCandidate  = startWidth  + event.offsetX;
+        if      (data.isNorth) rawHeightCandidate = startHeight - event.offsetY;
+        else if (data.isSouth) rawHeightCandidate = startHeight + event.offsetY;
+
+        if (data.isWest) {
+            let candidate = startWidth - event.offsetX;
+            if      (candidate < data.minMax[0]) { candidate = data.minMax[0]; event.offsetX = startWidth - candidate; }
+            else if (candidate > data.minMax[2]) { candidate = data.minMax[2]; event.offsetX = startWidth - candidate; }
+            newWidth = candidate;
+            newPosX = data.startPosX + event.offsetX;
+        } else if (data.isEast) {
+            let candidate = startWidth + event.offsetX;
+            if (candidate < data.minMax[0]) candidate = data.minMax[0];
+            if (candidate > data.minMax[2]) candidate = data.minMax[2];
+            newWidth = candidate;
+        }
+
+        if (data.isNorth) {
+            let candidate = startHeight - event.offsetY;
+            if      (candidate < data.minMax[1]) { candidate = data.minMax[1]; event.offsetY = startHeight - candidate; }
+            else if (candidate > data.minMax[3]) { candidate = data.minMax[3]; event.offsetY = startHeight - candidate; }
+            newHeight = candidate;
+            newPosY = data.startPosY + event.offsetY;
+        } else if (data.isSouth) {
+            let candidate = startHeight + event.offsetY;
+            if (candidate < data.minMax[1]) candidate = data.minMax[1];
+            if (candidate > data.minMax[3]) candidate = data.minMax[3];
+            newHeight = candidate;
+        }
+
+        // --- Snapping logic (track per-axis) ---
+        let widthSnappedCollapsed = false, heightSnappedCollapsed = false;
+        let widthSnappedExpanded = false, heightSnappedExpanded = false;
+
+        const snapArea = entry.options.snapArea || 40;
+
+        if (entry.options.snapHorizontal && data.affectsWidth) {
+            if (entry.options.snapCollapse && rawWidthCandidate < snapArea) {
+                newWidth = 0;
+                widthSnappedCollapsed = true;
+            } else if (entry.options.snapExpand && entry.target.parentElement) {
+                const pw = entry.target.parentElement.getBoundingClientRect().width;
+                if (rawWidthCandidate > (pw - snapArea)) {
+                    newWidth = pw;
+                    widthSnappedExpanded = true;
+                }
+            }
+        }
+
+        if (entry.options.snapVertical && data.affectsHeight) {
+            if (entry.options.snapCollapse && rawHeightCandidate < snapArea) {
+                newHeight = 0;
+                heightSnappedCollapsed = true;
+            } else if (entry.options.snapExpand && entry.target.parentElement) {
+                const ph = entry.target.parentElement.getBoundingClientRect().height;
+                if (rawHeightCandidate > (ph - snapArea)) {
+                    newHeight = ph;
+                    heightSnappedExpanded = true;
+                }
+            }
+        }
+
+        const snappedCollapsed = widthSnappedCollapsed || heightSnappedCollapsed;
+        const snappedExpanded  = widthSnappedExpanded  || heightSnappedExpanded;
+        const horizExpanded    = widthSnappedExpanded  && entry.options.snapExpand;
+        const vertExpanded     = heightSnappedExpanded && entry.options.snapExpand;
+
+        // --- Boundary constraints ---
+        if (data.boundary) {
+            const bx = data.boundary.x || 0;
+            const by = data.boundary.y || 0;
+            const bw = data.boundary.width;
+            const bh = data.boundary.height;
+
+            if (data.absolutePositioned) {
+                // Constrain left edge
+                const leftInBoundary = newPosX + data.targetOffsetX;
+                if (leftInBoundary < bx) {
+                    const diff = bx - leftInBoundary;
+                    newPosX += diff;
+                    if (data.isWest) {
+                        newWidth -= diff;
+                    }
+                }
+
+                // Constrain top edge
+                const topInBoundary = newPosY + data.targetOffsetY;
+                if (topInBoundary < by) {
+                    const diff = by - topInBoundary;
+                    newPosY += diff;
+                    if (data.isNorth) {
+                        newHeight -= diff;
+                    }
+                }
+
+                // Constrain right edge
+                const rightInBoundary = newPosX + data.targetOffsetX + newWidth;
+                if (rightInBoundary > bx + bw) {
+                    const diff = rightInBoundary - (bx + bw);
+                    if (data.isEast) {
+                        newWidth -= diff;
+                    } else if (data.isWest) {
+                        newPosX -= diff;
+                    }
+                }
+
+                // Constrain bottom edge
+                const bottomInBoundary = newPosY + data.targetOffsetY + newHeight;
+                if (bottomInBoundary > by + bh) {
+                    const diff = bottomInBoundary - (by + bh);
+                    if (data.isSouth) {
+                        newHeight -= diff;
+                    } else if (data.isNorth) {
+                        newPosY -= diff;
+                    }
+                }
+            } else {
+                // For non-absolute elements, just constrain dimensions
+                if (newWidth  > bw) newWidth  = bw;
+                if (newHeight > bh) newHeight = bh;
+            }
+
+            // Re-apply min constraints after boundary clamping
+            if (newWidth  < data.minMax[0]) newWidth  = data.minMax[0];
+            if (newHeight < data.minMax[1]) newHeight = data.minMax[1];
+        }
+
+        if (entry.options.map && typeof entry.options.map === 'function') {
+            const mapped = entry.options.map({
+                side: data.side,
+                width: newWidth,
+                height: newHeight,
+                posX: newPosX,
+                posY: newPosY,
+                snappedCollapsed,
+                snappedExpanded,
+                event,
+                cancelIfUnchanged: false
+            });
+            
+            if (mapped) {
+                if (mapped.cancelIfUnchanged && data.endWidth === newWidth && data.endHeight === newHeight) {
+                    return;
+                }
+
+                if (mapped.width != null)  newWidth = mapped.width;
+                if (mapped.height != null) newHeight = mapped.height;
+                if (mapped.posX != null)   newPosX = mapped.posX;
+                if (mapped.posY != null)   newPosY = mapped.posY;
+                if (mapped.snappedCollapsed != null) snappedCollapsed = mapped.snappedCollapsed;
+                if (mapped.snappedExpanded != null) snappedExpanded = mapped.snappedExpanded;
+            }
+        }
+
+        // Manage classes
+        if (snappedCollapsed) {
+            entry.target.classList.add('ls-resize-collapsed');
+            entry.target.classList.remove('ls-resize-expanded');
+        } else if (snappedExpanded) {
+            entry.target.classList.add('ls-resize-expanded');
+            entry.target.classList.remove('ls-resize-collapsed');
+        } else {
+            entry.target.classList.remove('ls-resize-collapsed');
+            entry.target.classList.remove('ls-resize-expanded');
+        }
+
+        const evtd = [data.side, newWidth, newHeight, newPosX, newPosY, entry.states[data.side]];
+        entry.emit('resize', evtd);
+        evtd.unshift({ target: entry.target, side: data.side, handler: entry });
+        LS.Resize.emit('resize', evtd);
+
+        // Apply position only if axis affected & absolute
+        if (data.absolutePositioned) {
+            if (entry.options.translate) {
+                if (data.isWest || data.isNorth) {
+                    entry.target.style.transform = `translate3d(${newPosX}px, ${newPosY}px, 0)`;
+                }
+            } else {
+                if (data.isWest) entry.target.style.left = newPosX + 'px';
+                if (data.isNorth) entry.target.style.top = newPosY + 'px';
+            }
+        }
+
+        // Apply size
+        if (data.affectsWidth || widthSnappedCollapsed || widthSnappedExpanded) {
+            if (horizExpanded) entry.target.style.width = '100%';
+            else entry.target.style.width = newWidth + 'px';
+        }
+
+        if (data.affectsHeight || heightSnappedCollapsed || heightSnappedExpanded) {
+            if (vertExpanded) entry.target.style.height = '100%';
+            else entry.target.style.height = newHeight + 'px';
+        }
+
+        entry.states[data.side] = 'normal';
+        if      (snappedCollapsed || entry.target.classList.contains('ls-resize-collapsed')) entry.states[data.side] = 'collapsed';
+        else if (snappedExpanded  || entry.target.classList.contains('ls-resize-expanded'))  entry.states[data.side] = 'expanded';
+
+        data.endWidth  = newWidth;
+        data.endHeight = newHeight;
+
+        if (entry.options.cursors !== false && entry.options.boundsCursors !== false) {
+            const canExpandWidth  = newWidth  < data.minMax[2];
+            const canShrinkWidth  = newWidth  > data.minMax[0];
+            const canExpandHeight = newHeight < data.minMax[3];
+            const canShrinkHeight = newHeight > data.minMax[1];
+
+            let cur = entry.cursor;
+            if (data.isWest || data.isEast) {
+                if (canExpandWidth && canShrinkWidth) cur = 'ew-resize';
+                else if (canExpandWidth && !canShrinkWidth) cur = data.isWest ? 'w-resize' : 'e-resize';
+                else if (!canExpandWidth && canShrinkWidth) cur = data.isWest ? 'e-resize' : 'w-resize';
+                else cur = 'not-allowed';
+            } else if (data.isNorth || data.isSouth) {
+                if (canExpandHeight && canShrinkHeight) cur = 'ns-resize';
+                else if (canExpandHeight && !canShrinkHeight) cur = data.isNorth ? 'n-resize' : 's-resize';
+                else if (!canExpandHeight && canShrinkHeight) cur = data.isNorth ? 's-resize' : 'n-resize';
+                else cur = 'not-allowed';
+            }
+
+            entry.cursor = cur;
+        }
+    }
+
+    static release(event, data) {
+        const entry = data.entry;
+
+        if(entry.storage) try {
+            const storageData = {
+                width:  entry.target.style.width  || null,
+                height: entry.target.style.height || null,
+                state:  entry.target.classList.contains('ls-resize-collapsed') ? 'collapsed' : (entry.target.classList.contains('ls-resize-expanded') ? 'expanded' : 'normal')
+            };
+
+            if (entry.options.translate) {
+                const transform = window.getComputedStyle(entry.target).transform;
+                let mat = transform.match(/^matrix3d\((.+)\)$/);
+                if (mat) {
+                    storageData.translateX = parseFloat(mat[1].split(', ')[12]);
+                    storageData.translateY = parseFloat(mat[1].split(', ')[13]);
+                } else {
+                    mat = transform.match(/^matrix\((.+)\)$/);
+                    if (mat) {
+                        storageData.translateX = parseFloat(mat[1].split(', ')[4]);
+                        storageData.translateY = parseFloat(mat[1].split(', ')[5]);
+                    } else {
+                        storageData.translateX = 0;
+                        storageData.translateY = 0;
+                    }
+                }
+            } else {
+                storageData.left = entry.target.style.left || null;
+                storageData.top = entry.target.style.top || null;
+            }
+
+            entry.storage.setItem(entry.storeKey, entry.options?.storeStringify !== false ? JSON.stringify(storageData) : storageData);
+        } catch(e) { console.error(e) }
+
+        LS.Resize.emit('resize-end', [{ target: entry.target, handler: entry, side: data.side }, data.endHeight, data.endWidth, entry.states[data.side]?.currentState || 'normal']);
+        entry.emit('resize-end', [data.side, data.endHeight, data.endWidth, entry.states[data.side]?.currentState || 'normal']);
+
+        // Cleanup state just in case
+        data.target = null;
+        data.entry = null;
+        data.boundingBox = null;
+        data.startPosX = null;
+        data.startPosY = null;
+        data.endWidth  = null;
+        data.endHeight = null;
+        data.boundary = null;
+        data.targetOffsetX = null;
+        data.targetOffsetY = null;
+        data.minMax = null;
     }
 }
 

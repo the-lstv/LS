@@ -80,7 +80,6 @@ class EffectManager extends LS.Component {
 
             onStart: (event) => {
                 const domEvent = event.domEvent;
-                // I think per-element handling would be much faster given my experience writing a html engine but js is js
                 const target = domEvent.target.closest("[data-ls-effect]");
                 if (!target || !(target instanceof HTMLElement)) return event.cancel();
 

@@ -506,7 +506,7 @@ class Window extends LS.Slot {
             if (this.resize || !this.windowElement || this.destroyed) return;
 
             this.resize = LS.Resize.set(this.windowElement, this.resizeOptions);
-            this.resize.handler.on("resize", (side, nW, nH, nX, nY) => {
+            this.resize.on("resize", (side, nW, nH, nX, nY) => {
                 if (this.isMaximized) {
                     this.applyLayout();
                     return;
@@ -877,7 +877,6 @@ class Window extends LS.Slot {
             this.toggleViewButton.querySelector("i").className = this.isPinnedView ? "bi-pin-angle-fill" : "bi-window";
         }
 
-        console.log("asd")
         if (this.alwaysOnTopButton) {
             this.alwaysOnTopButton.classList.toggle("elevated", !this.alwaysOnTop);
         }
