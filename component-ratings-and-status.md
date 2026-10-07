@@ -6,12 +6,13 @@ Since each component in LS is like a full library on its own, we track their qua
 The goal is to have all built-in components reach the highest quality rating so that they are up to our standards.
 
 ## Rating meaning
-- **★★★★★ (5/5)** — Robust, clean, tested, and efficient. Suitable for production.
-- **★★★★☆ (4/5)** — Solid and usable. May have some missing features, optimization work remaining, or parts of the API still settling. Or just not fully tested enough yet. Generally stable and reliable in production.
-- **★★★☆☆ (3/5)** — Functional but experimental/incomplete. API may change and may have minor edge-case bugs. Use with caution in production.
-- **★★☆☆☆ (2/5)** — Needs refactor or rewrite. Often migrated from older versions and not yet fully adapted, not recommended for production.
-- **★☆☆☆☆ (1/5)** — Low quality / unfinished. Always avoid in production.
-- **☆☆☆☆☆ (-/-)** — Work in progress, not rated yet.
+- **★★★★★ (5/5)** - Robust, clean, tested, and efficient. Suitable for production.
+- **★★★★☆ (4/5)** - Solid and usable. May have some missing features, optimization work remaining, or parts of the API still settling. Or just not fully tested enough yet. Generally stable and reliable in production.
+- **★★★☆☆ (3/5)** - Functional but experimental/incomplete. API may change and may have minor edge-case bugs. Use with caution in production.
+- **★★☆☆☆ (2/5)** - Needs refactor or rewrite. Often migrated from older versions and not yet fully adapted, not recommended for production.
+- **★☆☆☆☆ (1/5)** - Low quality / unfinished. Always avoid in production.
+- **☆☆☆☆☆ (-/-)** - Work in progress, not rated yet.
+<!-- i removed use of the em dash as it's poisonous at this point :P -->
 
 **Builtin** = part of LS core and is not a separate component.
 | Component  | Quality Rating | Notes |
@@ -22,7 +23,7 @@ The goal is to have all built-in components reach the highest quality rating so 
 | LS.Tooltips | ★★★★★ (5/5) | Simple and effective, though missing some features
 | LS.Util.TouchHandle | ★★★★★ (5/5) | Solid utility for all kinds of touch/mouse interactions.
 | LS.Modal | ★★★★☆ (4/5) | Solid, fast, simple. May need some small tweaks.
-| LS.Resize | ★★★★☆ (4/5) | Functional and extensive in features.
+| LS.Resize | ★★★★☆ (4/5) | Functional.
 | LS.Toast | ★★★★☆ (4/5) | Simple
 | LS.Multipane | ★★★★☆ (4/5) | Not bad but lacks some features.
 | LS.Stack/StackItem | ★★★★☆ (4/5) | Simple
@@ -34,25 +35,28 @@ The goal is to have all built-in components reach the highest quality rating so 
 | LS.Tree | ★★★★☆ (4/5) | Stable, but might still need some polishing.
 | LS.Animation | ★★★★☆ (4/5) | Works, but way too few features (being replaced by LS.Animation2)
 | LS.Menu | ★★★★☆ (4/5) | Recently refactored (further work could be done to reduce per-instance overhead)
-| LS.ShortcutManager (builtin) | ★★★☆☆ (3/5) | Needs API solidification, incomplete
-| LS.Reactive | ★★★☆☆ (3/5) | Solid code for what it does, but needs a strategy redesign
-| LS.Tabs | ★★★☆☆ (3/5) | Not terrible but could be better.
-| LS.AutomationGraph | ★★★☆☆ (3/5) | Recently migrated, possibly unstable
+| LS.ShortcutManager (builtin) | ★★★★☆ (4/5) | Needs API solidification, incomplete
+| LS.CommandPalette | ★★★★☆ (4/5) | Solid, missing a few features
+| LS.Effect | ★★★☆☆ (3/5) | Work in progress
+| LS.Animation2 | ★★★☆☆ (3/5) | Work in progress
+| LS.Tabs | ★★★☆☆ (3/5) | Not terrible but could be a lot better.
 | LS.Context (builtin) | ★★★☆☆ (3/5) | Too opinionated but functional
 | LS.CompileTemplate (builtin) | ★★★☆☆ (3/5) | Experimental
+| LS.Reactive | ★★★☆☆ (3/5) | Solid code for what it does, but needs a strategy redesign
 | LS.Range | ★★★☆☆ (3/5) | Functional, but code review needed
-| LS.ImageCropper | ★★★☆☆ (3/5) | Rushed but functional. Not enough attention has been given.
+| LS.ImageCropper | ★★git config pull.rebase false★☆☆ (3/5) | Rushed but functional. Not enough attention has been given.
+| LS.AutomationGraph | ★★★☆☆ (3/5) | Recently migrated, unstable
 | LS.WindowManager | ★★★☆☆ (3/5) | Incomplete
+| LS.Input | ★★★☆☆ (3/5) | In testing
 | LS.GL | ★★★☆☆ (3/5) | Experimental stage
 | LS.DragDrop | ★★☆☆☆ (2/5) | Recently migrated from v3, needs refactoration, but is more or less useless now.
 | LS.Network | ★★☆☆☆ (2/5) | Just a WebSocket wrapper as of now
 | LS.i18n | ★★☆☆☆ (2/5) | Work needs to be done here
 | LS.Node | ★☆☆☆☆ (1/5) | Doesn't really do anything yet
-| LS.Animation2 | ☆☆☆☆☆ (?) | Incomplete
 | LS.Layout | ☆☆☆☆☆ (?) | Incomplete
-| LS.CommandPalette | ☆☆☆☆☆ (?) | Incomplete
 | LS.ColorPicker | ☆☆☆☆☆ (?) | Incomplete
 | LS.SPA | ☆☆☆☆☆ (-) | Unreleased. Currently functional only in a specific environment.
+| LS.GameRuntime | ☆☆☆☆☆ (-) | Unreleased.
 
 Misc utilities or smaller components (all built-in):
 
@@ -94,16 +98,15 @@ Components marked **Not Started** are not available yet and may be rejected.
 |---|---|
 | LS.Sheet | Not Started (may be replaced in LS.Modal)
 | LS.GraphGL | Not Started (it has the worst code you've ever seen 😭 - for the time being please use a different graphing library)
-| LS.Workspace | Not Started (may not be needed as TouchHandle+LSGL already provides a solid base)
 
 ## Deleted Components
 These are ***very old*** LS v3 components that have been removed and not considered for migration, either due to very low quality or simply lack of usefulness. Their idea may be re-added in the future. Otherwise they have no significance other than historical purposes.
 - LS.Toolbox (crazy ideas (like hello? a full shell emulator, desktop environment, and integrated debugger in a single component?), but never proved to be useful and was discontinued)
 - LS.React (renamed to LS.Reactive to aviod confusion with bad **libraries**) ^-^
 - LS.CodeEditor (unfinished, may be re-added in some way in the future, if time ever allows (there was an attempt, but is currently abandoned due to massive complexity, low need and lack of time))
-- LS.Terminal (low quality, robust libraries like xterm.js are better and well maintained (update: we now have a AcceleratedTextGridRenderer that can achieve the fast rendering functionality of a terminal, but is still not a full terminal emulator implementation as of now))
-- LS.Steps (it was just tabs but with index controls. use LS.Tabs.)
-- LS.Form (low quality implementation, internally LS.Steps with added form validation/collection.)
+- LS.Terminal (low quality, robust libraries like xterm.js are better and well maintained (update: we now have a AcceleratedTextGridRenderer that can achieve the fast rendering functionality of a terminal, + LS.CommandPalette has an ANSI parser but is still not a full terminal emulator implementation as of now, but they could be used to build one))
+- LS.Steps (it was just tabs but with index controls. use LS.Tabs)
+- LS.Form (low quality implementation, internally LS.Steps with added form validation/collection, replaced by LS.Input.)
 - LS.Chips (low quality and honestly quite useless)
 - LS.Fragment (not very useful nor well implemented)
 - LS.Present (replaced by https://github.com/the-lstv/slides)
@@ -113,7 +116,7 @@ These are ***very old*** LS v3 components that have been removed and not conside
 - LS.Nav (functionally replaced by LS.Menu)
 - LS.MultiSelect (bad abstraction)
 - LS.DragDrop (bad abstraction, mainly replaced by LS.Util.TouchHandle)
-- LS.Native (unfinished, direction uncertain)
+- LS.Native (unfinished, direction uncertain, may be replaced by CristalineLS or LSv7 or LS++)
 - LS.Debugger (never completed)
 - LS.Menubar (never completed)
 
