@@ -265,9 +265,10 @@ class Multipane extends LS.Component {
      * Recursively processes the schema and creates the layout structure.
      * Warning: Mutates the schema in place live.
      * @param {*} schema The schema to process
+     * @param {*} parentSchema The parent schema
      * @returns {HTMLElement} The root element of the processed schema
      */
-    _processSchema(schema) {
+    _processSchema(schema, parentSchema = null) {
         if (schema instanceof LS.Slot || (schema.type && schema.type === 'slot')) {
             if (!(schema instanceof LS.Slot)) {
                 schema = new LS.Slot(schema.options || schema);
@@ -311,9 +312,9 @@ class Multipane extends LS.Component {
                     let contentNode;
 
                     if (Array.isArray(tabData)) {
-                        contentNode = this._processSchema({ inner: tabData, direction: schema.direction || 'row' });
+                        contentNode = this._processSchema({ inner: tabData, direction: schema.direction || 'row' }, schema);
                     } else {
-                        contentNode = this._processSchema(tabData);
+                        contentNode = this._processSchema(tabData, schema);
                     }
 
                     tabs.add(tabData.id, contentNode, { title, ...tabData.tabOptions || {} });
@@ -335,16 +336,26 @@ class Multipane extends LS.Component {
             const count = schema.inner.length;
 
             for (const item of schema.inner) {
-                const child = this._processSchema(item);
+                const child = this._processSchema(item, schema);
                 container.appendChild(child);
+
+                const fromBack = count - i;
+                const isLast = (i === count - 1);
 
                 let handleSide =
                     direction === 'column'?
-                    (count - i <= 2)? (count > 2? ((count - i == 1)? 'top':  null): ((count - i !== 1)? 'bottom': null)): 'bottom' :
-                    (count - i <= 2)? (count > 2? ((count - i == 1)? 'left': null): ((count - i !== 1)? 'right':  null)): 'right'  
+                    (fromBack <= 2)? (count > 2? ((fromBack == 1)? 'top':  null): ((fromBack !== 1)? 'bottom': null)): 'bottom' :
+                    (fromBack <= 2)? (count > 2? ((fromBack == 1)? 'left': null): ((fromBack !== 1)? 'right':  null)): 'right'  
                 ;
 
-                console.log("Multipane: handleSide", handleSide, "for item", item, "at index", i, "of", count, "in direction", direction);
+                const sides = [handleSide], corners = [];
+
+                if(!isLast && direction === 'row' && parentSchema && parentSchema.direction === 'column') {
+                    // Siblings
+                    corners.push('bottom-right');
+                }
+
+                // console.log("Multipane: handleSide", handleSide, "for item", item, "at index", i, "of", count, "in direction", direction);
 
                 if (handleSide) {
                     if(handleSide === "left") {
@@ -352,7 +363,8 @@ class Multipane extends LS.Component {
                     }
 
                     const handle = LS.Resize.set(child, {
-                        sides: [handleSide],
+                        sides,
+                        corners,
                         siblibngs: true, // TODO
 
                         // Snapping
@@ -370,7 +382,7 @@ class Multipane extends LS.Component {
                         }
                     });
 
-                    handle.handler.on("resize", (e) => {
+                    handle.on("resize", (e) => {
                         this.quickEmit("resize", e, child);
                     });
 
@@ -380,7 +392,7 @@ class Multipane extends LS.Component {
                 i++;
             }
         } else if (schema.inner) {
-            container.appendChild(this._processSchema(schema.inner));
+            container.appendChild(this._processSchema(schema.inner, schema));
         }
 
         return container;
