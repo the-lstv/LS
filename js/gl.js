@@ -1211,35 +1211,35 @@ void main() {
         }
 
         switch(type) {
-            case "float":
+            case "float": case "float32": case "mat4": case "f32":
             case Float32Array:
                 return GL_ENUMS.FLOAT;
 
-            case "int":
+            case "int": case "int32": case "i32":
             case Int32Array:
                 return GL_ENUMS.INT;
 
-            case "uint":
+            case "uint": case "uint32": case "u32":
             case Uint32Array:
                 return GL_ENUMS.UNSIGNED_INT;
 
-            case "short":
+            case "short": case "int16": case "i16":
             case Int16Array:
                 return GL_ENUMS.SHORT;
 
-            case "ushort":
+            case "ushort": case "uint16": case "u16":
             case Uint16Array:
                 return GL_ENUMS.UNSIGNED_SHORT;
 
-            case "byte":
+            case "byte": case "int8": case "i8":
             case Int8Array:
                 return GL_ENUMS.BYTE;
 
-            case "ubyte":
+            case "ubyte": case "uint8": case "u8":
             case Uint8Array:
                 return GL_ENUMS.UNSIGNED_BYTE;
 
-            case "double":
+            case "double": case "float64": case "f64":
             case Float64Array:
                 if(strict) throw new Error("WebGL does not support Float64Array for vertex attributes.");
 
@@ -2715,7 +2715,7 @@ void main() {
         }
 
         bindToAttribute(location, size = this.cellSize, type = null, normalized = false, stride = 0, offset = 0, divisor = 1) {
-            if(typeof type !== 'number') {
+            if(typeof type !== 'number' && type !== "mat4") {
                 type = bufferType((type && typeof type === 'string')? type: this.data);
             }
 
@@ -2724,6 +2724,16 @@ void main() {
         }
 
         static bindToAttribute(gl, buffer, isInt, location, size = this.cellSize, type = null, normalized = false, stride = 0, offset = 0, divisor = 1) {
+            if(type === "mat4") {
+                // Mat4 attributes are special and require 4 attribute locations
+                for (let i = 0; i < 4; i++) {
+                    WebGLBuffer.bindToAttribute(gl, buffer, isInt, location + i, 4, gl.FLOAT, normalized, 64, offset + i * 16, 1);
+                }
+                return;
+            }
+
+            console.log("bindToAttribute: location=" + location + ", size=" + size + ", type=" + type + ", normalized=" + normalized + ", stride=" + stride + ", offset=" + offset + ", divisor=" + divisor);
+
             if(typeof location !== 'number' || location < 0) {
                 throw new Error("bindToAttribute expects a valid attribute location (non-negative integer) as the first argument. Got: " + location);
             }
@@ -2750,7 +2760,7 @@ void main() {
             }
             // console.log(gl.getError());
 
-            // verify that it is active:
+            // Verify that it is active:
             const isEnabled = gl.getVertexAttrib(location, gl.VERTEX_ATTRIB_ARRAY_ENABLED);
             if (!isEnabled) {
                 console.warn(`bindToAttribute: Failed to enable vertex attribute at location ${location}.`);

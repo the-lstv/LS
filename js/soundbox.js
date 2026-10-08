@@ -427,12 +427,34 @@ class SoundBoxThread {
             if(this.options.ephemeral) {
                 // Terminate & delete the thread after the sound has finished playing.
                 this.terminate();
-            } else {
+            } else if(this.source) {
                 // We could reuse the node but we can't.
                 this.source.disconnect();
                 this.source = null;
             }
         });
+    }
+
+    /**
+     * Plays the sound thread from a specific offset and for a specific duration, but a tiny bit cheaper to call repeatedly, without effects.
+     * Can be called multiple times to play the sound again.
+     * @param {number} offset - The offset in seconds to start playing from.
+     * @param {number} duration - The duration in seconds to play. If negative, plays the entire sound.
+     */
+    playFast(offset = this.options.offset ?? 0, duration = this.options.duration ?? -1) {
+        if(this.destroyed) {
+            throw new Error("Cannot play a destroyed SoundBoxThread.");
+        }
+
+        // Sadly the API was desgined by a r*tard so we have to recreate the source every time we play a sound.
+        // if(!this.created) this.create();
+        this.create();
+
+        if(duration < 0) {
+            duration = this.duration;
+        }
+
+        this.source.start(0, offset, duration);
     }
 
     completedPromise() {
