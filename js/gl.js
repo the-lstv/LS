@@ -1931,6 +1931,9 @@ void main() {
 
             this.nextFree = 0;
 
+            // forward set in case a block is created before setup
+            this.instanceCount = options.bufferSize || 2048;
+
             this.setOptions(options);
             this.loadPromise = this.setup(this.renderer.gl, this.program, this.uniforms, this.attributes, options);
         }
@@ -1999,13 +2002,40 @@ void main() {
             this.nextFree = 0;
         }
 
-        clear() {
+        free(start = 0, end = this.instanceCount) {
             if (!this.gridBuffer) return;
-            this.gridBuffer.fill(0);
-            this.vertexData.fill(0);
-            this.__lowestDirty = 0;
-            this.__highestDirty = this.instanceCount;
-            this.nextFree = 0;
+            this.gridBuffer.fill(0, start, end);
+            this.vertexData.fill(0, start * this.cellSizeF, end * this.cellSizeF);
+            this.__lowestDirty = start;
+            this.__highestDirty = end;
+            this.nextFree = start;
+        }
+
+        alloc(size = 1) {
+            if (!this.gridBuffer) return -1;
+
+            const start = Math.max(this.nextFree, 0);
+
+            let idx = -1;
+            // todo
+            for (let i = start; i < this.instanceCount; i++) {
+                if (this.gridBuffer[i] === 0) {
+                    idx = i;
+                    break;
+                }
+            }
+
+            if (idx === -1) {
+                console.warn("No free cells available in the text engine.");
+                return -1;
+            }
+
+            this.gridBuffer[idx] = 1;
+            this.__lowestDirty = Math.min(this.__lowestDirty, idx);
+            this.__highestDirty = Math.max(this.__highestDirty, idx + size);
+            this.nextFree = Math.max(this.nextFree, idx + size);
+
+            return idx;
         }
 
         setOptions(newOptions) {
@@ -2280,6 +2310,8 @@ void main() {
          * @returns {TextBlock} A text block object that can be used to update the text later.
          */
         createText(text_or_size, options = {}) {
+            text_or_size ??= this.instanceCount - this.nextFree; // max
+
             const size = typeof text_or_size === 'string' ? text_or_size.length : text_or_size;
             return new TextBlock(this, size, options, text_or_size);
         }
@@ -2326,16 +2358,30 @@ void main() {
      * This class should not be used directly.
      */
     class TextBlock {
+        /**
+         * @type {WebGLTextEngine}
+         */
+        engine;
+
         constructor(engine, size, options = {}, text = "") {
             this.engine = engine;
-            this.size = size;
+            this.startIdx = this.engine.alloc(size);
+
+            if(this.startIdx === -1) {
+                throw new Error("Failed to allocate text block.");
+            }
+            
+            this.size = Math.min(size, this.engine.instanceCount - this.startIdx);
             this.options = options;
 
-            this.startIdx = engine.nextFree;
-            engine.nextFree += size;
+            if(this.size !== size) {
+                const message = "TextBlock out of memory: requested " + size + ", allocated " + this.size + ", total " + this.engine.instanceCount;
+                if(options.strict) throw new Error(message);
+                console.warn(message + ". This may lead to text truncation.");
+            }
 
             this.__clippedStartIdx = this.startIdx;
-            this.__clippedEndIdx = this.startIdx + size;
+            this.__clippedEndIdx = this.startIdx + this.size;
 
             if(typeof text === 'string' && text.length > 0) {
                 this.setText(text);
@@ -2381,13 +2427,13 @@ void main() {
                 x += advance;
                 if (charCode === 10) { // Newline
                     x = startX;
-                    y += this.engine.cellHeight * this.engine.lineHeight;
+                    y += this.engine.lineHeight * size;
                 }
 
                 maxX = Math.max(maxX, x);
             }
 
-            return { width: maxX - startX, height: y - startY + this.engine.cellHeight * this.engine.lineHeight };
+            return { width: maxX - startX, height: y - startY + size };
         }
 
         writeTextAt(text, startIdx = 0, len = null, x, y, r = 255, g = 255, b = 255, a = 255, size = this.engine.defaultFontSize, style, weight, depth, breakLines = true) {
@@ -2417,13 +2463,17 @@ void main() {
 
                 if (breakLines && charCode === 10) { // Newline
                     x = startX;
-                    y += this.engine.cellHeight * this.engine.lineHeight;
+                    y += this.engine.lineHeight * size;
                 }
 
                 maxX = Math.max(maxX, x);
             }
 
-            return { width: maxX - startX, height: y - startY + this.engine.cellHeight * this.engine.lineHeight };
+            return { width: maxX - startX, height: y - startY + size };
+        }
+
+        get cellHeight() {
+            return this.engine.cellHeight;
         }
 
         clear(startIdx = 0, len = this.size) {
@@ -2532,6 +2582,95 @@ void main() {
             }
 
             return this.engine._updateVertex(cellIdx, x, y, charCode, r, g, b, a, size, style, weight, depth);
+        }
+
+        /**
+         * A higher-level method for updating a specific character's individual data.
+         */
+        updateChar(index, options = {}) {
+            if(typeof index === "object") {
+                options = index;
+                index = options.index;
+            }
+
+            const cellIdx = this.startIdx + index;
+            if (cellIdx < this.startIdx || cellIdx >= this.startIdx + this.size) {
+                return;
+            }
+
+            let { x, y, charCode, color, r, g, b, a, size, style, weight, depth } = options;
+
+            if(color) {
+                if(color.data) color = color.data;
+
+                r = color[0];
+                g = color[1];
+                b = color[2];
+                a = color[3] ?? 255;
+            }
+
+            r        ??= undefined;
+            g        ??= undefined;
+            b        ??= undefined;
+            a        ??= undefined;
+
+            x        ??= undefined;
+            y        ??= undefined;
+            charCode ??= undefined;
+            size     ??= this.readCharData(index, "size") || this.engine.defaultFontSize;
+            style    ??= undefined;
+            weight   ??= undefined;
+            depth    ??= undefined;
+
+            return this.engine._updateVertex(cellIdx, x, y, charCode, r, g, b, a, size, style, weight, depth);
+        }
+
+        /**
+         * A high-level method for obtaining character data.
+         * Don't use too frequently.
+         */
+        readCharData(index, property = null) {
+            if(property === null) {
+                return {
+                    x:        this.readCharData(index, "x"),
+                    y:        this.readCharData(index, "y"),
+                    charCode: this.readCharData(index, "charCode"),
+                    r:        this.readCharData(index, "r"),
+                    g:        this.readCharData(index, "g"),
+                    b:        this.readCharData(index, "b"),
+                    a:        this.readCharData(index, "a"),
+                    size:     this.readCharData(index, "size"),
+                    style:    this.readCharData(index, "style"),
+                    weight:   this.readCharData(index, "weight"),
+                    depth:    this.readCharData(index, "depth")
+                };
+            }
+
+            switch(property) {
+                case "x":        return this.engine.vertexData[(this.startIdx + index) * this.engine.cellSizeF];
+                case "y":        return this.engine.vertexData[(this.startIdx + index) * this.engine.cellSizeF + 1];
+                case "charCode": return this.engine.gridBuffer[this.startIdx + index];
+                case "r":        return this.engine.vertexByteView[(this.startIdx + index) * this.engine.cellSizeF * 4 + 36];
+                case "g":        return this.engine.vertexByteView[(this.startIdx + index) * this.engine.cellSizeF * 4 + 37];
+                case "b":        return this.engine.vertexByteView[(this.startIdx + index) * this.engine.cellSizeF * 4 + 38];
+                case "a":        return this.engine.vertexByteView[(this.startIdx + index) * this.engine.cellSizeF * 4 + 39];
+                case "size":     return this.engine.vertexData[(this.startIdx + index) * this.engine.cellSizeF + 2] * 2; // half width to full width
+                case "style":    return this.engine.vertexShortView[(this.startIdx + index) * this.engine.cellSizeF * 2 + 17];
+                case "weight":   return this.engine.vertexShortView[(this.startIdx + index) * this.engine.cellSizeF * 2 + 16];
+                case "depth":    return this.engine.vertexData[(this.startIdx + index) * this.engine.cellSizeF + 10];
+            };
+        }
+
+        destroy() {
+            if(this.destroyed) return;
+            if(this.engine && !this.engine.destroyed) this.engine.free(this.startIdx, this.startIdx + this.size);
+            this.engine = null;
+            this.size = 0;
+            this.options = null;
+            this.startIdx = 0;
+            this.__clippedStartIdx = 0;
+            this.__clippedEndIdx = 0;
+            this.destroyed = true;
         }
     }
 

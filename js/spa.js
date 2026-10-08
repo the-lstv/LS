@@ -298,344 +298,100 @@ class WildcardMatcher {
     }
 }
 
-// class Router extends LS.EventEmitter {
-//     extensions = new Matcher();
-// }
+const isDebug = false;
 
-// /**
-//  * Viewport class
-//  * Represents a viewport (window, frame, etc.) in the application where content contexts can be rendered.
-//  */
-// let firstPage = true;
-// class Viewport extends LS.EventEmitter {
-//     constructor(name, element, options = {}) {
-//         super();
-//         this.name = name || "default";
-//         this.target = element;
-//         this.current = null;
-//         this.history = [];
-//         this.options = options;
-//         this.target.classList.add("viewport");
-//         this.target.viewportInstance = this;
-//         this.destroyed = false;
+class NavigationController extends LS.EventEmitter {
+    extensions = new Matcher();
+    viewports  = new Map();
 
-//         // Kernel may not be initilaized yet, that's why we allow a fallback
-//         (options.kernel || kernel).viewports.set(this.name, this);
-//     }
+    constructor(options = {}) {
+        super();
 
-//     get errorPageElement() {
-//         return this.__errorPage || (this.__errorPage = LS.Create({
-//             class: 'error_page',
-//             inner: [
-//                 (this.errorPageStatus = LS.Create({ tag: "h1" })),
-//                 { class: 'marqueeBar', inner: [[
-//                     (this.errorPageMessage1 = { tag: 'span', textContent: 'Unexpected error.' }),
-//                     (this.errorPageMessage2 = { tag: 'span', textContent: 'Unexpected error.' }),
-//                 ]]},
-//                 { tag: 'br' },
-//                 { tag: 'br' },
-//                 { tag: 'a', href: '/', textContent: 'Go back home?' }
-//             ]
-//         }));
-//     }
+        this.options = options;
 
-//     /**
-//      * Navigate to a new content context
-//      * @param {*} pathOrPage The content context to navigate to
-//      * @param {*} options Navigation options
-//      */
-//     async navigate(pathOrPage, options = {}) {
-//         let path = typeof pathOrPage === 'string' ? pathOrPage : pathOrPage.path;
-//         let page = pathOrPage instanceof ContentContext ? pathOrPage : null;
-//         let hash = typeof options.hash === "string" ? options.hash : "";
+        // Event listener for back/forward navigation
+        window.addEventListener('popstate', (event) => {
+            if(isDebug) this.log("Popstate event:", event);
 
-//         if(typeof hash === "string" && hash.length > 0) {
-//             if(!hash.startsWith("#")) hash = "#" + hash;
-//             if(hash === "#") hash = "";
-//         }
+            const href = event.state?.path ?? (location.pathname + location.hash);
+            this.navigate(href, { pushState: false });
+        });
 
-//         if (typeof path === "string") {
-//             const hashIndex = path.indexOf("#");
-//             if (hashIndex !== -1) {
-//                 hash = path.slice(hashIndex);
-//                 if(hash === "#") hash = "";
-//                 path = path.slice(0, hashIndex) || "/";
-//             }
-//         }
+        window.addEventListener('click', async (event) => {
+            const targetElement = event.target.closest("a");
+            if (!targetElement || targetElement.hasAttribute("target")) return;
 
-//         if(this.options.disableRemotePages && (!page || page.src)) {
-//             kernel.error("Remote pages are disabled for this viewport (" + this.name + ").");
-//             return false;
-//         }
+            const link = targetElement.href;
+            const rawHref = targetElement.getAttribute('href');
+            if(!rawHref) return;
 
-//         // Normalize path
-//         if (typeof path === "string") {
-//             path = LS.Util.normalizePath(path);
-//         }
+            if(rawHref === "#") return event.preventDefault();
 
-//         // 0. Open app from route (/app/<app-id>)
-//         if (!page && typeof path === "string" && path.startsWith("/app/")) {
-//             const appId = decodeURIComponent(path.slice(5).split("/")[0] || "").trim();
-//             if (!appId) return false;
+            const isRelativeLocal = link.startsWith(location.origin) && !link.endsWith("?") && !link.startsWith(location.origin + ":");
 
-//             try {
-//                 await new Promise((resolve, reject) => {
-//                     kernel.openApplication(appId, {
-//                         ...options,
-//                         windowOptions: {
-//                             ...(options.windowOptions || {}),
-//                             disableOpenAnimation: true
-//                         },
-//                         source: options.source || "route-app"
-//                     }).done((instance) => {
-//                         instance?.window?.maximize(true);
-//                         resolve(instance);
-//                     }).catch(reject);
-//                 });
+            if(isRelativeLocal) {
+                let href = rawHref;
 
-//                 const manifest = kernel.appManifests.get(appId);
-//                 if (this.name === 'main') {
-//                     const historyPath = path + (hash || "");
-//                     if (!options.browserTriggered && options.pushState !== false && (location.pathname + location.hash) !== historyPath) {
-//                         history.pushState({ path: historyPath }, document.title, historyPath);
-//                     }
-//                     document.title = `LSTV | ${manifest?.name || appId}`;
-//                     website.closeToolbar();
-//                 }
+                try {
+                    const parsed = new URL(link, location.href);
+                    href = parsed.pathname + parsed.search + parsed.hash;
+                } catch (e) {
+                    if(href.startsWith(location.origin)) href = href.substring(location.origin.length);
+                }
 
-//                 kernel.log(`Opened app ${appId} from route ${path}`);
-//                 return true;
-//             } catch (e) {
-//                 kernel.error("Failed to open app route:", path, e);
-//                 LS.Toast.show("Failed to open app.", { accent: "red" });
-//                 return false;
-//             }
-//         }
+                if(href.startsWith("#")) {
+                    href = location.pathname + href;
+                }
 
-//         // 1. Check for SPA Extensions (Routes)
-//         const SPAExtension = options.browserTriggered? null: kernel.resolveSPAExtension(path);
-//         if (SPAExtension) {
-//             if (SPAExtension[2] !== this.current) {
-//                 // We need to navigate to the base page first
-//                 await this.navigate(SPAExtension[2], { browserTriggered: true });
-//             }
+                const viewportElement = targetElement.closest(".ls-viewport") || this.viewport.target;
+                if (viewportElement) {
+                    const viewport = viewportElement.viewportInstance || [...this.viewports.values()].find(v => v.target === viewportElement);
+                    if (viewport) {
+                        event.preventDefault();
+                        viewport.navigate(href, { targetElement });
+                        return;
+                    } else {
+                        console.error("No viewport found for element", viewportElement);
+                    }
+                } else {
+                    console.error("No viewport element found", viewportElement);
+                }
 
-//             const historyPath = path + (hash || "");
-//             if((location.pathname + location.hash) !== historyPath && !options.browserTriggered && options.pushState !== false && this.name === 'main') {
-//                 history.pushState({ path: historyPath }, document.title, historyPath);
-//             }
-//             kernel.handleSPAExtension(path, SPAExtension, options.targetElement || null);
-//             if(hash) {
-//                 requestAnimationFrame(() => {
-//                     this.navigateToHash(hash);
-//                 });
-//             }
-//             return true;
-//         }
+                return;
+            }
 
-//         // 2. Resolve Page Object
-//         if (!page) {
-//             page = kernel.getPage(path);
-//             if (!page) {
-//                 // Dynamic Load
-//                 kernel.log("Dynamically loading page for", path);
-//                 page = kernel.registerPage(path, {
-//                     src: location.origin + path,
-//                     // Inherit sandbox options if provided in navigation options
-//                     sandboxMode: options.sandbox || options.sandboxMode || null
-//                 });
-//             }
-//         }
+            event.preventDefault();
 
-//         if (!page) {
-//             kernel.error("Failed to resolve page for", path);
-//             return false;
-//         }
+            if(this.options.externalConfirmDialog !== false && !await LS.Modal.confirm(`You are about to open an external link to: <br><br><b>${link}</b><br><br>Are you sure you want to continue?`, { title: "Open external link?" })) {
+                return;
+            }
 
-//         const old = this.current;
+            if(isDebug) this.log("Opening external link in new tab:", link);
+            window.open(link, '_blank', 'noopener');
+        });
+    }
+}
 
-//         if (old === page && !options.reload && !page.requiresReload) {
-//             if(hash) {
-//                 if(this.name === "main" && !options.browserTriggered && !options.initial) {
-//                     const historyPath = page.path + hash;
-//                     if((location.pathname + location.hash) !== historyPath) {
-//                         history.pushState({ path: historyPath }, document.title, historyPath);
-//                     }
-//                 }
-
-//                 requestAnimationFrame(() => {
-//                     this.navigateToHash(hash);
-//                 });
-//             }
-//             return true;
-//         }
-
-//         // Suspend old page
-//         if (old) old.suspend();
-
-//         this.target.classList.add("loading");
-//         this.target.setAttribute("state", "loading");
-
-//         // Ensure to render the loading indicator; we don't know how long loading will take or if something explodes
-//         await (new Promise(resolve => requestAnimationFrame(resolve)));
-
-//         // Load and Render new page
-//         try {
-//             if (!page.error) {
-//                 await page.render(this.target);
-//             }
-
-//             if(page.error) {
-//                 this.errorPage(page.error);
-//             } else {
-//                 this.emit("rendered", page);
-
-//                 if(this.name === "main" && !firstPage) page.content.animate([{ opacity: .5, transform: "scale(102%)" }, { opacity: 1, transform: "scale(100%)" }], { duration: 300, easing: "ease" });
-//                 firstPage = false;
-//             }
-
-//             this.current = page;
-
-//             if (this.name === 'main') {
-//                 document.title = page.title || "LSTV | Untitled";//(page.title && page.title.startsWith("LSTV | "))? page.title: `LSTV | ${page.title || 'Untitled'}`;
-                
-//                 if (!options.browserTriggered && !options.initial) {
-//                     const historyPath = page.path + (hash || "");
-//                     if((location.pathname + location.hash) !== historyPath) {
-//                         history.pushState({ path: historyPath }, document.title, historyPath);
-//                     }
-//                 }
-//                 website.closeToolbar();
-//             }
-
-//             if(hash) {
-//                 requestAnimationFrame(() => {
-//                     this.navigateToHash(hash);
-//                 });
-//             }
-
-//             kernel.log(`Navigated to ${path} in ${this.name}`);
-//             return true;
-//         } catch (e) {
-//             kernel.error("Navigation failed:", e);
-
-//             // Handle network errors specifically
-//             if (e.message && (e.message.includes("fetch") || e.message.includes("Network") || e instanceof TypeError)) {
-//                 LS.Modal.buildEphemeral({
-//                     title: [{ tag: "i", class: "bi-wifi-off" }, " Could not load page"],
-//                     content: "We're sorry, but something seems to have gone wrong while trying to navigate to the site you were trying to get to. Make sure you are connected to the internet!",
-//                     buttons: [
-//                         { label: "Try again" },
-//                         { label: "Go back" }
-//                     ]
-//                 }, { closeable: false }).open();
-//                 return false;
-//             }
-
-//             // Restore old page
-//             // if (old && !old.destroyed) {
-//             //     try {
-//             //         await old.render(this.target);
-//             //     } catch (restoreError) {
-//             //         // Could be dead or something
-//             //         kernel.error("Failed to restore previous page:", restoreError);
-//             //         this.errorPage(500);
-//             //     }
-//             // } else {
-//             // }
-//             this.errorPage(page.error || 500);
-//             return false;
-//         } finally {
-//             this.target.classList.remove("loading");
-//             this.target.setAttribute("state", "idle");
-//         }
-//     }
-
-//     renderFrom(context) {
-//         return context.render(this.target).then(() => {
-//             this.current = context;
-//             this.emit("rendered", context);
-//             return true;
-//         }).catch((e) => {
-//             kernel.error("Rendering from context failed:", e);
-//             this.errorPage(500);
-//             return false;
-//         });
-//     }
-
-//     errorPage(status) {
-//         this.errorPageElement; // Ensure it's created
-
-//         this.errorPageStatus.textContent = String(status);
-//         this.errorPageMessage1.textContent = website.errorMessages[status] || 'Unexpected error.';
-//         this.errorPageMessage2.textContent = this.errorPageMessage1.textContent;
-//         this.target.replaceChildren(this.errorPageElement);
-//     }
-
-//     navigateToHash(hash) {
-//         if(typeof hash !== "string" || !hash || hash === "#") return false;
-
-//         let id = hash.startsWith("#") ? hash.slice(1) : hash;
-//         if(!id) return false;
-
-//         try {
-//             id = decodeURIComponent(id);
-//         } catch (e) {}
-
-//         const element = document.getElementById(id) || document.getElementsByName(id)?.[0] || null;
-//         if(!element) return false;
-
-//         element.scrollIntoView({ block: "start" });
-//         return true;
-//     }
-
-//     destroy(destroyContent = false) {
-//         if (this.destroyed) return;
-//         this.destroyed = true;
-
-//         if (destroyContent && this.current) {
-//             this.current.destroy();
-//         }
-//         this.current = null;
-
-//         if(this.__errorPage) {
-//             this.__errorPage.remove();
-//             this.__errorPage = null;
-//             this.errorPageStatus = null;
-//             this.errorPageMessage1 = null;
-//             this.errorPageMessage2 = null;
-//         }
-
-//         this.history = [];
-//         this.history = null;
-
-//         if(this.target.viewportInstance === this) {
-//             delete this.target.viewportInstance;
-//         }
-
-//         this.target.remove();
-//         this.target = null;
-
-//         kernel.viewports.delete(this.name);
-//         this.options = null;
-//     }
-// }
-
-
-LS.SPA = {
+const spa = {
     WildcardMatcher,
     Matcher,
-    // Router,
+    NavigationController,
     // Viewport,
 
-    // basicSetup(target, options = {}) {
-    //     if(!target) target = document.body;
-    //     if(!options) options = {};
+    basicSetup(target, options = {}) {
+        if(!target) target = document.body;
+        if(!options) options = {};
 
-    //     const router = new Router(options);
-    //     const viewport = new Viewport("main", target, options);
+        const router = new NavigationController(options);
+        // const viewport = new Viewport("main", target, options);
 
-    //     return { router, viewport };
-    // }
+        // return { router, viewport };
+    }
 };
+
+LS.SPA = spa;
+
+/*@ls-export*/ if (typeof module !== "undefined" && module.exports) {
+    module.exports = spa;
+}
 })();

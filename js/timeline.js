@@ -269,10 +269,6 @@ class TimelineGL extends LS.Component {
         this.__prevZoomX = null;
         this.__prevZoomY = null;
 
-        this.labels = this.textEngine.createText(16384 - 2048);
-        this.numberLabelsX = this.textEngine.createText(1024);
-        this.numberLabelsY = this.textEngine.createText(1024);
-
         this.rect = this.options.rect || {
             x: 0,
             y: 0,
@@ -319,6 +315,10 @@ class TimelineGL extends LS.Component {
             this.__prevScrollY = null;
             this.__prevZoomX = null;
             this.__prevZoomY = null;
+
+            this.labels        = this.textEngine.createText(16384 - 2048);
+            this.numberLabelsX = this.textEngine.createText(1024);
+            this.numberLabelsY = this.textEngine.createText(1024);
 
             this.enabled = true;
 

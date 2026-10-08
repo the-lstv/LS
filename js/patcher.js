@@ -229,9 +229,6 @@ class Patcher extends LS.Component {
             console.warn("PatcherGL: Text engine is not an instance of LS.GL.WebGLTextEngine.");
         }
 
-        this.labels = this.textEngine.createText(16384);
-        this.iconLabels = this.iconEngine.createText(16384 / 2);
-
         this.loadPromise = Promise.all([this.textEngine.loadPromise, this.iconEngine.loadPromise]);
 
         this.__prevScrollX = null;
@@ -337,6 +334,9 @@ class Patcher extends LS.Component {
             this.__prevScrollY = null;
             this.__prevZoomX = null;
             this.__prevZoomY = null;
+
+            this.labels     = this.textEngine.createText(16384);
+            this.iconLabels = this.iconEngine.createText(16384 / 2);
 
             this.enabled = true;
 
