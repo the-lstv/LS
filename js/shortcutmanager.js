@@ -28,9 +28,10 @@ LS.ShortcutManager = class ShortcutManager extends LS.EventEmitter {
         this.flagGetter = flagGetter;
         this.forceMappings = forceMappings;
 
-        this.handler = this.#handleKeyDown.bind(this);
+        this.keyDown = this.#handleKeyDown.bind(this);
+
         this.target = target;
-        this.target.addEventListener('keydown', this.handler, signal ? { signal } : undefined);
+        this.target.addEventListener('keydown', this.keyDown, signal ? { signal } : undefined);
 
         this.filterFunc = filter;
 
@@ -66,20 +67,8 @@ LS.ShortcutManager = class ShortcutManager extends LS.EventEmitter {
             delete options.shortcut;
         }
 
-        if(typeof shortcut !== 'string') throw new Error('Shortcut must be a string');
-
-        const parts = shortcut.toLowerCase().split('+').map(part => {
-            part = part.trim();
-            if(part === 'cmd' || part === 'command' || part === 'super') part = 'meta';
-            if(part === 'control') part = 'ctrl';
-            if(part === 'esc') part = 'escape';
-            if(part === 'up') part = 'arrowup';
-            if(part === 'down') part = 'arrowdown';
-            if(part === 'left') part = 'arrowleft';
-            if(part === 'right') part = 'arrowright';
-            if(part === 'space' || part === 'spacebar') part = ' ';
-            return part;
-        });
+        const parts = LS.ShortcutManager.parseShortcut(shortcut);
+        shortcut = parts.join('+'); // Normalize
 
         this.shortcuts.set(shortcut, {
             key: parts.find(part => !['ctrl', 'control', 'shift', 'alt', 'super', 'meta', 'cmd', 'command'].includes(part)),
@@ -102,8 +91,32 @@ LS.ShortcutManager = class ShortcutManager extends LS.EventEmitter {
             }
             return this;
         }
+
+        shortcut = LS.ShortcutManager.normalizeShortcut(shortcut);
+
         this.shortcuts.delete(shortcut);
         return this;
+    }
+
+    static parseShortcut(shortcut) {
+        if(typeof shortcut !== 'string') throw new Error('Shortcut must be a string');
+
+        return shortcut.toLowerCase().split('+').map(part => {
+            part = part.trim();
+            if(part === 'cmd' || part === 'command' || part === 'super') part = 'meta';
+            if(part === 'control') part = 'ctrl';
+            if(part === 'esc') part = 'escape';
+            if(part === 'up') part = 'arrowup';
+            if(part === 'down') part = 'arrowdown';
+            if(part === 'left') part = 'arrowleft';
+            if(part === 'right') part = 'arrowright';
+            if(part === 'space' || part === 'spacebar') part = ' ';
+            return part;
+        });
+    }
+
+    static normalizeShortcut(shortcut) {
+        return LS.ShortcutManager.parseShortcut(shortcut).join('+');
     }
 
     /**
@@ -272,10 +285,10 @@ LS.ShortcutManager = class ShortcutManager extends LS.EventEmitter {
 
         this.events.clear();
 
-        this.target.removeEventListener('keydown', this.handler);
+        this.target.removeEventListener('keydown', this.keyDown);
         this.target = null;
 
-        this.handler = null;
+        this.keyDown = null;
         this.filterFunc = null;
         this.flagGetter = null;
         this.forceMappings = null;

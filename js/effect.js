@@ -411,6 +411,10 @@ class Spring {
 
     static dragStart(event, data) {
         event.preventDefault = false;
+        if(!data) {
+            console.error("Spring effect requires data object to be passed to dragStart", event, data);
+            return;
+        }
 
         const xy = data.options.x === undefined && data.options.y === undefined;
 

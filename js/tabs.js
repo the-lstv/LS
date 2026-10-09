@@ -490,6 +490,9 @@ class Tabs extends LS.Component {
             options = content || {};
             content = id;
             id = options.id || content.getAttribute("tab-id") || content.getAttribute("id") || content.getAttribute("tab-title");
+        } else if(typeof id === "object") {
+            options = id;
+            id = options.id || content?.getAttribute("tab-id") || content?.getAttribute("id") || content?.getAttribute("tab-title");
         }
 
         if(!id) {
