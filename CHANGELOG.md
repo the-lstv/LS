@@ -67,6 +67,8 @@ Major update (2026 release)!
 - Feature additions to LS.ShortcutManager
 - Added Ansi color support to LS.CommandPalette (parser available at `LS.CommandPalette.parseAnsi`)
 - LS.Resize now uses LS.Effect instead of per-target handles, which further reduces statefulness (not sure whether this is beneficial & it only adds a dependency for LS.Effect so I may reconsider). Also improved API & management.
+- Added a special "mat4" type to LS.GL attribute buffer bindings
+- Split LS.GL into multiple files
 - Fixes
 - LS attributes are being deprecated in favor of data attributes:
   - `ls` -> class `.ls`

@@ -31,6 +31,8 @@
         "windowmanager",
         "soundbox",
         "effect",
+        "gl-text",
+        "gl-extras",
         "progress"
     ],
     "css": [
