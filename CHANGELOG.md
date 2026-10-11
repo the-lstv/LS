@@ -78,6 +78,7 @@ Major update (2026 release)!
   - Newer attributes are already available as `data-ls-state`, `data-ls-effect` etc. without a legacy attribute.
   - New applications should use the new data attributes. The old attributes are still supported for backwards compatibility but not guaranteed to work in the future.
   - *This is not out of my choice, but to conform to HTML standards. I personally dislike it.*
+- SOURCE: Switched to ESM module format (for jsdoc support)! API still defaults to global LS namespace and ESM via a flag as usual. This doesn't affect usage but allows IDEs to better discover the API and provide better autocompletion and documentation. And well you can now use it as an ESM module without a build first. <!-- I still hate ESM, who designed this thing? Both the best and worst thing ever made -->
 
 Final alpha release before 6.0.0 relases as stable!
 

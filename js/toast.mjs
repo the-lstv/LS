@@ -1,0 +1,125 @@
+class Toast {
+    static { LS.register(this, { name: "Toast", global: true }) }
+
+    // static TEMPLATE = LS.CompileTemplate((data, logic) => ({
+    //     class: "ls-toast level-n2",
+    //     accent: data.accent || null,
+    //     inner: [
+    //         logic.if(data.icon, { tag: "i", class: data.icon }),
+
+    //         { inner: data.content, class: "ls-toast-content" },
+
+    //         logic.if(data.uncancellable, null, { tag: "button", class: "elevated circle ls-toast-close", innerHTML: "&times;", onclick: data.closeClicked })
+    //     ]
+    // }));
+
+    // Precompiled template function
+    static TEMPLATE = function(d){'use strict';var e0=document.createElement("div");e0.setAttribute("ls-accent",d.accent);e0.className="ls-toast level-n2";if(!!(d.icon)){var e1=document.createElement("i");e1.className=d.icon;e0.appendChild(e1);}var e2=document.createElement("div");e2.className="ls-toast-content";e2.textContent=d.content;e0.appendChild(e2);if(!!(d.uncancellable)){}else{var e3=document.createElement("button");e3.innerHTML="&times;";e3.onclick=d.closeClicked;e3.className="elevated circle ls-toast-close";e0.appendChild(e3);}var __rootValue=e0;return{root:__rootValue};}
+    static openToasts = new Set();
+
+    open = false;
+    once = false;
+
+    constructor(content, options = {}){
+        if(options.id) {
+            if([...this.constructor.openToasts].some(toast => toast.id === options.id)) return;
+
+            if(options.once) {
+                const shown = localStorage.getItem(`ls-toast-shown-${options.id}`);
+                if(shown === "true") return;
+                this.once = true;
+            }
+
+            this.id = options.id;
+        }
+
+        this.element = this.constructor.TEMPLATE({
+            content,
+            accent: options.accent,
+            icon: options.icon,
+            closeClicked: (e) => {
+                this.close();
+            },
+        }).root;
+
+        this.constructor.openToasts.add(this);
+        this.constructor.container.appendChild(this.element);
+
+        if(!options.uncancellable) {
+            this.element.classList.add("has-close-button");
+        }
+
+        this.closeCallback = options.onClose;
+
+        this.open = true;
+
+        setTimeout(() => {
+            if(!this.open) return;
+            // this.element.class("open");
+            if(LS.Animation) LS.Animation.fadeIn(this.element, "upBackward", 400);
+        }, 1);
+
+        if(options.timeout > 0 || options.timeout === undefined) this.timeout = setTimeout(() => {
+            this.close();
+        }, options.timeout || 5000);
+    }
+
+    update(content){
+        if(this.element) this.element.querySelector(".ls-toast-content").textContent = content;
+    }
+
+    close(){
+        if(!this.open) return;
+
+        this.timeout && clearTimeout(this.timeout);
+        this.constructor.openToasts.delete(this);
+        this.open = false;
+
+        if(this.closeCallback) this.closeCallback();
+        this.closeCallback = null;
+
+        if(this.once && this.id) {
+            localStorage.setItem(`ls-toast-shown-${this.id}`, "true");
+        }
+
+        if(LS.Animation) LS.Animation.fadeOut(this.element, 150, "upBackward").then(() => {
+            this.element.remove();
+            this.element = null;
+        }); else {
+            this.element.remove();
+            this.element = null;
+        }
+    }
+
+    static {
+        this.container = LS.Create({
+            class: "ls-toast-layer"
+        });
+
+        LS.once("ready", () => {
+            LS._topLayer.add(this.container);
+        });
+    }
+
+    static closeAll(){
+        for(let toast of this.openToasts){
+            toast.close();
+        }
+    }
+
+    static show(content, options = {}){
+        return new this(content, options);
+    }
+
+    static destroy(){
+        this.closeAll();
+        this.container.remove();
+        this.openToasts.clear();
+    }
+}
+
+/*@ls-export*/ if (typeof module !== "undefined" && module.exports) {
+    module.exports = Toast;
+}
+
+export default Toast;

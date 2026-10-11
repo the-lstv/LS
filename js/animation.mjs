@@ -1,0 +1,302 @@
+/**
+ * Animation library for LS (legacy).
+ * An updated version is being worked at, but will be released later on as it needs a lot more time to mature.
+ * 
+ * @version 1.0.0
+ */
+
+const transforms = {
+    up: 'translateY(10px)',
+    down: 'translateY(-10px)',
+    left: 'translateX(10px)',
+    right: 'translateX(-10px)',
+    forward: 'scale(1.1)',
+    backward: 'scale(0.9)',
+    upForward: 'translateY(10px) scale(1.1)',
+    upBackward: 'translateY(10px) scale(0.9)',
+    downForward: 'translateY(-10px) scale(1.1)',
+    downBackward: 'translateY(-10px) scale(0.9)',
+    leftForward: 'translateX(10px) scale(1.1)',
+    leftBackward: 'translateX(10px) scale(0.9)',
+    rightForward: 'translateX(-10px) scale(1.1)',
+    rightBackward: 'translateX(-10px) scale(0.9)'
+};
+
+const activeAnimations = new WeakMap();
+
+// --spring-easing: ;
+// --spring-duration: 0.578s;
+
+const obj = {        
+    get DEFAULT_DURATION() {
+        return DEFAULT_DURATION;
+    },
+
+    set DEFAULT_DURATION(value) {
+        DEFAULT_DURATION = value;
+        document.documentElement.style.setProperty('--ls-animation-duration', `${value}ms`);
+    },
+
+    DEFAULT_EASING: 'linear(0, 0.0018, 0.007 1.17%, 0.0334, 0.0758, 0.1306 5.54%, 0.2505 8.16%, 0.6477 16.03%, 0.7622 18.65%, 0.8498, 0.9229 23.32%, 0.9878 25.94%, 1.0308 28.27%, 1.0643 30.9%, 1.0791, 1.0886 34.39%, 1.094, 1.0944 38.48%, 1.0903 40.81%, 1.0814 43.43%, 1.0362 53.05%, 1.0184 57.42%, 1.0059, 0.9976 65.58%, 0.9925 70.25%, 0.991 75.79%, 0.9996 99.98%)',
+
+    // Users should have the choice to turn this setting on/off per-site.
+    get prefersReducedMotion() {
+        const saved = localStorage.getItem('ls-reduced-motion');
+        return saved === 'true' ? true : saved === 'false' ? false : window.matchMedia? window.matchMedia('(prefers-reduced-motion: reduce)').matches: false;
+    },
+
+    isRendered(element) {
+        if (!element || !element.isConnected) return false;
+        if (element.offsetParent === null || element.offsetWidth === 0 || element.offsetHeight === 0) return false;
+        if (getComputedStyle(element).display === 'none') return false;
+        return element.checkVisibility?.() ?? true;
+    },
+
+    set prefersReducedMotion(value) {
+        if(value === null) {
+            localStorage.removeItem('ls-reduced-motion');
+        } else {
+            localStorage.setItem('ls-reduced-motion', String(!!value));
+        }
+    },
+
+    _cancelAll(element) {
+        if (!element) return;
+        element?.getAnimations?.().forEach(anim => anim.cancel());
+        const pending = activeAnimations.get(element);
+        if (pending) {
+            pending.cancelled = true;
+            activeAnimations.delete(element);
+        }
+    },
+
+    async fadeOut(element, direction = null, duration = LS.Animation.DEFAULT_DURATION, preserveTransform = false) {
+        if (!element) return Promise.resolve();
+
+        // This should have been like that from the start, lol.
+        if (typeof direction === "number" || direction === null) {
+            const d = duration;
+            duration = direction;
+            direction = typeof d === "string"? d: null;
+        }
+
+        if (duration === null || duration === undefined) {
+            duration = LS.Animation.DEFAULT_DURATION;
+        }
+
+        const options = typeof direction === 'object' && direction !== null ? direction : { duration, direction, preserveTransform };
+
+        this._cancelAll(element);
+
+        if(duration < 1) {
+            element.style.display = 'none';
+            return;
+        }
+
+        const tracker = { cancelled: false };
+        activeAnimations.set(element, tracker);
+
+        element.classList.add('animating');
+
+        const currentTransform = options.preserveTransform ? getComputedStyle(element).transform : 'none';
+        const baseTransform = currentTransform === 'none' ? '' : currentTransform;
+        const directionTransform = options.direction ? (transforms[options.direction] || options.direction) : '';
+        const combinedEndTransform = directionTransform && baseTransform ? `${baseTransform} ${directionTransform}` : (directionTransform || baseTransform);
+
+        const animation = element.animate([
+            { opacity: 1, ...(options.preserveTransform || options.direction) ? { transform: baseTransform || 'none' } : null },
+            { opacity: 0, ...(options.preserveTransform || options.direction) ? { transform: combinedEndTransform || 'none' } : null }
+        ], {
+            duration: options.duration ?? LS.Animation.DEFAULT_DURATION,
+            easing: options.easing ?? LS.Animation.DEFAULT_EASING,
+            fill: 'forwards'
+        });
+
+        try {
+            await animation.finished;
+            if (!tracker.cancelled && element.isConnected && this.isRendered(element)) {
+                animation.commitStyles();
+            }
+        } catch (e) {
+            if (e.name !== 'AbortError') throw e;
+        } finally {
+            animation.cancel();
+            element.classList.remove('animating');
+
+            if (activeAnimations.get(element) === tracker) {
+                activeAnimations.delete(element);
+                if (!tracker.cancelled && element.isConnected) {
+                    element.style.display = 'none';
+                }
+            }
+        }
+    },
+
+    async fadeIn(element, direction = null, duration = LS.Animation.DEFAULT_DURATION, preserveTransform = false) {
+        if (!element) return Promise.resolve();
+
+        // This should have been like that from the start, lol.
+        if (typeof direction === "number" || direction === null) {
+            const d = duration;
+            duration = direction;
+            direction = typeof d === "string"? d: null;
+        }
+
+        if (duration === null || duration === undefined) {
+            duration = LS.Animation.DEFAULT_DURATION;
+        }
+
+        const options = typeof direction === 'object' && direction !== null ? direction : { duration, direction, preserveTransform };
+
+        this._cancelAll(element);
+
+        element.style.display = '';
+        if(duration < 1) {
+            return;
+        }
+
+        const tracker = { cancelled: false };
+        activeAnimations.set(element, tracker);
+
+        element.classList.add('animating');
+
+        const currentTransform = options.preserveTransform ? getComputedStyle(element).transform : 'none';
+        const baseTransform = currentTransform === 'none' ? '' : currentTransform;
+        const directionTransform = options.direction ? (transforms[options.direction] || options.direction) : '';
+
+        const combinedStartTransform = directionTransform && baseTransform ? `${baseTransform} ${directionTransform}` : (directionTransform || baseTransform);
+
+        const animation = element.animate([
+            { opacity: 0, ...(options.preserveTransform || options.direction) ? { transform: combinedStartTransform || 'none' } : null },
+            { opacity: 1, ...(options.preserveTransform || options.direction) ? { transform: baseTransform || 'none' } : null }
+        ], {
+            duration: options.duration ?? LS.Animation.DEFAULT_DURATION,
+            easing: options.easing ?? LS.Animation.DEFAULT_EASING,
+            fill: 'forwards'
+        });
+
+        try {
+            await animation.finished;
+            if (!tracker.cancelled && this.isRendered(element)) animation.commitStyles();
+        } catch (e) {
+            if (e.name !== 'AbortError') throw e;
+        } finally {
+            animation.cancel();
+            element.classList.remove('animating');
+            if (activeAnimations.get(element) === tracker) {
+                activeAnimations.delete(element);
+            }
+        }
+    },
+
+    async slideInToggle(newElement, oldElement = null, duration = LS.Animation.DEFAULT_DURATION) {
+        if (!newElement) return;
+        
+        if (newElement === oldElement) {
+            this._cancelAll(newElement);
+            const tracker = { cancelled: false };
+            activeAnimations.set(newElement, tracker);
+            
+            newElement.style.display = '';
+            newElement.classList.add('animating');
+            const animation = newElement.animate([
+                { opacity: 0 },
+                { opacity: 1 }
+            ], {
+                duration,
+                easing: LS.Animation.DEFAULT_EASING,
+                fill: 'forwards'
+            });
+            
+            try {
+                await animation.finished;
+                if (!tracker.cancelled && this.isRendered(newElement)) animation.commitStyles();
+            } catch (e) {
+                if (e.name !== 'AbortError') throw e;
+            } finally {
+                animation.cancel();
+                newElement.classList.remove('animating');
+                if (activeAnimations.get(newElement) === tracker) {
+                    activeAnimations.delete(newElement);
+                }
+            }
+            return;
+        }
+        
+        this._cancelAll(newElement);
+        this._cancelAll(oldElement);
+
+        const newTracker = { cancelled: false };
+        const oldTracker = oldElement ? { cancelled: false } : null;
+        
+        activeAnimations.set(newElement, newTracker);
+        if (oldElement) activeAnimations.set(oldElement, oldTracker);
+
+        let oldAnimation;
+
+        if (oldElement && oldElement.isConnected) {
+            oldElement.classList.add('animating');
+            oldAnimation = oldElement.animate([
+                { transform: 'translateX(0)', opacity: 1 },
+                { transform: 'translateX(-20px)', opacity: 0 }
+            ], {
+                duration,
+                easing: LS.Animation.DEFAULT_EASING,
+                fill: 'forwards'
+            });
+        }
+
+        newElement.style.display = '';
+        newElement.classList.add('animating');
+        const newAnimation = newElement.animate([
+            { transform: 'translateX(20px)', opacity: 0 },
+            { transform: 'translateX(0)',  opacity: 1 }
+        ], {
+            duration,
+            easing: LS.Animation.DEFAULT_EASING,
+            fill: 'forwards'
+        });
+
+        try {
+            await Promise.all([
+                newAnimation.finished.catch(e => { if (e.name !== 'AbortError') throw e; }),
+                oldAnimation ? oldAnimation.finished.catch(e => { if (e.name !== 'AbortError') throw e; }) : Promise.resolve()
+            ]);
+
+            if (oldElement && oldElement.isConnected && !oldTracker.cancelled) {
+                if (this.isRendered(oldElement)) oldAnimation.commitStyles();
+                oldElement.style.display = 'none';
+            }
+
+            if (newElement.isConnected && !newTracker.cancelled && this.isRendered(newElement)) {
+                newAnimation.commitStyles();
+            }
+        } catch (e) {
+            if (e.name !== 'AbortError') throw e;
+        } finally {
+            oldAnimation?.cancel();
+            newAnimation.cancel();
+            
+            oldElement?.classList.remove('animating');
+            newElement.classList.remove('animating');
+            
+            if (activeAnimations.get(newElement) === newTracker) {
+                activeAnimations.delete(newElement);
+            }
+            if (oldElement && activeAnimations.get(oldElement) === oldTracker) {
+                activeAnimations.delete(oldElement);
+            }
+        }
+    },
+
+    transforms
+};
+
+let DEFAULT_DURATION = 450;
+LS.LoadComponent(obj, { name: "Animation", global: true });
+
+/*@ls-export*/ if (typeof module !== "undefined" && module.exports) {
+    module.exports = obj;
+}
+
+export default obj;

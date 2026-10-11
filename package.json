@@ -1,0 +1,9 @@
+{
+    "name": "ls",
+    "types": "./ls.d.ts",
+    "version": "6.0.0-alpha.5",
+    "homepage": "https://lstv.space",
+    "description": "LS Framework",
+    "module": "./ls.mjs",
+    "author": "lstv.space"
+}

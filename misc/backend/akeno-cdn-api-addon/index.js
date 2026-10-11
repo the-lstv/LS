@@ -165,7 +165,7 @@ module.exports = new class LS_API extends Units.Addon {
 
         const ext = file.slice(last_index + 1);
 
-        const type = (ext === "js" || ext === "mjs")? "js": ext;
+        const type = ext === "mjs"? "js": ext;
         if(type !== "js" && type !== "css") return backend.helper.error(req, res, 43, null, "404");
 
         const wildcard = segments[1] === "*";
@@ -202,7 +202,8 @@ module.exports = new class LS_API extends Units.Addon {
         const componentPaths = [];
 
         for(let component of components) {
-            let component_path = component === CORE_MARKER? VERSION_PATH + "/ls." + type: VERSION_PATH  + "/" + type + "/" + component + "." + type;
+            const fileExt = type === "js"? "mjs": "css";
+            let component_path = component === CORE_MARKER? VERSION_PATH + "/ls." + fileExt: VERSION_PATH  + "/" + type + "/" + component + "." + fileExt;
 
             if((isWindows || isBeta) && component_path.includes("dist") && !component_path.includes("css")) {
                 // Windows workaround
@@ -215,7 +216,8 @@ module.exports = new class LS_API extends Units.Addon {
                     continue;
                 }
 
-                return backend.helper.error(req, res, `Component "${component === CORE_MARKER ? "core" : component}" was not found`, 404);
+                console.error(`Component "${component === CORE_MARKER? "core": component}" was not found in version "${version}"`, component_path);
+                return backend.helper.error(req, res, `Component "${component === CORE_MARKER? "core": component}" was not found`, 404);
             }
 
             componentPaths.push(component_path);
@@ -240,11 +242,18 @@ module.exports = new class LS_API extends Units.Addon {
         if(shouldRefresh) {
             let result = [];
             for(let component_path of componentPaths) {
-                result.push("\n", fs.readFileSync(component_path, "utf8"));
+                let content = fs.readFileSync(component_path, "utf8").trim();
+
+                // if(!useEsm) {
+                // }
+                // Remove ESM export statements (hey, it works)
+                content = content.replaceAll(/^export default \(/gm, "(").replaceAll(/^export .*$/gm, "").trim();
+
+                result.push("\n", content);
             }
 
             // TODO: Always iife when targets are low to avoid esbuild polluting the global scope with variables
-            cacheManager.esbuildFormat = (version === "alpha" || version[0] === "6")? "cjs": "iife";
+            cacheManager.esbuildFormat = useEsm? "esm": (version === "alpha" || version[0] === "6")? "cjs": "iife";
             cacheManager.esbuildTargets = compatibility;
 
             // We pass data as a string, because we do code processing with esbuild etc.
@@ -256,9 +265,9 @@ module.exports = new class LS_API extends Units.Addon {
                 'Cache-Control': 'public, max-age=5, stale-while-revalidate=10' // Short cache duration
             }: null, null, result.join(""), mimeType);
 
+            // ! todo
             if(useEsm && cacheManager.replaceContent) { // (replaceContent is new)
-                // ESBuild is being kind of terrible at ESM to CJS conversion, so we do it ourselves the other way around in a very ugly hacky way
-                // But yes the only difference is literally just two words (idk i'm not an ESM fan)
+                // this is a temporary workaround, and the LS object or whatever is first is exported as default. of course this should eventually decide with maigc or idk. ESM is not the best tool for this.
                 cacheManager.replaceContent(CACHE_KEY, "export default " + cacheManager.getContent(CACHE_KEY).toString());
             }
 
