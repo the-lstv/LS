@@ -145,7 +145,7 @@ void main() {
  */
 const fontVertex = `#version 300 es
 
-${quad}
+${LS.GL.utils.quad}
 
 in vec2 i_pos;
 in vec4 i_uvRect;
@@ -1250,7 +1250,7 @@ class TextBlock {
     }
 }
 
-LS.GL.WebGLMSDFFont = WebGLMSDFFont;
+LS.GL.WebGLMSDFFont   = WebGLMSDFFont;
 LS.GL.WebGLTextEngine = WebGLTextEngine;
 
 /*@ls-export*/ if(typeof module !== "undefined"){

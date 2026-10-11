@@ -80,7 +80,15 @@ Major update (2026 release)!
   - *This is not out of my choice, but to conform to HTML standards. I personally dislike it.*
 - SOURCE: Switched to ESM module format (for jsdoc support)! API still defaults to global LS namespace and ESM via a flag as usual. This doesn't affect usage but allows IDEs to better discover the API and provide better autocompletion and documentation. And well you can now use it as an ESM module without a build first. <!-- I still hate ESM, who designed this thing? Both the best and worst thing ever made -->
 
-Final alpha release before 6.0.0 relases as stable!
+Also, for easier access to autocompletion and documentation, there is now a `ls.d.ts` file with all components and their types. Simply adding:
+
+```ts
+/// <reference path="ls.d.ts" />
+```
+
+In any JavaScript or TypeScript file will give you autocompletion for `LS.*` and `LSGL.*`. You can also of course use import and even as a node module if you wish but this gives you easy integration without any setup or bunding that also works when using the script tag.
+
+(Of course use the actual path to that file from wherever you are)s
 
 #### Misc
 

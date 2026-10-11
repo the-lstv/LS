@@ -1583,9 +1583,9 @@ const roundedBoxSDF = `float roundedBoxSDF(vec2 CenterPosition, vec2 Size, float
  * @returns {Float32Array} The resulting transformation matrix.
  */
 function updateMatrix(spriteData, out = new Float32Array(16), w, h, d) {
-    const x  = spriteData[0];
-    const y  = spriteData[1];
-    const z  = spriteData[2];
+    let x    = spriteData[0];
+    let y    = spriteData[1];
+    let z    = spriteData[2];
 
     const rx = spriteData[3];
     const ry = spriteData[4];
@@ -1595,11 +1595,16 @@ function updateMatrix(spriteData, out = new Float32Array(16), w, h, d) {
     const sy = spriteData[7];
     const sz = spriteData[8];
 
+    const anchorX = spriteData[9]  || 0;
+    const anchorY = spriteData[10] || 0;
+    const anchorZ = spriteData[11] || 0;
+
     const cx = Math.cos(rx), sX = Math.sin(rx);
     const cy = Math.cos(ry), sY = Math.sin(ry);
     const cz = Math.cos(rz), sZ = Math.sin(rz);
 
     // Rotation order: Rz * Ry * Rx
+
     out[0] = cz * cy * sx;
     out[1] = sZ * cy * sx;
     out[2] = -sY * sx;
@@ -1615,23 +1620,51 @@ function updateMatrix(spriteData, out = new Float32Array(16), w, h, d) {
     out[10] = cy * cx * sz;
     out[11] = 0;
 
-    out[12] = x;
-    out[13] = y;
-    out[14] = z;
     out[15] = 1;
 
-    w ??= sx;
-    h ??= sy;
-    d ??= sz;
+    if(anchorX === 0 && anchorY === 0 && anchorZ === 0) {
+        out[12] = x;
+        out[13] = y;
+        out[14] = z;
+        return out;
+    }
 
-    const anchorX = (spriteData[9]  || 0) * w;
-    const anchorY = (spriteData[10] || 0) * h;
-    const anchorZ = (spriteData[11] || 0) * d;
+    w ??= 1;
+    h ??= 1;
+    d ??= 1;
+
+    const anchorXw = anchorX * w;
+    const anchorYh = anchorY * h;
+    const anchorZd = anchorZ * d;
 
     // Adjust for anchor point
-    out[12] -= (out[0] * anchorX + out[4] * anchorY + out[8]  * anchorZ);
-    out[13] -= (out[1] * anchorX + out[5] * anchorY + out[9]  * anchorZ);
-    out[14] -= (out[2] * anchorX + out[6] * anchorY + out[10] * anchorZ);
+
+    out[12] = x - (
+        out[0] * anchorXw +
+        out[4] * anchorYh +
+        out[8] * anchorZd
+    );
+
+    out[13] = y - (
+        out[1] * anchorXw +
+        out[5] * anchorYh +
+        out[9] * anchorZd
+    );
+
+    out[14] = z - (
+        out[2]  * anchorXw +
+        out[6]  * anchorYh +
+        out[10] * anchorZd
+    );
+
+    const transformFlags = spriteData[15] || 0;
+
+    // Anchor doesn't affect position
+    if(transformFlags & 1) {
+        out[12] += w * anchorX;
+        out[13] += h * anchorY;
+        out[14] += d * anchorZ;
+    }
     return out;
 }
 
@@ -2027,7 +2060,7 @@ fragColor = vec4(uColor);
 LS.register(obj, { name: "GL", global: true, dependencies: ["Color"] });
 
 // Hoist LS.GL to the global scope
-globalThis.LSGL = obj;
+(typeof window !== 'undefined'? window : globalThis).LSGL = obj;
 
 console.warn("LS.GL is an early stage component. The API is not stable and may change in future releases. This component is not fully tested and may contain bugs.");
 

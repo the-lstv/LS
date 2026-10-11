@@ -388,7 +388,7 @@ const spa = {
     }
 };
 
-LS.SPA = spa;
+if(true) LS.SPA = spa;
 
 /*@ls-export*/ if (typeof module !== "undefined" && module.exports) {
     module.exports = spa;

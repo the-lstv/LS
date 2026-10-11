@@ -244,12 +244,14 @@ module.exports = new class LS_API extends Units.Addon {
             for(let component_path of componentPaths) {
                 let content = fs.readFileSync(component_path, "utf8").trim();
 
-                // if(!useEsm) {
-                // }
+                if(!useEsm && type === "js") {
+                    content = `(function() {${content}\n\n})();`;
+                }
+
                 // Remove ESM export statements (hey, it works)
                 content = content.replaceAll(/^export default \(/gm, "(").replaceAll(/^export .*$/gm, "").trim();
 
-                result.push("\n", content);
+                result.push(content);
             }
 
             // TODO: Always iife when targets are low to avoid esbuild polluting the global scope with variables
@@ -265,7 +267,7 @@ module.exports = new class LS_API extends Units.Addon {
                 'Cache-Control': 'public, max-age=5, stale-while-revalidate=10' // Short cache duration
             }: null, null, result.join(""), mimeType);
 
-            // ! todo
+            // ! todo: ESM through the API is currently quite broken, i think it will be better to use node modules if you want ESM.
             if(useEsm && cacheManager.replaceContent) { // (replaceContent is new)
                 // this is a temporary workaround, and the LS object or whatever is first is exported as default. of course this should eventually decide with maigc or idk. ESM is not the best tool for this.
                 cacheManager.replaceContent(CACHE_KEY, "export default " + cacheManager.getContent(CACHE_KEY).toString());

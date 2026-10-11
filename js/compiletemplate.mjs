@@ -7,8 +7,7 @@
  * 
  * @param {Function|Array|Object|string} templateBuilder A function that returns a template array/object/string or a template array/object/string directly.
  */
-
-LS.CompileTemplate = (() => {
+if(true) LS.CompileTemplate = (() => {
     class ifNode {
         constructor(condition, thenValue, elseValue) {
             this.__lsIf = true;

@@ -80,6 +80,11 @@ class Sprite {
     matrixDirty = true;
 
     /**
+     * @type {Container|null} Parent container
+     */
+    parent = null;
+
+    /**
      * @typedef SpriteOptions
      * @property {Texture} [texture] The texture object to use for the sprite
      * @property {number[]} [position] The position of the sprite [x, y, z]
@@ -176,21 +181,21 @@ class Sprite {
         if(options.texture)               this.texture = options.texture;
         if(options.opacity !== undefined) this.opacity = options.opacity;
 
-        if(options.x !== undefined)         this.x = options.x;
-        if(options.y !== undefined)         this.y = options.y;
-        if(options.z !== undefined)         this.z = options.z;
-        if(options.anchorX !== undefined)   this.anchorX = options.anchorX;
-        if(options.anchorY !== undefined)   this.anchorY = options.anchorY;
-        if(options.anchorZ !== undefined)   this.anchorZ = options.anchorZ;
-        if(options.scaleX !== undefined)    this.scaleX = options.scaleX;
-        if(options.scaleY !== undefined)    this.scaleY = options.scaleY;
-        if(options.scaleZ !== undefined)    this.scaleZ = options.scaleZ;
-        if(options.rotationX !== undefined) this.rotationX = options.rotationX;
-        if(options.rotationY !== undefined) this.rotationY = options.rotationY;
-        if(options.rotationZ !== undefined) this.rotationZ = options.rotationZ;
-        if(options.width !== undefined)     this.width  = options.width;
-        if(options.height !== undefined)    this.height = options.height;
-        if(options.depth !== undefined)     this.depth  = options.depth;
+        if(options.x !== undefined)         this.x           = options.x;
+        if(options.y !== undefined)         this.y           = options.y;
+        if(options.z !== undefined)         this.z           = options.z;
+        if(options.anchorX !== undefined)   this.anchorX     = options.anchorX;
+        if(options.anchorY !== undefined)   this.anchorY     = options.anchorY;
+        if(options.anchorZ !== undefined)   this.anchorZ     = options.anchorZ;
+        if(options.scaleX !== undefined)    this.scaleX      = options.scaleX;
+        if(options.scaleY !== undefined)    this.scaleY      = options.scaleY;
+        if(options.scaleZ !== undefined)    this.scaleZ      = options.scaleZ;
+        if(options.rotationX !== undefined) this.rotationX   = options.rotationX;
+        if(options.rotationY !== undefined) this.rotationY   = options.rotationY;
+        if(options.rotationZ !== undefined) this.rotationZ   = options.rotationZ;
+        if(options.width !== undefined)     this.width       = options.width;
+        if(options.height !== undefined)    this.height      = options.height;
+        if(options.depth !== undefined)     this.depth       = options.depth;
         if(options.colorR !== undefined)    this.data[SDi.r] = options.colorR;
         if(options.colorG !== undefined)    this.data[SDi.g] = options.colorG;
         if(options.colorB !== undefined)    this.data[SDi.b] = options.colorB;
@@ -246,6 +251,8 @@ class Sprite {
     get scaleZ()      {  return this.data[SDi.scaleZ]; }
     set scaleZ(value) { this.matrixDirty = true; this.data[SDi.scaleZ] = value; }
 
+    set scale(value) { return this.setUniformScale(value); }
+
     get opacity()      { return this.data[SDi.alphaMultiplier]; }
     set opacity(value) { this.data[SDi.alphaMultiplier] = value; }
 
@@ -261,8 +268,6 @@ class Sprite {
         if(!this._transformMatrix) {
             this._transformMatrix = new Float32Array(16);
         }
-
-        console.log("Updating transform matrix for sprite", this);
 
         this.matrixDirty = false;
         return LS.GL.updateMatrix(this.data, this._transformMatrix, this.width, this.height, this.depth);
@@ -314,6 +319,13 @@ class Sprite {
         this.matrixDirty = true;
     }
 
+    setUniformScale(value) {
+        this.data[SDi.scaleX] = value;
+        this.data[SDi.scaleY] = value;
+        this.data[SDi.scaleZ] = value;
+        this.matrixDirty = true;
+    }
+
     setRotation(x, y, z) {
         if(Array.isArray(x)) {
             [x, y, z] = x;
@@ -360,12 +372,46 @@ class Sprite {
         this.data[SDi.a] = a;
     }
 
+    remove() {
+        if(this.parent) {
+            this.parent.removeChild(this);
+        }
+    }
+
+    appendTo(container) {
+        if(container.isContainer) {
+            container.appendChild(this);
+        }
+        return this;
+    }
+
+    /**
+     * Appends the sprite to the lowest container, optionally preserving position.
+     */
+    appendToRoot(preserveTransform = false) {
+        if(preserveTransform) {
+            const worldMatrix = this.worldMatrix;
+            this.setPosition(worldMatrix[12], worldMatrix[13], worldMatrix[14]);
+        }
+
+        let current = this;
+        while(current.parent) {
+            current = current.parent;
+        }
+
+        if(current.isContainer) {
+            current.appendChild(this);
+        }
+        return this;
+    }
+
     /**
      * Destroys the sprite
      * @param {boolean} destroyTexture Whether to destroy the texture as well
      */
     destroy(destroyTexture = false) {
         if(this.destroyed) return;
+        this.remove();
         this.data = null;
         this._transformMatrix = null;
         this._worldMatrix     = null;
@@ -379,6 +425,229 @@ class Sprite {
         this.destroyed = true;
     }
 }
+
+/**
+ * Abstract container class, or sprite with children support.
+ * How it is handled is up to the renderer; not all properties have to be respected.
+ */
+class Container extends Sprite {
+    /**
+     * @type {Sprite[]} Children sprites
+     */
+    children = [];
+
+    /**
+     * @type {Container|null} Parent container
+     */
+    parent = null;
+
+    isContainer = true;
+
+    /**
+     * Create a container
+     * @param {Sprite[]} children Children sprites
+     * @param {SpriteOptions} options Options
+     */
+    constructor(children = [], options) {
+        super(options);
+        if(children) this.replaceChildren(children);
+    }
+
+    /**
+     * Replaces the children of the container
+     * @param {Sprite[]} newChildren The new children
+     */
+    replaceChildren(newChildren) {
+        this.children = newChildren;
+        for(const child of this.children) {
+            if(child.parent === this) continue;
+            child.remove();
+            child.parent = this;
+        }
+
+        // todo: find a better way
+        this.matrixDirty = true;
+    }
+
+    /**
+     * Appends a child to the container
+     * @param {Sprite} child The child to append
+     */
+    appendChild(child) {
+        if(child.parent) {
+            child.remove();
+        }
+
+        this.children.push(child);
+        child.parent = this;
+
+        // todo: find a better way
+        this.matrixDirty = true;
+    }
+
+    /**
+     * Removes a child from the container
+     * @param {Sprite} child The child to remove
+     */
+    removeChild(child) {
+        if(this.destroyed) return;
+        if(child.parent !== this) return;
+
+        const index = this.children.indexOf(child);
+        if(index !== -1) {
+            this.children.splice(index, 1);
+            child.parent = null;
+        }
+
+        // todo: find a better way
+        this.matrixDirty = true;
+    }
+
+    /**
+     * Creates a copy of the container
+     * @param {Object} options Options for the new container
+     * @returns {Container} A new container with the same children
+     */
+    clone(options = {}, into = new Container()) {
+        super.clone(options, into);
+
+        for(const child of this.children) {
+            if(child.clone) {
+                into.appendChild(child.clone());
+            } else {
+                into.appendChild(child);
+            }
+        }
+
+        return into;
+    }
+
+    get width() {
+        let maxWidth = 0;
+        for(const child of this.children) {
+            const childRight = child.x + child.width;
+            if(childRight > maxWidth) {
+                maxWidth = childRight;
+            }
+        }
+        return maxWidth;
+    }
+
+    get height() {
+        let maxHeight = 0;
+        for(const child of this.children) {
+            const childBottom = child.y + child.height;
+            if(childBottom > maxHeight) {
+                maxHeight = childBottom;
+            }
+        }
+        return maxHeight;
+    }
+
+    /**
+     * Destroys the container
+     * @param {boolean} children Whether to destroy the children as well
+     */
+    destroy(children = true) {
+        if(this.destroyed) return;
+        if(children) {
+            for(const child of this.children) {
+                if(child.destroy) child.destroy();
+            }
+        }
+
+        super.destroy();
+        this.children = null;
+        this.parent = null;
+    }
+}
+
+class LayoutContainer extends Container {
+    /**
+     * LayoutContainer is a Container with layout capabilities.
+     * It can automatically arrange its children based on the specified layout options.
+     */
+    constructor(children = [], options, layoutOptions = {}) {
+        super(children, options);
+        this.layoutOptions = layoutOptions;
+        this.layoutDirty = true;
+        
+        this.layoutX = this.x;
+        this.layoutY = this.y;
+    }
+
+    // tood: a clearer system is needed
+    layoutX = 0;
+    layoutY = 0;
+
+    /**
+     * Layout the children of the container
+     * @param {Object} layoutOptions Options for the layout (e.g., spacing, padding)
+     */
+    recompute() {
+        let x = 0, y = 0;
+
+        const layoutOptions = this.layoutOptions;
+        if(!layoutOptions) return;
+
+        const len = this.children.length;
+
+        let gap = layoutOptions.gap || 0;
+
+        for(let i = 0; i < len; i++) {
+            const child = this.children[i];
+
+            child.x = x;
+            child.y = y;
+
+            child.layoutX = x;
+            child.layoutY = y;
+
+            if(i == len - 1) gap = 0;
+
+            if(layoutOptions.direction === "horizontal") {
+                x += child.width  + gap;
+            } else {
+                y += child.height + gap;
+            }
+        }
+
+        const width  = this.width;
+        const height = this.height;
+
+        // todo:
+        const parentWidth  = layoutOptions.parentWidth  || this.parent?.width  || 0;
+        const parentHeight = layoutOptions.parentHeight || this.parent?.height || 0;
+
+        const anchor = layoutOptions.anchor || [0, 0];
+        this.x = this.layoutX + ((parentWidth  - this.layoutX) * anchor[0]) - ((width  + this.layoutX) * anchor[0]);
+        this.y = this.layoutY + ((parentHeight - this.layoutY) * anchor[1]) - ((height + this.layoutY) * anchor[1]);
+        this.layoutDirty = false;
+    }
+
+    appendChild(child) {
+        super.appendChild(child);
+        this.layoutDirty = true;
+    }
+
+    removeChild(child) {
+        super.removeChild(child);
+        this.layoutDirty = true;
+    }
+
+    replaceChildren(newChildren) {
+        super.replaceChildren(newChildren);
+        this.layoutDirty = true;
+    }
+
+    destroy() {
+        super.destroy();
+        this.layoutOptions = null;
+        this.layoutDirty = false;
+    }
+}
+
+
 
 /**
  * Abstract class for 3D objects, or sprites with geometry support.
@@ -827,207 +1096,6 @@ class Scene extends LS.Context {
 }
 
 /**
- * Abstract container class, or sprite with children support.
- * How it is handled is up to the renderer; not all properties have to be respected.
- */
-class Container extends Sprite {
-    /**
-     * @type {Sprite[]} Children sprites
-     */
-    children = [];
-
-    /**
-     * @type {Container|null} Parent container
-     */
-    parent = null;
-
-    isContainer = true;
-
-    /**
-     * Create a container
-     * @param {Sprite[]} children Children sprites
-     * @param {SpriteOptions} options Options
-     */
-    constructor(children = [], options) {
-        super(options);
-        if(children) this.replaceChildren(children);
-    }
-
-    /**
-     * Replaces the children of the container
-     * @param {Sprite[]} newChildren The new children
-     */
-    replaceChildren(newChildren) {
-        this.children = newChildren;
-        for(const child of this.children) {
-            child.parent = this;
-        }
-
-        // todo: find a better way
-        this.matrixDirty = true;
-    }
-
-    /**
-     * Appends a child to the container
-     * @param {Sprite} child The child to append
-     */
-    appendChild(child) {
-        this.children.push(child);
-        child.parent = this;
-
-        // todo: find a better way
-        this.matrixDirty = true;
-    }
-
-    /**
-     * Removes a child from the container
-     * @param {Sprite} child The child to remove
-     */
-    removeChild(child) {
-        const index = this.children.indexOf(child);
-        if(index !== -1) {
-            this.children.splice(index, 1);
-            child.parent = null;
-        }
-
-        // todo: find a better way
-        this.matrixDirty = true;
-    }
-
-    /**
-     * Creates a copy of the container
-     * @param {Object} options Options for the new container
-     * @returns {Container} A new container with the same children
-     */
-    clone(options = {}, into = new Container()) {
-        super.clone(options, into);
-
-        for(const child of this.children) {
-            if(child.clone) {
-                into.appendChild(child.clone());
-            } else {
-                into.appendChild(child);
-            }
-        }
-
-        return into;
-    }
-
-    get width() {
-        let maxWidth = 0;
-        for(const child of this.children) {
-            const childRight = child.x + child.width;
-            if(childRight > maxWidth) {
-                maxWidth = childRight;
-            }
-        }
-        return maxWidth;
-    }
-
-    get height() {
-        let maxHeight = 0;
-        for(const child of this.children) {
-            const childBottom = child.y + child.height;
-            if(childBottom > maxHeight) {
-                maxHeight = childBottom;
-            }
-        }
-        return maxHeight;
-    }
-
-    /**
-     * Destroys the container
-     * @param {boolean} children Whether to destroy the children as well
-     */
-    destroy(children = true) {
-        if(this.destroyed) return;
-        if(children) {
-            for(const child of this.children) {
-                if(child.destroy) child.destroy();
-            }
-        }
-
-        super.destroy();
-        this.children = null;
-        this.parent = null;
-    }
-}
-
-/**
- * LayoutContainer is just like a Container, but supports processing automatic layout.
- */
-class LayoutContainer extends Container {
-    constructor(children = [], options, layoutOptions = {}) {
-        super(children, options);
-        this.layoutOptions = layoutOptions;
-        this.recompute();
-    }
-
-    /**
-     * Layout the children of the container
-     * @param {Object} layoutOptions Options for the layout (e.g., spacing, padding)
-     */
-    recompute() {
-        let x = 0, y = 0;
-
-        const layoutOptions = this.layoutOptions;
-        if(!layoutOptions) return;
-
-        const len = this.children.length;
-
-        let gap = layoutOptions.gap || 0;
-
-        for(let i = 0; i < len; i++) {
-            const child = this.children[i];
-
-            child.x = x;
-            child.y = y;
-
-            child.layoutX = x;
-            child.layoutY = y;
-
-            if(layoutOptions.direction === "horizontal") {
-                x += child.width  + (i == len - 1? 0: gap);
-            } else {
-                y += child.height + (i == len - 1? 0: gap);
-            }
-        }
-
-        const width  = this.width;
-        const height = this.height;
-
-        // todo:
-        const parentWidth  = layoutOptions.parentWidth  || this.parent?.width  || 0;
-        const parentHeight = layoutOptions.parentHeight || this.parent?.height || 0;
-
-        const anchor = layoutOptions.anchor || [0, 0];
-        this.x += ((parentWidth  - this.x) * anchor[0]) - ((width  + this.x) * anchor[0]);
-        this.y += ((parentHeight - this.y) * anchor[1]) - ((height + this.y) * anchor[1]);
-    }
-
-    appendChild(child) {
-        super.appendChild(child);
-        this.recompute();
-    }
-
-    removeChild(child) {
-        super.removeChild(child);
-        this.recompute();
-    }
-
-    replaceChildren(newChildren) {
-        super.replaceChildren(newChildren);
-        this.recompute();
-    }
-
-    destroy() {
-        super.destroy();
-        this.layoutOptions = null;
-    }
-}
-
-
-/**
  * Draws 2D sprites with batching, reducing the number of draw calls when possible. Possible to switch sprite shaders.
  * For best performance, put sprites that share the same texture next to eachother, as every texture switch causes a new draw call and removes the possibilty of reusing buffers.
  * 
@@ -1180,6 +1248,12 @@ void main() {
             // -- Enter container
             if(child.isContainer) {
                 if(child.children.length === 0) continue;
+
+                if(child.layoutDirty) {
+                    if(typeof child.recompute === "function") {
+                        child.recompute();
+                    }
+                }
 
                 LSGL.multiplyMatrix(
                     parentMatrix,
@@ -2067,21 +2141,23 @@ function htmlParser(code, root = null, factory = () => {}) {
     return root || result;
 }
 
-LS.GL.Sprite = Sprite;
-LS.GL.Mesh = Mesh;
-LS.GL.MeshBuilder = MeshBuilder;
-LS.GL.Vector = Vector;
-LS.GL.VectorView = VectorView;
-LS.GL.Container = Container;
-LS.GL.LayoutContainer = LayoutContainer;
-LS.GL.Scene = Scene;
-LS.GL.SDi = SDi;
-LS.GL.Texture = Texture;
-LS.GL.TextureAtlas = TextureAtlas;
-LS.GL.AssetLoader = AssetLoader;
-LS.GL.GlImage = GlImage;
-LS.GL.htmlParser = htmlParser;
-LS.GL.BatchedSpriteRenderer = BatchedSpriteRenderer;
+if(true) {
+    LS.GL.Sprite = Sprite;
+    LS.GL.Mesh = Mesh;
+    LS.GL.MeshBuilder = MeshBuilder;
+    LS.GL.Vector = Vector;
+    LS.GL.VectorView = VectorView;
+    LS.GL.Container = Container;
+    LS.GL.LayoutContainer = LayoutContainer;
+    LS.GL.Scene = Scene;
+    LS.GL.SDi = SDi;
+    LS.GL.Texture = Texture;
+    LS.GL.TextureAtlas = TextureAtlas;
+    LS.GL.AssetLoader = AssetLoader;
+    LS.GL.GlImage = GlImage;
+    LS.GL.htmlParser = htmlParser;
+    LS.GL.BatchedSpriteRenderer = BatchedSpriteRenderer;
+}
 
 /*@ls-export*/ if(typeof module !== "undefined"){
     module.exports = {

@@ -1,4 +1,4 @@
-LS.WebSocket = class WebSocketWrapper extends LS.EventEmitter {
+const WebSocketWrapper = class WebSocketWrapper extends LS.EventEmitter {
     #options;
 
     static defaults = LS.Util.staticDefaults({
@@ -128,10 +128,12 @@ LS.WebSocket = class WebSocketWrapper extends LS.EventEmitter {
     }
 };
 
+if(true) LS.WebSocket = WebSocketWrapper;
+
 /*@ls-export*/ if (typeof module !== "undefined" && module.exports) {
     module.exports = {
-        WebSocket: LS.WebSocket
+        WebSocket: WebSocketWrapper
     };
 }
 
-export default { WebSocket: LS.WebSocket };
+export default { WebSocket: WebSocketWrapper };

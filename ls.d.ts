@@ -1,3 +1,7 @@
+import type * as LSGL       from "./js/gl.mjs";
+import type * as LSGLExtras from "./js/gl-extras.mjs";
+import type * as LSGLText   from "./js/gl-text.mjs";
+
 /**
  * Extensions for LS.GL
  * 
@@ -5,26 +9,28 @@
  */
 interface LSGLExtensions {
     // --- Extras
-    readonly Sprite                : typeof import("./js/gl-extras.mjs").Sprite;
-    readonly Mesh                  : typeof import("./js/gl-extras.mjs").Mesh;
-    readonly MeshBuilder           : typeof import("./js/gl-extras.mjs").MeshBuilder;
-    readonly Vector                : typeof import("./js/gl-extras.mjs").Vector;
-    readonly VectorView            : typeof import("./js/gl-extras.mjs").VectorView;
-    readonly Container             : typeof import("./js/gl-extras.mjs").Container;
-    readonly LayoutContainer       : typeof import("./js/gl-extras.mjs").LayoutContainer;
-    readonly Scene                 : typeof import("./js/gl-extras.mjs").Scene;
-    readonly SDi                   : typeof import("./js/gl-extras.mjs").SDi;
-    readonly Texture               : typeof import("./js/gl-extras.mjs").Texture;
-    readonly TextureAtlas          : typeof import("./js/gl-extras.mjs").TextureAtlas;
-    readonly AssetLoader           : typeof import("./js/gl-extras.mjs").AssetLoader;
-    readonly GlImage               : typeof import("./js/gl-extras.mjs").GlImage;
-    readonly BatchedSpriteRenderer : typeof import("./js/gl-extras.mjs").BatchedSpriteRenderer;
-    readonly htmlParser            : typeof import("./js/gl-extras.mjs").htmlParser;
+    readonly Sprite                : typeof LSGLExtras.Sprite;
+    readonly Mesh                  : typeof LSGLExtras.Mesh;
+    readonly MeshBuilder           : typeof LSGLExtras.MeshBuilder;
+    readonly Vector                : typeof LSGLExtras.Vector;
+    readonly VectorView            : typeof LSGLExtras.VectorView;
+    readonly Container             : typeof LSGLExtras.Container;
+    readonly LayoutContainer       : typeof LSGLExtras.LayoutContainer;
+    readonly Scene                 : typeof LSGLExtras.Scene;
+    readonly SDi                   : typeof LSGLExtras.SDi;
+    readonly Texture               : typeof LSGLExtras.Texture;
+    readonly TextureAtlas          : typeof LSGLExtras.TextureAtlas;
+    readonly AssetLoader           : typeof LSGLExtras.AssetLoader;
+    readonly GlImage               : typeof LSGLExtras.GlImage;
+    readonly BatchedSpriteRenderer : typeof LSGLExtras.BatchedSpriteRenderer;
+    readonly htmlParser            : typeof LSGLExtras.htmlParser;
 
     // --- Text
-    readonly WebGLTextEngine       : typeof import("./js/gl-text.mjs").WebGLTextEngine;
-    readonly WebGLMSDFFont         : typeof import("./js/gl-text.mjs").WebGLMSDFFont;
+    readonly WebGLTextEngine       : typeof LSGLText.WebGLTextEngine;
+    readonly WebGLMSDFFont         : typeof LSGLText.WebGLMSDFFont;
 }
+
+type LSGLType = LSGLExtensions & typeof import("./js/gl.mjs").default;
 
 /**
  * LS Modules
@@ -32,15 +38,15 @@ interface LSGLExtensions {
  * @interface LSModules
  */
 interface LSModules {
+    // readonly ColorPicker      : typeof import("./js/colorpicker.mjs").default;
     readonly Animation       : typeof import("./js/animation.mjs").default;
     readonly Animation2      : typeof import("./js/animation2.mjs").default;
     readonly AutomationGraph : typeof import("./js/automationgraph.mjs").default;
     readonly Color           : typeof import("./js/color.mjs").default;
-    // readonly ColorPickr      : typeof import("./js/colorpickr.mjs").default;
     readonly CommandPalette  : typeof import("./js/commandpalette.mjs").default;
     readonly CompileTemplate : typeof import("./js/compiletemplate.mjs").default;
     readonly Effect          : InstanceType<typeof import("./js/effect.mjs").default>;
-    readonly GL              : typeof import("./js/gl.mjs").default & LSGLExtensions;
+    readonly GL              : LSGLType;
     readonly i18n            : typeof import("./js/i18n.mjs").default;
     readonly ImageCropper    : typeof import("./js/imagecropper.mjs").default;
     readonly Knob            : typeof import("./js/knob.mjs").default;
@@ -66,5 +72,14 @@ interface LSModules {
     readonly Window          : typeof import("./js/windowmanager.mjs").Window;
 }
 
-declare const LS   : typeof import("./ls.mjs").default    & LSModules;
-declare const LSGL : typeof import("./js/gl.mjs").default & LSGLExtensions;
+declare const LS   : typeof import("./ls.mjs").default & LSModules;
+declare const LSGL : typeof LS.GL;
+
+declare global {
+    const LS   : typeof import("./ls.mjs").default & LSModules;
+    const LSGL : typeof LS.GL;
+}
+
+// type LSMain = typeof import("./ls.mjs").default & LSModules;
+
+// export type { LSMain };

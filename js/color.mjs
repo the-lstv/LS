@@ -1852,9 +1852,12 @@ class Color {
 // }
 // JSON.stringify(c);
 
-LS.Color = Color;
 const LS_ACCENTS_MAP = new Map([["navy",[60,42,162]],["blue",[0,105,204]],["pastel-indigo",[57,96,147]],["lapis",[37,124,167]],["teal",[0,204,204]],["pastel-teal",[43,153,161]],["aquamarine",[54,150,116]],["green",[32,172,107]],["lime",[104,167,37]],["neon",[88,204,0]],["yellow",[204,187,0]],["orange",[204,99,0]],["deep-orange",[204,61,0]],["red",[195,9,9]],["rusty-red",[173,31,45]],["pink",[182,22,123]],["hotpink",[192,12,99]],["purple",[126,62,142]],["soap",[97,48,156]],["burple",[10,32,194]]]);
-LS.Color.accentColors = LS_ACCENTS_MAP;
+
+if(true) {
+    LS.Color = Color;
+    LS.Color.accentColors = LS_ACCENTS_MAP;
+}
 
 /*@ls-export*/ if (typeof module !== "undefined" && module.exports) {
     module.exports = LS.Color;

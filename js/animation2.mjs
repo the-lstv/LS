@@ -590,23 +590,6 @@ class Animation {
     }
 }
 
-/**
- * Timeline that can contain multiple animations.
- * Has the same controls as Animation.
- * 
- * @example
- * const timeline = new Animation.Timeline([
- *     new Animation([{ value: 0 }, { value: 1 }], { duration: 1000 }),
- *     new Animation([{ value: 1 }, { value: 0 }], { duration: 1000, delay: 500 })
- * ]);
- * 
- * timeline.start();
- * 
- * // Await all animations
- * await timeline.promise;
- * 
- * @extends Animation
- */
 class AnimationTimeline extends Animation {
     /** @type {Set<Animation>} */
     animations = new Set;
@@ -614,6 +597,23 @@ class AnimationTimeline extends Animation {
 
     isTimeline = true;
 
+    /**
+     * Timeline that can contain multiple animations.
+     * Has the same controls as Animation.
+     * 
+     * @example
+     * const timeline = new Animation.Timeline([
+     *     new Animation([{ value: 0 }, { value: 1 }], { duration: 1000 }),
+     *     new Animation([{ value: 1 }, { value: 0 }], { duration: 1000, delay: 500 })
+     * ]);
+     * 
+     * timeline.start();
+     * 
+     * // Await all animations
+     * await timeline.promise;
+     * 
+     * @extends Animation
+     */
     constructor(animations, options = {}, parent = Animation) {
         super(null, options, null, parent, true);
         this.addAnimations(animations);
