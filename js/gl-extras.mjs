@@ -185,28 +185,28 @@ class Sprite {
         if(options.texture)               this.texture = options.texture;
         if(options.opacity !== undefined) this.opacity = options.opacity;
 
-        if(options.x !== undefined)         this.x           = options.x;
-        if(options.y !== undefined)         this.y           = options.y;
-        if(options.z !== undefined)         this.z           = options.z;
-        if(options.offsetX !== undefined)   this.offsetX     = options.offsetX;
-        if(options.offsetY !== undefined)   this.offsetY     = options.offsetY;
-        if(options.offsetZ !== undefined)   this.offsetZ     = options.offsetZ;
-        if(options.anchorX !== undefined)   this.anchorX     = options.anchorX;
-        if(options.anchorY !== undefined)   this.anchorY     = options.anchorY;
-        if(options.anchorZ !== undefined)   this.anchorZ     = options.anchorZ;
-        if(options.scaleX !== undefined)    this.scaleX      = options.scaleX;
-        if(options.scaleY !== undefined)    this.scaleY      = options.scaleY;
-        if(options.scaleZ !== undefined)    this.scaleZ      = options.scaleZ;
+        if(options.x         !== undefined) this.x           = options.x;
+        if(options.y         !== undefined) this.y           = options.y;
+        if(options.z         !== undefined) this.z           = options.z;
+        if(options.offsetX   !== undefined) this.offsetX     = options.offsetX;
+        if(options.offsetY   !== undefined) this.offsetY     = options.offsetY;
+        if(options.offsetZ   !== undefined) this.offsetZ     = options.offsetZ;
+        if(options.anchorX   !== undefined) this.anchorX     = options.anchorX;
+        if(options.anchorY   !== undefined) this.anchorY     = options.anchorY;
+        if(options.anchorZ   !== undefined) this.anchorZ     = options.anchorZ;
+        if(options.scaleX    !== undefined) this.scaleX      = options.scaleX;
+        if(options.scaleY    !== undefined) this.scaleY      = options.scaleY;
+        if(options.scaleZ    !== undefined) this.scaleZ      = options.scaleZ;
         if(options.rotationX !== undefined) this.rotationX   = options.rotationX;
         if(options.rotationY !== undefined) this.rotationY   = options.rotationY;
         if(options.rotationZ !== undefined) this.rotationZ   = options.rotationZ;
-        if(options.width !== undefined)     this.width       = options.width;
-        if(options.height !== undefined)    this.height      = options.height;
-        if(options.depth !== undefined)     this.depth       = options.depth;
-        if(options.colorR !== undefined)    this.data[SDi.r] = options.colorR;
-        if(options.colorG !== undefined)    this.data[SDi.g] = options.colorG;
-        if(options.colorB !== undefined)    this.data[SDi.b] = options.colorB;
-        if(options.colorA !== undefined)    this.data[SDi.a] = options.colorA;
+        if(options.width     !== undefined) this.width       = options.width;
+        if(options.height    !== undefined) this.height      = options.height;
+        if(options.depth     !== undefined) this.depth       = options.depth;
+        if(options.colorR    !== undefined) this.data[SDi.r] = options.colorR;
+        if(options.colorG    !== undefined) this.data[SDi.g] = options.colorG;
+        if(options.colorB    !== undefined) this.data[SDi.b] = options.colorB;
+        if(options.colorA    !== undefined) this.data[SDi.a] = options.colorA;
     }
 
     get width()      { return this.data[SDi.width] < 0 && this.texture? this.texture.width: this.data[SDi.width]; }
@@ -1167,14 +1167,19 @@ class BatchedSpriteRenderer extends LSGL.Renderable {
 
             parent: lsgli,
 
-            uniforms:   ["uProjection", "uOffset", "uTexture", "uOpacity",   ...(uniforms || [])  ],
-            attributes: ["iSize", "iUVRect", "iColor", "iMatrix", ...(attributes || [])],
+            uniforms:   ["uProjection", "uOffset", "uTexture", "uOpacity", "uTime",   ...(uniforms || [])  ],
+            attributes: ["iUVRect", "iColor", "iMatrix", ...(attributes || [])],
 
+            // -- Below are data stored per sprite bound to instances.
             vao: true,
             bind: {
+                // -- Texture region; defines the area of the texture to use.
                 iUVRect:   { cellSize: 4,  type: "f32",  size: batchSize },
-                // iSize:     { cellSize: 2,  type: "f32",  size: batchSize },
+
+                // -- Color (RGBA); defines the color and transparency of the sprite.
                 iColor:    { cellSize: 4,  type: "u8",   size: batchSize, normalized: true },
+
+                // -- Transformation matrix; defines the position, rotation and scale of the sprite.
                 iMatrix:   { cellSize: 16, type: "mat4", size: batchSize },
                 ...binds
             },
@@ -1185,11 +1190,10 @@ precision mediump float;
 in vec2 vTexCoord;
 in vec4 vColor;
 
-out vec4 fragColor;
-
 uniform sampler2D uTexture;
-
 uniform float uOpacity;
+
+out vec4 fragColor;
 
 void main() {
     vec4 texColor = texture(uTexture, vTexCoord);
@@ -1208,8 +1212,9 @@ layout(location = 3) in mat4 iMatrix;
 uniform mat4 uProjection;
 uniform vec2 uOffset;
 
-out  vec2 vTexCoord;
-out  vec4 vColor;
+out vec2 vTexCoord;
+out vec4 vColor;
+out vec2 vUv;
 
 void main() {
     vec2 quadCoord = positions[gl_VertexID] * 0.5 + 0.5;
@@ -1219,6 +1224,8 @@ void main() {
 
     vTexCoord = iUVRect.xy + quadCoord * iUVRect.zw;
     vColor = iColor;
+
+    vUv = quadCoord;
 }`
         });
 
@@ -1239,11 +1246,11 @@ void main() {
 
         const gl = this.renderer.gl;
 
+        // -- Buffers
         const buffers    = this.buffers;
-        const colorData  = buffers.iColor.data;
-        const uvRectData = buffers.iUVRect.data;
-        // const sizeData   = buffers.iSize.data;
-        const matrixData = buffers.iMatrix.data;
+        const matrixData = buffers.iMatrix.data;  // Transformation matrix
+        const colorData  = buffers.iColor ?.data; // Color (optional)
+        const uvRectData = buffers.iUVRect?.data; // UV Rect (texture region, optional)
 
         // Stack for parent matrices
         const stackM = [container.transformMatrix];
@@ -1361,15 +1368,19 @@ void main() {
             // sizeData  [high * 2 + 0] = child.width;
             // sizeData  [high * 2 + 1] = child.height;
 
-            colorData [high * 4 + 0] = data[SDi.r];
-            colorData [high * 4 + 1] = data[SDi.g];
-            colorData [high * 4 + 2] = data[SDi.b];
-            colorData [high * 4 + 3] = combinedAlpha;
+            if(colorData) {
+                colorData[high * 4 + 0] = data[SDi.r];
+                colorData[high * 4 + 1] = data[SDi.g];
+                colorData[high * 4 + 2] = data[SDi.b];
+                colorData[high * 4 + 3] = combinedAlpha;
+            }
 
-            uvRectData[high * 4 + 0] = uvRect[0] / texture.imageWidth;
-            uvRectData[high * 4 + 1] = uvRect[1] / texture.imageHeight;
-            uvRectData[high * 4 + 2] = uvRect[2] / texture.imageWidth;
-            uvRectData[high * 4 + 3] = uvRect[3] / texture.imageHeight;
+            if(uvRectData) {
+                uvRectData[high * 4 + 0] = uvRect[0] / texture.imageWidth;
+                uvRectData[high * 4 + 1] = uvRect[1] / texture.imageHeight;
+                uvRectData[high * 4 + 2] = uvRect[2] / texture.imageWidth;
+                uvRectData[high * 4 + 3] = uvRect[3] / texture.imageHeight;
+            }
 
             high++;
 
@@ -1404,9 +1415,14 @@ void main() {
         // -- Upload changed buffers
         if(high) {
             buffers.iMatrix.updateWithStride (low, high);
-            // buffers.iSize.updateWithStride   (low, high);
-            buffers.iColor.updateWithStride  (low, high);
-            buffers.iUVRect.updateWithStride (low, high);
+
+            if(buffers.iColor) {
+                buffers.iColor.updateWithStride  (low, high);
+            }
+
+            if(buffers.iUVRect) {
+                buffers.iUVRect.updateWithStride (low, high);
+            }
         }
 
         // -- Atlas texture
@@ -1417,6 +1433,7 @@ void main() {
         // -- Uniforms
         if(x !== null || y !== null) gl.uniform2f(uniforms.uOffset, x || 0, y || 0);
         gl.uniform1f(uniforms.uOpacity, 1);
+        gl.uniform1f(uniforms.uTime, performance.now());
 
         // -- Projection matrix
         gl.uniformMatrix4fv(uniforms.uProjection, false, projectionMatrix);
@@ -1434,7 +1451,7 @@ void main() {
  * A basic asset loader.
  */
 class AssetLoader extends LS.EventEmitter {
-    constructor(options = {}, parent = null, nameScope = null) {
+    constructor(options = {}, parent = null, nameScope = null, directory = null) {
         super();
 
         this.parent = parent;
@@ -1443,9 +1460,8 @@ class AssetLoader extends LS.EventEmitter {
         this.resources = new Map();
         this.assets = new Map();
 
-        if(options.srcPrefix) {
-            this.srcPrefix = options.srcPrefix;
-        }
+        // Normalize the source prefix (normalizePath is fast don't worry)
+        this.srcPrefix = LS.Util.normalizePath(LS.Util.normalizePath(directory? directory: "") + "/" + LS.Util.normalizePath(options.srcPrefix || "")) + "/";
 
         if(options.map) {
             this.registerMany(options.map);
@@ -1491,10 +1507,6 @@ class AssetLoader extends LS.EventEmitter {
 
         if(typeof data === "string") {
             data = { src: data };
-        }
-
-        if(this.srcPrefix && data.src) {
-            data.src = this.srcPrefix + data.src;
         }
 
         data.src = LS.Util.normalizePath(data.src);
@@ -1546,7 +1558,7 @@ class AssetLoader extends LS.EventEmitter {
     }
 
     async loadResource(src, type) {
-        src = LS.Util.normalizePath(src);
+        src = LS.Util.normalizePath(this.srcPrefix + src);
 
         if(typeof type !== "function") {
             const extName = src.split(".").pop()?.toLowerCase();

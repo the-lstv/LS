@@ -37,7 +37,7 @@
 class SoundBox {
     static { LS.register(this, { name: "SoundBox", global: true }) }
 
-    constructor(options = {}, parent = null, nameScope = null) {
+    constructor(options = {}, parent = null, nameScope = null, directory = null) {
         this.parent = parent;
         this.nameScope = nameScope;
 
@@ -51,9 +51,8 @@ class SoundBox {
 
         this.setVolume(options.volume ?? 1);
 
-        if(options.srcPrefix) {
-            this.srcPrefix = options.srcPrefix;
-        }
+        // Normalize the source prefix (normalizePath is fast don't worry)
+        this.srcPrefix = LS.Util.normalizePath(LS.Util.normalizePath(directory? directory: "") + "/" + LS.Util.normalizePath(options.srcPrefix || "")) + "/";
 
         if(options.sounds) {
             this.registerMany(options.sounds);
@@ -155,10 +154,6 @@ class SoundBox {
             options = { src: options };
         }
 
-        if(this.srcPrefix && options.src) {
-            options.src = this.srcPrefix + options.src;
-        }
-
         options.src = LS.Util.normalizePath(options.src);
 
         this.soundMap.set(soundName, options);
@@ -236,7 +231,7 @@ class SoundBox {
             const src = _fallbackIndex < 0? sound.src: (this.soundMap.get(sound.fallback[_fallbackIndex])?.src);
             if(!src) throw "No available source";
 
-            const response = await fetch(src);
+            const response = await fetch(this.srcPrefix + src);
             const arrayBuffer = await response.arrayBuffer();
             sound.buffer = await this.ctx.decodeAudioData(arrayBuffer);
             sound.__lastSrc = src;
