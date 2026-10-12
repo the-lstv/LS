@@ -1575,29 +1575,83 @@ const sharedColorConversionBuffer = new Uint8Array(4);
 const roundedBoxSDF = `float roundedBoxSDF(vec2 CenterPosition, vec2 Size, float Radius) {\nreturn length(max(abs(CenterPosition)-Size+Radius,0.0))-Radius;\n}`;
 
 /**
- * Updates a 4x4 transformation matrix based on the provided translation, rotation, and scale parameters.
+ * Temporary & should be inlined at compile time
+ * Sprite data indices/enums
+ * 
+ * @enum {number}
+ */
+const SDi = {
+    // --- Transforms
+    x: 0,                 // f32
+    y: 1,                 // f32
+    z: 2,                 // f32
+    rotationX: 3,         // f32
+    rotationY: 4,         // f32
+    rotationZ: 5,         // f32
+    scaleX: 6,            // f32
+    scaleY: 7,            // f32
+    scaleZ: 8,            // f32
+    anchorX: 9,           // f32
+    anchorY: 10,          // f32
+    anchorZ: 11,          // f32
+    offsetX: 12,          // f32
+    offsetY: 13,          // f32
+    offsetZ: 14,          // f32
+    width: 15,            // f32
+    height: 16,           // f32
+    depth: 17,            // f32
+    transformFlags: 18,   // u32
+
+    // --- Display
+    visible: 19,          // 1b
+    r: 20,                // u8
+    g: 21,                // u8
+    b: 22,                // u8
+    a: 23,                // u8
+    alphaMultiplier: 24,  // f32
+    blendMode: 25,        // u8
+
+    // --- Flags
+    ANCHOR_AFFECTS_POSITION: 1,
+};
+
+/**
+ * Updates OR creates a 4x4 column-major transformation matrix based on the provided translation, rotation, and scale parameters.
  * The rotation is applied in the order of Z, Y, X (Rz * Ry * Rx).
+ * 
+ * Width/Height/Depth are optional if the anchor point is not used or you rely on scale.
  * 
  * @param {array} spriteData - An array containing these values in the order: [x, y, z, rx, ry, rz, sx, sy, sz].
  * @param {Float32Array} out - An optional Float32Array to store the resulting matrix.
+ * @param {number} w - The width of the sprite (used for anchor calculations).
+ * @param {number} h - The height of the sprite (used for anchor calculations).
+ * @param {number} d - The depth of the sprite (used for anchor calculations).
  * @returns {Float32Array} The resulting transformation matrix.
  */
-function updateMatrix(spriteData, out = new Float32Array(16), w, h, d) {
-    let x    = spriteData[0];
-    let y    = spriteData[1];
-    let z    = spriteData[2];
+function updateMatrix(spriteData, out = new Float32Array(16), w = 1, h = 1, d = 1) {
+    let x = spriteData[SDi.x];
+    let y = spriteData[SDi.y];
+    let z = spriteData[SDi.z];
 
-    const rx = spriteData[3];
-    const ry = spriteData[4];
-    const rz = spriteData[5];
+    const ox   = spriteData[SDi.offsetX] || 0;
+    const oy   = spriteData[SDi.offsetY] || 0;
+    const oz   = spriteData[SDi.offsetZ] || 0;
 
-    const sx = spriteData[6];
-    const sy = spriteData[7];
-    const sz = spriteData[8];
+    x += ox;
+    y += oy;
+    z += oz;
 
-    const anchorX = spriteData[9]  || 0;
-    const anchorY = spriteData[10] || 0;
-    const anchorZ = spriteData[11] || 0;
+    const rx = spriteData[SDi.rotationX];
+    const ry = spriteData[SDi.rotationY];
+    const rz = spriteData[SDi.rotationZ];
+
+    const sx = spriteData[SDi.scaleX];
+    const sy = spriteData[SDi.scaleY];
+    const sz = spriteData[SDi.scaleZ];
+
+    const anchorX = spriteData[SDi.anchorX] || 0;
+    const anchorY = spriteData[SDi.anchorY] || 0;
+    const anchorZ = spriteData[SDi.anchorZ] || 0;
 
     const cx = Math.cos(rx), sX = Math.sin(rx);
     const cy = Math.cos(ry), sY = Math.sin(ry);
@@ -1629,6 +1683,8 @@ function updateMatrix(spriteData, out = new Float32Array(16), w, h, d) {
         return out;
     }
 
+    // --- Adjust for anchor point
+
     w ??= 1;
     h ??= 1;
     d ??= 1;
@@ -1636,8 +1692,6 @@ function updateMatrix(spriteData, out = new Float32Array(16), w, h, d) {
     const anchorXw = anchorX * w;
     const anchorYh = anchorY * h;
     const anchorZd = anchorZ * d;
-
-    // Adjust for anchor point
 
     out[12] = x - (
         out[0] * anchorXw +
@@ -1657,17 +1711,24 @@ function updateMatrix(spriteData, out = new Float32Array(16), w, h, d) {
         out[10] * anchorZd
     );
 
-    const transformFlags = spriteData[15] || 0;
+    const transformFlags = spriteData[SDi.transformFlags] || 0;
 
-    // Anchor doesn't affect position
-    if(transformFlags & 1) {
+    if(!(transformFlags & SDi.ANCHOR_AFFECTS_POSITION)) {
         out[12] += w * anchorX;
         out[13] += h * anchorY;
         out[14] += d * anchorZ;
     }
+
     return out;
 }
 
+/**
+ * Multiplies two 4x4 matrices and returns the result.
+ * @param {Float32Array} a - The first matrix.
+ * @param {Float32Array} b - The second matrix.
+ * @param {Float32Array} out - An optional Float32Array to store the resulting matrix.
+ * @returns {Float32Array} The resulting matrix after multiplication.
+ */
 function multiplyMatrix(a, b, out = new Float32Array(16)) {
     const a00 = a[0],  a01 = a[1],  a02 = a[2],  a03 = a[3];
     const a10 = a[4],  a11 = a[5],  a12 = a[6],  a13 = a[7];
@@ -1698,13 +1759,14 @@ function multiplyMatrix(a, b, out = new Float32Array(16)) {
     out[13] = a01 * b30 + a11 * b31 + a21 * b32 + a31 * b33;
     out[14] = a02 * b30 + a12 * b31 + a22 * b32 + a32 * b33;
     out[15] = a03 * b30 + a13 * b31 + a23 * b32 + a33 * b33;
-
     return out;
 }
 
 const obj = {
     v: 2,
     version: "2.2.0-alpha.0",
+
+    SDi,
 
     Camera,
 
@@ -1766,7 +1828,7 @@ const obj = {
             LS.GlobalWebGLRenderer.canvas.remove();
             LS.GlobalWebGLRenderer.destroy();
             LS.GlobalWebGLRenderer = null;
-            LS.prepareEvent("global-composite-layer", { completed: false, data: null });
+            LS.configureEvent("global-composite-layer", { completed: false, data: null });
             LS._compositeLayer?.remove();
             LS._compositeLayer = null;
         }

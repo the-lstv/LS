@@ -48,9 +48,9 @@ class Tabs extends LS.Component {
         }
         delete options.element;
 
-        this.prepareEvent("close", { results: true });
-        this.prepareEvent("button");
-        this.__changeEvent = this.prepareEvent("change");
+        this.configureEvent("close", { results: true });
+        this.configureEvent("button");
+        this.__changeEvent = this.configureEvent("change");
         this.aliasEvent("change", "changed");
 
         this.element = this.container = element? LS.SelectOne(element): LS.Create("div");

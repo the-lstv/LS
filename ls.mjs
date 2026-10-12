@@ -159,14 +159,14 @@ class EventEmitter {
     }
 
     /**
-     * Prepare or update an event object with given name and options.
+     * Create or update an event object with given name and options.
      * @param {string|symbol} name Name of the event.
      * @param {object} options Event options.
      * @returns {EventObject} Prepared event object.
      * 
      * @warning If you are going to use the event reference, remember to dispose of it properly to avoid memory leaks.
      */
-    prepareEvent(name, options = undefined){
+    configureEvent(name, options = undefined){
         if(this.destroyed) return;
         let event = this.events.get(name);
 
@@ -211,7 +211,7 @@ class EventEmitter {
         // FIXME: Temporary legacy alias, likely not needed
         if(name === "destroyed") name = "destroy";
 
-        const event = name._isEvent? name: (this.events.get(name) || this.prepareEvent(name));
+        const event = name._isEvent? name: (this.events.get(name) || this.configureEvent(name));
         if(event.completed) {
             if(event.data) Array.isArray(event.data) ? callback.apply(null, event.data) : callback(event.data); else callback();
             if(options && options.once) return; // We can skip adding the listener
@@ -469,7 +469,7 @@ class EventEmitter {
      * TODO: There could be a way to do this without per-instance calls in extending classes
      */
     aliasEvent(name, alias){
-        const event = (name._isEvent? name: this.events.get(name)) || this.prepareEvent(name);
+        const event = (name._isEvent? name: this.events.get(name)) || this.configureEvent(name);
         event.aliases ??= [];
 
         if(!event.aliases.includes(alias)) event.aliases.push(alias);
@@ -492,7 +492,7 @@ class EventEmitter {
      * emitter.on("load", (data) => { console.log("Loaded:", data); });
      * 
      * // To reset the completed state:
-     * emitter.prepareEvent("load", { completed: false, data: null });
+     * emitter.configureEvent("load", { completed: false, data: null });
      */
     completed(name, data = undefined, options = null){
         this.emit(name, data);
@@ -501,7 +501,14 @@ class EventEmitter {
         options.completed = true;
         options.data = data;
 
-        this.prepareEvent(name, options);
+        this.configureEvent(name, options);
+    }
+
+    /**
+     * @deprecated Use configureEvent instead; prepareEvent is a legacy alias
+     */
+    prepareEvent(name, options = null){
+        return this.configureEvent(name, options);
     }
 }
 
@@ -1277,6 +1284,7 @@ class InputGroup extends EventEmitter {
 }
 
 // Welp. At this point Component doesn't provide any additional functionality over Context, so it's just an alias, for now
+// At some point components should track instance lifetime again
 const Component = Context;
 
 /**
@@ -1389,9 +1397,1901 @@ class StackItem {
 
 let initialized = false, _prototyped = false;
 
-// /**
-//  * @type {import("./ls.d.ts").LSMain}
-//  */
+const Util = {
+    /**
+     * Gets URL parameters as an object or a specific parameter by name.
+     * From my testing, this is 8x faster than URLSearchParams for all parameters and 11x faster to get a single parameter.
+     * Meaning that for most usecases where duplicate keys are not a concern, this is almost always faster and likely cleaner.
+     * https://jsbm.dev/XMZyoeowQqoPm
+     * 
+     * @param {string|null} getOne Name of the parameter to get, or null to get all parameters as an object.
+     * @param {string} baseUrl URL or search string to parse, defaults to current location's search string.
+     * @returns {object|string|null} Object with all parameters, specific parameter value, or null if not found.
+     * 
+     * @example LS.Util.parseURLParams(location.search, "q");
+     * @example LS.Util.parseURLParams().q;
+     */
+    parseURLParams(baseUrl = typeof location !== "undefined" ? location.search : "", getOne = null){
+        const index = baseUrl.indexOf('?');
+        const url = baseUrl.slice(index + 1);
+        if(!url.length){
+            return getOne? null : {};
+        }
+
+        let i = 0, vi = 0, cparam = null, result = getOne ? null : {};
+        for(; i < url.length; i++){
+            const char = url.charCodeAt(i);
+            const atEnd = i === url.length - 1;
+            const isDelimiter = char === 61 || char === 38 || char === 35; // =, &, #
+
+            if(isDelimiter || atEnd){
+                const sliceEnd = (atEnd && !isDelimiter) ? i + 1 : i;
+                const param = url.slice(vi, sliceEnd);
+
+                if((char === 38 || (atEnd && !isDelimiter) || char === 35) && cparam !== null){ // &, end, #
+                    const value = decodeURIComponent(param);
+                    if(getOne && cparam === getOne) return value;
+                    if(!getOne) result[cparam] = value;
+                    cparam = null;
+                    vi = i + 1;
+                    if(char === 35) break;
+                    continue;
+                }
+
+                if(param.length !== 0) {
+                    if(!getOne) result[param] = "";
+                    cparam = param;
+                    vi = i + 1;
+                }
+
+                if(char === 35){ // #
+                    break;
+                }
+            }
+        }
+
+        return getOne? null : result;
+    },
+
+    /**
+     * Relatively fast & light Emmet abbreviation parser
+     * @experimental
+     * 
+     * @param {string} abbreviation Emmet abbreviation to parse.
+     * @returns {DocumentFragment} Root element of the parsed structure.
+     * @see https://docs.emmet.io/abbreviations/syntax/ for supported syntax
+     * 
+     * @note Limitations: Item numbering ($) is not supported yet.
+     * 
+     * @example LS.Util.parseEmmet("div#main>ul.list>li.item{Item}*3");
+     */
+    parseEmmet(abbreviation, options = {}, adaptor = document) {
+        const len = abbreviation.length;
+        const singleNode = options?.singleNode === true;
+        const root = singleNode ? null : adaptor.createDocumentFragment();
+        delete options.singleNode; // Todo: Handle this separately for groups
+
+        let firstRoot = null;
+        let li = 0, state = 0, previousElement = root, currentParent = root, braceCount = 0, inString = false;
+
+        // Clones (for the multiply operator) are deferred until the end of the current element.
+        // Reasons are so we can handle nested structures, and to make item numbering ($) possible.
+        // Structure: [target, parent, count]
+        const markipliers = [];
+
+        for (let i = 0; i < len; i++) {
+            const char = abbreviation.charCodeAt(i);
+            const oldState = state;
+            const atEnd = i === len - 1;
+
+            if(state === 3) {
+                // Attribute state handling
+                if(inString || (char === /* " */ 34 || char === /* ' */ 39)) {
+                    if(inString === char) {
+                        inString = false;
+                    } else if(!inString) {
+                        inString = char;
+                    }
+                    continue;
+                } else if(char === /* ] */ 93) {
+                    state = 0; // End of attribute block
+                } else if(char === /*   */ 32) {
+                    state = 3; // Allow another attribute in the same block
+                } else continue;
+            } else if(state === 4) {
+                // Text state handling
+                if(char === /* { */ 123) {
+                    braceCount++;
+                    continue;
+                } else if(char === /* } */ 125) {
+                    if(braceCount === 0 || atEnd) {
+                        state = 0;
+                    } else {
+                        braceCount--;
+                        continue;
+                    }
+                } else continue;
+            } else if(state === 5) {
+                // Temporary group state handling
+                if(char === /* ( */ 40) {
+                    braceCount++;
+                    continue;
+                } else if(char === /* ) */ 41) {
+                    if(braceCount === 0 || atEnd) {
+                        state = 0;
+                    } else {
+                        braceCount--;
+                        continue;
+                    }
+                } else continue;
+            } else {
+                switch(char) {
+                    case /* . */ 46:  state = 1;  break;                  // Class
+                    case /* # */ 35:  state = 2;  break;                  // ID
+                    case /* [ */ 91:  state = 3;  break;                  // Attribute
+                    case /* { */ 123: state = 4;  braceCount = 0; break;  // Text
+                    case /* ( */ 40:  state = 5;  braceCount = 0; break;  // Group
+                    case /* > */ 62:  state = 6;  break;                  // Child
+                    case /* + */ 43:  state = 7;  break;                  // Sibling
+                    case /* * */ 42:  state = 8;  break;                  // Multiply
+                    case /* ^ */ 94:  state = 9;  break;                  // Climb-up
+                    case /* @ */ 64:  state = 10; break;                  // Changing numbering base and direction
+                    default: if (!atEnd) continue;
+                }
+            }
+
+            // We have reached a state change or end
+            const value = abbreviation.slice(li, (atEnd && state === oldState)? i + 1 : i);
+            li = i + 1;
+
+            if((oldState >= 1 && oldState <= 4 || oldState === 8 || oldState === 6) && previousElement === root) {
+                // Implicit element creation
+                currentParent = previousElement = adaptor.createElement("div");
+
+                if(singleNode) {
+                    firstRoot = previousElement;
+                } else {
+                    root.appendChild(previousElement);
+                }
+            }
+
+            if (value || oldState === 9 || oldState === 6 || oldState === 7) {
+                switch(oldState) {
+                    // Element / Child / Sibling / Climb-up
+                    case 0: case 6: case 7: case 9: {
+                        // Climb-up
+                        if(oldState === 9) {
+                            if(currentParent && currentParent.parentNode) {
+                                currentParent = currentParent.parentNode;
+                            }
+                        }
+
+                        if(oldState === 6) {
+                            currentParent = previousElement;
+                        }
+
+                        LS.Util.___flushMarkipliers(markipliers, currentParent);
+
+                        if(!value) {
+                            if(oldState === 7) previousElement = currentParent;
+                            continue;
+                        }
+
+                        // TODO: Snippets
+                        const el = (value === "svg" || options.ns)? adaptor.createElementNS(options.ns || "http://www.w3.org/2000/svg", value) : adaptor.createElement(value);
+
+                        if(currentParent) {
+                            currentParent.appendChild(el);
+                        } else if(!firstRoot) {
+                            firstRoot = el;
+                        }
+
+                        previousElement = el;
+                        continue;
+                    }
+
+                    // Class
+                    case 1: {
+                        previousElement.classList.add(value);
+                        continue;
+                    }
+
+                    // ID
+                    case 2: {
+                        previousElement.id = value;
+                        continue;
+                    }
+
+                    // Attribute
+                    case 3: {
+                        // Nonstandard behavior note: if attribute starts with %, it gets converted to a LS state. Eg. "button[%loading]" -> <button data-ls-state="loading"></button>
+                        let [attrName, attrValue] = value.charCodeAt(0) === /* % */ 37 ? ["data-ls-state", value.slice(1)] : value.split('=');
+
+                        if(attrValue && (attrValue.charCodeAt(0) === /* " */ 34 || attrValue.charCodeAt(0) === /* ' */ 39)) {
+                            attrValue = attrValue.slice(1, -1);
+                        }
+
+                        previousElement.setAttribute(attrName, attrValue || "");
+                        continue;
+                    }
+
+                    // Text
+                    case 4: {
+                        previousElement.appendChild(adaptor.createTextNode(value));
+                        continue;
+                    }
+
+                    // Group
+                    // TODO: Make this single-pass via a stack
+                    case 5: {
+                        const group = LS.Util.parseEmmet(value, options, adaptor);
+
+                        if(currentParent) {
+                            currentParent.appendChild(group);
+                        } else if(!firstRoot) {
+                            firstRoot = group;
+                        }
+
+                        previousElement = group.lastElementChild || (currentParent && currentParent.lastChild) || group;
+                        continue;
+                    }
+
+                    // Multiply
+                    case 8: {
+                        const count = parseInt(value, 10) || 1;
+                        if (count > 1 && previousElement && previousElement.parentNode) {
+                            markipliers.push([previousElement, previousElement.parentNode, count]);
+                        }
+                        continue;
+                    }
+
+                    // Changing numbering base and direction
+                    case 10: {
+
+                    }
+                }
+            }
+        }
+
+        LS.Util.___flushMarkipliers(markipliers, currentParent, true);
+        return singleNode ? firstRoot : root;
+    },
+
+    /**
+     * Strips JSON comments from a JSON string.
+     * @param {*} jsonString JSON string to strip comments from.
+     * @returns {string} JSON string without comments.
+     * 
+     * Benchmarked against tiny-jsonc and strip-json-comments (used by jsonc):
+     * https://jsbm.dev/kdXHwmdsMErnj
+     * 
+     * About 6x faster than tiny-jsonc and 10x faster than strip-json-comments.
+     * Since strip-json-comments is a dependency of the jsonc node module (which has so many dependencies for some reason), it's also fastr than that.
+     * I couldn't test "jsonc" since it is somehow Node.js only.
+     */
+    stripJsonComments(jsonString) {
+        let stringChar = null;
+        for (let i = 0; i < jsonString.length; i++) {
+            const char = jsonString.charCodeAt(i);
+
+            if (stringChar) {
+                if (char === stringChar) {
+                    stringChar = null;
+                } else if (char === 92) { // \
+                    i++;
+                }
+                continue;
+            }
+
+            if (char === 34 || char === 39) { // " or '
+                stringChar = char;
+                continue;
+            }
+
+            if (char === 47) {
+                const next = jsonString.charCodeAt(i + 1);
+
+                // Single-line comments
+                if (next === 47) {
+                    const eol = jsonString.indexOf("\n", i + 2);
+                    if (eol === -1) {
+                        return jsonString.slice(0, i);
+                    }
+
+                    jsonString = jsonString.slice(0, i) + jsonString.slice(eol);
+                    i--;
+                    continue;
+                }
+                
+                // Multi-line comments
+                if (next === 42) {
+                    const eoc = jsonString.indexOf("*/", i + 2);
+                    if (eoc === -1) {
+                        throw new Error("Unterminated comment in JSON string");
+                    }
+
+                    jsonString = jsonString.slice(0, i) + jsonString.slice(eoc + 2);
+                    i--;
+                    continue;
+                }
+            }
+        }
+
+        return jsonString;
+    },
+
+    parseJSONC(jsonString) {
+        return JSON.parse(LS.Util.stripJsonComments(jsonString));
+    },
+
+    /**
+     * Internal utility for flushing market pliers in the Emmet parser.
+     * Montpelier cloning factory. It clones marketplaces.
+     * 
+     * I didn't want to make it a method, but i also couldn't find a clean way to embed it in the main loop
+     * @internal
+     */
+    ___flushMarkipliers(markipliers, currentParent, force = false) {
+        for (let m = markipliers.length - 1; m >= 0; m--) {
+            const markiplier = markipliers[m];
+            const element = markiplier[0];
+            
+            // I don't really know man
+            if (!force && ((!element || !currentParent)? false: element === currentParent? true: typeof element.contains === "function" && element.contains(currentParent))) continue;
+
+            if(typeof element.emmetClone === "function") {
+                element.emmetClone(markiplier[1], markiplier[2]);
+            } else {
+                const parent = markiplier[1];
+                if (parent) {
+                    for (let j = 1; j < markiplier[2]; j++) {
+                        parent.appendChild(element.cloneNode(true));
+                    }
+                }
+            }
+
+            markipliers.splice(m, 1);
+        }
+    },
+
+    /**
+     * Returns true if the provided value is likely a class and not a plain function.
+     * https://stackoverflow.com/a/66120819/14541617
+     * 
+     * @param {*} func Object to check.
+     */
+    isClass(func) {
+        // Class constructor is also a function
+        if (!(func && func.constructor === Function) || func.prototype === undefined)
+            return false;
+
+        // This is a class that extends other class
+        if (Function.prototype !== Object.getPrototypeOf(func))
+            return true;
+
+        // Usually a function will only have 'constructor' in the prototype
+        return Object.getOwnPropertyNames(func.prototype).length > 1;
+    },
+
+    /**
+     * Internal helper for resolving elements from various input types (string, array, object, Node).
+     * @param {*} input Input to resolve into elements.
+     * @param {Array|Node} target Target to append elements to, or an array to collect them in.
+     * @returns {Array|Node} The target with resolved elements appended, or an array of resolved elements.
+     */
+    resolveElements(input, target = null) {
+        const result = target || [];
+        const isArray = Array.isArray(target);
+
+        for(const item of Array.isArray(input) ? input : [input]) {
+            if(item === null || item === undefined) continue;
+
+            const type = typeof item;
+
+            if(type === "string"){
+                const node = document.createTextNode(item);
+                if(isArray) result.push(node); else result.appendChild(node);
+            } else if(type === "object" && !(item instanceof Node)){
+                if(item.element instanceof Node) {
+                    if(isArray) result.push(item.element); else result.appendChild(item.element);
+                } else if(item.container instanceof Node) {
+                    if(isArray) result.push(item.container); else result.appendChild(item.container);
+                } else {
+                    const created = LS.Create(item);
+                    if(isArray) result.push(created); else result.appendChild(created);
+                }
+            } else {
+                if(isArray) result.push(item); else result.appendChild(item);
+            }
+        }
+
+        return result;
+    },
+
+    FILTER_MODE_REMOVE: 0,
+    FILTER_MODE_MAP: 1,
+
+    /**
+     * Deep-clones an Object/Set/Map/Array with advanced filtering/mapping support, faster than structuredClone and apparently even the klona library.
+     * Very experimental - may not always be reliable for complex objects and as of now ignores functions and prototypes (maybe I'll expand it later).
+     * https://jsbm.dev/wFkz6UCGJevxw
+     * 
+     * Note: Klona is a bit faster in Firefox. In V8, this wins. I will check that out later.
+     * 
+     * Filter modes:
+     * - LS.Util.FILTER_MODE_REMOVE (default): Removes the key from the cloned object if the filter returns a falsy value.
+     * - LS.Util.FILTER_MODE_MAP: Also removes the key on a falsy value, but accepts a { newKey, newValue, cloneValue } object to rename/modify the key and value in the cloned object.
+     *   Emitting either newKey or newValue alone will keep the original key or value, respectively.
+     *   It also allows deciding whether the new value should be cloned or not.
+     * 
+     * @param {*} obj Object to clone
+     * @param {function} filter Optional filter function that receives (key, value) and returns a truthy value to keep the key, or a falsy value to remove it. In FILTER_MODE_MAP, it can also return an object with newKey/newValue/cloneValue.
+     * @param {number} filterMode Optional filter mode, either LS.Util.FILTER_MODE_REMOVE (default) or LS.Util.FILTER_MODE_MAP.
+     * @returns Cloned object
+     * @experimental
+     * 
+     * @example LS.Util.clone(obj, (key, value) => key.startsWith("_")? false : { newKey: key.toUpperCase(), newValue: value, cloneValue: true }, LS.Util.FILTER_MODE_MAP);
+     */
+    clone(obj, filter, filterMode = 0) {
+        // If item is a primitive, we don't need to clone
+        // TODO: Handle typeof function
+        if (typeof obj !== "object" || obj === null || obj === undefined) return obj;
+
+        // Localized to reduce potential lookups
+        const mkClone = LS.Util.clone;
+
+        if (Array.isArray(obj)) {
+            const len = obj.length;
+            if (len === 0) return [];
+            if (len === 1) return [mkClone(obj[0], filter, filterMode)];
+
+            const a = [];
+            for (let i = 0; i < len; i++) {
+                a.push(mkClone(obj[i], filter, filterMode));
+            }
+
+            return a;
+        }
+
+        // TODO: maybe entries array could be faster(?)
+        if(obj.constructor === Map) {
+            const m = new Map();
+            for(const [key, value] of obj) {
+                m.set(key, mkClone(value, filter, filterMode));
+            }
+            return m;
+        }
+        
+        // TODO: maybe array could be faster(?)
+        if(obj.constructor === Set) {
+            const s = new Set();
+            for(const value of obj) {
+                s.add(mkClone(value, filter, filterMode));
+            }
+            return s;
+        }
+
+        if (obj.constructor === DataView) return new obj.constructor(mkClone(obj.buffer, filter, filterMode), obj.byteOffset, obj.byteLength);
+        if (obj.constructor === ArrayBuffer) return obj.slice(0);
+        if (obj.constructor === Date) return new Date(obj);
+        if (obj.constructor === RegExp) return new RegExp(obj);
+
+        // Finally clone objects
+        const clone = {};
+        const keys = Object.getOwnPropertyNames(obj);
+        const klen = keys.length;
+        if(klen === 0) return clone;
+
+        // Note: Filter is branched this way for performance
+        if(typeof filter === "function") {
+            for (let i = 0; i < klen; i++) {
+                const k = keys[i];
+                const f = filter(k, obj[k]);
+
+                if(filterMode === LS.Util.FILTER_MODE_MAP && f && typeof f === "object") {
+                    const newKey = f.newKey || k;
+                    const newValue = "newValue" in f? f.newValue : obj[k];
+
+                    if(f.cloneValue !== false) {
+                        clone[newKey] = mkClone(newValue, filter, filterMode);
+                    } else {
+                        clone[newKey] = newValue;
+                    }
+                } else if(f) {
+                    clone[k] = mkClone(obj[k], filter, filterMode);
+                }
+            }
+        } else {
+            for (let i = 0; i < klen; i++) {
+                const k = keys[i];
+                clone[k] = mkClone(obj[k]);
+            }
+        }
+
+        return clone;
+    },
+
+    /**
+     * TouchHandle is a fast, powerful, responsive and very flexible event API for any kind of action where a pointer (mouse, touch, pen etc.) drag motion happens.
+     * Compatible with any pointer type, seamless pointerLock integration, and reliably handles the correct browser setup.
+     * It's event object provides many common helpful properties for effectively calculating motion, and abstracts all pointer types.
+     * 
+     * @param {Element} element Element to attach the touch handle to. Can be null if you want to add targets later, which allows multiple targets as well.
+     * @param {Object} options Options for the touch handle.
+     * @param {boolean} options.disablePointerEvents Whether to disable pointer events on the document while dragging (to prevent accidental interaction with other elements). Default is true.
+     * @param {boolean} options.pointerLock Whether to use pointer lock for mouse input. Default is false.
+     * @param {boolean} options.calculateBounds Whether to calculate the bounds rectangle (relative position to a target rather than viewport). Default is false, or true if options.boundsTarget is provided.
+     * @param {Element|Object} options.boundsTarget Element/rectangle object {x, y, width, height} relative to the viewport to use as the bounds reference for boundX/boundY. Default is the target.
+     * @param {Function} options.transformBounds Optional function to apply transformations to the bounds position after it is calculated. Receives the bounds rectangle {x, y, width, height} and should return a new rectangle object.
+     * @param {boolean} options.alwaysRecalculateBounds Whether to recalculate the bounds rectangle on every move event. Default is false (only calculated on start).
+     * @param {boolean} options.edgeScroll Whether to enable edge scrolling when the pointer is near the edge of the bounds rectangle. Default is false.
+     * @param {number} options.edgeScrollMargin Margin in pixels from the edge of the bounds rectangle to start edge scrolling.
+     * @param {number} options.edgeScrollSpeed Max speed of edge scrolling in pixels per frame.
+     * @param {string} options.cursor CSS cursor to use while dragging. Default is "grabbing". Can be changed by setting the `cursor` property of the TouchHandle instance at any time.
+     * @param {string} options.exclude CSS selector to exclude certain elements from starting the drag. If the event target matches this selector, the drag will not start.
+     * @param {boolean} options.detached Whether to start detached (not attached to any element). Default is false.
+     * @param {Array} options.targets Array of additional elements to listen for drag events on. Default is null (only the initial element is used).
+     * @param {Array} options.startEvents Array of additional events to listen for to start the drag. Default is null (only pointerdown is used).
+     * @param {Array} options.buttons Array of mouse buttons to allow (0 = left, 1 = middle, 2 = right, etc.). Default is all buttons.
+     * @param {boolean} options.frameTimed Whether to emit move events on animation frames instead of every pointermove event. Default is false, but I strongly recommend setting it to true for smoother performance.
+     * @param {boolean} options.fluentFrames If true, the move callback will continue calling on every frame while the drag is active, even if the pointer hasn't actually moved. Default is false. Requires options.frameTimed to be true. Useful for continuous updates like edge scrolling.
+     * @param {function} options.onStart Optional callback function to call when the drag starts. Receives an event object (see below).
+     * @param {function} options.onMove Optional callback to call when the drag moves. Receives an event object (see below).
+     * @param {function} options.onEnd Optional callback to call when the drag ends. Receives an event object (see below).
+     * @param {boolean} options.inertia Whether to enable dragging inertia (momentum). Default is false.
+     * @param {number} options.inertiaFriction Friction coefficient for inertia. Default is 0.92 (lower values = more friction).
+     * @param {boolean} options.handleWheel Whether to handle wheel events for scrolling. Default is false.
+     * @param {boolean} options.handleHover Whether to handle hovering (pointermove without dragging). Default is false.
+     * 
+     * Emits: "start", "move", "end" events with the event object.
+     * Emits "destroy" when the TouchHandle is destroyed.
+     * Emits "scroll" with scroll x/y values when edge scrolling occurs (if enabled).
+     * Emits "hover" with the event object when hovering occurs (if enabled).
+     * 
+     * Event shape:
+     * ```
+     * {
+     *   domEvent: Event, // The original DOM event
+     *   cancel: function, // Call this to cancel the drag
+     *   cancelled: boolean, // True if the drag has been cancelled
+     *   preventDefault: boolean, // Whether preventDefault is called on events to prevent default behavior. True by default
+     *   isTouch: boolean, // True if the event is from a touch input
+     *   button: number, // Mouse button pressed. Defaults to 0.
+     *   dx: number, // Delta x position (since last event)
+     *   dy: number, // Delta y position (since last event)
+     *   x: number, // Current x position (relative to the viewport)
+     *   y: number, // Current y position (relative to the viewport)
+     *   offsetX: number, // Offset x position (difference since start)
+     *   offsetY: number, // Offset y position (difference since start)
+     *   startX: number, // Start x position (first event position)
+     *   startY: number, // Start y position (first event position)
+     *   boundX: number, // Current x position (relative to the bounds target, if enabled)
+     *   boundY: number, // Current y position (relative to the bounds target, if enabled)
+     *   boundingRect: object, // The rectangle representing the bounds of the bounds target, if enabled, otherwise null
+     *   hasMoved: boolean, // Only useful when used with fluentFrames: will be false if the event didn't come from an actual pointermove event, but was emitted on a frame
+     *   scrollDeltaX: number, // Amount scrolled in x direction since last event (if edge scrolling is enabled)
+     *   scrollDeltaY: number, // Amount scrolled in y direction since last event (if edge scrolling is enabled)
+     * }
+     * ```
+     * 
+     * Note: the event object is always reused for performance, so make a copy of the properties you need to keep.
+     */
+    TouchHandle: class TouchHandle extends EventEmitter {
+        constructor(element, options = {}) {
+            super();
+
+            this.options = {
+                buttons: null,
+                disablePointerEvents: true,
+                frameTimed: !!(options.fluentFrames),
+                fluentFrames: false,
+                calculateBounds: !!(options.boundsTarget),
+                alwaysRecalculateBounds: false,
+                inertia: false,
+                inertiaFriction: 0.92,
+                ...options
+            };
+
+            this.targets = new Set();
+            this.activeTarget = null;
+
+            if(element) this.addTarget(element && LS.SelectOne(element));
+            if (Array.isArray(this.options.targets)) {
+                for (const t of this.options.targets) this.addTarget(t);
+            }
+
+            this._cursor = this.options.cursor || null;
+            this.seeking = false;
+            this.attached = false;
+            this.pointerLockSet = false;
+            this.pointerLockActive = false;
+            this.pointerLockPreviousX = 0;
+            this.pointerLockPreviousY = 0;
+            this.dragTarget = null;
+            this.frameQueued = false;
+            this.latestMoveEvent = null;
+            this.activePointerId = null;
+
+            // Edgescroll can be enabled/disabled at any time
+            this.edgeScroll = !!this.options.edgeScroll;
+
+            // Inertia can be enabled/disabled at any time
+            this.inertia = !!this.options.inertia;
+            this.velocityX = 0;
+            this.velocityY = 0;
+
+            this.boundsTarget = this.options.boundsTarget || element;
+
+            this._moveEventRef = this.configureEvent("move");
+            this.configureEvent("start", { deopt: true });
+            this.configureEvent("end", { deopt: true });
+
+            this.onStart = this.onStart.bind(this);
+            this.onMove = this.onMove.bind(this);
+            this.onRelease = this.onRelease.bind(this);
+
+            if(this.options.handleWheel) this.onScroll = this.onScroll.bind(this);
+            if(this.options.handleHover) this.onHover = this.onHover.bind(this);
+
+            this.cancel = this.cancel.bind(this);
+            this.onPointerLockChange = this.onPointerLockChange.bind(this);
+            this.frameHandler = this.frameHandler.bind(this);
+
+            this._eventData = {
+                x: 0,
+                y: 0,
+                dx: 0,
+                dy: 0,
+                offsetX: 0,
+                offsetY: 0,
+                boundX: 0,
+                boundY: 0,
+                boundingRect: null,
+                // worldX: 0,
+                // worldY: 0,
+                // worldRect: null,
+                startX: 0,
+                startY: 0,
+                scrollDeltaX: 0,
+                scrollDeltaY: 0,
+                // scrollOffsetX: 0,
+                // scrollOffsetY: 0,
+                cancel: this.cancel,
+                isTouch: false,
+                button: 0,
+                hasMoved: false,
+                cancelled: false,
+                preventDefault: true,
+                domEvent: null
+            };
+
+            if(!this.options.detached) this.attach();
+        }
+
+        addTarget(target) {
+            if (!target || this.targets.has(target)) return;
+            this.targets.add(target);
+            if (this.attached) this.#attachTargetListeners(target);
+        }
+
+        removeTarget(target) {
+            if (!target || !this.targets.has(target)) return;
+            this.targets.delete(target);
+            this.#detachTargetListeners(target);
+            if (this.activeTarget === target) this.activeTarget = null;
+        }
+
+        clearTargets() {
+            for (const el of this.targets) this.#detachTargetListeners(el);
+            this.targets.clear();
+            this.activeTarget = null;
+        }
+
+        #attachTargetListeners(target) {
+            const isGlobal = target === window || target === document || target === document.body || target === document.documentElement;
+
+            if((!target || !(target instanceof Element)) && !isGlobal) {
+                console.error("TouchHandle: Target must be a DOM Element. Received:", target);
+                return;
+            }
+
+            if(isGlobal) {
+                target = window;
+            } else {
+                target.classList.add("ls-draggable");
+                target.style.touchAction = "none";
+                target.style.userSelect = "none";
+            }
+
+            target.addEventListener("pointerdown", this.onStart, { passive: false });
+
+            if (this.options.startEvents) {
+                for (const evt of this.options.startEvents) {
+                    target.addEventListener(evt, this.onStart);
+                }
+            }
+
+            if(this.options.handleWheel) {
+                target.addEventListener("wheel", this.onScroll, { passive: false });
+            }
+
+            if(this.options.handleHover) {
+                target.addEventListener("pointermove", this.onHover, { passive: false });
+            }
+        }
+
+        #detachTargetListeners(target) {
+            const isGlobal = target === window || target === document || target === document.body || target === document.documentElement;
+
+            if((!target || !(target instanceof Element)) && !isGlobal) {
+                console.error("TouchHandle: Target must be a DOM Element. Received:", target);
+                return;
+            }
+
+            if(isGlobal) {
+                target = window;
+            } else {
+                target.style.touchAction = "";
+                target.style.userSelect = "";
+                target.classList.remove("ls-draggable");
+            }
+
+            target.removeEventListener("pointerdown", this.onStart);
+
+            if (this.options.startEvents) {
+                for (const evt of this.options.startEvents) {
+                    target.removeEventListener(evt, this.onStart);
+                }
+            }
+
+            if(this.options.handleWheel) {
+                target.removeEventListener("wheel", this.onScroll);
+            }
+
+            if(this.options.handleHover) {
+                target.removeEventListener("pointermove", this.onHover);
+            }
+        }
+
+        /**
+         * Attaches the touch handle to the configured targets and sets up necessary event listeners.
+         * @returns {void}
+         */
+        attach() {
+            if(this.attached) return;
+
+            // Attach initial listeners
+            for (const target of this.targets) this.#attachTargetListeners(target);
+            document.addEventListener("pointercancel", this.onRelease);
+
+            if (this.options.pointerLock) {
+                document.addEventListener('pointerlockchange', this.onPointerLockChange);
+                this.pointerLockSet = true;
+            }
+
+            this.attached = true;
+        }
+
+        /**
+         * Detaches the touch handle from the configured targets and removes event listeners.
+         * ! This is not the same as destroying - after this, the touch handle is still alive and can be re-attached. Use `destroy()` to clean up!
+         * @returns {void}
+         */
+        detach(_destroying = false) {
+            if (this.attached) {
+                this.onRelease(_destroying? { type: "destroy" } : {});
+                document.removeEventListener("pointercancel", this.onRelease);
+
+                for (const target of this.targets) {
+                    this.#detachTargetListeners(target);
+                }
+
+                if (this.options.pointerLock) {
+                    document.removeEventListener('pointerlockchange', this.onPointerLockChange);
+                }
+
+                this.attached = false;
+            }
+        }
+
+        get cursor() {
+            return this._cursor;
+        }
+
+        /**
+         * Sets the CSS cursor style to use while dragging. If set to null or an empty string, the default cursor will be restored.
+         * @param {string|null} value CSS cursor value to set, or null/empty string to use default.
+         */
+        set cursor(value) {
+            this._cursor = value;
+            if (this.seeking) {
+                document.documentElement.style.cursor = value? (value + "!important"): "";
+            }
+        }
+
+        /**
+         * Cancels the current drag operation, if any. This will prevent any further move events from being emitted and will stop the drag.
+         * Can be called from within the onStart, onMove, or onEnd callbacks to cancel the drag.
+         * @returns {void}
+         */
+        cancel() {
+            this._eventData.cancelled = true;
+        }
+
+        onStart(event) {
+            if (this.options.exclude) {
+                if (typeof this.options.exclude === "string") {
+                    if (event.target.matches(this.options.exclude)) return;
+                } else if (event.target !== event.currentTarget) {
+                    return;
+                }
+            }
+
+            if (event.pointerType === 'mouse' && Array.isArray(this.options.buttons) && !this.options.buttons.includes(event.button)) return;
+
+            this.activeTarget = event.currentTarget;
+
+            this.seeking = true;
+            this._eventData.cancelled = false;
+
+            const isTouch = event.pointerType === "touch";
+            const x = event.clientX;
+            const y = event.clientY;
+
+            this.activePointerId = event.pointerId;
+
+            this._eventData.x = x;
+            this._eventData.y = y;
+            this._eventData.dx = 0;
+            this._eventData.dy = 0;
+            this._eventData.offsetX = 0;
+            this._eventData.offsetY = 0;
+            this._eventData.startX = x;
+            this._eventData.startY = y;
+            this._eventData.scrollDeltaX = 0;
+            this._eventData.scrollDeltaY = 0;
+            // this._eventData.scrollOffsetX = 0;
+            // this._eventData.scrollOffsetY = 0;
+            this._eventData.domEvent = event;
+            this._eventData.isTouch = isTouch;
+            this._eventData.button = (event.pointerType === 'mouse' && event.button) || 0;
+            this._eventData.hasMoved = false;
+            this._eventData.preventDefault = true;
+
+            if(this.options.calculateBounds) {
+                this._calculateBounds(true);
+            }
+
+            this.emit("start", [this._eventData]);
+            if (this.options.onStart) this.options.onStart(this._eventData);
+
+            if (this._eventData.cancelled) {
+                this.seeking = false;
+                return;
+            }
+
+            // Maybe the target was changed in the callback
+            const target = this.activeTarget || event.currentTarget;
+            const isGlobal = target === window || target === document || target === document.body || target === document.documentElement;
+
+            // Prevent default to stop text selection, etc.
+            if (event.cancelable && this._eventData.preventDefault) event.preventDefault();
+
+            if(this.inertia) {
+                this.velocityX = 0;
+                this.velocityY = 0;
+            }
+
+            const docEl = document.documentElement;
+            docEl.classList.add("ls-dragging");
+
+            if (!isGlobal) {
+                target.classList.add("is-dragging");
+                if (!this.options.pointerLock) {
+                    target.setPointerCapture(event.pointerId);
+                }
+            
+                // For an unknown reason, Chrome since a recent version started to overwrite the
+                // cursor and ignores documentElement which causes weird cursor behavior, so we set it again to the element and restore it later.
+                this.__originalCursor = target.style.cursor;
+                target.style.cursor = this._cursor || "grabbing";
+            }
+
+            if (this.options.pointerLock && !isGlobal && !isTouch) {
+                if(!this.pointerLockSet) {
+                    document.addEventListener('pointerlockchange', this.onPointerLockChange);
+                    this.pointerLockSet = true;
+                }
+
+                if(!isTouch) {
+                    this.pointerLockPreviousX = event.clientX;
+                    this.pointerLockPreviousY = event.clientY;
+                    target.requestPointerLock();
+                }
+            } else if (this.pointerLockSet) {
+                document.removeEventListener('pointerlockchange', this.onPointerLockChange);
+                this.pointerLockSet = false;
+            }
+
+            this.dragTarget = event.target;
+            this.dragTarget.classList.add("ls-drag-target");
+
+            if (this.options.disablePointerEvents) docEl.style.pointerEvents = "none";
+            if (!docEl.style.cursor) docEl.style.cursor = this._cursor || "grabbing";
+
+            // Attach move/up listeners to document
+            document.addEventListener("pointermove", this.onMove);
+            document.addEventListener("pointerup", this.onRelease);
+
+            if(this.options.fluentFrames) {
+                // Start the frame handler
+                this.scheduleMove();
+            }
+        }
+
+        onMove(event) {
+            if (this._eventData.cancelled || event.pointerId !== this.activePointerId) return;
+
+            this.__isHovering = false;
+
+            // If frametimed, schedule the move to be processed on the next animation frame instead of processing it immediately.
+            // This discards any intermediate move events that happen before the next frame.
+            if (this.options.frameTimed) {
+                this.latestMoveEvent = event;
+                this.scheduleMove();
+                return;
+            }
+
+            this.processMove(event);
+        }
+
+        onHover(event) {
+            if (!this.options.handleHover || this.seeking || this._eventData.cancelled) return;
+
+            this.__isHovering = true;
+
+            // If frametimed, schedule the move to be processed on the next animation frame instead of processing it immediately.
+            // This discards any intermediate move events that happen before the next frame.
+            if (this.options.frameTimed) {
+                this.latestMoveEvent = event;
+                this.scheduleMove();
+                return;
+            }
+
+            this.processMove(event);
+        }
+
+        onScroll(event) {
+            if (this.options.handleWheel) {
+                event.preventDefault();
+                this._eventData.scrollDeltaX = event.deltaX;
+                this._eventData.scrollDeltaY = event.deltaY;
+                this._eventData.domEvent = event;
+                this.quickEmit("scroll", event.deltaX, event.deltaY, this._eventData, true);
+                if(this.options.onScroll) this.options.onScroll(event.deltaX, event.deltaY, this._eventData, true);
+                this._eventData.domEvent = null;
+            }
+        }
+
+        frameHandler() {
+            this.frameQueued = false;
+
+            if(this.__isHovering) {
+                if (this.latestMoveEvent) {
+                    this.processMove(this.latestMoveEvent);
+                    this.latestMoveEvent = null;
+                }
+                return;
+            }
+
+            if(!this.seeking) return;
+
+            if(this.edgeScroll) {
+                this.processEdgeScroll();
+            }
+
+            // Fire a move event even if the pointer hasn't moved when fluentFrames is enabled
+            if(!this.latestMoveEvent && this.options.fluentFrames) {
+                this._eventData.hasMoved = false;
+                this.fireMove();
+
+                // Schedule another frame
+                this.scheduleMove();
+                return;
+            }
+
+            // Process normally if we have a move event
+            if (this.latestMoveEvent) {
+                this.processMove(this.latestMoveEvent);
+                this.latestMoveEvent = null;
+            }
+
+            if(this.options.fluentFrames) {
+                // Schedule another frame
+                this.scheduleMove();
+            }
+        }
+
+        processEdgeScroll() {
+            if (!this.edgeScroll || !this.boundingRect) return;
+
+            const margin = this.options.edgeScrollMargin || 24;
+            const speed = this.options.edgeScrollSpeed || 12;
+            const curve = this.options.edgeScrollCurve || 1.35;
+
+            const left = this.boundingRect.x;
+            const top = this.boundingRect.y;
+            const right = left + this.boundingRect.width;
+            const bottom = top + this.boundingRect.height;
+
+            const edgeValue = (distance, sign) => {
+                const t = Math.max(0, distance / margin);
+                return sign * Math.round(speed * Math.pow(t, curve));
+            };
+
+            let scrollX = 0;
+            let scrollY = 0;
+
+            if (this._eventData.x < left + margin) {
+                scrollX = edgeValue(left + margin - this._eventData.x, -1);
+            } else if (this._eventData.x > right - margin) {
+                scrollX = edgeValue(this._eventData.x - (right - margin), 1);
+            }
+
+            if (this._eventData.y < top + margin) {
+                scrollY = edgeValue(top + margin - this._eventData.y, -1);
+            } else if (this._eventData.y > bottom - margin) {
+                scrollY = edgeValue(this._eventData.y - (bottom - margin), 1);
+            }
+
+            const maxSpeed = speed * 1.5;
+            scrollX = Math.max(-maxSpeed, Math.min(maxSpeed, scrollX));
+            scrollY = Math.max(-maxSpeed, Math.min(maxSpeed, scrollY));
+
+            this._eventData.scrollDeltaX = scrollX;
+            this._eventData.scrollDeltaY = scrollY;
+
+            if (scrollX !== 0 || scrollY !== 0) {
+                this.quickEmit("scroll", scrollX, scrollY, this._eventData);
+                if (this.options.onScroll) this.options.onScroll(scrollX, scrollY, this._eventData);
+            }
+        }
+
+        processMove(event) {
+            const isTouch = event.pointerType === "touch";
+            if (!isTouch && event.cancelable && this._eventData.preventDefault) event.preventDefault();
+
+            let x, y;
+            const prevX = this._eventData.x;
+            const prevY = this._eventData.y;
+
+            if (!this.pointerLockActive) {
+                x = event.clientX;
+                y = event.clientY;
+            }
+
+            if (this.options.pointerLock) {
+                if (this.pointerLockActive) {
+                    x = this.pointerLockPreviousX += !isNaN(event.movementX) ? event.movementX : 0;
+                    y = this.pointerLockPreviousY += !isNaN(event.movementY) ? event.movementY : 0;
+                } else if (isTouch) {
+                    // Emulate movementX/Y for touch
+                    event.movementX = Math.round(x - this.pointerLockPreviousX);
+                    event.movementY = Math.round(y - this.pointerLockPreviousY);
+                    this.pointerLockPreviousX = x;
+                    this.pointerLockPreviousY = y;
+                }
+            }
+
+            this._eventData.dx = x - prevX;
+            this._eventData.dy = y - prevY;
+            this._eventData.offsetX = x - this._eventData.startX;
+            this._eventData.offsetY = y - this._eventData.startY;
+            this._eventData.x = x;
+            this._eventData.y = y;
+            this._eventData.domEvent = event;
+            this._eventData.isTouch = isTouch;
+            this._eventData.hasMoved = true;
+
+            if(this.inertia && !this.__isHovering) {
+                this.velocityX = this._eventData.dx;
+                this.velocityY = this._eventData.dy;
+            }
+
+            if (this.options.calculateBounds) {
+                this._calculateBounds(this.options.alwaysRecalculateBounds || this.__isHovering);
+            }
+
+            return this.fireMove();
+        }
+
+        _calculateBounds(recalculate = false) {
+            if(recalculate) {
+                this.boundingRect = (this.boundsTarget instanceof Element ? this.boundsTarget.getBoundingClientRect() : (this.boundsTarget || this._eventData?.domEvent?.currentTarget? (this._eventData?.domEvent?.currentTarget).getBoundingClientRect() : null));
+
+                if(!this.boundingRect) {
+                    this.boundingRect = { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight };
+                }
+
+                if(this.options.transformBounds) {
+                    this.boundingRect = this.options.transformBounds(this.boundingRect) || this.boundingRect;
+                }
+            }
+
+            if(!this.boundingRect) {
+                this._eventData.boundX = this._eventData.x;
+                this._eventData.boundY = this._eventData.y;
+                return;
+            }
+
+            const x = this._eventData.x;
+            const y = this._eventData.y;
+
+            let position = [this.boundingRect ? x - this.boundingRect.x : x, this.boundingRect ? y - this.boundingRect.y : y];
+
+            this._eventData.boundX = position[0];
+            this._eventData.boundY = position[1];
+            this._eventData.boundingRect = this.boundingRect;
+        }
+
+        fireMove() {
+            if (this._eventData.cancelled) return;
+
+            if(this.__isHovering) {
+                if(this.seeking) return;
+                if(this.options.onHover) this.options.onHover(this._eventData);
+                this.quickEmit("hover", this._eventData);
+            } else {
+                if (this.options.onMove) this.options.onMove(this._eventData);
+                this.quickEmit(this._moveEventRef, this._eventData);
+            }
+
+            this._eventData.domEvent = null;
+        }
+
+        scheduleMove() {
+            if((!this.seeking && !this.__isHovering) || this.frameQueued) {
+                // Discard
+                return;
+            }
+
+            this.frameQueued = true;
+            requestAnimationFrame(this.frameHandler);
+        }
+
+        onRelease(event) {
+            this._eventData.cancelled = false;
+            this.frameQueued = false;
+            this.latestMoveEvent = null;
+
+            if (this.dragTarget) {
+                this.dragTarget.classList.remove("ls-drag-target");
+                this.dragTarget = null;
+            }
+
+            if(!this.seeking) return;
+            this.seeking = false;
+
+            if (this.pointerLockActive) {
+                document.exitPointerLock();
+            }
+
+            const captureTarget = this.activeTarget;
+            if(captureTarget instanceof HTMLElement) {
+                if (event && typeof event.pointerId === "number" && captureTarget.hasPointerCapture?.(event.pointerId)) {
+                    captureTarget.releasePointerCapture(event.pointerId);
+                }
+
+                captureTarget.classList.remove("is-dragging");
+                captureTarget.style.cursor = this.__originalCursor || "";
+                this.activeTarget = null;
+            }
+
+            this.__originalCursor = null;
+
+            const docEl = document.documentElement;
+            docEl.classList.remove("ls-dragging");
+            docEl.style.pointerEvents = "";
+            docEl.style.cursor = "";
+
+            document.removeEventListener("pointermove", this.onMove);
+            document.removeEventListener("pointerup", this.onRelease);
+
+            const isDestroy = event.type === "destroy";
+
+            this._eventData.domEvent = event;
+            this.emit(isDestroy ? "destroy" : "end", [this._eventData]);
+
+            if(this.inertia) {
+                this.processInertia();
+            }
+
+            if (isDestroy) {
+                if (this.options.onDestroy) {
+                    this.options.onDestroy(this._eventData);
+                }
+            } else if (this.options.onEnd) {
+                this.options.onEnd(this._eventData);
+            }
+
+            this._eventData.domEvent = null;
+            this._eventData.hasMoved = true;
+            this._eventData.cancelled = false;
+            this._eventData.scrollDeltaX = 0;
+            this._eventData.scrollDeltaY = 0;
+
+            this._eventData.boundingRect = null;
+            this.boundingRect = null;
+        }
+
+        processInertia() {
+            if (Math.abs(this.velocityX) < 0.5 && Math.abs(this.velocityY) < 0.5) {
+                return; // No significant velocity to process
+            }
+
+            this.quickEmit("scroll", -this.velocityX, -this.velocityY, this._eventData);
+            if(this.options.onScroll) this.options.onScroll(-this.velocityX, -this.velocityY, this._eventData);
+
+            this.velocityX *= this.options.inertiaFriction;
+            this.velocityY *= this.options.inertiaFriction;
+
+            requestAnimationFrame(() => this.processInertia());
+        }
+
+        stopInertia() {
+            this.velocityX = 0;
+            this.velocityY = 0;
+        }
+
+        onPointerLockChange() {
+            const lockEl = document.pointerLockElement;
+            this.pointerLockActive = !!lockEl && lockEl === this.activeTarget;
+        }
+
+        /**
+         * Destroys the TouchHandle instance, detaching it from all targets and cleaning up event listeners. After calling this method, the instance cannot be used again. Do this when you are done.
+         * @returns {boolean} True if the instance was successfully destroyed, false otherwise (if the method is called on an already destroyed instance).
+         */
+        destroy() {
+            if (this.destroyed) return false;
+
+            this.detach(true);
+            this.clearTargets();
+            this.stopInertia();
+            this._moveEventRef = null;
+            super.destroy();
+            this.options.onStart = null;
+            this.options.onMove = null;
+            this.options.onEnd = null;
+            this.options.onScroll = null;
+            this.options.onHover = null;
+            this.options.boundsTarget = null;
+            this.boundsTarget = null;
+            this.boundingRect = null;
+            this._cursor = null;
+            this.options = null;
+            this._eventData = null;
+            this.destroyed = true;
+            return true;
+        }
+    },
+
+    /**
+     * @deprecated
+     * This doesn't copy objects
+     */
+    defaults(defaults, target = {}) {
+        if(typeof target !== "object") throw "The target must be an object";
+
+        for (const key of Object.keys(defaults)) {
+            if (!(key in target)) {
+                Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(defaults, key));
+            }
+        }
+        return target;
+    },
+
+    // Something like lightweight native template objects would be nice (not like Proxy) 🤔
+
+    /**
+     * Creates a function that applies default properties to a target object, preserving property descriptors.
+     * The benefit of this over Object.assign or the spread operator is that it doesn't create a new object but reuses the existing one and preserves property descriptors of both the target and the defaults.
+     * 
+     * @param {Object} defaults The default properties to apply
+     * @returns {Function} A function that takes a target object and applies the defaults to it
+     * 
+     * @experimental
+     * 
+     * @example
+     * const applyDefaults = LS.Util.staticDefaults({ a: 1, b: 2 });
+     * const obj = { b: 3 };
+     * applyDefaults(obj);
+     */
+    staticDefaults(defaults) {
+        const cache = Object.keys(defaults).map(key => {
+            const d = Object.getOwnPropertyDescriptor(defaults, key);
+            const isSimple = d && (d.get === undefined && d.set === undefined && d.value !== undefined && d.writable && d.enumerable && d.configurable);
+
+            return [
+                isSimple,
+                typeof defaults[key] === "object" && defaults[key] !== null,
+                key,
+                isSimple? defaults[key] : d,
+            ]
+        });
+
+        // We no longer need to reference the original defaults object after this
+        defaults = null;
+
+        const count = cache.length;
+        return function(target) {
+            if(typeof target !== "object") throw "The target must be an object";
+
+            for (let i = 0; i < count; i++) {
+                const [isSimple, isObject, key, descriptorOrValue] = cache[i];
+                if (target.hasOwnProperty(key)) continue;
+
+                if(isSimple) {
+                    target[key] = isObject? LS.Util.clone(descriptorOrValue): descriptorOrValue;
+                } else {
+                    Object.defineProperty(target, key, descriptorOrValue);
+                    if(isObject) {
+                        // If the default is an object, we need to deep copy it to avoid shared references
+                        Object.defineProperty(target, key, {
+                            value: LS.Util.clone(descriptorOrValue.value)
+                        });
+                    }
+                }
+            }
+
+            return target;
+        }
+    },
+
+    /**
+     * Copies text to the clipboard on any browser.
+     * @param {*} text 
+     * @returns {Promise}
+     */
+    copy(text) {
+        return new Promise(resolve => {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text)
+                    .then(() => {
+                        resolve()
+                    })
+                    .catch(error => {
+                        resolve(error)
+                    });
+            } else {
+                let temp = document.createElement('textarea');
+                temp.value = text;
+                document.body.appendChild(temp);
+                temp.select();
+                document.execCommand('copy');
+                document.body.removeChild(temp);
+                resolve();
+            }
+        })
+    },
+
+    // Allowlist of harmless tags in sanitize(): i, b, strong, kbd, code, pre, em, u, s, mark, small, sub, sup, br, span
+    allowedTags: ['I', 'A', 'B', 'STRONG', 'KBD', 'CODE', 'PRE', 'EM', 'U', 'S', 'MARK', 'SMALL', 'SUB', 'SUP', 'BR', 'SPAN'],
+
+    /**
+     * Sanitize a node, stripping all elements not on an allowlist, and removes all attributes.
+     * @param {*} node
+     * 
+     * @example
+     * const dangerous = LS.Create({ html: "<script>console.log('Unsafe HTML')</script>" });
+     * LS.Util.sanitize(dangerous); // Removes <script>
+     * 
+     * @example
+     * // This can also be done directly when creating:
+     * LS.Create("span", { html: "..unsafe html..", sanitize: true })
+     */
+    sanitize(node) {
+        if (node.nodeType === Node.ELEMENT_NODE) {
+            if (!LS.Util.allowedTags.includes(node.tagName)) {
+                // Replace the node with its children, if parent exists
+                const fragment = document.createDocumentFragment();
+                while (node.firstChild) {
+                    fragment.appendChild(node.firstChild);
+                }
+
+                if (node.parentNode) {
+                    node.parentNode.replaceChild(fragment, node);
+                }
+                return;
+            }
+        }
+
+        // Remove all attributes
+        const count = node.attributes && node.attributes.length;
+        if(count) {
+            for (let i = count - 1; i >= 0; i--) {
+                const attrName = node.attributes[i].name;
+                if (attrName !== "href" && attrName !== "target") {   
+                    node.removeAttribute(attrName);
+                }
+            }
+        }
+
+        // Recursively sanitize child nodes
+        let child = node.firstChild;
+        while (child) {
+            const next = child.nextSibling;
+            this.sanitize(child);
+            child = next;
+        }
+    },
+
+    /**
+     * Normalize a string
+     * @param {*} string String to normalize
+     * @returns Normalized string
+     */
+    normalize(string, space = " ") {
+        return string.toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^a-z0-9\s]/g, "")
+            .replace(/\s+/g, space)
+            .trim();
+    },
+
+    /**
+     * Normalize a JavaScript value to a CSS unit.
+     * By default, numbers & strings without an unit get converted to "<value>px", and
+     * { value, unit } objects are also accepted.
+     * 
+     * @example toCSSSize(5) -> "5px"
+     * @example toCSSSize("5") -> "5px"
+     * @example toCSSSize("5%") -> "5%"
+     * @example toCSSSize(5, "%") -> "5%"
+     * @example toCSSSize({ value: 10, unit: "rem" }) -> "10rem"
+     * 
+     * @param {string|number|object} value Value
+     * @param {string} defaultUnit Value
+     * @returns {string} CSS value
+     */
+    toCSSSize,
+
+    /**
+     * Normalize a path to a canonical form OR split into an array of canonical parts.
+     * @param {string} path The path to normalize.
+     * @param {boolean|null} isAbsolute Optional. If true, the returned path will be absolute (starting with /). If false, it will be relative. If null, it will be inferred from the input path.
+     * @param {boolean} allowExit If true, relative paths can go outside of their directory. If false, they can't.
+     * @param {boolean} returnParts If true, returns an array of path parts instead of a string.
+     * @param {boolean} normalizeHTMLExt For URLs, remove index.html and .html - WARNING: this is true by default for legacy reasons
+     * @returns {string|Array<string>} The normalized path.
+     * 
+     * Also this implementation is 2x to 4x faster than the previous one in LinuxJS and other implementations :P
+     */
+    normalizePath(path, isAbsolute = null, allowExit = true, returnParts = false, normalizeHTMLExt = true) {
+        const parts = [];
+        const len = path.length;
+
+        const fc = path.charCodeAt(0);
+        if (isAbsolute === null) isAbsolute = fc === 47 || fc === 92;
+        
+        if(len === 0) {
+            return returnParts? parts: (isAbsolute? "/": ".");
+        }
+        
+        let cleanParts = 0;
+        let sStart = 0, seqBroken = false;
+        for (let i = 0; i < len; i++) {
+            const char = path.charCodeAt(i);
+
+            const isSeparator = char === 47 || char === 92;
+            const isEnd = !isSeparator && (i === len - 1);
+
+            if (isSeparator || isEnd) {
+                if (isEnd) {
+                    if (char !== 46) seqBroken = true;
+                    i++;
+                }
+
+                const dCount = i - sStart;
+                if (!seqBroken && (isAbsolute || !allowExit || dCount === 1 || cleanParts > 0)) {
+                    // Go up ("..")
+                    if(dCount === 2) {
+                        parts.pop();
+                        cleanParts--
+                    }
+
+                    // Otherwise do nothing
+                } else if (dCount > 0) {
+                    const p = path.slice(sStart, i);
+                    if(p && !(normalizeHTMLExt && p === "index.html")) {
+                        if(normalizeHTMLExt && p.endsWith(".html")) p = p.slice(0, -5);
+
+                        parts.push(p);
+                        if(seqBroken) cleanParts++;
+                    }
+                }
+
+                sStart = i + 1;
+                seqBroken = false;
+                continue;
+            }
+
+            if (char !== 46) seqBroken = true;
+        }
+
+        if(returnParts) return parts;
+
+        if(parts.length === 0) {
+            return isAbsolute? "/": ".";
+        }
+
+        const normalizedPath = parts.join('/');
+        return isAbsolute ? '/' + normalizedPath : normalizedPath;
+    },
+
+    /**
+     * Helper to normalize and split a path into segments.
+     * Same as normalize(path, .., true, false);
+     * @param {string} path Path to split.
+     * @param {boolean|null} isAbsolute Same as normalize
+     * @param {boolean} allowExit Same as normalize
+     * @returns {Array<string>} Path segments as an array.
+     */
+    splitPath(path, isAbsolute = null, allowExit = true) {
+        return LS.Util.normalizePath(path, isAbsolute, allowExit, true, false);
+    },
+
+    /**
+     * Schedules a callback to run on the next animation frame, avoiding multiple calls within the same frame.
+     * Also has an "active" mode and FPS limit and time sync options.
+     * 
+     * In passive mode (default), you call schedule() whenever.
+     * In active mode (start/stop methods), it works like a ticker.
+     * 
+     * Offers a FPS limiter, delta time calculation, and speed multiplier.
+     * It also has built-in framerate measurement/sampling tool.
+     */
+    FrameScheduler: class FrameScheduler {
+        /**
+         * @param {Function} callback - The function to call on each frame.
+         * @param {Object} [options] - Optional settings.
+         * @param {number} [options.limiter] - Minimum ms between frames (rate limit).
+         * @param {number} [options.speed] - Playback speed multiplier (default: 1).
+         * @param {boolean} [options.vSync] - Uses requestAnimationFrame for vsync (default: true, recommended in most cases).
+         */
+        constructor(callback, options = {}) {
+            this.callback = callback;
+            this.queued = false;
+            this.running = false;
+            this.limiter = options.limiter || null;
+            this.speed = options.speed ?? 1;
+
+            this.vSync = options.vSync !== false; // Default to true
+
+            // Sampling for framerate measurement
+            this.frameSamples = null;
+            this.sampling = false;
+
+            // Internal state
+            this._lastFrame = 0;
+            this._rafId = null;
+            this._prevTimestamp = null;
+        }
+
+        #frame = (timestamp) => {
+            if (this.limiter) {
+                if (timestamp - this._lastFrame < this.limiter) {
+                    // Not enough time passed, reschedule
+                    this._rafId = requestAnimationFrame(this.#frame);
+                    return;
+                }
+                this._lastFrame = timestamp;
+            }
+
+            this.queued = false;
+
+            if (this.callback) {
+                const delta = this._prevTimestamp !== null ? (timestamp - this._prevTimestamp) * this.speed : 0;
+
+                if(this.sampling) {
+                    this.frameSamples.push(delta);
+                }
+
+                if (this.running) {
+                    this.callback(delta, timestamp);
+                } else {
+                    this.callback(timestamp - this._prevTimestamp, timestamp);
+                }
+
+                this._prevTimestamp = timestamp;
+            }
+
+            if (this.running) this.schedule();
+        }
+
+        limitFPS(fps) {
+            this.limiter = fps > 0 ? 1000 / fps : null;
+        }
+
+        removeLimiter() {
+            this.limiter = null;
+        }
+
+        setSpeed(multiplier) {
+            this.speed = multiplier;
+        }
+
+        start() {
+            if (this.running) return;
+            this.running = true;
+            this._prevTimestamp = null;
+            this.schedule();
+        }
+
+        stop() {
+            this.running = false;
+            this.cancel();
+        }
+
+        schedule() {
+            if (this.queued) return;
+            this.queued = true;
+
+            if (this.vSync) {
+                this._rafId = requestAnimationFrame(this.#frame);
+                return;
+            }
+
+            if (this.limiter) {
+                setTimeout(() => {
+                    this.#frame(performance.now());
+                }, this.limiter);
+            } else {
+                this.#frame(performance.now());
+            }
+        }
+
+        cancel() {
+            this.queued = false;
+            if (this._rafId) {
+                cancelAnimationFrame(this._rafId);
+                this._rafId = null;
+            }
+        }
+
+        startSampling() {
+            this.frameSamples ??= [];
+            this.sampling = true;
+        }
+
+        stopSampling() {
+            const samples = this.frameSamples;
+
+            this.frameSamples = null;
+            this.sampling = false;
+            return samples;
+        }
+
+        /**
+         * Helper that calls startSampling & stopSampling over a specific period and returns an average.
+         * @param {Number} period Period in ms to sample
+         * @returns {object} { samples[], average: Number }
+         * 
+         * @example
+         * console.log("FPS:", (await measureFramerate()).average);
+         * 
+         * @example
+         * while(running) if((await measureFramerate()).average < 60)
+         *     console.warn("FPS dropped below 60");
+         */
+        measureFramerate(period = 1000) {
+            return new Promise(resolve => {
+                this.startSampling();
+                setTimeout(() => {
+                    const samples = this.stopSampling();
+                    const average = samples.length / (period / 1000);
+                    resolve({ samples, average });
+                }, period);
+            });
+        }
+
+        destroy() {
+            this.cancel();
+            this.callback = null;
+            this._prevTimestamp = null;
+        }
+    },
+
+    /**
+     * A simple switch that triggers a callback when its value changes, but does nothing if it doesn't.
+     */
+    Switch: class Switch {
+        constructor(onSet) {
+            this.value = false;
+            this.onSet = onSet;
+        }
+
+        set(value) {
+            if(this.value === value) return value;
+            this.value = value;
+            this.onSet(this.value);
+            return value;
+        }
+
+        on() {
+            return this.set(true);
+        }
+
+        off() {
+            return this.set(false);
+        }
+
+        toggle() {
+            return this.set(!this.value);
+        }
+
+        destroy() {
+            this.onSet = null;
+            this.value = null;
+        }
+    },
+
+    /**
+     * A switch between two elements, showing one and hiding the other.
+     * Useful for loading indicators for example
+     */
+    ElementSwitch: class ElementSwitch {
+        constructor(element1 = null, element2 = null, options = null) {
+            this.elements = Array.isArray(element1)? element1: (element1 instanceof NodeList) ? Array.from(element1) : [element1, element2];
+
+            this.options = {
+                initial: 0,
+                mode: "display",
+                parent: null,
+                onSet: null,
+                ...options
+            };
+
+            if(this.options.mode === "dom" && !this.options.parent) {
+                throw new Error("ElementSwitch in 'dom' mode requires a parent element in options.parent");
+            }
+
+            this.value = -1;
+            if(this.options.initial > -1) this.set(this.options.initial);
+        }
+
+        front() {
+            this.set(this.elements.length - 1);
+        }
+
+        back() {
+            this.set(0);
+        }
+
+        get frontElement() {
+            return this.elements[this.elements.length - 1];
+        }
+
+        get backElement() {
+            return this.elements[0];
+        }
+
+        toggle() {
+            this.set(this.value === 0 ? 1 : 0);
+        }
+
+        set(index) {
+            if(this.value === index) return;
+            this.value = index;
+
+            if(this.options.mode === "dom" && this.options.parent) {
+                for(let i = 0; i < this.elements.length; i++) {
+                    if(!this.elements[i]) continue;
+
+                    if(i === index) {
+                        this.options.parent.appendChild(this.elements[i]);
+                    } else {
+                        this.elements[i].remove();
+                    }
+                }
+            } else {
+                for(let i = 0; i < this.elements.length; i++) {
+                    if(this.elements[i]) this.elements[i].style[this.options.mode === "display"? "display" : "visibility"] = i === index ? "" : (this.options.mode === "display"? "none" : "hidden");
+                }
+            }
+
+            if(this.options.onSet) this.options.onSet(this.value);
+        }
+
+        destroy() {
+            for(let i = 0; i < this.elements.length; i++) {
+                this.elements[i]?.remove();
+                this.elements[i] = null;
+            }
+            this.elements = null;
+            this.value = null;
+            this.options = null;
+        }
+    },
+
+    /**
+     * Ensures a callback is only run once.
+     * Top 5 useless abstractions
+     * @deprecated
+     */
+    RunOnce: class RunOnce {
+        constructor(callback, runNow = false) {
+            this.callback = callback;
+            this.hasRun = false;
+
+            if(runNow) return this.run();
+        }
+
+        run() {
+            if(this.hasRun) return false;
+            this.hasRun = true;
+            this.callback(...arguments);
+            this.callback = null;
+            return true;
+        }
+
+        bind(context) {
+            return this.run.bind(context || this);
+        }
+    },
+
+    validateUUID(uuid) {
+        // Fast uuidv4 validation, roughly 3.5x faster than Node.JS uuid.validate
+        if(typeof uuid !== 'string' || uuid.length !== 36) return false;
+
+        // Fixed length loop
+        for (let i = 0; i < 36; i++) {
+            const c = uuid.charCodeAt(i);
+            if(i === 14) {
+                // Version check
+                if(c >= 48 && c <= 53) continue; // 0-5
+            } else if(i === 19) {
+                // Variant check
+                if(c === 56 || c === 57 || c === 97 || c === 98 || c === 65 || c === 66) continue; // 8, 9, a, b, A, B
+            } else if ((i === 8 || i === 13 || i === 18 || i === 23) ? c === 45 : ((c >= 48 && c <= 57) || // 0-9
+                (c >= 97 && c <= 102) || // a-f
+                (c >= 65 && c <= 70))) { // A-F
+                continue;
+            }
+            return false;
+        }
+        return true;
+    },
+
+    /**
+     * Small & fast utilities used in optimization-sensitive tasks
+     * They must remain simple and fast, which is the reason for this namespace.
+     */
+    fast: {
+        /**
+         * Convert a hexadecimal character to its integer value (0-15), or -1 if it's not a valid hex character.
+         * @param {*} h ASCII code of the character (e.g. from charCodeAt)
+         * @returns {number} Integer value of the hex character, or -1 if invalid
+         */
+        // "(c > 57? c + 9: c) & 15" is technically faster (~20%) but doesn't handle invalid characters; it's not worth the tradeoff
+        h2i: (c) => (c >= 48 && c <= 57)? c - 48: (c >= 97 && c <= 102)? c - 87: (c >= 65 && c <= 70)? c - 55: -1,
+        twoh2i: (high, low) => (LS.Util.fast.h2i(high) << 4) | LS.Util.fast.h2i(low),
+
+        /**
+         * Takes either Array or String, finds an element/text, and slices up to that element.
+         * @param {Array|String} str Target
+         * @param {*} find What to find
+         * @returns {Array|String} Sliced array/string, or target if not found
+         */
+        sliceUntil(str, find) {
+            const index = str.indexOf(find);
+            if(index === -1) return str;
+            return str.slice(0, str.indexOf(find));
+        }
+    }
+};
+
 const LS = new class LSMain extends EventEmitter {
     // --- Metadata
     isWeb = typeof window !== 'undefined';
@@ -1399,6 +3299,8 @@ const LS = new class LSMain extends EventEmitter {
     v = 6;
 
     components = new Map;
+
+    Util = Util;
 
     /**
      * @concept
@@ -1467,8 +3369,6 @@ const LS = new class LSMain extends EventEmitter {
         EventEmitter.optimize = !!options.optimizeEvents;
 
         if(options.enableV5Compat) {
-            console.warn("LS v5 compatibility mode is enabled, it is recommended to update your application to v6 soon.");
-
             // Legacy TinyFramework aliases
             window.N = LS.Create;
             window.O = LS.SelectOne;
@@ -1484,60 +3384,86 @@ const LS = new class LSMain extends EventEmitter {
 
     // --- Component management (may get changed as v6.0 progresses)
 
+    /**
+     * Register a component
+     * @param {Function|Object} componentFactory - The component factory or definition
+     * @param {Object} options - The options for the component
+     * @param {string} options.name - The name of the component
+     * @param {boolean} options.singleton - Whether the component is a singleton
+     * @param {boolean} options.global - Whether the component should be globally accessible
+     * @returns {Object} The registered component options
+     */
     register(componentFactory, options = {}){
-        const name = (options.name || componentFactory.name).toLowerCase();
+        if(!options && typeof componentFactory === "object") {
+            options = componentFactory;
+        }
 
-        // Possible future behavior could be reloading supported components
-        if(LS.components.has(name)) {
-            console.warn(`[LS] Duplicate component name ${name}, ignored!`);
+        options.factory ??= componentFactory;
+        options.name    ??= options.factory.name || "unnamed-component";
+        options.id        = options.name.toLowerCase();
+
+        if(!options.factory) {
+            console.error("[LS] Component options must define a factory class!");
             return;
         }
 
-        const isSingleton = !!options.singleton || !!options.singular; // "singular" is a legacy option
-
-        const component = {
-            isConstructor: typeof componentFactory === "function",
-            class: componentFactory,
-            metadata: options.metadata,
-            global: !!options.global,
-            hasEvents: options.events !== false,
-            singular: isSingleton,
-            name
+        // We could hot-reload supported components
+        if(LS.components.has(options.id)) {
+            console.warn(`[LS] Duplicate component name ${options.id}, register() was ignored!`);
+            return;
         }
 
-        if (!component.isConstructor) {
-            Object.setPrototypeOf(componentFactory, Component.prototype);
-            // componentClass.prototype.componentName = name; // (?)
+        // "singular" is a legacy option
+        if(options.singular !== undefined) {
+            options.singleton = !!options.singular;
+            delete options.singular;
+        }
 
-            if(component.hasEvents) {
-                this.EventEmitter.prepareHandler(componentFactory);
+        const isConstructor = typeof options.factory === "function";
+
+        if (!isConstructor) {
+            // Deprecated event handler for non-class components
+            Object.setPrototypeOf(options.factory, Component.prototype);
+
+            if(options.hasEvents) {
+                this.EventEmitter.prepareHandler(options.factory);
             }
         } else {
-            componentFactory.prototype.componentName = name;
+            options.factory.prototype.componentName = options.name;
         }
 
-        this.components.set(name, component);
+        this.components.set(options.id, options);
 
         // Meh API
-        if(component.global){
-            this[options.name] = isSingleton && component.isConstructor? (component.instance = new componentFactory()): componentFactory;
+        if(options.global){
+            this[options.name] = options.singleton && isConstructor? (options.instance = new options.factory()): options.factory;
         }
 
-        this.emit("component-loaded", [component]);
-        return component;
+        this.emit("component-loaded", [options]);
+        return options;
     }
 
+    /**
+     * Get a component by its name
+     * @param {string} name - The name of the component
+     * @returns {Object|null} The component options or null if not found
+     */
     getComponentByName(name) {
         return this.components.get(name.toLowerCase());
     }
 
+    /**
+     * Unregister a component
+     * @param {string} name - The name of the component
+     * @returns {boolean} True if the component was unregistered, false otherwise
+     */
     unregisterComponent(name) {
         name = name.toLowerCase();
         const component = this.components.get(name);
         if(!component) return false;
 
         if(component.instance && !component.instance.destroyed){
-            const destroyMethod = component.isConstructor ? component.instance.destroy : component.class.destroy;
+            const destroyMethod = component.isConstructor ? component.instance.destroy : component.factory.destroy;
             if(typeof destroyMethod === "function"){
                 destroyMethod.call(component.instance);
             } else {
@@ -1844,1901 +3770,6 @@ const LS = new class LSMain extends EventEmitter {
         return newElement;
     }
 
-    Util = {
-        /**
-         * Gets URL parameters as an object or a specific parameter by name.
-         * From my testing, this is 8x faster than URLSearchParams for all parameters and 11x faster to get a single parameter.
-         * Meaning that for most usecases where duplicate keys are not a concern, this is almost always faster and likely cleaner.
-         * https://jsbm.dev/XMZyoeowQqoPm
-         * 
-         * @param {string|null} getOne Name of the parameter to get, or null to get all parameters as an object.
-         * @param {string} baseUrl URL or search string to parse, defaults to current location's search string.
-         * @returns {object|string|null} Object with all parameters, specific parameter value, or null if not found.
-         * 
-         * @example LS.Util.parseURLParams(location.search, "q");
-         * @example LS.Util.parseURLParams().q;
-         */
-        parseURLParams(baseUrl = typeof location !== "undefined" ? location.search : "", getOne = null){
-            const index = baseUrl.indexOf('?');
-            const url = baseUrl.slice(index + 1);
-            if(!url.length){
-                return getOne? null : {};
-            }
-
-            let i = 0, vi = 0, cparam = null, result = getOne ? null : {};
-            for(; i < url.length; i++){
-                const char = url.charCodeAt(i);
-                const atEnd = i === url.length - 1;
-                const isDelimiter = char === 61 || char === 38 || char === 35; // =, &, #
-
-                if(isDelimiter || atEnd){
-                    const sliceEnd = (atEnd && !isDelimiter) ? i + 1 : i;
-                    const param = url.slice(vi, sliceEnd);
-
-                    if((char === 38 || (atEnd && !isDelimiter) || char === 35) && cparam !== null){ // &, end, #
-                        const value = decodeURIComponent(param);
-                        if(getOne && cparam === getOne) return value;
-                        if(!getOne) result[cparam] = value;
-                        cparam = null;
-                        vi = i + 1;
-                        if(char === 35) break;
-                        continue;
-                    }
-
-                    if(param.length !== 0) {
-                        if(!getOne) result[param] = "";
-                        cparam = param;
-                        vi = i + 1;
-                    }
-
-                    if(char === 35){ // #
-                        break;
-                    }
-                }
-            }
-
-            return getOne? null : result;
-        },
-
-        /**
-         * Relatively fast & light Emmet abbreviation parser
-         * @experimental
-         * 
-         * @param {string} abbreviation Emmet abbreviation to parse.
-         * @returns {DocumentFragment} Root element of the parsed structure.
-         * @see https://docs.emmet.io/abbreviations/syntax/ for supported syntax
-         * 
-         * @note Limitations: Item numbering ($) is not supported yet.
-         * 
-         * @example LS.Util.parseEmmet("div#main>ul.list>li.item{Item}*3");
-         */
-        parseEmmet(abbreviation, options = {}, adaptor = document) {
-            const len = abbreviation.length;
-            const singleNode = options?.singleNode === true;
-            const root = singleNode ? null : adaptor.createDocumentFragment();
-            delete options.singleNode; // Todo: Handle this separately for groups
-
-            let firstRoot = null;
-            let li = 0, state = 0, previousElement = root, currentParent = root, braceCount = 0, inString = false;
-
-            // Clones (for the multiply operator) are deferred until the end of the current element.
-            // Reasons are so we can handle nested structures, and to make item numbering ($) possible.
-            // Structure: [target, parent, count]
-            const markipliers = [];
-
-            for (let i = 0; i < len; i++) {
-                const char = abbreviation.charCodeAt(i);
-                const oldState = state;
-                const atEnd = i === len - 1;
-
-                if(state === 3) {
-                    // Attribute state handling
-                    if(inString || (char === /* " */ 34 || char === /* ' */ 39)) {
-                        if(inString === char) {
-                            inString = false;
-                        } else if(!inString) {
-                            inString = char;
-                        }
-                        continue;
-                    } else if(char === /* ] */ 93) {
-                        state = 0; // End of attribute block
-                    } else if(char === /*   */ 32) {
-                        state = 3; // Allow another attribute in the same block
-                    } else continue;
-                } else if(state === 4) {
-                    // Text state handling
-                    if(char === /* { */ 123) {
-                        braceCount++;
-                        continue;
-                    } else if(char === /* } */ 125) {
-                        if(braceCount === 0 || atEnd) {
-                            state = 0;
-                        } else {
-                            braceCount--;
-                            continue;
-                        }
-                    } else continue;
-                } else if(state === 5) {
-                    // Temporary group state handling
-                    if(char === /* ( */ 40) {
-                        braceCount++;
-                        continue;
-                    } else if(char === /* ) */ 41) {
-                        if(braceCount === 0 || atEnd) {
-                            state = 0;
-                        } else {
-                            braceCount--;
-                            continue;
-                        }
-                    } else continue;
-                } else {
-                    switch(char) {
-                        case /* . */ 46:  state = 1;  break;                  // Class
-                        case /* # */ 35:  state = 2;  break;                  // ID
-                        case /* [ */ 91:  state = 3;  break;                  // Attribute
-                        case /* { */ 123: state = 4;  braceCount = 0; break;  // Text
-                        case /* ( */ 40:  state = 5;  braceCount = 0; break;  // Group
-                        case /* > */ 62:  state = 6;  break;                  // Child
-                        case /* + */ 43:  state = 7;  break;                  // Sibling
-                        case /* * */ 42:  state = 8;  break;                  // Multiply
-                        case /* ^ */ 94:  state = 9;  break;                  // Climb-up
-                        case /* @ */ 64:  state = 10; break;                  // Changing numbering base and direction
-                        default: if (!atEnd) continue;
-                    }
-                }
-
-                // We have reached a state change or end
-                const value = abbreviation.slice(li, (atEnd && state === oldState)? i + 1 : i);
-                li = i + 1;
-
-                if((oldState >= 1 && oldState <= 4 || oldState === 8 || oldState === 6) && previousElement === root) {
-                    // Implicit element creation
-                    currentParent = previousElement = adaptor.createElement("div");
-
-                    if(singleNode) {
-                        firstRoot = previousElement;
-                    } else {
-                        root.appendChild(previousElement);
-                    }
-                }
-
-                if (value || oldState === 9 || oldState === 6 || oldState === 7) {
-                    switch(oldState) {
-                        // Element / Child / Sibling / Climb-up
-                        case 0: case 6: case 7: case 9: {
-                            // Climb-up
-                            if(oldState === 9) {
-                                if(currentParent && currentParent.parentNode) {
-                                    currentParent = currentParent.parentNode;
-                                }
-                            }
-
-                            if(oldState === 6) {
-                                currentParent = previousElement;
-                            }
-
-                            LS.Util.___flushMarkipliers(markipliers, currentParent);
-
-                            if(!value) {
-                                if(oldState === 7) previousElement = currentParent;
-                                continue;
-                            }
-
-                            // TODO: Snippets
-                            const el = (value === "svg" || options.ns)? adaptor.createElementNS(options.ns || "http://www.w3.org/2000/svg", value) : adaptor.createElement(value);
-
-                            if(currentParent) {
-                                currentParent.appendChild(el);
-                            } else if(!firstRoot) {
-                                firstRoot = el;
-                            }
-
-                            previousElement = el;
-                            continue;
-                        }
-
-                        // Class
-                        case 1: {
-                            previousElement.classList.add(value);
-                            continue;
-                        }
-
-                        // ID
-                        case 2: {
-                            previousElement.id = value;
-                            continue;
-                        }
-
-                        // Attribute
-                        case 3: {
-                            // Nonstandard behavior note: if attribute starts with %, it gets converted to a LS state. Eg. "button[%loading]" -> <button data-ls-state="loading"></button>
-                            let [attrName, attrValue] = value.charCodeAt(0) === /* % */ 37 ? ["data-ls-state", value.slice(1)] : value.split('=');
-
-                            if(attrValue && (attrValue.charCodeAt(0) === /* " */ 34 || attrValue.charCodeAt(0) === /* ' */ 39)) {
-                                attrValue = attrValue.slice(1, -1);
-                            }
-
-                            previousElement.setAttribute(attrName, attrValue || "");
-                            continue;
-                        }
-
-                        // Text
-                        case 4: {
-                            previousElement.appendChild(adaptor.createTextNode(value));
-                            continue;
-                        }
-
-                        // Group
-                        // TODO: Make this single-pass via a stack
-                        case 5: {
-                            const group = LS.Util.parseEmmet(value, options, adaptor);
-
-                            if(currentParent) {
-                                currentParent.appendChild(group);
-                            } else if(!firstRoot) {
-                                firstRoot = group;
-                            }
-
-                            previousElement = group.lastElementChild || (currentParent && currentParent.lastChild) || group;
-                            continue;
-                        }
-
-                        // Multiply
-                        case 8: {
-                            const count = parseInt(value, 10) || 1;
-                            if (count > 1 && previousElement && previousElement.parentNode) {
-                                markipliers.push([previousElement, previousElement.parentNode, count]);
-                            }
-                            continue;
-                        }
-
-                        // Changing numbering base and direction
-                        case 10: {
-
-                        }
-                    }
-                }
-            }
-
-            LS.Util.___flushMarkipliers(markipliers, currentParent, true);
-            return singleNode ? firstRoot : root;
-        },
-
-        /**
-         * Strips JSON comments from a JSON string.
-         * @param {*} jsonString JSON string to strip comments from.
-         * @returns {string} JSON string without comments.
-         * 
-         * Benchmarked against tiny-jsonc and strip-json-comments (used by jsonc):
-         * https://jsbm.dev/kdXHwmdsMErnj
-         * 
-         * About 6x faster than tiny-jsonc and 10x faster than strip-json-comments.
-         * Since strip-json-comments is a dependency of the jsonc node module (which has so many dependencies for some reason), it's also fastr than that.
-         * I couldn't test "jsonc" since it is somehow Node.js only.
-         */
-        stripJsonComments(jsonString) {
-            let stringChar = null;
-            for (let i = 0; i < jsonString.length; i++) {
-                const char = jsonString.charCodeAt(i);
-
-                if (stringChar) {
-                    if (char === stringChar) {
-                        stringChar = null;
-                    } else if (char === 92) { // \
-                        i++;
-                    }
-                    continue;
-                }
-
-                if (char === 34 || char === 39) { // " or '
-                    stringChar = char;
-                    continue;
-                }
-
-                if (char === 47) {
-                    const next = jsonString.charCodeAt(i + 1);
-
-                    // Single-line comments
-                    if (next === 47) {
-                        const eol = jsonString.indexOf("\n", i + 2);
-                        if (eol === -1) {
-                            return jsonString.slice(0, i);
-                        }
-
-                        jsonString = jsonString.slice(0, i) + jsonString.slice(eol);
-                        i--;
-                        continue;
-                    }
-                    
-                    // Multi-line comments
-                    if (next === 42) {
-                        const eoc = jsonString.indexOf("*/", i + 2);
-                        if (eoc === -1) {
-                            throw new Error("Unterminated comment in JSON string");
-                        }
-
-                        jsonString = jsonString.slice(0, i) + jsonString.slice(eoc + 2);
-                        i--;
-                        continue;
-                    }
-                }
-            }
-
-            return jsonString;
-        },
-
-        parseJSONC(jsonString) {
-            return JSON.parse(LS.Util.stripJsonComments(jsonString));
-        },
-
-        /**
-         * Internal utility for flushing market pliers in the Emmet parser.
-         * Montpelier cloning factory. It clones marketplaces.
-         * 
-         * I didn't want to make it a method, but i also couldn't find a clean way to embed it in the main loop
-         * @internal
-         */
-        ___flushMarkipliers(markipliers, currentParent, force = false) {
-            for (let m = markipliers.length - 1; m >= 0; m--) {
-                const markiplier = markipliers[m];
-                const element = markiplier[0];
-                
-                // I don't really know man
-                if (!force && ((!element || !currentParent)? false: element === currentParent? true: typeof element.contains === "function" && element.contains(currentParent))) continue;
-
-                if(typeof element.emmetClone === "function") {
-                    element.emmetClone(markiplier[1], markiplier[2]);
-                } else {
-                    const parent = markiplier[1];
-                    if (parent) {
-                        for (let j = 1; j < markiplier[2]; j++) {
-                            parent.appendChild(element.cloneNode(true));
-                        }
-                    }
-                }
-
-                markipliers.splice(m, 1);
-            }
-        },
-
-        /**
-         * Returns true if the provided value is likely a class and not a plain function.
-         * https://stackoverflow.com/a/66120819/14541617
-         * 
-         * @param {*} func Object to check.
-         */
-        isClass(func) {
-            // Class constructor is also a function
-            if (!(func && func.constructor === Function) || func.prototype === undefined)
-                return false;
-
-            // This is a class that extends other class
-            if (Function.prototype !== Object.getPrototypeOf(func))
-                return true;
-
-            // Usually a function will only have 'constructor' in the prototype
-            return Object.getOwnPropertyNames(func.prototype).length > 1;
-        },
-
-        /**
-         * Internal helper for resolving elements from various input types (string, array, object, Node).
-         * @param {*} input Input to resolve into elements.
-         * @param {Array|Node} target Target to append elements to, or an array to collect them in.
-         * @returns {Array|Node} The target with resolved elements appended, or an array of resolved elements.
-         */
-        resolveElements(input, target = null) {
-            const result = target || [];
-            const isArray = Array.isArray(target);
-
-            for(const item of Array.isArray(input) ? input : [input]) {
-                if(item === null || item === undefined) continue;
-
-                const type = typeof item;
-
-                if(type === "string"){
-                    const node = document.createTextNode(item);
-                    if(isArray) result.push(node); else result.appendChild(node);
-                } else if(type === "object" && !(item instanceof Node)){
-                    if(item.element instanceof Node) {
-                        if(isArray) result.push(item.element); else result.appendChild(item.element);
-                    } else if(item.container instanceof Node) {
-                        if(isArray) result.push(item.container); else result.appendChild(item.container);
-                    } else {
-                        const created = LS.Create(item);
-                        if(isArray) result.push(created); else result.appendChild(created);
-                    }
-                } else {
-                    if(isArray) result.push(item); else result.appendChild(item);
-                }
-            }
-
-            return result;
-        },
-
-        FILTER_MODE_REMOVE: 0,
-        FILTER_MODE_MAP: 1,
-
-        /**
-         * Deep-clones an Object/Set/Map/Array with advanced filtering/mapping support, faster than structuredClone and apparently even the klona library.
-         * Very experimental - may not always be reliable for complex objects and as of now ignores functions and prototypes (maybe I'll expand it later).
-         * https://jsbm.dev/wFkz6UCGJevxw
-         * 
-         * Note: Klona is a bit faster in Firefox. In V8, this wins. I will check that out later.
-         * 
-         * Filter modes:
-         * - LS.Util.FILTER_MODE_REMOVE (default): Removes the key from the cloned object if the filter returns a falsy value.
-         * - LS.Util.FILTER_MODE_MAP: Also removes the key on a falsy value, but accepts a { newKey, newValue, cloneValue } object to rename/modify the key and value in the cloned object.
-         *   Emitting either newKey or newValue alone will keep the original key or value, respectively.
-         *   It also allows deciding whether the new value should be cloned or not.
-         * 
-         * @param {*} obj Object to clone
-         * @param {function} filter Optional filter function that receives (key, value) and returns a truthy value to keep the key, or a falsy value to remove it. In FILTER_MODE_MAP, it can also return an object with newKey/newValue/cloneValue.
-         * @param {number} filterMode Optional filter mode, either LS.Util.FILTER_MODE_REMOVE (default) or LS.Util.FILTER_MODE_MAP.
-         * @returns Cloned object
-         * @experimental
-         * 
-         * @example LS.Util.clone(obj, (key, value) => key.startsWith("_")? false : { newKey: key.toUpperCase(), newValue: value, cloneValue: true }, LS.Util.FILTER_MODE_MAP);
-         */
-        clone(obj, filter, filterMode = 0) {
-            // If item is a primitive, we don't need to clone
-            // TODO: Handle typeof function
-            if (typeof obj !== "object" || obj === null || obj === undefined) return obj;
-
-            // Localized to reduce potential lookups
-            const mkClone = LS.Util.clone;
-
-            if (Array.isArray(obj)) {
-                const len = obj.length;
-                if (len === 0) return [];
-                if (len === 1) return [mkClone(obj[0], filter, filterMode)];
-
-                const a = [];
-                for (let i = 0; i < len; i++) {
-                    a.push(mkClone(obj[i], filter, filterMode));
-                }
-
-                return a;
-            }
-
-            // TODO: maybe entries array could be faster(?)
-            if(obj.constructor === Map) {
-                const m = new Map();
-                for(const [key, value] of obj) {
-                    m.set(key, mkClone(value, filter, filterMode));
-                }
-                return m;
-            }
-            
-            // TODO: maybe array could be faster(?)
-            if(obj.constructor === Set) {
-                const s = new Set();
-                for(const value of obj) {
-                    s.add(mkClone(value, filter, filterMode));
-                }
-                return s;
-            }
-
-            if (obj.constructor === DataView) return new obj.constructor(mkClone(obj.buffer, filter, filterMode), obj.byteOffset, obj.byteLength);
-            if (obj.constructor === ArrayBuffer) return obj.slice(0);
-            if (obj.constructor === Date) return new Date(obj);
-            if (obj.constructor === RegExp) return new RegExp(obj);
-
-            // Finally clone objects
-            const clone = {};
-            const keys = Object.getOwnPropertyNames(obj);
-            const klen = keys.length;
-            if(klen === 0) return clone;
-
-            // Note: Filter is branched this way for performance
-            if(typeof filter === "function") {
-                for (let i = 0; i < klen; i++) {
-                    const k = keys[i];
-                    const f = filter(k, obj[k]);
-
-                    if(filterMode === LS.Util.FILTER_MODE_MAP && f && typeof f === "object") {
-                        const newKey = f.newKey || k;
-                        const newValue = "newValue" in f? f.newValue : obj[k];
-
-                        if(f.cloneValue !== false) {
-                            clone[newKey] = mkClone(newValue, filter, filterMode);
-                        } else {
-                            clone[newKey] = newValue;
-                        }
-                    } else if(f) {
-                        clone[k] = mkClone(obj[k], filter, filterMode);
-                    }
-                }
-            } else {
-                for (let i = 0; i < klen; i++) {
-                    const k = keys[i];
-                    clone[k] = mkClone(obj[k]);
-                }
-            }
-
-            return clone;
-        },
-
-        /**
-         * TouchHandle is a fast, powerful, responsive and very flexible event API for any kind of action where a pointer (mouse, touch, pen etc.) drag motion happens.
-         * Compatible with any pointer type, seamless pointerLock integration, and reliably handles the correct browser setup.
-         * It's event object provides many common helpful properties for effectively calculating motion, and abstracts all pointer types.
-         * 
-         * @param {Element} element Element to attach the touch handle to. Can be null if you want to add targets later, which allows multiple targets as well.
-         * @param {Object} options Options for the touch handle.
-         * @param {boolean} options.disablePointerEvents Whether to disable pointer events on the document while dragging (to prevent accidental interaction with other elements). Default is true.
-         * @param {boolean} options.pointerLock Whether to use pointer lock for mouse input. Default is false.
-         * @param {boolean} options.calculateBounds Whether to calculate the bounds rectangle (relative position to a target rather than viewport). Default is false, or true if options.boundsTarget is provided.
-         * @param {Element|Object} options.boundsTarget Element/rectangle object {x, y, width, height} relative to the viewport to use as the bounds reference for boundX/boundY. Default is the target.
-         * @param {Function} options.transformBounds Optional function to apply transformations to the bounds position after it is calculated. Receives the bounds rectangle {x, y, width, height} and should return a new rectangle object.
-         * @param {boolean} options.alwaysRecalculateBounds Whether to recalculate the bounds rectangle on every move event. Default is false (only calculated on start).
-         * @param {boolean} options.edgeScroll Whether to enable edge scrolling when the pointer is near the edge of the bounds rectangle. Default is false.
-         * @param {number} options.edgeScrollMargin Margin in pixels from the edge of the bounds rectangle to start edge scrolling.
-         * @param {number} options.edgeScrollSpeed Max speed of edge scrolling in pixels per frame.
-         * @param {string} options.cursor CSS cursor to use while dragging. Default is "grabbing". Can be changed by setting the `cursor` property of the TouchHandle instance at any time.
-         * @param {string} options.exclude CSS selector to exclude certain elements from starting the drag. If the event target matches this selector, the drag will not start.
-         * @param {boolean} options.detached Whether to start detached (not attached to any element). Default is false.
-         * @param {Array} options.targets Array of additional elements to listen for drag events on. Default is null (only the initial element is used).
-         * @param {Array} options.startEvents Array of additional events to listen for to start the drag. Default is null (only pointerdown is used).
-         * @param {Array} options.buttons Array of mouse buttons to allow (0 = left, 1 = middle, 2 = right, etc.). Default is all buttons.
-         * @param {boolean} options.frameTimed Whether to emit move events on animation frames instead of every pointermove event. Default is false, but I strongly recommend setting it to true for smoother performance.
-         * @param {boolean} options.fluentFrames If true, the move callback will continue calling on every frame while the drag is active, even if the pointer hasn't actually moved. Default is false. Requires options.frameTimed to be true. Useful for continuous updates like edge scrolling.
-         * @param {function} options.onStart Optional callback function to call when the drag starts. Receives an event object (see below).
-         * @param {function} options.onMove Optional callback to call when the drag moves. Receives an event object (see below).
-         * @param {function} options.onEnd Optional callback to call when the drag ends. Receives an event object (see below).
-         * @param {boolean} options.inertia Whether to enable dragging inertia (momentum). Default is false.
-         * @param {number} options.inertiaFriction Friction coefficient for inertia. Default is 0.92 (lower values = more friction).
-         * @param {boolean} options.handleWheel Whether to handle wheel events for scrolling. Default is false.
-         * @param {boolean} options.handleHover Whether to handle hovering (pointermove without dragging). Default is false.
-         * 
-         * Emits: "start", "move", "end" events with the event object.
-         * Emits "destroy" when the TouchHandle is destroyed.
-         * Emits "scroll" with scroll x/y values when edge scrolling occurs (if enabled).
-         * Emits "hover" with the event object when hovering occurs (if enabled).
-         * 
-         * Event shape:
-         * ```
-         * {
-         *   domEvent: Event, // The original DOM event
-         *   cancel: function, // Call this to cancel the drag
-         *   cancelled: boolean, // True if the drag has been cancelled
-         *   preventDefault: boolean, // Whether preventDefault is called on events to prevent default behavior. True by default
-         *   isTouch: boolean, // True if the event is from a touch input
-         *   button: number, // Mouse button pressed. Defaults to 0.
-         *   dx: number, // Delta x position (since last event)
-         *   dy: number, // Delta y position (since last event)
-         *   x: number, // Current x position (relative to the viewport)
-         *   y: number, // Current y position (relative to the viewport)
-         *   offsetX: number, // Offset x position (difference since start)
-         *   offsetY: number, // Offset y position (difference since start)
-         *   startX: number, // Start x position (first event position)
-         *   startY: number, // Start y position (first event position)
-         *   boundX: number, // Current x position (relative to the bounds target, if enabled)
-         *   boundY: number, // Current y position (relative to the bounds target, if enabled)
-         *   boundingRect: object, // The rectangle representing the bounds of the bounds target, if enabled, otherwise null
-         *   hasMoved: boolean, // Only useful when used with fluentFrames: will be false if the event didn't come from an actual pointermove event, but was emitted on a frame
-         *   scrollDeltaX: number, // Amount scrolled in x direction since last event (if edge scrolling is enabled)
-         *   scrollDeltaY: number, // Amount scrolled in y direction since last event (if edge scrolling is enabled)
-         * }
-         * ```
-         * 
-         * Note: the event object is always reused for performance, so make a copy of the properties you need to keep.
-         */
-        TouchHandle: class TouchHandle extends EventEmitter {
-            constructor(element, options = {}) {
-                super();
-
-                this.options = {
-                    buttons: null,
-                    disablePointerEvents: true,
-                    frameTimed: !!(options.fluentFrames),
-                    fluentFrames: false,
-                    calculateBounds: !!(options.boundsTarget),
-                    alwaysRecalculateBounds: false,
-                    inertia: false,
-                    inertiaFriction: 0.92,
-                    ...options
-                };
-
-                this.targets = new Set();
-                this.activeTarget = null;
-
-                if(element) this.addTarget(element && LS.SelectOne(element));
-                if (Array.isArray(this.options.targets)) {
-                    for (const t of this.options.targets) this.addTarget(t);
-                }
-
-                this._cursor = this.options.cursor || null;
-                this.seeking = false;
-                this.attached = false;
-                this.pointerLockSet = false;
-                this.pointerLockActive = false;
-                this.pointerLockPreviousX = 0;
-                this.pointerLockPreviousY = 0;
-                this.dragTarget = null;
-                this.frameQueued = false;
-                this.latestMoveEvent = null;
-                this.activePointerId = null;
-
-                // Edgescroll can be enabled/disabled at any time
-                this.edgeScroll = !!this.options.edgeScroll;
-
-                // Inertia can be enabled/disabled at any time
-                this.inertia = !!this.options.inertia;
-                this.velocityX = 0;
-                this.velocityY = 0;
-
-                this.boundsTarget = this.options.boundsTarget || element;
-
-                this._moveEventRef = this.prepareEvent("move");
-                this.prepareEvent("start", { deopt: true });
-                this.prepareEvent("end", { deopt: true });
-
-                this.onStart = this.onStart.bind(this);
-                this.onMove = this.onMove.bind(this);
-                this.onRelease = this.onRelease.bind(this);
-
-                if(this.options.handleWheel) this.onScroll = this.onScroll.bind(this);
-                if(this.options.handleHover) this.onHover = this.onHover.bind(this);
-
-                this.cancel = this.cancel.bind(this);
-                this.onPointerLockChange = this.onPointerLockChange.bind(this);
-                this.frameHandler = this.frameHandler.bind(this);
-
-                this._eventData = {
-                    x: 0,
-                    y: 0,
-                    dx: 0,
-                    dy: 0,
-                    offsetX: 0,
-                    offsetY: 0,
-                    boundX: 0,
-                    boundY: 0,
-                    boundingRect: null,
-                    // worldX: 0,
-                    // worldY: 0,
-                    // worldRect: null,
-                    startX: 0,
-                    startY: 0,
-                    scrollDeltaX: 0,
-                    scrollDeltaY: 0,
-                    // scrollOffsetX: 0,
-                    // scrollOffsetY: 0,
-                    cancel: this.cancel,
-                    isTouch: false,
-                    button: 0,
-                    hasMoved: false,
-                    cancelled: false,
-                    preventDefault: true,
-                    domEvent: null
-                };
-
-                if(!this.options.detached) this.attach();
-            }
-
-            addTarget(target) {
-                if (!target || this.targets.has(target)) return;
-                this.targets.add(target);
-                if (this.attached) this.#attachTargetListeners(target);
-            }
-
-            removeTarget(target) {
-                if (!target || !this.targets.has(target)) return;
-                this.targets.delete(target);
-                this.#detachTargetListeners(target);
-                if (this.activeTarget === target) this.activeTarget = null;
-            }
-
-            clearTargets() {
-                for (const el of this.targets) this.#detachTargetListeners(el);
-                this.targets.clear();
-                this.activeTarget = null;
-            }
-
-            #attachTargetListeners(target) {
-                const isGlobal = target === window || target === document || target === document.body || target === document.documentElement;
-
-                if((!target || !(target instanceof Element)) && !isGlobal) {
-                    console.error("TouchHandle: Target must be a DOM Element. Received:", target);
-                    return;
-                }
-
-                if(isGlobal) {
-                    target = window;
-                } else {
-                    target.classList.add("ls-draggable");
-                    target.style.touchAction = "none";
-                    target.style.userSelect = "none";
-                }
-
-                target.addEventListener("pointerdown", this.onStart, { passive: false });
-
-                if (this.options.startEvents) {
-                    for (const evt of this.options.startEvents) {
-                        target.addEventListener(evt, this.onStart);
-                    }
-                }
-
-                if(this.options.handleWheel) {
-                    target.addEventListener("wheel", this.onScroll, { passive: false });
-                }
-
-                if(this.options.handleHover) {
-                    target.addEventListener("pointermove", this.onHover, { passive: false });
-                }
-            }
-
-            #detachTargetListeners(target) {
-                const isGlobal = target === window || target === document || target === document.body || target === document.documentElement;
-
-                if((!target || !(target instanceof Element)) && !isGlobal) {
-                    console.error("TouchHandle: Target must be a DOM Element. Received:", target);
-                    return;
-                }
-
-                if(isGlobal) {
-                    target = window;
-                } else {
-                    target.style.touchAction = "";
-                    target.style.userSelect = "";
-                    target.classList.remove("ls-draggable");
-                }
-
-                target.removeEventListener("pointerdown", this.onStart);
-
-                if (this.options.startEvents) {
-                    for (const evt of this.options.startEvents) {
-                        target.removeEventListener(evt, this.onStart);
-                    }
-                }
-
-                if(this.options.handleWheel) {
-                    target.removeEventListener("wheel", this.onScroll);
-                }
-
-                if(this.options.handleHover) {
-                    target.removeEventListener("pointermove", this.onHover);
-                }
-            }
-
-            /**
-             * Attaches the touch handle to the configured targets and sets up necessary event listeners.
-             * @returns {void}
-             */
-            attach() {
-                if(this.attached) return;
-
-                // Attach initial listeners
-                for (const target of this.targets) this.#attachTargetListeners(target);
-                document.addEventListener("pointercancel", this.onRelease);
-
-                if (this.options.pointerLock) {
-                    document.addEventListener('pointerlockchange', this.onPointerLockChange);
-                    this.pointerLockSet = true;
-                }
-
-                this.attached = true;
-            }
-
-            /**
-             * Detaches the touch handle from the configured targets and removes event listeners.
-             * ! This is not the same as destroying - after this, the touch handle is still alive and can be re-attached. Use `destroy()` to clean up!
-             * @returns {void}
-             */
-            detach(_destroying = false) {
-                if (this.attached) {
-                    this.onRelease(_destroying? { type: "destroy" } : {});
-                    document.removeEventListener("pointercancel", this.onRelease);
-
-                    for (const target of this.targets) {
-                        this.#detachTargetListeners(target);
-                    }
-
-                    if (this.options.pointerLock) {
-                        document.removeEventListener('pointerlockchange', this.onPointerLockChange);
-                    }
-
-                    this.attached = false;
-                }
-            }
-
-            get cursor() {
-                return this._cursor;
-            }
-
-            /**
-             * Sets the CSS cursor style to use while dragging. If set to null or an empty string, the default cursor will be restored.
-             * @param {string|null} value CSS cursor value to set, or null/empty string to use default.
-             */
-            set cursor(value) {
-                this._cursor = value;
-                if (this.seeking) {
-                    document.documentElement.style.cursor = value? (value + "!important"): "";
-                }
-            }
-
-            /**
-             * Cancels the current drag operation, if any. This will prevent any further move events from being emitted and will stop the drag.
-             * Can be called from within the onStart, onMove, or onEnd callbacks to cancel the drag.
-             * @returns {void}
-             */
-            cancel() {
-                this._eventData.cancelled = true;
-            }
-
-            onStart(event) {
-                if (this.options.exclude) {
-                    if (typeof this.options.exclude === "string") {
-                        if (event.target.matches(this.options.exclude)) return;
-                    } else if (event.target !== event.currentTarget) {
-                        return;
-                    }
-                }
-
-                if (event.pointerType === 'mouse' && Array.isArray(this.options.buttons) && !this.options.buttons.includes(event.button)) return;
-
-                this.activeTarget = event.currentTarget;
-
-                this.seeking = true;
-                this._eventData.cancelled = false;
-
-                const isTouch = event.pointerType === "touch";
-                const x = event.clientX;
-                const y = event.clientY;
-
-                this.activePointerId = event.pointerId;
-
-                this._eventData.x = x;
-                this._eventData.y = y;
-                this._eventData.dx = 0;
-                this._eventData.dy = 0;
-                this._eventData.offsetX = 0;
-                this._eventData.offsetY = 0;
-                this._eventData.startX = x;
-                this._eventData.startY = y;
-                this._eventData.scrollDeltaX = 0;
-                this._eventData.scrollDeltaY = 0;
-                // this._eventData.scrollOffsetX = 0;
-                // this._eventData.scrollOffsetY = 0;
-                this._eventData.domEvent = event;
-                this._eventData.isTouch = isTouch;
-                this._eventData.button = (event.pointerType === 'mouse' && event.button) || 0;
-                this._eventData.hasMoved = false;
-                this._eventData.preventDefault = true;
-
-                if(this.options.calculateBounds) {
-                    this._calculateBounds(true);
-                }
-
-                this.emit("start", [this._eventData]);
-                if (this.options.onStart) this.options.onStart(this._eventData);
-
-                if (this._eventData.cancelled) {
-                    this.seeking = false;
-                    return;
-                }
-
-                // Maybe the target was changed in the callback
-                const target = this.activeTarget || event.currentTarget;
-                const isGlobal = target === window || target === document || target === document.body || target === document.documentElement;
-
-                // Prevent default to stop text selection, etc.
-                if (event.cancelable && this._eventData.preventDefault) event.preventDefault();
-
-                if(this.inertia) {
-                    this.velocityX = 0;
-                    this.velocityY = 0;
-                }
-
-                const docEl = document.documentElement;
-                docEl.classList.add("ls-dragging");
-
-                if (!isGlobal) {
-                    target.classList.add("is-dragging");
-                    if (!this.options.pointerLock) {
-                        target.setPointerCapture(event.pointerId);
-                    }
-                
-                    // For an unknown reason, Chrome since a recent version started to overwrite the
-                    // cursor and ignores documentElement which causes weird cursor behavior, so we set it again to the element and restore it later.
-                    this.__originalCursor = target.style.cursor;
-                    target.style.cursor = this._cursor || "grabbing";
-                }
-
-                if (this.options.pointerLock && !isGlobal && !isTouch) {
-                    if(!this.pointerLockSet) {
-                        document.addEventListener('pointerlockchange', this.onPointerLockChange);
-                        this.pointerLockSet = true;
-                    }
-
-                    if(!isTouch) {
-                        this.pointerLockPreviousX = event.clientX;
-                        this.pointerLockPreviousY = event.clientY;
-                        target.requestPointerLock();
-                    }
-                } else if (this.pointerLockSet) {
-                    document.removeEventListener('pointerlockchange', this.onPointerLockChange);
-                    this.pointerLockSet = false;
-                }
-
-                this.dragTarget = event.target;
-                this.dragTarget.classList.add("ls-drag-target");
-
-                if (this.options.disablePointerEvents) docEl.style.pointerEvents = "none";
-                if (!docEl.style.cursor) docEl.style.cursor = this._cursor || "grabbing";
-
-                // Attach move/up listeners to document
-                document.addEventListener("pointermove", this.onMove);
-                document.addEventListener("pointerup", this.onRelease);
-
-                if(this.options.fluentFrames) {
-                    // Start the frame handler
-                    this.scheduleMove();
-                }
-            }
-
-            onMove(event) {
-                if (this._eventData.cancelled || event.pointerId !== this.activePointerId) return;
-
-                this.__isHovering = false;
-
-                // If frametimed, schedule the move to be processed on the next animation frame instead of processing it immediately.
-                // This discards any intermediate move events that happen before the next frame.
-                if (this.options.frameTimed) {
-                    this.latestMoveEvent = event;
-                    this.scheduleMove();
-                    return;
-                }
-
-                this.processMove(event);
-            }
-
-            onHover(event) {
-                if (!this.options.handleHover || this.seeking || this._eventData.cancelled) return;
-
-                this.__isHovering = true;
-
-                // If frametimed, schedule the move to be processed on the next animation frame instead of processing it immediately.
-                // This discards any intermediate move events that happen before the next frame.
-                if (this.options.frameTimed) {
-                    this.latestMoveEvent = event;
-                    this.scheduleMove();
-                    return;
-                }
-
-                this.processMove(event);
-            }
-
-            onScroll(event) {
-                if (this.options.handleWheel) {
-                    event.preventDefault();
-                    this._eventData.scrollDeltaX = event.deltaX;
-                    this._eventData.scrollDeltaY = event.deltaY;
-                    this._eventData.domEvent = event;
-                    this.quickEmit("scroll", event.deltaX, event.deltaY, this._eventData, true);
-                    if(this.options.onScroll) this.options.onScroll(event.deltaX, event.deltaY, this._eventData, true);
-                    this._eventData.domEvent = null;
-                }
-            }
-
-            frameHandler() {
-                this.frameQueued = false;
-
-                if(this.__isHovering) {
-                    if (this.latestMoveEvent) {
-                        this.processMove(this.latestMoveEvent);
-                        this.latestMoveEvent = null;
-                    }
-                    return;
-                }
-
-                if(!this.seeking) return;
-
-                if(this.edgeScroll) {
-                    this.processEdgeScroll();
-                }
-
-                // Fire a move event even if the pointer hasn't moved when fluentFrames is enabled
-                if(!this.latestMoveEvent && this.options.fluentFrames) {
-                    this._eventData.hasMoved = false;
-                    this.fireMove();
-
-                    // Schedule another frame
-                    this.scheduleMove();
-                    return;
-                }
-
-                // Process normally if we have a move event
-                if (this.latestMoveEvent) {
-                    this.processMove(this.latestMoveEvent);
-                    this.latestMoveEvent = null;
-                }
-
-                if(this.options.fluentFrames) {
-                    // Schedule another frame
-                    this.scheduleMove();
-                }
-            }
-
-            processEdgeScroll() {
-                if (!this.edgeScroll || !this.boundingRect) return;
-
-                const margin = this.options.edgeScrollMargin || 24;
-                const speed = this.options.edgeScrollSpeed || 12;
-                const curve = this.options.edgeScrollCurve || 1.35;
-
-                const left = this.boundingRect.x;
-                const top = this.boundingRect.y;
-                const right = left + this.boundingRect.width;
-                const bottom = top + this.boundingRect.height;
-
-                const edgeValue = (distance, sign) => {
-                    const t = Math.max(0, distance / margin);
-                    return sign * Math.round(speed * Math.pow(t, curve));
-                };
-
-                let scrollX = 0;
-                let scrollY = 0;
-
-                if (this._eventData.x < left + margin) {
-                    scrollX = edgeValue(left + margin - this._eventData.x, -1);
-                } else if (this._eventData.x > right - margin) {
-                    scrollX = edgeValue(this._eventData.x - (right - margin), 1);
-                }
-
-                if (this._eventData.y < top + margin) {
-                    scrollY = edgeValue(top + margin - this._eventData.y, -1);
-                } else if (this._eventData.y > bottom - margin) {
-                    scrollY = edgeValue(this._eventData.y - (bottom - margin), 1);
-                }
-
-                const maxSpeed = speed * 1.5;
-                scrollX = Math.max(-maxSpeed, Math.min(maxSpeed, scrollX));
-                scrollY = Math.max(-maxSpeed, Math.min(maxSpeed, scrollY));
-
-                this._eventData.scrollDeltaX = scrollX;
-                this._eventData.scrollDeltaY = scrollY;
-
-                if (scrollX !== 0 || scrollY !== 0) {
-                    this.quickEmit("scroll", scrollX, scrollY, this._eventData);
-                    if (this.options.onScroll) this.options.onScroll(scrollX, scrollY, this._eventData);
-                }
-            }
-
-            processMove(event) {
-                const isTouch = event.pointerType === "touch";
-                if (!isTouch && event.cancelable && this._eventData.preventDefault) event.preventDefault();
-
-                let x, y;
-                const prevX = this._eventData.x;
-                const prevY = this._eventData.y;
-
-                if (!this.pointerLockActive) {
-                    x = event.clientX;
-                    y = event.clientY;
-                }
-
-                if (this.options.pointerLock) {
-                    if (this.pointerLockActive) {
-                        x = this.pointerLockPreviousX += !isNaN(event.movementX) ? event.movementX : 0;
-                        y = this.pointerLockPreviousY += !isNaN(event.movementY) ? event.movementY : 0;
-                    } else if (isTouch) {
-                        // Emulate movementX/Y for touch
-                        event.movementX = Math.round(x - this.pointerLockPreviousX);
-                        event.movementY = Math.round(y - this.pointerLockPreviousY);
-                        this.pointerLockPreviousX = x;
-                        this.pointerLockPreviousY = y;
-                    }
-                }
-
-                this._eventData.dx = x - prevX;
-                this._eventData.dy = y - prevY;
-                this._eventData.offsetX = x - this._eventData.startX;
-                this._eventData.offsetY = y - this._eventData.startY;
-                this._eventData.x = x;
-                this._eventData.y = y;
-                this._eventData.domEvent = event;
-                this._eventData.isTouch = isTouch;
-                this._eventData.hasMoved = true;
-
-                if(this.inertia && !this.__isHovering) {
-                    this.velocityX = this._eventData.dx;
-                    this.velocityY = this._eventData.dy;
-                }
-
-                if (this.options.calculateBounds) {
-                    this._calculateBounds(this.options.alwaysRecalculateBounds || this.__isHovering);
-                }
-
-                return this.fireMove();
-            }
-
-            _calculateBounds(recalculate = false) {
-                if(recalculate) {
-                    this.boundingRect = (this.boundsTarget instanceof Element ? this.boundsTarget.getBoundingClientRect() : (this.boundsTarget || this._eventData?.domEvent?.currentTarget? (this._eventData?.domEvent?.currentTarget).getBoundingClientRect() : null));
-
-                    if(!this.boundingRect) {
-                        this.boundingRect = { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight };
-                    }
-
-                    if(this.options.transformBounds) {
-                        this.boundingRect = this.options.transformBounds(this.boundingRect) || this.boundingRect;
-                    }
-                }
-
-                if(!this.boundingRect) {
-                    this._eventData.boundX = this._eventData.x;
-                    this._eventData.boundY = this._eventData.y;
-                    return;
-                }
-
-                const x = this._eventData.x;
-                const y = this._eventData.y;
-
-                let position = [this.boundingRect ? x - this.boundingRect.x : x, this.boundingRect ? y - this.boundingRect.y : y];
-
-                this._eventData.boundX = position[0];
-                this._eventData.boundY = position[1];
-                this._eventData.boundingRect = this.boundingRect;
-            }
-
-            fireMove() {
-                if (this._eventData.cancelled) return;
-
-                if(this.__isHovering) {
-                    if(this.seeking) return;
-                    if(this.options.onHover) this.options.onHover(this._eventData);
-                    this.quickEmit("hover", this._eventData);
-                } else {
-                    if (this.options.onMove) this.options.onMove(this._eventData);
-                    this.quickEmit(this._moveEventRef, this._eventData);
-                }
-
-                this._eventData.domEvent = null;
-            }
-
-            scheduleMove() {
-                if((!this.seeking && !this.__isHovering) || this.frameQueued) {
-                    // Discard
-                    return;
-                }
-
-                this.frameQueued = true;
-                requestAnimationFrame(this.frameHandler);
-            }
-
-            onRelease(event) {
-                this._eventData.cancelled = false;
-                this.frameQueued = false;
-                this.latestMoveEvent = null;
-
-                if (this.dragTarget) {
-                    this.dragTarget.classList.remove("ls-drag-target");
-                    this.dragTarget = null;
-                }
-
-                if(!this.seeking) return;
-                this.seeking = false;
-
-                if (this.pointerLockActive) {
-                    document.exitPointerLock();
-                }
-
-                const captureTarget = this.activeTarget;
-                if(captureTarget instanceof HTMLElement) {
-                    if (event && typeof event.pointerId === "number" && captureTarget.hasPointerCapture?.(event.pointerId)) {
-                        captureTarget.releasePointerCapture(event.pointerId);
-                    }
-
-                    captureTarget.classList.remove("is-dragging");
-                    captureTarget.style.cursor = this.__originalCursor || "";
-                    this.activeTarget = null;
-                }
-
-                this.__originalCursor = null;
-
-                const docEl = document.documentElement;
-                docEl.classList.remove("ls-dragging");
-                docEl.style.pointerEvents = "";
-                docEl.style.cursor = "";
-
-                document.removeEventListener("pointermove", this.onMove);
-                document.removeEventListener("pointerup", this.onRelease);
-
-                const isDestroy = event.type === "destroy";
-
-                this._eventData.domEvent = event;
-                this.emit(isDestroy ? "destroy" : "end", [this._eventData]);
-
-                if(this.inertia) {
-                    this.processInertia();
-                }
-
-                if (isDestroy) {
-                    if (this.options.onDestroy) {
-                        this.options.onDestroy(this._eventData);
-                    }
-                } else if (this.options.onEnd) {
-                    this.options.onEnd(this._eventData);
-                }
-
-                this._eventData.domEvent = null;
-                this._eventData.hasMoved = true;
-                this._eventData.cancelled = false;
-                this._eventData.scrollDeltaX = 0;
-                this._eventData.scrollDeltaY = 0;
-
-                this._eventData.boundingRect = null;
-                this.boundingRect = null;
-            }
-
-            processInertia() {
-                if (Math.abs(this.velocityX) < 0.5 && Math.abs(this.velocityY) < 0.5) {
-                    return; // No significant velocity to process
-                }
-
-                this.quickEmit("scroll", -this.velocityX, -this.velocityY, this._eventData);
-                if(this.options.onScroll) this.options.onScroll(-this.velocityX, -this.velocityY, this._eventData);
-
-                this.velocityX *= this.options.inertiaFriction;
-                this.velocityY *= this.options.inertiaFriction;
-
-                requestAnimationFrame(() => this.processInertia());
-            }
-
-            stopInertia() {
-                this.velocityX = 0;
-                this.velocityY = 0;
-            }
-
-            onPointerLockChange() {
-                const lockEl = document.pointerLockElement;
-                this.pointerLockActive = !!lockEl && lockEl === this.activeTarget;
-            }
-
-            /**
-             * Destroys the TouchHandle instance, detaching it from all targets and cleaning up event listeners. After calling this method, the instance cannot be used again. Do this when you are done.
-             * @returns {boolean} True if the instance was successfully destroyed, false otherwise (if the method is called on an already destroyed instance).
-             */
-            destroy() {
-                if (this.destroyed) return false;
-
-                this.detach(true);
-                this.clearTargets();
-                this.stopInertia();
-                this._moveEventRef = null;
-                super.destroy();
-                this.options.onStart = null;
-                this.options.onMove = null;
-                this.options.onEnd = null;
-                this.options.onScroll = null;
-                this.options.onHover = null;
-                this.options.boundsTarget = null;
-                this.boundsTarget = null;
-                this.boundingRect = null;
-                this._cursor = null;
-                this.options = null;
-                this._eventData = null;
-                this.destroyed = true;
-                return true;
-            }
-        },
-
-        /**
-         * @deprecated
-         * This doesn't copy objects
-         */
-        defaults(defaults, target = {}) {
-            if(typeof target !== "object") throw "The target must be an object";
-
-            for (const key of Object.keys(defaults)) {
-                if (!(key in target)) {
-                    Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(defaults, key));
-                }
-            }
-            return target;
-        },
-
-        // Something like lightweight native template objects would be nice (not like Proxy) 🤔
-
-        /**
-         * Creates a function that applies default properties to a target object, preserving property descriptors.
-         * The benefit of this over Object.assign or the spread operator is that it doesn't create a new object but reuses the existing one and preserves property descriptors of both the target and the defaults.
-         * 
-         * @param {Object} defaults The default properties to apply
-         * @returns {Function} A function that takes a target object and applies the defaults to it
-         * 
-         * @experimental
-         * 
-         * @example
-         * const applyDefaults = LS.Util.staticDefaults({ a: 1, b: 2 });
-         * const obj = { b: 3 };
-         * applyDefaults(obj);
-         */
-        staticDefaults(defaults) {
-            const cache = Object.keys(defaults).map(key => {
-                const d = Object.getOwnPropertyDescriptor(defaults, key);
-                const isSimple = d && (d.get === undefined && d.set === undefined && d.value !== undefined && d.writable && d.enumerable && d.configurable);
-
-                return [
-                    isSimple,
-                    typeof defaults[key] === "object" && defaults[key] !== null,
-                    key,
-                    isSimple? defaults[key] : d,
-                ]
-            });
-
-            // We no longer need to reference the original defaults object after this
-            defaults = null;
-
-            const count = cache.length;
-            return function(target) {
-                if(typeof target !== "object") throw "The target must be an object";
-
-                for (let i = 0; i < count; i++) {
-                    const [isSimple, isObject, key, descriptorOrValue] = cache[i];
-                    if (target.hasOwnProperty(key)) continue;
-
-                    if(isSimple) {
-                        target[key] = isObject? LS.Util.clone(descriptorOrValue): descriptorOrValue;
-                    } else {
-                        Object.defineProperty(target, key, descriptorOrValue);
-                        if(isObject) {
-                            // If the default is an object, we need to deep copy it to avoid shared references
-                            Object.defineProperty(target, key, {
-                                value: LS.Util.clone(descriptorOrValue.value)
-                            });
-                        }
-                    }
-                }
-
-                return target;
-            }
-        },
-
-        /**
-         * Copies text to the clipboard on any browser.
-         * @param {*} text 
-         * @returns {Promise}
-         */
-        copy(text) {
-            return new Promise(resolve => {
-                if (navigator.clipboard && navigator.clipboard.writeText) {
-                    navigator.clipboard.writeText(text)
-                        .then(() => {
-                            resolve()
-                        })
-                        .catch(error => {
-                            resolve(error)
-                        });
-                } else {
-                    let temp = document.createElement('textarea');
-                    temp.value = text;
-                    document.body.appendChild(temp);
-                    temp.select();
-                    document.execCommand('copy');
-                    document.body.removeChild(temp);
-                    resolve();
-                }
-            })
-        },
-
-        // Allowlist of harmless tags in sanitize(): i, b, strong, kbd, code, pre, em, u, s, mark, small, sub, sup, br, span
-        allowedTags: ['I', 'A', 'B', 'STRONG', 'KBD', 'CODE', 'PRE', 'EM', 'U', 'S', 'MARK', 'SMALL', 'SUB', 'SUP', 'BR', 'SPAN'],
-
-        /**
-         * Sanitize a node, stripping all elements not on an allowlist, and removes all attributes.
-         * @param {*} node
-         * 
-         * @example
-         * const dangerous = LS.Create({ html: "<script>console.log('Unsafe HTML')</script>" });
-         * LS.Util.sanitize(dangerous); // Removes <script>
-         * 
-         * @example
-         * // This can also be done directly when creating:
-         * LS.Create("span", { html: "..unsafe html..", sanitize: true })
-         */
-        sanitize(node) {
-            if (node.nodeType === Node.ELEMENT_NODE) {
-                if (!LS.Util.allowedTags.includes(node.tagName)) {
-                    // Replace the node with its children, if parent exists
-                    const fragment = document.createDocumentFragment();
-                    while (node.firstChild) {
-                        fragment.appendChild(node.firstChild);
-                    }
-
-                    if (node.parentNode) {
-                        node.parentNode.replaceChild(fragment, node);
-                    }
-                    return;
-                }
-            }
-
-            // Remove all attributes
-            const count = node.attributes && node.attributes.length;
-            if(count) {
-                for (let i = count - 1; i >= 0; i--) {
-                    const attrName = node.attributes[i].name;
-                    if (attrName !== "href" && attrName !== "target") {   
-                        node.removeAttribute(attrName);
-                    }
-                }
-            }
-
-            // Recursively sanitize child nodes
-            let child = node.firstChild;
-            while (child) {
-                const next = child.nextSibling;
-                this.sanitize(child);
-                child = next;
-            }
-        },
-
-        /**
-         * Normalize a string
-         * @param {*} string String to normalize
-         * @returns Normalized string
-         */
-        normalize(string, space = " ") {
-            return string.toLowerCase()
-                .normalize("NFD")
-                .replace(/[\u0300-\u036f]/g, "")
-                .replace(/[^a-z0-9\s]/g, "")
-                .replace(/\s+/g, space)
-                .trim();
-        },
-
-        /**
-         * Normalize a JavaScript value to a CSS unit.
-         * By default, numbers & strings without an unit get converted to "<value>px", and
-         * { value, unit } objects are also accepted.
-         * 
-         * @example toCSSSize(5) -> "5px"
-         * @example toCSSSize("5") -> "5px"
-         * @example toCSSSize("5%") -> "5%"
-         * @example toCSSSize(5, "%") -> "5%"
-         * @example toCSSSize({ value: 10, unit: "rem" }) -> "10rem"
-         * 
-         * @param {string|number|object} value Value
-         * @param {string} defaultUnit Value
-         * @returns {string} CSS value
-         */
-        toCSSSize,
-
-        /**
-         * Normalize a path to a canonical form OR split into an array of canonical parts.
-         * @param {string} path The path to normalize.
-         * @param {boolean|null} isAbsolute Optional. If true, the returned path will be absolute (starting with /). If false, it will be relative. If null, it will be inferred from the input path.
-         * @param {boolean} allowExit If true, relative paths can go outside of their directory. If false, they can't.
-         * @param {boolean} returnParts If true, returns an array of path parts instead of a string.
-         * @param {boolean} normalizeHTMLExt For URLs, remove index.html and .html - WARNING: this is true by default for legacy reasons
-         * @returns {string|Array<string>} The normalized path.
-         * 
-         * Also this implementation is 2x to 4x faster than the previous one in LinuxJS and other implementations :P
-         */
-        normalizePath(path, isAbsolute = null, allowExit = true, returnParts = false, normalizeHTMLExt = true) {
-            const parts = [];
-            const len = path.length;
-
-            const fc = path.charCodeAt(0);
-            if (isAbsolute === null) isAbsolute = fc === 47 || fc === 92;
-            
-            if(len === 0) {
-                return returnParts? parts: (isAbsolute? "/": ".");
-            }
-            
-            let cleanParts = 0;
-            let sStart = 0, seqBroken = false;
-            for (let i = 0; i < len; i++) {
-                const char = path.charCodeAt(i);
-
-                const isSeparator = char === 47 || char === 92;
-                const isEnd = !isSeparator && (i === len - 1);
-
-                if (isSeparator || isEnd) {
-                    if (isEnd) {
-                        if (char !== 46) seqBroken = true;
-                        i++;
-                    }
-
-                    const dCount = i - sStart;
-                    if (!seqBroken && (isAbsolute || !allowExit || dCount === 1 || cleanParts > 0)) {
-                        // Go up ("..")
-                        if(dCount === 2) {
-                            parts.pop();
-                            cleanParts--
-                        }
-
-                        // Otherwise do nothing
-                    } else if (dCount > 0) {
-                        const p = path.slice(sStart, i);
-                        if(p && !(normalizeHTMLExt && p === "index.html")) {
-                            if(normalizeHTMLExt && p.endsWith(".html")) p = p.slice(0, -5);
-
-                            parts.push(p);
-                            if(seqBroken) cleanParts++;
-                        }
-                    }
-
-                    sStart = i + 1;
-                    seqBroken = false;
-                    continue;
-                }
-
-                if (char !== 46) seqBroken = true;
-            }
-
-            if(returnParts) return parts;
-
-            if(parts.length === 0) {
-                return isAbsolute? "/": ".";
-            }
-
-            const normalizedPath = parts.join('/');
-            return isAbsolute ? '/' + normalizedPath : normalizedPath;
-        },
-
-        /**
-         * Helper to normalize and split a path into segments.
-         * Same as normalize(path, .., true, false);
-         * @param {string} path Path to split.
-         * @param {boolean|null} isAbsolute Same as normalize
-         * @param {boolean} allowExit Same as normalize
-         * @returns {Array<string>} Path segments as an array.
-         */
-        splitPath(path, isAbsolute = null, allowExit = true) {
-            return LS.Util.normalizePath(path, isAbsolute, allowExit, true, false);
-        },
-
-        /**
-         * Schedules a callback to run on the next animation frame, avoiding multiple calls within the same frame.
-         * Also has an "active" mode and FPS limit and time sync options.
-         * 
-         * In passive mode (default), you call schedule() whenever.
-         * In active mode (start/stop methods), it works like a ticker.
-         * 
-         * Offers a FPS limiter, delta time calculation, and speed multiplier.
-         * It also has built-in framerate measurement/sampling tool.
-         */
-        FrameScheduler: class FrameScheduler {
-            /**
-             * @param {Function} callback - The function to call on each frame.
-             * @param {Object} [options] - Optional settings.
-             * @param {number} [options.limiter] - Minimum ms between frames (rate limit).
-             * @param {number} [options.speed] - Playback speed multiplier (default: 1).
-             * @param {boolean} [options.vSync] - Uses requestAnimationFrame for vsync (default: true, recommended in most cases).
-             */
-            constructor(callback, options = {}) {
-                this.callback = callback;
-                this.queued = false;
-                this.running = false;
-                this.limiter = options.limiter || null;
-                this.speed = options.speed ?? 1;
-
-                this.vSync = options.vSync !== false; // Default to true
-
-                // Sampling for framerate measurement
-                this.frameSamples = null;
-                this.sampling = false;
-
-                // Internal state
-                this._lastFrame = 0;
-                this._rafId = null;
-                this._prevTimestamp = null;
-            }
-
-            #frame = (timestamp) => {
-                if (this.limiter) {
-                    if (timestamp - this._lastFrame < this.limiter) {
-                        // Not enough time passed, reschedule
-                        this._rafId = requestAnimationFrame(this.#frame);
-                        return;
-                    }
-                    this._lastFrame = timestamp;
-                }
-
-                this.queued = false;
-
-                if (this.callback) {
-                    const delta = this._prevTimestamp !== null ? (timestamp - this._prevTimestamp) * this.speed : 0;
-
-                    if(this.sampling) {
-                        this.frameSamples.push(delta);
-                    }
-
-                    if (this.running) {
-                        this.callback(delta, timestamp);
-                    } else {
-                        this.callback(timestamp - this._prevTimestamp, timestamp);
-                    }
-
-                    this._prevTimestamp = timestamp;
-                }
-
-                if (this.running) this.schedule();
-            }
-
-            limitFPS(fps) {
-                this.limiter = fps > 0 ? 1000 / fps : null;
-            }
-
-            removeLimiter() {
-                this.limiter = null;
-            }
-
-            setSpeed(multiplier) {
-                this.speed = multiplier;
-            }
-
-            start() {
-                if (this.running) return;
-                this.running = true;
-                this._prevTimestamp = null;
-                this.schedule();
-            }
-
-            stop() {
-                this.running = false;
-                this.cancel();
-            }
-
-            schedule() {
-                if (this.queued) return;
-                this.queued = true;
-
-                if (this.vSync) {
-                    this._rafId = requestAnimationFrame(this.#frame);
-                    return;
-                }
-
-                if (this.limiter) {
-                    setTimeout(() => {
-                        this.#frame(performance.now());
-                    }, this.limiter);
-                } else {
-                    this.#frame(performance.now());
-                }
-            }
-
-            cancel() {
-                this.queued = false;
-                if (this._rafId) {
-                    cancelAnimationFrame(this._rafId);
-                    this._rafId = null;
-                }
-            }
-
-            startSampling() {
-                this.frameSamples ??= [];
-                this.sampling = true;
-            }
-
-            stopSampling() {
-                const samples = this.frameSamples;
-
-                this.frameSamples = null;
-                this.sampling = false;
-                return samples;
-            }
-
-            /**
-             * Helper that calls startSampling & stopSampling over a specific period and returns an average.
-             * @param {Number} period Period in ms to sample
-             * @returns {object} { samples[], average: Number }
-             * 
-             * @example
-             * console.log("FPS:", (await measureFramerate()).average);
-             * 
-             * @example
-             * while(running) if((await measureFramerate()).average < 60)
-             *     console.warn("FPS dropped below 60");
-             */
-            measureFramerate(period = 1000) {
-                return new Promise(resolve => {
-                    this.startSampling();
-                    setTimeout(() => {
-                        const samples = this.stopSampling();
-                        const average = samples.length / (period / 1000);
-                        resolve({ samples, average });
-                    }, period);
-                });
-            }
-
-            destroy() {
-                this.cancel();
-                this.callback = null;
-                this._prevTimestamp = null;
-            }
-        },
-
-        /**
-         * A simple switch that triggers a callback when its value changes, but does nothing if it doesn't.
-         */
-        Switch: class Switch {
-            constructor(onSet) {
-                this.value = false;
-                this.onSet = onSet;
-            }
-
-            set(value) {
-                if(this.value === value) return value;
-                this.value = value;
-                this.onSet(this.value);
-                return value;
-            }
-
-            on() {
-                return this.set(true);
-            }
-
-            off() {
-                return this.set(false);
-            }
-
-            toggle() {
-                return this.set(!this.value);
-            }
-
-            destroy() {
-                this.onSet = null;
-                this.value = null;
-            }
-        },
-
-        /**
-         * A switch between two elements, showing one and hiding the other.
-         * Useful for loading indicators for example
-         */
-        ElementSwitch: class ElementSwitch {
-            constructor(element1 = null, element2 = null, options = null) {
-                this.elements = Array.isArray(element1)? element1: (element1 instanceof NodeList) ? Array.from(element1) : [element1, element2];
-
-                this.options = {
-                    initial: 0,
-                    mode: "display",
-                    parent: null,
-                    onSet: null,
-                    ...options
-                };
-
-                if(this.options.mode === "dom" && !this.options.parent) {
-                    throw new Error("ElementSwitch in 'dom' mode requires a parent element in options.parent");
-                }
-
-                this.value = -1;
-                if(this.options.initial > -1) this.set(this.options.initial);
-            }
-
-            front() {
-                this.set(this.elements.length - 1);
-            }
-
-            back() {
-                this.set(0);
-            }
-
-            get frontElement() {
-                return this.elements[this.elements.length - 1];
-            }
-
-            get backElement() {
-                return this.elements[0];
-            }
-
-            toggle() {
-                this.set(this.value === 0 ? 1 : 0);
-            }
-
-            set(index) {
-                if(this.value === index) return;
-                this.value = index;
-
-                if(this.options.mode === "dom" && this.options.parent) {
-                    for(let i = 0; i < this.elements.length; i++) {
-                        if(!this.elements[i]) continue;
-
-                        if(i === index) {
-                            this.options.parent.appendChild(this.elements[i]);
-                        } else {
-                            this.elements[i].remove();
-                        }
-                    }
-                } else {
-                    for(let i = 0; i < this.elements.length; i++) {
-                        if(this.elements[i]) this.elements[i].style[this.options.mode === "display"? "display" : "visibility"] = i === index ? "" : (this.options.mode === "display"? "none" : "hidden");
-                    }
-                }
-
-                if(this.options.onSet) this.options.onSet(this.value);
-            }
-
-            destroy() {
-                for(let i = 0; i < this.elements.length; i++) {
-                    this.elements[i]?.remove();
-                    this.elements[i] = null;
-                }
-                this.elements = null;
-                this.value = null;
-                this.options = null;
-            }
-        },
-
-        /**
-         * Ensures a callback is only run once.
-         * Top 5 useless abstractions
-         * @deprecated
-         */
-        RunOnce: class RunOnce {
-            constructor(callback, runNow = false) {
-                this.callback = callback;
-                this.hasRun = false;
-
-                if(runNow) return this.run();
-            }
-
-            run() {
-                if(this.hasRun) return false;
-                this.hasRun = true;
-                this.callback(...arguments);
-                this.callback = null;
-                return true;
-            }
-
-            bind(context) {
-                return this.run.bind(context || this);
-            }
-        },
-
-        validateUUID(uuid) {
-            // Fast uuidv4 validation, roughly 3.5x faster than Node.JS uuid.validate
-            if(typeof uuid !== 'string' || uuid.length !== 36) return false;
-
-            // Fixed length loop
-            for (let i = 0; i < 36; i++) {
-                const c = uuid.charCodeAt(i);
-                if(i === 14) {
-                    // Version check
-                    if(c >= 48 && c <= 53) continue; // 0-5
-                } else if(i === 19) {
-                    // Variant check
-                    if(c === 56 || c === 57 || c === 97 || c === 98 || c === 65 || c === 66) continue; // 8, 9, a, b, A, B
-                } else if ((i === 8 || i === 13 || i === 18 || i === 23) ? c === 45 : ((c >= 48 && c <= 57) || // 0-9
-                    (c >= 97 && c <= 102) || // a-f
-                    (c >= 65 && c <= 70))) { // A-F
-                    continue;
-                }
-                return false;
-            }
-            return true;
-        },
-
-        /**
-         * Small & fast utilities used in optimization-sensitive tasks
-         * They must remain simple and fast, which is the reason for this namespace.
-         */
-        fast: {
-            /**
-             * Convert a hexadecimal character to its integer value (0-15), or -1 if it's not a valid hex character.
-             * @param {*} h ASCII code of the character (e.g. from charCodeAt)
-             * @returns {number} Integer value of the hex character, or -1 if invalid
-             */
-            // "(c > 57? c + 9: c) & 15" is technically faster (~20%) but doesn't handle invalid characters; it's not worth the tradeoff
-            h2i: (c) => (c >= 48 && c <= 57)? c - 48: (c >= 97 && c <= 102)? c - 87: (c >= 65 && c <= 70)? c - 55: -1,
-            twoh2i: (high, low) => (LS.Util.fast.h2i(high) << 4) | LS.Util.fast.h2i(low),
-
-            /**
-             * Takes either Array or String, finds an element/text, and slices up to that element.
-             * @param {Array|String} str Target
-             * @param {*} find What to find
-             * @returns {Array|String} Sliced array/string, or target if not found
-             */
-            sliceUntil(str, find) {
-                const index = str.indexOf(find);
-                if(index === -1) return str;
-                return str.slice(0, str.indexOf(find));
-            }
-        }
-    }
-
     /**
      * Misc utilities. Used to contain controls, now primarily contains UID/UUID utils.
      * @deprecated
@@ -3979,7 +4010,7 @@ const LS = new class LSMain extends EventEmitter {
             super.destroy();
         }
     }
-    
+
     /**
      * Slot class
      * Represents a slot in the layout where views can be placed
@@ -4142,40 +4173,43 @@ const LS = new class LSMain extends EventEmitter {
 }
 
 // Ensure this event is deoptimized
-LS.prepareEvent("component-loaded", { deopt: true });
-LS.prepareEvent("ready", { deopt: true });
+LS.configureEvent("component-loaded", { deopt: true });
+LS.configureEvent("ready",            { deopt: true });
 
-if(!LS.isWeb) {
+if(LS.isWeb) {
+    if(!window.LS_DEFER_INIT){
+        LS.init({
+            globalPrototype: window.ls_do_not_prototype !== true,
+            ...(window.LS_INIT_OPTIONS || null)
+        });
+    
+        delete window.LS_INIT_OPTIONS;
+    } else delete window.LS_DEFER_INIT;
+
+    // --- Top layer
+    LS._topLayer = document.createElement("div");
+    LS._topLayer.id = "ls-top-layer";
+    LS._topLayer.style.position = "fixed";
+    
+    // --- Stack
+    LS.Stack._init();
+    LS._topLayer.appendChild(LS.Stack.container);
+
+    function onLoaded(){
+        // It can be scoped to a different element
+        LS.body  = document.body;
+        LS.ready = true;
+        LS.completed("ready", [LS.body]);
+        LS.body.append(LS._topLayer);
+    }
+
+    // Expose LS to the global scope
+    (typeof window !== 'undefined'? window : globalThis).LS = LS;
+
+    // Defer the ready event until the DOM is loaded
+    if(document.body) onLoaded(); else window.addEventListener("DOMContentLoaded", onLoaded);
+} else {
     LS.completed("ready");
-    return LS;
 }
 
-if(!window.LS_DEFER_INIT){
-    LS.init({
-        globalPrototype: window.ls_do_not_prototype !== true,
-        ...(window.LS_INIT_OPTIONS || null)
-    });
-
-    delete window.LS_INIT_OPTIONS;
-}
-
-LS._topLayer = document.createElement("div");
-LS._topLayer.id = "ls-top-layer";
-LS._topLayer.style.position = "fixed";
-LS.Stack._init();
-LS._topLayer.add(LS.Stack.container);
-
-function onLoaded(){
-    LS.body = document.body; // It can be scoped to a different element
-    LS.ready = true;
-    LS.completed("ready", [LS.body]);
-    LS.body.append(LS._topLayer);
-}
-
-delete window.LS_DEFER_INIT;
-
-(typeof window !== 'undefined'? window : globalThis).LS = LS;
-
-if(document.body) onLoaded(); else window.addEventListener("DOMContentLoaded", onLoaded);
-
-export default LS;
+export { LS as default, Util, Context, EventEmitter, Input, InputGroup, Stack, StackItem }

@@ -94,6 +94,8 @@ let IGNORE_PATCH_VERSION = false;
 const LATEST_MAJOR = LATEST.split(".")[0] || "0";
 const LATEST_PATCH = LATEST.split(".")[2] || "0";
 
+const FIRST_ESM_VERSION = new Units.Version("6.0.0-alpha.6");
+
 const isWindows = process.platform === "win32";
 
 module.exports = new class LS_API extends Units.Addon {
@@ -142,7 +144,7 @@ module.exports = new class LS_API extends Units.Addon {
                 }
 
                 if(Units.Version.matches(version, "4.0.0", "<")) {
-                    return backend.helper.error(req, res, `Versions older than 3.0.0, including "${version}" are no longer supported. Please use 4.0.2 or later.`, 410);
+                    return backend.helper.error(req, res, `Versions older than 3.0.0, including "${version}" are no longer supported via the API (due to distribution system differences that the previous versions used). Please use 4.0.2 or later. If you require older versions please get them from the archive.`, 410);
                 }
 
                 if(Units.Version.matches(version, LATEST, ">")) {
@@ -153,14 +155,17 @@ module.exports = new class LS_API extends Units.Addon {
             }
         }
 
+        // Versions since 6.0.0-alpha.6 are distributed as ESM modules
+        const isEsmDist = isBeta || Units.Version.matches(version, FIRST_ESM_VERSION, ">=");
+
         let file = segments.length === 2? segments[1]: segments[2];
 
         const first_index = file.indexOf(".");
-        const last_index = file.lastIndexOf(".");
+        const last_index  = file.lastIndexOf(".");
 
         if (first_index === -1) return backend.helper.error(req, res, 43, null, "404");
 
-        const file_name = file.slice(0, first_index);
+        const file_name   = file.slice(0, first_index);
         const do_compress = file.indexOf(".min") !== -1;
 
         const ext = file.slice(last_index + 1);
@@ -201,8 +206,8 @@ module.exports = new class LS_API extends Units.Addon {
         const currentFileMtimes = new Map();
         const componentPaths = [];
 
-        for(let component of components) {
-            const fileExt = type === "js"? "mjs": "css";
+        for(const component of components) {
+            const fileExt = type === "js"? isEsmDist? "mjs": "js": "css";
             let component_path = component === CORE_MARKER? VERSION_PATH + "/ls." + fileExt: VERSION_PATH  + "/" + type + "/" + component + "." + fileExt;
 
             if((isWindows || isBeta) && component_path.includes("dist") && !component_path.includes("css")) {

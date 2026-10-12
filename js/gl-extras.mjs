@@ -7,70 +7,52 @@
  * ! This is an early stage component.
  */
 
-/**
- * Temporary & should be inlined at compile time
- * Sprite data indices
- * 
- * @enum {number}
- */
-const SDi = {
-    x: 0,
-    y: 1,
-    z: 2,
-    rotationX: 3,
-    rotationY: 4,
-    rotationZ: 5,
-    scaleX: 6,
-    scaleY: 7,
-    scaleZ: 8,
-    anchorX: 9,
-    anchorY: 10,
-    anchorZ: 11,
-    width: 12,
-    height: 13,
-    depth: 14,
-    anchorAffectsPosition: 15,
-    visible: 16,
-    r: 17,
-    g: 18,
-    b: 19,
-    a: 20,
-    alphaMultiplier: 21
+const SDi = LS.GL.SDi;
+
+const op = {
+    add: (a, b) => a + b,
+    sub: (a, b) => a - b,
+    mul: (a, b) => a * b,
+    div: (a, b) => a / b,
 };
 
 class Sprite {
     /**
+     * The texture used by the sprite.
      * @type {Texture}
      */
     texture = null;
 
     /**
-     * @type {number[]} data Packed array of x, y, z, rx, ry, rz, sx, sy, sz, anchorX, anchorY, anchorZ, width, height, depth, anchorAffectsPosition, r, g, b, a, alphaMultiplier, visible
+     * @type {number[]} data Packed array
      * Its efficient i guess; also could later use typed or subarrays
      */
     data = [
-        /*x;0*/                      0,
-        /*y;1*/                      0,
-        /*z;2*/                      0,
-        /*rx;3*/                     0,
-        /*ry;4*/                     0,
-        /*rz;5*/                     0,
-        /*sx;6*/                     1,
-        /*sy;7*/                     1,
-        /*sz;8*/                     1,
-        /*anchorX;9*/                0,
-        /*anchorY;10*/               0,
-        /*anchorZ;11*/               0,
-        /*w;12*/                    -1,
-        /*h;13*/                    -1,
-        /*d;14*/                     1,
-        /*anchorAffectsPosition;15*/ 1,
-        /*visible;16*/               1,
-        /*r;17*/                     255,
-        /*g;18*/                     255,
-        /*b;19*/                     255,
-        /*a;20*/                     255,
-        /*alphaMultiplier;21*/       1.0,
+        /*x*/                 0,
+        /*y*/                 0,
+        /*z*/                 0,
+        /*rx*/                0,
+        /*ry*/                0,
+        /*rz*/                0,
+        /*sx*/                1,
+        /*sy*/                1,
+        /*sz*/                1,
+        /*anchorX*/           0,
+        /*anchorY*/           0,
+        /*anchorZ*/           0,
+        /*offsetX*/           0,
+        /*offsetY*/           0,
+        /*offsetZ*/           0,
+        /*w*/                -1,
+        /*h*/                -1,
+        /*d*/                 1,
+        /*transformFlags*/    0,
+        /*visible*/           1,
+        /*r*/                 255,
+        /*g*/                 255,
+        /*b*/                 255,
+        /*a*/                 255,
+        /*alphaMultiplier*/   1.0,
     ];
 
     /**
@@ -88,6 +70,7 @@ class Sprite {
      * @typedef SpriteOptions
      * @property {Texture} [texture] The texture object to use for the sprite
      * @property {number[]} [position] The position of the sprite [x, y, z]
+     * @property {number} [offset] The offset of the sprite [x, y, z]
      * @property {number[]} [size] The size of the sprite [width, height, depth]
      * @property {number[]} [color] The color of the sprite [r, g, b, a]
      * @property {number[]} [rotation] The rotation of the sprite [rx, ry, rz]
@@ -97,6 +80,9 @@ class Sprite {
      * @property {number} [x] The x position of the sprite
      * @property {number} [y] The y position of the sprite
      * @property {number} [z] The z position of the sprite
+     * @property {number} [offsetX] The x offset of the sprite
+     * @property {number} [offsetY] The y offset of the sprite
+     * @property {number} [offsetZ] The z offset of the sprite
      * @property {number} [anchorX] The x anchor point of the sprite
      * @property {number} [anchorY] The y anchor point of the sprite
      * @property {number} [anchorZ] The z anchor point of the sprite
@@ -148,20 +134,37 @@ class Sprite {
         return into;
     }
 
-    containsPoint(xyz) {
-        const [x, y, z] = xyz;
+    /**
+     * Checks if a point is contained within the sprite.
+     * @param {number} px - X coordinate of the point
+     * @param {number} py - Y coordinate of the point
+     * @param {number} pz - Z coordinate of the point
+     * @returns {boolean} True if the point is contained within the sprite, false otherwise
+     */
+    containsPoint(px, py, pz = null) {
+        // todo :P
+        return this.containsPointSimple(px, py, pz);
+    }
 
-        const w = this.width;
-        const h = this.height;
-        const d = this.depth;
+    /**
+     * Checks if a point is contained within the sprite (WITHOUT taking rotation/skew into account; works only if the sprite is facing the camera)
+     * @param {number} x - X coordinate of the point
+     * @param {number} y - Y coordinate of the point
+     * @param {number} z - Z coordinate of the point
+     * @returns {boolean} True if the point is contained within the sprite, false otherwise
+     */
+    containsPointSimple(x, y, z = null) {
+        const w = this.width  * this.scaleX;
+        const h = this.height * this.scaleY;
+        const d = this.depth  * this.scaleZ;
 
         const wX = this.worldX;
         const wY = this.worldY;
         const wZ = this.worldZ;
 
         return x >= wX && x <= wX + w &&
-            y >= wY && y <= wY + h &&
-            z >= wZ && z <= wZ + d;
+               y >= wY && y <= wY + h &&
+               (z === null || (z >= wZ && z <= wZ + d));
     }
 
     /**
@@ -172,6 +175,7 @@ class Sprite {
         if(options.texture)               this.texture = options.texture;
 
         if(options.position)              this.setPosition(options.position);
+        if(options.offset)                this.setOffset(options.offset);
         if(options.size)                  this.setSize(options.size);
         if(options.color)                 this.setColor(options.color);
         if(options.rotation)              this.setRotation(options.rotation);
@@ -184,6 +188,9 @@ class Sprite {
         if(options.x !== undefined)         this.x           = options.x;
         if(options.y !== undefined)         this.y           = options.y;
         if(options.z !== undefined)         this.z           = options.z;
+        if(options.offsetX !== undefined)   this.offsetX     = options.offsetX;
+        if(options.offsetY !== undefined)   this.offsetY     = options.offsetY;
+        if(options.offsetZ !== undefined)   this.offsetZ     = options.offsetZ;
         if(options.anchorX !== undefined)   this.anchorX     = options.anchorX;
         if(options.anchorY !== undefined)   this.anchorY     = options.anchorY;
         if(options.anchorZ !== undefined)   this.anchorZ     = options.anchorZ;
@@ -212,13 +219,22 @@ class Sprite {
     set depth(value) { this.data[SDi.depth] = value; }
 
     get x()      { return this.data[SDi.x]; }
-    set x(value) { this.data[SDi.x] = value; if(this._transformMatrix && this.data[SDi.anchorX] === 0) { this._transformMatrix[12] = value; } else { this.matrixDirty = true; } }
+    set x(value) { this.data[SDi.x] = value; this._updatePosition(0); }
 
     get y()      { return this.data[SDi.y]; }
-    set y(value) { this.data[SDi.y] = value; if(this._transformMatrix && this.data[SDi.anchorY] === 0) { this._transformMatrix[13] = value; } else { this.matrixDirty = true; } }
+    set y(value) { this.data[SDi.y] = value; this._updatePosition(1); }
 
     get z()      { return this.data[SDi.z]; }
-    set z(value) { this.data[SDi.z] = value; if(this._transformMatrix && this.data[SDi.anchorZ] === 0) { this._transformMatrix[14] = value; } else { this.matrixDirty = true; } }
+    set z(value) { this.data[SDi.z] = value; this._updatePosition(2); }
+
+    get offsetX()      { return this.data[SDi.offsetX]; }
+    set offsetX(value) { this.data[SDi.offsetX] = value; this._updatePosition(0); }
+
+    get offsetY()      { return this.data[SDi.offsetY]; }
+    set offsetY(value) { this.data[SDi.offsetY] = value; this._updatePosition(1); }
+
+    get offsetZ()      { return this.data[SDi.offsetZ]; }
+    set offsetZ(value) { this.data[SDi.offsetZ] = value; this._updatePosition(2); }
 
     get worldX() { return this._worldMatrix? this._worldMatrix[12]: this.x; }
     get worldY() { return this._worldMatrix? this._worldMatrix[13]: this.y; }
@@ -262,6 +278,10 @@ class Sprite {
     get color() { return new LS.Color(this.data[SDi.r], this.data[SDi.g], this.data[SDi.b], this.data[SDi.a]); }
     set color(value) { this.setColor(value); }
 
+    /**
+     * Gets the transform matrix.
+     * @returns {Float32Array} The transform matrix.
+     */
     get transformMatrix() {
         if(!this.matrixDirty) return this._transformMatrix;
 
@@ -288,13 +308,41 @@ class Sprite {
         if(typeof x === "number") this.data[SDi.x] = x;
         if(typeof y === "number") this.data[SDi.y] = y;
         if(typeof z === "number") this.data[SDi.z] = z;
+        this._updatePosition();
+    }
 
-        if(this._transformMatrix && this.data[SDi.anchorX] === 0 && this.data[SDi.anchorY] === 0 && this.data[SDi.anchorZ] === 0) {
-            // Setting position is trivial (if we don't need an anchor offset)
-            this._transformMatrix[12] = this.data[SDi.x];
-            this._transformMatrix[13] = this.data[SDi.y];
-            this._transformMatrix[14] = this.data[SDi.z];
-        } else this.matrixDirty = true;
+    setOffset(x, y, z) {
+        if(Array.isArray(x)) {
+            [x, y, z] = x;
+        }
+
+        if(typeof x === "number") this.data[SDi.offsetX] = x;
+        if(typeof y === "number") this.data[SDi.offsetY] = y;
+        if(typeof z === "number") this.data[SDi.offsetZ] = z;
+        this._updatePosition();
+    }
+
+    _updatePosition(axis) {
+        // There is more potential for optimization here, though to keep accuracy of all transform features, either a more complex system needs to be implemented, or we could add flags for this
+
+        this.matrixDirty = true;
+
+        // if(axis !== undefined) {
+        //     switch(axis) {
+        //         case 0: { if(this.data[SDi.anchorX] === 0) { this._transformMatrix[12] = this.data[SDi.x] + this.data[SDi.offsetX]; return; } break; }
+        //         case 1: { if(this.data[SDi.anchorX] === 0) { this._transformMatrix[13] = this.data[SDi.y] + this.data[SDi.offsetY]; return; } break; }
+        //         case 2: { if(this.data[SDi.anchorX] === 0) { this._transformMatrix[14] = this.data[SDi.z] + this.data[SDi.offsetZ]; return; } break; }
+        //     }
+
+        //     this.matrixDirty = true;
+        //     return;
+        // }
+
+        // if(this._transformMatrix && this.data[SDi.anchorX] === 0 && this.data[SDi.anchorY] === 0 && this.data[SDi.anchorZ] === 0) {
+        //     this._transformMatrix[12] = this.data[SDi.x] + this.data[SDi.offsetX];
+        //     this._transformMatrix[13] = this.data[SDi.y] + this.data[SDi.offsetY];
+        //     this._transformMatrix[14] = this.data[SDi.z] + this.data[SDi.offsetZ];
+        // } else this.matrixDirty = true;
     }
 
     setSize(width, height, depth) {
@@ -647,8 +695,6 @@ class LayoutContainer extends Container {
     }
 }
 
-
-
 /**
  * Abstract class for 3D objects, or sprites with geometry support.
  * It is just like a regular sprite but holds geometry data.
@@ -692,21 +738,6 @@ class Mesh extends Sprite {
         super(options);
     }
 }
-
-function op(a, b, op) {
-    switch(op) {
-        case op.add: return a + b;
-        case op.sub: return a - b;
-        case op.mul: return a * b;
-        case op.div: return a / b;
-        default: throw new Error("Invalid operation");
-    }
-}
-
-op.add = 0;
-op.sub = 1;
-op.mul = 2;
-op.div = 3;
 
 class MeshBuilder {
     /**
@@ -858,11 +889,11 @@ class Vector {
         }
     }
 
-    get x() { return this.data[this.offset + 0] }
-    get y() { return this.data[this.offset + 1] }
-    get z() { return this.data[this.offset + 2] }
-    get w() { return this.data[this.offset + 2] }
-    get h() { return this.data[this.offset + 3] }
+    get x()      { return this.data[this.offset + 0]  }
+    get y()      { return this.data[this.offset + 1]  }
+    get z()      { return this.data[this.offset + 2]  }
+    get w()      { return this.data[this.offset + 2]  }
+    get h()      { return this.data[this.offset + 3]  }
     set x(value) { this.data[this.offset + 0] = value }
     set y(value) { this.data[this.offset + 1] = value }
     set z(value) { this.data[this.offset + 2] = value }
@@ -896,7 +927,7 @@ class Vector {
     /**
      * Perform an operation on the vector with either a scalar or another vector.
      * @param {number|Vector} scalarOrVector The scalar or vector to operate with.
-     * @param {number} operation The operation to perform (0: add, 1: sub, 2: mul, 3: div).
+     * @param {Function} operation The operation to perform.
      * @returns {Vector} The modified vector.
      */
     op(scalarOrVector, operation = op.add) {
@@ -906,14 +937,14 @@ class Vector {
         if(scalarOrVector instanceof Vector) {
             for(let i = 0; i < this.size; i++) {
                 const index = offset + i;
-                data[index] = op(data[index], scalarOrVector.data[scalarOrVector.offset + i], operation);
+                data[index] = operation(data[index], scalarOrVector.data[scalarOrVector.offset + i]);
             }
             return this;
         }
 
         for(let i = 0; i < this.size; i++) {
             const index = offset + i;
-            data[index] = op(data[index], scalarOrVector, operation);
+            data[index] = operation(data[index], scalarOrVector);
         }
         return this;
     }
@@ -1304,13 +1335,13 @@ void main() {
             const sHeight = child.height;
             const sDepth  = child.depth;
 
-            matrix[0]  = uMatrix[0] * sWidth;
-            matrix[1]  = uMatrix[1] * sWidth;
-            matrix[2]  = uMatrix[2] * sWidth;
+            matrix[0]  = uMatrix[0]  * sWidth;
+            matrix[1]  = uMatrix[1]  * sWidth;
+            matrix[2]  = uMatrix[2]  * sWidth;
             matrix[3]  = uMatrix[3];
-            matrix[4]  = uMatrix[4] * sHeight;
-            matrix[5]  = uMatrix[5] * sHeight;
-            matrix[6]  = uMatrix[6] * sHeight;
+            matrix[4]  = uMatrix[4]  * sHeight;
+            matrix[5]  = uMatrix[5]  * sHeight;
+            matrix[6]  = uMatrix[6]  * sHeight;
             matrix[7]  = uMatrix[7];
             matrix[8]  = uMatrix[8]  * sDepth;
             matrix[9]  = uMatrix[9]  * sDepth;
@@ -1975,7 +2006,7 @@ class TextureAtlas {
             textMetrics.push(metrics);
 
             canvasWidth = Math.max(canvasWidth, metrics.width);
-            canvasHeight += h;
+            canvasHeight += h + 2;
         }
 
         canvas.width = canvasWidth;
@@ -1990,9 +2021,9 @@ class TextureAtlas {
 
         for(const [name, text] of textEntries) {
             const metrics = textMetrics.shift();
-            const h = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
+            const h = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent + 2;
 
-            ctx.fillText(text, 0, yOffset + metrics.actualBoundingBoxAscent);
+            ctx.fillText(text, 0, yOffset + metrics.actualBoundingBoxAscent + 1);
             atlas.addRegion(asset, name, [0, yOffset, metrics.width, h]);
 
             yOffset += h;
@@ -2169,7 +2200,6 @@ if(true) {
         Container,
         LayoutContainer,
         Scene,
-        SDi,
         Texture,
         TextureAtlas,
         AssetLoader,
@@ -2179,4 +2209,4 @@ if(true) {
     };
 }
 
-export { Sprite, Mesh, MeshBuilder, Vector, VectorView, Container, LayoutContainer, Scene, SDi, Texture, TextureAtlas, AssetLoader, GlImage, BatchedSpriteRenderer, htmlParser };
+export { Sprite, Mesh, MeshBuilder, Vector, VectorView, Container, LayoutContainer, Scene, Texture, TextureAtlas, AssetLoader, GlImage, BatchedSpriteRenderer, htmlParser };

@@ -196,8 +196,8 @@ class TimelineGL extends LS.Component {
         this.clipboard = [];
 
         // Undo/Redo action events (history management is external)
-        this.__actionEventRef = this.prepareEvent("action");
-        this.__seekEventRef = this.prepareEvent("seek");
+        this.__actionEventRef = this.configureEvent("action");
+        this.__seekEventRef = this.configureEvent("seek");
 
         this.container = document.createElement("div");
         this.container.classList.add("ls-timeline");

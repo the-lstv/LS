@@ -17,7 +17,6 @@ interface LSGLExtensions {
     readonly Container             : typeof LSGLExtras.Container;
     readonly LayoutContainer       : typeof LSGLExtras.LayoutContainer;
     readonly Scene                 : typeof LSGLExtras.Scene;
-    readonly SDi                   : typeof LSGLExtras.SDi;
     readonly Texture               : typeof LSGLExtras.Texture;
     readonly TextureAtlas          : typeof LSGLExtras.TextureAtlas;
     readonly AssetLoader           : typeof LSGLExtras.AssetLoader;

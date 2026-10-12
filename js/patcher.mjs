@@ -285,8 +285,8 @@ class Patcher extends LS.Component {
         }
 
         // Undo/Redo action events (history management is external)
-        this.__actionEventRef = this.prepareEvent("action");
-        this.__changedEventRef = this.prepareEvent("change");
+        this.__actionEventRef = this.configureEvent("action");
+        this.__changedEventRef = this.configureEvent("change");
 
         const lContrast = 0.1;
         const dContrast = 1.0;
