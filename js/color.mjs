@@ -60,7 +60,6 @@ class Color {
     get b() { return this.data[this.offset + 2] }
     set b(value) { this.data[this.offset + 2] = value }
     
-    
     /**
      * Get or set alpha channel value (0-1)
      */
@@ -215,7 +214,7 @@ class Color {
      * @returns Target array with copied color values
      */
     copyTo(target, offset = 0) {
-        target[offset] = this.data[this.offset];
+        target[offset]     = this.data[this.offset];
         target[offset + 1] = this.data[this.offset + 1];
         target[offset + 2] = this.data[this.offset + 2];
         target[offset + 3] = this.data[this.offset + 3];

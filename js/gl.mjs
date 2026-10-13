@@ -107,7 +107,7 @@ function compileShader(renderer, type, source) {
  * @param {*} renderer - The parent renderer
  * @param {*} vertex - The vertex shader source code or vertex shader object
  * @param {*} fragment - The fragment shader source code or fragment shader object
- * @returns The compiled shader program or null if compilation failed
+ * @returns The compiled and linked shader program or null if failed
  */
 function createProgram(renderer, vertex, fragment) {
     if (!(renderer instanceof WebGLRenderer)) throw new Error("Parent is not a LS.GL.WebGLRenderer instance.");
@@ -143,7 +143,7 @@ function createProgram(renderer, vertex, fragment) {
 /**
  * Abstract base class for a renderer, reserved for future use
  * 
- * TODO: Support for multiple backends (eg. WebGPU, THREE.JS, etc.)
+ * TODO: Support for multiple backends (eg. WebGPU, OpenGL, etc.)
  */
 class Renderer extends LS.Context {
     static backend = "Abstract";
@@ -551,6 +551,166 @@ class WebGLRenderer extends Renderer {
 
         if(bindVAO) {
             gl.bindVertexArray(null);
+        }
+    }
+
+    renderScene(container, renderer, x = container.data[SDi.x], y = container.data[SDi.y], opacity = container.opacity, delta, now, _skipSetup = false) {
+        if(!container || !container.children || container.children.length === 0 || (opacity !== null && opacity <= 0)) return;
+
+        let low = 0, high = 0, atlas = null;
+
+        const gl = renderer.renderer.gl;
+
+        // -- Buffers
+        const buffers    = renderer.buffers;
+        const matrixData = buffers.iMatrix.data;  // Transformation matrix
+        const colorData  = buffers.iColor ?.data; // Color (optional)
+        const uvRectData = buffers.iUVRect?.data; // UV Rect (texture region, optional)
+
+        // Stack for parent matrices
+        const stackM = [container.transformMatrix];
+
+        // Stack for parent indices
+        const stackI = [0];
+
+        // Stack for parent containers
+        const stackC = [container];
+        
+        let parentOpacity = opacity;
+
+        let depth = 0;
+
+        while (depth >= 0) {
+            const currentContainer = stackC[depth];
+            const parentMatrix     = stackM[depth];
+            const i                = stackI[depth];
+            stackI[depth]++;
+
+            // -- Leave container
+            if(i > currentContainer.children.length) {
+                if(depth === 0) break;
+                depth--;
+
+                parentOpacity /= currentContainer.opacity;
+                continue;
+            }
+
+            const child = currentContainer.children[i];
+            if(!child || !child.visible || child.opacity <= 0) continue;
+
+            // -- Enter container
+            if(child.isContainer) {
+                if(child.children.length === 0) continue;
+
+                if(child.layoutDirty) {
+                    if(typeof child.recompute === "function") {
+                        child.recompute();
+                    }
+                }
+
+                LSGL.multiplyMatrix(
+                    parentMatrix,
+                    child.transformMatrix,
+                    child.worldMatrix
+                );
+
+                depth++;
+                stackM[depth] = child.worldMatrix;
+                stackC[depth] = child;
+                stackI[depth] = 0;
+
+                parentOpacity *= child.opacity;
+                continue;
+            }
+
+            if(!child.texture) continue;
+
+            const data          = child.data;
+            const combinedAlpha = data[SDi.a] * data[SDi.alphaMultiplier] * parentOpacity;
+            if(combinedAlpha <= 0) continue;
+
+            const texture   = child.texture;
+            const uvRect    = texture.region || [0, 0, texture.imageWidth, texture.imageHeight];
+            const glTexture = texture.getGLTexture(gl);
+
+            if(atlas && atlas !== glTexture) {
+                renderer.draw(high, atlas, low, high, opacity, x, y, _skipSetup);
+                _skipSetup = true;
+
+                high  = 0;
+                atlas = null;
+            }
+
+            atlas = glTexture;
+
+            /**
+             * @type {Float32Array}
+             */
+            const matrix = matrixData.subarray(high * 16, high * 16 + 16);
+
+            // TODO: we are now doing a lot of the calculation here which eh, it is not ideal
+
+            // Copy the child transform matrix into the buffer
+            const uMatrix = child.transformMatrix;
+
+            const sWidth  = child.width;
+            const sHeight = child.height;
+            const sDepth  = child.depth;
+
+            // we could use the subarray to upload to GPU directly but idk about w/h and if frequent uploads weren't worse
+
+            matrix[0]  = uMatrix[0]  * sWidth;
+            matrix[1]  = uMatrix[1]  * sWidth;
+            matrix[2]  = uMatrix[2]  * sWidth;
+            matrix[3]  = uMatrix[3];
+            matrix[4]  = uMatrix[4]  * sHeight;
+            matrix[5]  = uMatrix[5]  * sHeight;
+            matrix[6]  = uMatrix[6]  * sHeight;
+            matrix[7]  = uMatrix[7];
+            matrix[8]  = uMatrix[8]  * sDepth;
+            matrix[9]  = uMatrix[9]  * sDepth;
+            matrix[10] = uMatrix[10] * sDepth;
+            matrix[11] = uMatrix[11];
+
+            matrix[12] = uMatrix[12];
+            matrix[13] = uMatrix[13];
+            matrix[14] = uMatrix[14];
+            matrix[15] = uMatrix[15];
+
+            // Apply parent transformation
+            if(parentMatrix) LSGL.multiplyMatrix(parentMatrix, matrix, matrix);
+
+            // sizeData  [high * 2 + 0] = child.width;
+            // sizeData  [high * 2 + 1] = child.height;
+
+            if(colorData) {
+                colorData[high * 4 + 0] = data[SDi.r];
+                colorData[high * 4 + 1] = data[SDi.g];
+                colorData[high * 4 + 2] = data[SDi.b];
+                colorData[high * 4 + 3] = combinedAlpha;
+            }
+
+            if(uvRectData) {
+                uvRectData[high * 4 + 0] = uvRect[0] / texture.imageWidth;
+                uvRectData[high * 4 + 1] = uvRect[1] / texture.imageHeight;
+                uvRectData[high * 4 + 2] = uvRect[2] / texture.imageWidth;
+                uvRectData[high * 4 + 3] = uvRect[3] / texture.imageHeight;
+            }
+
+            high++;
+
+            // If we reach the max batch size, draw the current batch and reset for the next one
+            if(high > renderer.maxBatchSize) {
+                renderer.draw(high, atlas, low, high, opacity, x, y, _skipSetup);
+                _skipSetup = true;
+
+                high = 0;
+                atlas = null;
+            }
+        }
+
+        if(high > 0) {
+            renderer.draw(high, atlas, low, high, opacity, x, y, _skipSetup);
         }
     }
 
@@ -966,6 +1126,11 @@ function bufferFrom(type, size) {
  * A WebGL renderable base class for handling graphics rendering.
  */
 class Renderable {
+    /**
+     * @type {WebGLRenderer}
+     */
+    renderer;
+
     constructor(options = {}) {
         this.renderer = options.renderer || options.parent;
 
@@ -1579,6 +1744,8 @@ const roundedBoxSDF = `float roundedBoxSDF(vec2 CenterPosition, vec2 Size, float
  * Sprite data indices/enums
  * 
  * @enum {number}
+ * @readonly
+ * @constant
  */
 const SDi = {
     // --- Transforms
@@ -1601,46 +1768,37 @@ const SDi = {
     height: 16,           // f32
     depth: 17,            // f32
     transformFlags: 18,   // u32
+    rotationOrder: 19,    // u8
 
     // --- Display
-    visible: 19,          // 1b
-    r: 20,                // u8
-    g: 21,                // u8
-    b: 22,                // u8
-    a: 23,                // u8
-    alphaMultiplier: 24,  // f32
-    blendMode: 25,        // u8
+    visible: 20,          // 1b
+    r: 21,                // u8
+    g: 22,                // u8
+    b: 23,                // u8
+    a: 24,                // u8
+    alphaMultiplier: 25,  // f32
+    blendMode: 26,        // u8
 
     // --- Flags
     ANCHOR_AFFECTS_POSITION: 1,
+
+    ORDER_XYZ: 0,
+    ORDER_XZY: 1,
+    ORDER_YXZ: 2,
+    ORDER_YZX: 3,
+    ORDER_ZXY: 4,
+    ORDER_ZYX: 5
 };
 
 /**
- * Updates OR creates a 4x4 column-major transformation matrix based on the provided translation, rotation, and scale parameters.
- * The rotation is applied in the order of Z, Y, X (Rz * Ry * Rx).
- * 
- * Width/Height/Depth are optional if the anchor point is not used or you rely on scale.
+ * Rotates & scales a 4x4 column-major transformation matrix based on the provided rotation and scale parameters.
  * 
  * @param {array} spriteData - An array containing these values in the order: [x, y, z, rx, ry, rz, sx, sy, sz].
  * @param {Float32Array} out - An optional Float32Array to store the resulting matrix.
- * @param {number} w - The width of the sprite (used for anchor calculations).
- * @param {number} h - The height of the sprite (used for anchor calculations).
- * @param {number} d - The depth of the sprite (used for anchor calculations).
  * @returns {Float32Array} The resulting transformation matrix.
  */
-function updateMatrix(spriteData, out = new Float32Array(16), w = 1, h = 1, d = 1) {
-    let x = spriteData[SDi.x];
-    let y = spriteData[SDi.y];
-    let z = spriteData[SDi.z];
-
-    const ox   = spriteData[SDi.offsetX] || 0;
-    const oy   = spriteData[SDi.offsetY] || 0;
-    const oz   = spriteData[SDi.offsetZ] || 0;
-
-    x += ox;
-    y += oy;
-    z += oz;
-
+function rotateMatrix(spriteData, out = new Float32Array(16)) {
+    // -- Rotation and scale
     const rx = spriteData[SDi.rotationX];
     const ry = spriteData[SDi.rotationY];
     const rz = spriteData[SDi.rotationZ];
@@ -1649,32 +1807,131 @@ function updateMatrix(spriteData, out = new Float32Array(16), w = 1, h = 1, d = 
     const sy = spriteData[SDi.scaleY];
     const sz = spriteData[SDi.scaleZ];
 
-    const anchorX = spriteData[SDi.anchorX] || 0;
-    const anchorY = spriteData[SDi.anchorY] || 0;
-    const anchorZ = spriteData[SDi.anchorZ] || 0;
-
     const cx = Math.cos(rx), sX = Math.sin(rx);
     const cy = Math.cos(ry), sY = Math.sin(ry);
     const cz = Math.cos(rz), sZ = Math.sin(rz);
 
-    // Rotation order: Rz * Ry * Rx
+    const rotationOrder = spriteData[SDi.rotationOrder] || SDi.ORDER_XYZ;
 
-    out[0] = cz * cy * sx;
-    out[1] = sZ * cy * sx;
-    out[2] = -sY * sx;
-    out[3] = 0;
+    switch (rotationOrder) {
+        case SDi.ORDER_ZYX:
+            out[0] = cz * cy * sx;
+            out[1] = sZ * cy * sx;
+            out[2] = -sY * sx;
 
-    out[4] = (cz * sY * sX - sZ * cx) * sy;
-    out[5] = (sZ * sY * sX + cz * cx) * sy;
-    out[6] = cy * sX * sy;
-    out[7] = 0;
+            out[4] = (cz * sY * sX - sZ * cx) * sy;
+            out[5] = (sZ * sY * sX + cz * cx) * sy;
+            out[6] = cy * sX * sy;
 
-    out[8] = (cz * sY * cx + sZ * sX) * sz;
-    out[9] = (sZ * sY * cx - cz * sX) * sz;
-    out[10] = cy * cx * sz;
-    out[11] = 0;
+            out[8] = (cz * sY * cx + sZ * sX) * sz;
+            out[9] = (sZ * sY * cx - cz * sX) * sz;
+            out[10] = cy * cx * sz;
+            break;
 
-    out[15] = 1;
+        case SDi.ORDER_ZXY:
+            out[0] = (cz * cy + sZ * sY * sX) * sx;
+            out[1] = sZ * cx * sx;
+            out[2] = (cz * -sY + sZ * cy * sX) * sx;
+
+            out[4] = (-sZ * cy + cz * sY * sX) * sy;
+            out[5] = cz * cx * sy;
+            out[6] = (sZ * sY + cz * cy * sX) * sy;
+
+            out[8] = cy * cx * sz;
+            out[9] = -sX * sz;
+            out[10] = sY * cx * sz;
+            break;
+
+        case SDi.ORDER_YXZ:
+            out[0] = cy * cx * sx;
+            out[1] = sZ * cx * sx;
+            out[2] = -sY * sx;
+
+            out[4] = (cy * sY * sX - sZ * cx) * sy;
+            out[5] = (sZ * sY * sX + cy * cx) * sy;
+            out[6] = cy * sX * sy;
+
+            out[8] = (cy * sY * cx + sZ * sX) * sz;
+            out[9] = (sZ * sY * cx - cy * sX) * sz;
+            out[10] = cy * cx * sz;
+            break;
+
+        case SDi.ORDER_YZX:
+            out[0] = cy * cx * sx;
+            out[1] = sZ * cx * sx;
+            out[2] = -sY * sx;
+
+            out[4] = (cy * sY * sX - sZ * cx) * sy;
+            out[5] = (sZ * sY * sX + cy * cx) * sy;
+            out[6] = cy * sX * sy;
+
+            out[8] = (cy * sY * cx + sZ * sX) * sz;
+            out[9] = (sZ * sY * cx - cy * sX) * sz;
+            out[10] = cy * cx * sz;
+            break;
+
+        case SDi.ORDER_XYZ:
+            out[0] = cy * cz * sx;
+            out[1] = cy * sZ * sx;
+            out[2] = -sY * sx;
+
+            out[4] = (sY * sX * cz - cx * sZ) * sy;
+            out[5] = (sY * sX * sZ + cx * cz) * sy;
+            out[6] = cy * sX * sy;
+
+            out[8] = (sY * cx * cz + sX * sZ) * sz;
+            out[9] = (sY * cx * sZ - sX * cz) * sz;
+            out[10] = cy * cx * sz;
+            break;
+
+        case SDi.ORDER_XZY:
+            out[0] = cy * cz * sx;
+            out[1] = cy * sZ * sx;
+            out[2] = -sY * sx;
+
+            out[4] = (sY * sX * cz - cx * sZ) * sy;
+            out[5] = (sY * sX * sZ + cx * cz) * sy;
+            out[6] = cy * sX * sy;
+
+            out[8] = (sY * cx * cz + sX * sZ) * sz;
+            out[9] = (sY * cx * sZ - sX * cz) * sz;
+            out[10] = cy * cx * sz;
+            break;
+    }
+    return out;
+}
+
+/**
+ * Transforms a 4x4 column-major transformation matrix based on the provided translation, offset and anchor parameters.
+ * 
+ * Width/Height/Depth are optional if the anchor point is not used or you rely on scale.
+ * 
+ * If sclale or rotation has updated, you must first update those, then translation.
+ * 
+ * @param {array} spriteData - An array containing these values in the order: [x, y, z, rx, ry, rz, sx, sy, sz].
+ * @param {Float32Array} out - An optional Float32Array to store the resulting matrix.
+ * @param {number} w - The width of the sprite (used for anchor calculations).
+ * @param {number} h - The height of the sprite (used for anchor calculations).
+ * @param {number} d - The depth of the sprite (used for anchor calculations).
+ * @returns {Float32Array} The resulting transformation matrix.
+ */
+function transformMatrix(spriteData, out = new Float32Array(16), w = 1, h = 1, d = 1) {
+    // -- Position
+    let x = spriteData[SDi.x];
+    let y = spriteData[SDi.y];
+    let z = spriteData[SDi.z];
+
+    const ox = spriteData[SDi.offsetX] || 0;
+    const oy = spriteData[SDi.offsetY] || 0;
+    const oz = spriteData[SDi.offsetZ] || 0;
+
+    x += ox;
+    y += oy;
+    z += oz;
+
+    const anchorX = spriteData[SDi.anchorX] || 0;
+    const anchorY = spriteData[SDi.anchorY] || 0;
+    const anchorZ = spriteData[SDi.anchorZ] || 0;
 
     if(anchorX === 0 && anchorY === 0 && anchorZ === 0) {
         out[12] = x;
@@ -1713,6 +1970,8 @@ function updateMatrix(spriteData, out = new Float32Array(16), w = 1, h = 1, d = 
 
     const transformFlags = spriteData[SDi.transformFlags] || 0;
 
+    // By default, the anchor point affects only rotation and scale by resetting the position after the offset.
+    // You can override this to also affect the position. Set Sprite.DEFAULT_FLAGS to set this globally.
     if(!(transformFlags & SDi.ANCHOR_AFFECTS_POSITION)) {
         out[12] += w * anchorX;
         out[13] += h * anchorY;
@@ -1720,6 +1979,17 @@ function updateMatrix(spriteData, out = new Float32Array(16), w = 1, h = 1, d = 
     }
 
     return out;
+}
+
+function createMatrix(spriteData, out = new Float32Array(16), w = 1, h = 1, d = 1) {
+    out ??= new Float32Array(16);
+    out[15] = 1;
+    updateMatrix(spriteData, out, w, h, d);
+    return out;
+}
+
+function updateMatrix(spriteData, out = new Float32Array(16), w = 1, h = 1, d = 1) {
+    return transformMatrix(spriteData, rotateMatrix(spriteData, out), w, h, d);
 }
 
 /**
@@ -1784,7 +2054,10 @@ const obj = {
     Renderable,
     WebGLBuffer,
 
+    createMatrix,
     updateMatrix,
+    rotateMatrix,
+    transformMatrix,
     multiplyMatrix,
 
     /**

@@ -16,7 +16,48 @@ const op = {
     div: (a, b) => a / b,
 };
 
+/**
+ * @typedef SpriteOptions
+ * @property {number[]} [data] The packed data array for the sprite
+ * @property {Texture} [texture] The texture object to use for the sprite
+ * @property {number[]} [position] The position of the sprite [x, y, z]
+ * @property {number} [offset] The offset of the sprite [x, y, z]
+ * @property {number[]} [size] The size of the sprite [width, height, depth]
+ * @property {number[]} [color] The color of the sprite [r, g, b, a]
+ * @property {number[]} [rotation] The rotation of the sprite [rx, ry, rz]
+ * @property {number[]} [scale] The scale of the sprite [sx, sy, sz]
+ * @property {boolean} [visible] Whether the sprite is visible or not
+ * @property {number[]} [anchor] The anchor point of the sprite [anchorX, anchorY, anchorZ]
+ * @property {number} [x] The x position of the sprite
+ * @property {number} [y] The y position of the sprite
+ * @property {number} [z] The z position of the sprite
+ * @property {number} [offsetX] The x offset of the sprite
+ * @property {number} [offsetY] The y offset of the sprite
+ * @property {number} [offsetZ] The z offset of the sprite
+ * @property {number} [anchorX] The x anchor point of the sprite
+ * @property {number} [anchorY] The y anchor point of the sprite
+ * @property {number} [anchorZ] The z anchor point of the sprite
+ * @property {number} [scaleX] The x scale of the sprite
+ * @property {number} [scaleY] The y scale of the sprite
+ * @property {number} [scaleZ] The z scale of the sprite
+ * @property {number} [rotationX] The x rotation of the sprite
+ * @property {number} [rotationY] The y rotation of the sprite
+ * @property {number} [rotationZ] The z rotation of the sprite
+ * @property {number} [rotationOrder] The rotation order of the sprite (SDi.ORDER_* or "xyz", etc.)
+ * @property {number} [width] The width of the sprite
+ * @property {number} [height] The height of the sprite
+ * @property {number} [depth] The depth of the sprite
+ * @property {number} [colorR] The red component of the sprite's color (0-255)
+ * @property {number} [colorG] The green component of the sprite's color (0-255)
+ * @property {number} [colorB] The blue component of the sprite's color (0-255)
+ * @property {number} [colorA] The alpha component of the sprite's color (0-255)
+ * @property {number} [opacity] The opacity of the sprite (0.0 - 1.0); Warning; this currently sets the alpha on the color
+*/
+
 class Sprite {
+    static DEFAULT_FLAGS          = 0;
+    static DEFAULT_ROTATION_ORDER = SDi.ORDER_ZYX;
+
     /**
      * The texture used by the sprite.
      * @type {Texture}
@@ -25,7 +66,7 @@ class Sprite {
 
     /**
      * @type {number[]} data Packed array
-     * Its efficient i guess; also could later use typed or subarrays
+     * Its efficient i guess; also could later use typed or subarrays; though that may not be benefitial due to the variety of types which JS is not very good at handling.
      */
     data = [
         /*x*/                 0,
@@ -46,7 +87,8 @@ class Sprite {
         /*w*/                -1,
         /*h*/                -1,
         /*d*/                 1,
-        /*transformFlags*/    0,
+        /*transformFlags*/    Sprite.DEFAULT_FLAGS,
+        /*rotationOrder*/     Sprite.DEFAULT_ROTATION_ORDER,
         /*visible*/           1,
         /*r*/                 255,
         /*g*/                 255,
@@ -59,48 +101,13 @@ class Sprite {
      * @type {Float32Array} 4x4 transformation matrix
      */
     _transformMatrix = null;
-    matrixDirty = true;
+    rotationDirty = true;
+    positionDirty = true;
 
     /**
      * @type {Container|null} Parent container
      */
     parent = null;
-
-    /**
-     * @typedef SpriteOptions
-     * @property {Texture} [texture] The texture object to use for the sprite
-     * @property {number[]} [position] The position of the sprite [x, y, z]
-     * @property {number} [offset] The offset of the sprite [x, y, z]
-     * @property {number[]} [size] The size of the sprite [width, height, depth]
-     * @property {number[]} [color] The color of the sprite [r, g, b, a]
-     * @property {number[]} [rotation] The rotation of the sprite [rx, ry, rz]
-     * @property {number[]} [scale] The scale of the sprite [sx, sy, sz]
-     * @property {boolean} [visible] Whether the sprite is visible or not
-     * @property {number[]} [anchor] The anchor point of the sprite [anchorX, anchorY, anchorZ]
-     * @property {number} [x] The x position of the sprite
-     * @property {number} [y] The y position of the sprite
-     * @property {number} [z] The z position of the sprite
-     * @property {number} [offsetX] The x offset of the sprite
-     * @property {number} [offsetY] The y offset of the sprite
-     * @property {number} [offsetZ] The z offset of the sprite
-     * @property {number} [anchorX] The x anchor point of the sprite
-     * @property {number} [anchorY] The y anchor point of the sprite
-     * @property {number} [anchorZ] The z anchor point of the sprite
-     * @property {number} [scaleX] The x scale of the sprite
-     * @property {number} [scaleY] The y scale of the sprite
-     * @property {number} [scaleZ] The z scale of the sprite
-     * @property {number} [rotationX] The x rotation of the sprite
-     * @property {number} [rotationY] The y rotation of the sprite
-     * @property {number} [rotationZ] The z rotation of the sprite
-     * @property {number} [width] The width of the sprite
-     * @property {number} [height] The height of the sprite
-     * @property {number} [depth] The depth of the sprite
-     * @property {number} [colorR] The red component of the sprite's color (0-255)
-     * @property {number} [colorG] The green component of the sprite's color (0-255)
-     * @property {number} [colorB] The blue component of the sprite's color (0-255)
-     * @property {number} [colorA] The alpha component of the sprite's color (0-255)
-     * @property {number} [opacity] The opacity of the sprite (0.0 - 1.0); Warning; this currently sets the alpha on the color
-    */
 
     /**
      * Abstract base sprite class for 2D/3D sprites.
@@ -121,6 +128,10 @@ class Sprite {
         sprite.data = copy? data.slice(): data;
         sprite.texture = texture;
         return sprite;
+    }
+
+    static toArray(sprite) {
+        return sprite.data.slice();
     }
 
     /**
@@ -168,50 +179,58 @@ class Sprite {
     }
 
     /**
-     * Set options for sprite.
+     * Sets the options for the sprite, in order of specificity (eg. data[SDi.x] -> position[x] -> x).
      * @param {SpriteOptions} options Options to apply to the sprite
      */
-    setOptions(options) {
-        if(options.texture)               this.texture = options.texture;
+    setOptions(options) { 
+        if(options.texture                    ) this.texture = options.texture;
+        if(options.data                       ) this.data = options.data;
 
-        if(options.position)              this.setPosition(options.position);
-        if(options.offset)                this.setOffset(options.offset);
-        if(options.size)                  this.setSize(options.size);
-        if(options.color)                 this.setColor(options.color);
-        if(options.rotation)              this.setRotation(options.rotation);
-        if(options.scale)                 this.setScale(options.scale);
-        if(options.visible !== undefined) this.visible = options.visible? 1: 0;
-        if(options.anchor)                this.setAnchor(options.anchor);
-        if(options.texture)               this.texture = options.texture;
-        if(options.opacity !== undefined) this.opacity = options.opacity;
+        if(options.visible       !== undefined) this.visible       = options.visible? 1: 0;
+        if(options.texture                    ) this.texture       = options.texture;
+        if(options.opacity       !== undefined) this.opacity       = options.opacity;
 
-        if(options.x         !== undefined) this.x           = options.x;
-        if(options.y         !== undefined) this.y           = options.y;
-        if(options.z         !== undefined) this.z           = options.z;
-        if(options.offsetX   !== undefined) this.offsetX     = options.offsetX;
-        if(options.offsetY   !== undefined) this.offsetY     = options.offsetY;
-        if(options.offsetZ   !== undefined) this.offsetZ     = options.offsetZ;
-        if(options.anchorX   !== undefined) this.anchorX     = options.anchorX;
-        if(options.anchorY   !== undefined) this.anchorY     = options.anchorY;
-        if(options.anchorZ   !== undefined) this.anchorZ     = options.anchorZ;
-        if(options.scaleX    !== undefined) this.scaleX      = options.scaleX;
-        if(options.scaleY    !== undefined) this.scaleY      = options.scaleY;
-        if(options.scaleZ    !== undefined) this.scaleZ      = options.scaleZ;
-        if(options.rotationX !== undefined) this.rotationX   = options.rotationX;
-        if(options.rotationY !== undefined) this.rotationY   = options.rotationY;
-        if(options.rotationZ !== undefined) this.rotationZ   = options.rotationZ;
-        if(options.width     !== undefined) this.width       = options.width;
-        if(options.height    !== undefined) this.height      = options.height;
-        if(options.depth     !== undefined) this.depth       = options.depth;
-        if(options.colorR    !== undefined) this.data[SDi.r] = options.colorR;
-        if(options.colorG    !== undefined) this.data[SDi.g] = options.colorG;
-        if(options.colorB    !== undefined) this.data[SDi.b] = options.colorB;
-        if(options.colorA    !== undefined) this.data[SDi.a] = options.colorA;
+        if(options.position                   ) this.setPosition(options.position);
+        if(options.x             !== undefined) this.x             = options.x;
+        if(options.y             !== undefined) this.y             = options.y;
+        if(options.z             !== undefined) this.z             = options.z;
+
+        if(options.offset                     ) this.setOffset(options.offset);
+        if(options.offsetX       !== undefined) this.offsetX       = options.offsetX;
+        if(options.offsetY       !== undefined) this.offsetY       = options.offsetY;
+        if(options.offsetZ       !== undefined) this.offsetZ       = options.offsetZ;
+
+        if(options.anchor                     ) this.setAnchor(options.anchor);
+        if(options.anchorX       !== undefined) this.anchorX       = options.anchorX;
+        if(options.anchorY       !== undefined) this.anchorY       = options.anchorY;
+        if(options.anchorZ       !== undefined) this.anchorZ       = options.anchorZ;
+
+        if(options.scale                      ) this.setScale(options.scale);
+        if(options.scaleX        !== undefined) this.scaleX        = options.scaleX;
+        if(options.scaleY        !== undefined) this.scaleY        = options.scaleY;
+        if(options.scaleZ        !== undefined) this.scaleZ        = options.scaleZ;
+
+        if(options.rotation                   ) this.setRotation(options.rotation);
+        if(options.rotationX     !== undefined) this.rotationX     = options.rotationX;
+        if(options.rotationY     !== undefined) this.rotationY     = options.rotationY;
+        if(options.rotationZ     !== undefined) this.rotationZ     = options.rotationZ;
+        if(options.rotationOrder !== undefined) this.rotationOrder = options.rotationOrder;
+
+        if(options.size                       ) this.setSize(options.size);
+        if(options.width         !== undefined) this.width         = options.width;
+        if(options.height        !== undefined) this.height        = options.height;
+        if(options.depth         !== undefined) this.depth         = options.depth;
+
+        if(options.color                      ) this.setColor(options.color);
+        if(options.colorR        !== undefined) this.data[SDi.r]   = options.colorR;
+        if(options.colorG        !== undefined) this.data[SDi.g]   = options.colorG;
+        if(options.colorB        !== undefined) this.data[SDi.b]   = options.colorB;
+        if(options.colorA        !== undefined) this.data[SDi.a]   = options.colorA;
     }
 
     get width()      { return this.data[SDi.width] < 0 && this.texture? this.texture.width: this.data[SDi.width]; }
     set width(value) { this.data[SDi.width] = value; }
-    
+
     get height()      { return this.data[SDi.height] < 0 && this.texture? this.texture.height: this.data[SDi.height]; }
     set height(value) { this.data[SDi.height] = value; }
 
@@ -241,31 +260,31 @@ class Sprite {
     get worldZ() { return this._worldMatrix? this._worldMatrix[14]: this.z; }
 
     get anchorX() { return this.data[SDi.anchorX]; }
-    set anchorX(value) { this.matrixDirty = true; this.data[SDi.anchorX] = value; }
+    set anchorX(value) { this.positionDirty = true; this.data[SDi.anchorX] = value; }
 
     get anchorY() { return this.data[SDi.anchorY]; }
-    set anchorY(value) { this.matrixDirty = true; this.data[SDi.anchorY] = value; }
+    set anchorY(value) { this.positionDirty = true; this.data[SDi.anchorY] = value; }
 
     get anchorZ() { return this.data[SDi.anchorZ]; }
-    set anchorZ(value) { this.matrixDirty = true; this.data[SDi.anchorZ] = value; }
+    set anchorZ(value) { this.positionDirty = true; this.data[SDi.anchorZ] = value; }
 
     get rotationX()      {  return this.data[SDi.rotationX]; }
-    set rotationX(value) { this.matrixDirty = true; this.data[SDi.rotationX] = value; }
+    set rotationX(value) { this.rotationDirty = true; this.data[SDi.rotationX] = value; }
 
     get rotationY()      {  return this.data[SDi.rotationY]; }
-    set rotationY(value) { this.matrixDirty = true; this.data[SDi.rotationY] = value; }
+    set rotationY(value) { this.rotationDirty = true; this.data[SDi.rotationY] = value; }
 
     get rotationZ()      { return this.data[SDi.rotationZ]; }
-    set rotationZ(value) { this.matrixDirty = true; this.data[SDi.rotationZ] = value; }
+    set rotationZ(value) { this.rotationDirty = true; this.data[SDi.rotationZ] = value; }
 
     get scaleX()      { return this.data[SDi.scaleX]; }
-    set scaleX(value) { this.matrixDirty = true; this.data[SDi.scaleX] = value; }
+    set scaleX(value) { this.rotationDirty = true; this.data[SDi.scaleX] = value; }
 
     get scaleY()      { return this.data[SDi.scaleY]; }
-    set scaleY(value) { this.matrixDirty = true; this.data[SDi.scaleY] = value; }
+    set scaleY(value) { this.rotationDirty = true; this.data[SDi.scaleY] = value; }
 
     get scaleZ()      {  return this.data[SDi.scaleZ]; }
-    set scaleZ(value) { this.matrixDirty = true; this.data[SDi.scaleZ] = value; }
+    set scaleZ(value) { this.rotationDirty = true; this.data[SDi.scaleZ] = value; }
 
     set scale(value) { return this.setUniformScale(value); }
 
@@ -275,22 +294,45 @@ class Sprite {
     set visible(value) { this.data[SDi.visible] = value? 1: 0; }
     get visible()      { return this.data[SDi.visible] === 1;  }
 
+    set rotationOrder(value) { if(typeof value === "string") value = SDi["ORDER_" + value.toUpperCase()]; this.data[SDi.rotationOrder] = value; this.rotationDirty = true; }
+    get rotationOrder() { return this.data[SDi.rotationOrder]; }
+
     get color() { return new LS.Color(this.data[SDi.r], this.data[SDi.g], this.data[SDi.b], this.data[SDi.a]); }
     set color(value) { this.setColor(value); }
+
+    get matrixDirty()      { return this.rotationDirty || this.positionDirty         }
+    set matrixDirty(value) { this.rotationDirty = value; this.positionDirty = value; }
 
     /**
      * Gets the transform matrix.
      * @returns {Float32Array} The transform matrix.
      */
     get transformMatrix() {
-        if(!this.matrixDirty) return this._transformMatrix;
-
         if(!this._transformMatrix) {
-            this._transformMatrix = new Float32Array(16);
+            this.rotationDirty = false;
+            this.positionDirty = false;
+            this._transformMatrix = LS.GL.createMatrix(this.data, null, this.width, this.height, this.depth);
+            return this._transformMatrix;
         }
 
-        this.matrixDirty = false;
-        return LS.GL.updateMatrix(this.data, this._transformMatrix, this.width, this.height, this.depth);
+        if(this.rotationDirty) {
+            this.positionDirty = false;
+            this.rotationDirty = false;
+            // If rotation or scale changes and we have an anchor then position must be updated too
+            return LS.GL.updateMatrix(this.data, this._transformMatrix, this.width, this.height, this.depth);
+        }
+
+        if(this.positionDirty) {
+            this.positionDirty = false;
+            return LS.GL.transformMatrix(this.data, this._transformMatrix, this.width, this.height, this.depth);
+        }
+
+        return this._transformMatrix;
+    }
+
+    updateMatrix() {
+        this.matrixDirty = true;
+        return this.transformMatrix;
     }
 
     get worldMatrix() {
@@ -300,6 +342,12 @@ class Sprite {
         return this._worldMatrix;
     }
 
+    /**
+     * Sets the position of the sprite.
+     * @param {number|number[]} x - The x position.
+     * @param {number|number[]} y - The y position.
+     * @param {number|number[]} z - The z position.
+     */
     setPosition(x, y, z) {
         if(Array.isArray(x)) {
             [x, y, z] = x;
@@ -311,6 +359,12 @@ class Sprite {
         this._updatePosition();
     }
 
+    /**
+     * Sets the offset for the sprite.
+     * @param {number|number[]} x - The x offset.
+     * @param {number|number[]} y - The y offset.
+     * @param {number|number[]} z - The z offset.
+     */
     setOffset(x, y, z) {
         if(Array.isArray(x)) {
             [x, y, z] = x;
@@ -325,7 +379,7 @@ class Sprite {
     _updatePosition(axis) {
         // There is more potential for optimization here, though to keep accuracy of all transform features, either a more complex system needs to be implemented, or we could add flags for this
 
-        this.matrixDirty = true;
+        this.positionDirty = true;
 
         // if(axis !== undefined) {
         //     switch(axis) {
@@ -403,10 +457,7 @@ class Sprite {
         }
 
         if(r instanceof LS.Color) {
-            this.data[SDi.r] = r.r;
-            this.data[SDi.g] = r.g;
-            this.data[SDi.b] = r.b;
-            this.data[SDi.a] = r.a;
+            r.copyTo(this.data, SDi.r);
             return;
         }
 
@@ -507,7 +558,18 @@ class Container extends Sprite {
      */
     replaceChildren(newChildren) {
         this.children = newChildren;
-        for(const child of this.children) {
+
+        for(let i = 0; i < newChildren.length; i++) {
+            let child = newChildren[i];
+
+            if(!(child instanceof Sprite)) {
+                if(typeof child === "object" && child !== null) {
+                    child = newChildren[i] = new Sprite(child);
+                } else {
+                    throw new Error("Invalid child type: " + typeof child);
+                }
+            }
+
             if(child.parent === this) continue;
             child.remove();
             child.parent = this;
@@ -807,27 +869,34 @@ class MeshBuilder {
     }
 
     toObject() {
+        const indexes   = new Map();
         const positions = [];
         const indices   = [];
+        const normals   = [];
+        const uvs       = [];
 
-        // Yes this is very slow
         for(const triangle of this.triangles) {
-            for(const vertex of triangle) {
-                const index = positions.indexOf(vertex);
-                if(index === -1) {
-                    positions.push(vertex);
-                    indices.push(positions.length - 1);
+            for(const vector of triangle) {
+                const hash = Vector.hashOf(vector);
+                if(indexes.has(hash)) {
+                    indices.push(indexes.get(hash));
                 } else {
+                    const index = positions.length / 3;
+                    indexes.set(hash, index);
+                    positions.push(...vector);
                     indices.push(index);
                 }
             }
+
+            normals.push(0, 0, 1);
+            uvs.push(0, 1);
         }
 
         const obj = new Mesh();
         obj.indices   = new Uint16Array (indices);
         obj.positions = new Float32Array(positions);
-        obj.normals   = new Float32Array(this.normals);
-        obj.uvs       = new Float32Array(this.uvs);
+        obj.normals   = new Float32Array(normals);
+        obj.uvs       = new Float32Array(uvs);
         return obj;
     }
 
@@ -996,19 +1065,23 @@ class Vector {
      */
     id()  { return this.data.slice(this.offset, this.offset + this.size).join(",") }
 
-
     /**
      * Generate a hash for the vector
      * Faster than id()
      */
     hash() {
-        let h = 0;
-        for (let i = 0; i < this.size; i++) {
-            const n = this.data[this.offset + i] || 0;
-            h = Math.imul(h ^ n, 0x45d9f3b);
-            h ^= h >>> 16;
-        }
-        return h >>> 0;
+        // let h = 0;
+        // for (let i = 0; i < this.size; i++) {
+        //     const n = this.data[this.offset + i] || 0;
+        //     h = Math.imul(h ^ n, 0x45d9f3b);
+        //     h ^= h >>> 16;
+        // }
+        // return h >>> 0;
+        return this.id(); // need to solve negative values
+    }
+
+    static hashOf(vectorData) {
+        return Vector.prototype.id.call({ data: vectorData, offset: 0, size: vectorData.length });
     }
 
     /**
@@ -1126,6 +1199,70 @@ class Scene extends LS.Context {
     }
 }
 
+const defaultFrag = `#version 300 es
+precision mediump float;
+
+in vec2 vTexCoord;
+in vec4 vColor;
+
+uniform sampler2D uTexture;
+uniform float uOpacity;
+
+out vec4 fragColor;
+
+void main() {
+    vec4 texColor = texture(uTexture, vTexCoord);
+    fragColor = texColor * vColor;
+    fragColor.a *= uOpacity;
+}`;
+
+const vert2d = `#version 300 es
+
+${LSGL.utils.quad}
+
+layout(location = 0) in vec4 iUVRect;
+layout(location = 1) in vec4 iColor;
+layout(location = 2) in mat4 iMatrix;
+
+uniform mat4 uProjection;
+uniform vec2 uOffset;
+
+out vec2 vTexCoord;
+out vec4 vColor;
+out vec2 vUv;
+
+void main() {
+    vec2 quadCoord = positions[gl_VertexID] * 0.5 + 0.5;
+
+    vec3 p = vec3(quadCoord - uOffset, 0.0);
+    gl_Position = uProjection * iMatrix * vec4(p, 1.0);
+
+    vTexCoord = iUVRect.xy + quadCoord * iUVRect.zw;
+    vColor = iColor;
+
+    vUv = quadCoord;
+}`;
+
+const vert3d = `#version 300 es
+
+layout(location = 0) in vec3 iPosition;
+layout(location = 1) in vec3 iNormal;
+layout(location = 2) in vec2 iUV;
+
+uniform mat4 uProjection;
+uniform mat4 uView;
+uniform mat4 uModel;
+
+out vec3 vNormal;
+out vec2 vUV;
+
+void main() {
+    gl_Position = uProjection * uView * uModel * vec4(iPosition, 1.0);
+    vNormal = mat3(uModel) * iNormal;
+    vUV = iUV;
+}
+`
+
 /**
  * Draws 2D sprites with batching, reducing the number of draw calls when possible. Possible to switch sprite shaders.
  * For best performance, put sprites that share the same texture next to eachother, as every texture switch causes a new draw call and removes the possibilty of reusing buffers.
@@ -1167,8 +1304,8 @@ class BatchedSpriteRenderer extends LSGL.Renderable {
 
             parent: lsgli,
 
-            uniforms:   ["uProjection", "uOffset", "uTexture", "uOpacity", "uTime",   ...(uniforms || [])  ],
-            attributes: ["iUVRect", "iColor", "iMatrix", ...(attributes || [])],
+            uniforms:   ["uProjection", "uOffset", "uTexture", "uOpacity", "uTime",   ...(uniforms   || [])],
+            attributes: ["iUVRect", "iColor", "iMatrix",                              ...(attributes || [])],
 
             // -- Below are data stored per sprite bound to instances.
             vao: true,
@@ -1181,222 +1318,28 @@ class BatchedSpriteRenderer extends LSGL.Renderable {
 
                 // -- Transformation matrix; defines the position, rotation and scale of the sprite.
                 iMatrix:   { cellSize: 16, type: "mat4", size: batchSize },
+
                 ...binds
             },
 
-            frag: frag || `#version 300 es
-precision mediump float;
-
-in vec2 vTexCoord;
-in vec4 vColor;
-
-uniform sampler2D uTexture;
-uniform float uOpacity;
-
-out vec4 fragColor;
-
-void main() {
-    vec4 texColor = texture(uTexture, vTexCoord);
-    fragColor = texColor * vColor;
-    fragColor.a *= uOpacity;
-}`,
-            vert: vert || `#version 300 es
-
-${LSGL.utils.quad}
-
-layout(location = 0) in vec4 iUVRect;
-layout(location = 1) in vec4 iColor;
-// layout(location = 2) in vec2 iSize;
-layout(location = 3) in mat4 iMatrix;
-
-uniform mat4 uProjection;
-uniform vec2 uOffset;
-
-out vec2 vTexCoord;
-out vec4 vColor;
-out vec2 vUv;
-
-void main() {
-    vec2 quadCoord = positions[gl_VertexID] * 0.5 + 0.5;
-
-    vec3 p = vec3(quadCoord - uOffset, 0.0);
-    gl_Position = uProjection * iMatrix * vec4(p, 1.0);
-
-    vTexCoord = iUVRect.xy + quadCoord * iUVRect.zw;
-    vColor = iColor;
-
-    vUv = quadCoord;
-}`
+            frag: frag || defaultFrag,
+            vert: vert || vert2d
         });
 
         this.maxBatchSize = batchSize;
     }
 
     /**
-     * Update buffer data and render a sprite container.
+     * Update buffer data and render a container.
      * @param {Container} container Container to render
-     * @param {*} x Optional x offset override
-     * @param {*} y Optional y offset override
-     * @param {*} opacity Optional opacity override
+     * @param {number} x Optional x offset override
+     * @param {number} y Optional y offset override
+     * @param {number} opacity Optional opacity override
+     * @param {number} delta Time since last frame
+     * @param {number} now Current time
      */
-    render(container, x = container.data[SDi.x], y = container.data[SDi.y], opacity = container.opacity, _skipSetup = false) {
-        if(!container || !container.children || container.children.length === 0 || (opacity !== null && opacity <= 0)) return;
-
-        let low = 0, high = 0, atlas = null;
-
-        const gl = this.renderer.gl;
-
-        // -- Buffers
-        const buffers    = this.buffers;
-        const matrixData = buffers.iMatrix.data;  // Transformation matrix
-        const colorData  = buffers.iColor ?.data; // Color (optional)
-        const uvRectData = buffers.iUVRect?.data; // UV Rect (texture region, optional)
-
-        // Stack for parent matrices
-        const stackM = [container.transformMatrix];
-
-        // Stack for parent indices
-        const stackI = [0];
-
-        // Stack for parent containers
-        const stackC = [container];
-        
-        let parentOpacity = opacity;
-
-        let depth = 0;
-
-        while (depth >= 0) {
-            const currentContainer = stackC[depth];
-            const parentMatrix     = stackM[depth];
-            const i                = stackI[depth];
-            stackI[depth]++;
-
-            // -- Leave container
-            if(i > currentContainer.children.length) {
-                if(depth === 0) break;
-                depth--;
-
-                parentOpacity /= currentContainer.opacity;
-                continue;
-            }
-
-            const child = currentContainer.children[i];
-            if(!child || !child.visible || child.opacity <= 0) continue;
-
-            // -- Enter container
-            if(child.isContainer) {
-                if(child.children.length === 0) continue;
-
-                if(child.layoutDirty) {
-                    if(typeof child.recompute === "function") {
-                        child.recompute();
-                    }
-                }
-
-                LSGL.multiplyMatrix(
-                    parentMatrix,
-                    child.transformMatrix,
-                    child.worldMatrix
-                );
-
-                depth++;
-                stackM[depth] = child.worldMatrix;
-                stackC[depth] = child;
-                stackI[depth] = 0;
-
-                parentOpacity *= child.opacity;
-                continue;
-            }
-
-            if(!child.texture) continue;
-
-            const data          = child.data;
-            const combinedAlpha = data[SDi.a] * data[SDi.alphaMultiplier] * parentOpacity;
-            if(combinedAlpha <= 0) continue;
-
-            const texture   = child.texture;
-            const uvRect    = texture.region || [0, 0, texture.imageWidth, texture.imageHeight];
-            const glTexture = texture.getGLTexture(gl);
-
-            if(atlas && atlas !== glTexture) {
-                this.draw(high, atlas, low, high, opacity, x, y, _skipSetup);
-                _skipSetup = true;
-
-                high  = 0;
-                atlas = null;
-            }
-
-            atlas = glTexture;
-
-            /**
-             * @type {Float32Array}
-             */
-            const matrix = matrixData.subarray(high * 16, high * 16 + 16);
-
-            // TODO: we are now doing a lot of the calculation here which eh, it is not ideal
-
-            // Copy the child transform matrix into the buffer
-            const uMatrix = child.transformMatrix;
-
-            const sWidth  = child.width;
-            const sHeight = child.height;
-            const sDepth  = child.depth;
-
-            matrix[0]  = uMatrix[0]  * sWidth;
-            matrix[1]  = uMatrix[1]  * sWidth;
-            matrix[2]  = uMatrix[2]  * sWidth;
-            matrix[3]  = uMatrix[3];
-            matrix[4]  = uMatrix[4]  * sHeight;
-            matrix[5]  = uMatrix[5]  * sHeight;
-            matrix[6]  = uMatrix[6]  * sHeight;
-            matrix[7]  = uMatrix[7];
-            matrix[8]  = uMatrix[8]  * sDepth;
-            matrix[9]  = uMatrix[9]  * sDepth;
-            matrix[10] = uMatrix[10] * sDepth;
-            matrix[11] = uMatrix[11];
-
-            matrix[12] = uMatrix[12];
-            matrix[13] = uMatrix[13];
-            matrix[14] = uMatrix[14];
-            matrix[15] = uMatrix[15];
-
-            // matrix.set(uMatrix); // <- This is slower by about 2.4x on Chrome. On Firefox it is about the same.
-
-            // Apply parent transformation
-            if(parentMatrix) LSGL.multiplyMatrix(parentMatrix, matrix, matrix);
-
-            // sizeData  [high * 2 + 0] = child.width;
-            // sizeData  [high * 2 + 1] = child.height;
-
-            if(colorData) {
-                colorData[high * 4 + 0] = data[SDi.r];
-                colorData[high * 4 + 1] = data[SDi.g];
-                colorData[high * 4 + 2] = data[SDi.b];
-                colorData[high * 4 + 3] = combinedAlpha;
-            }
-
-            if(uvRectData) {
-                uvRectData[high * 4 + 0] = uvRect[0] / texture.imageWidth;
-                uvRectData[high * 4 + 1] = uvRect[1] / texture.imageHeight;
-                uvRectData[high * 4 + 2] = uvRect[2] / texture.imageWidth;
-                uvRectData[high * 4 + 3] = uvRect[3] / texture.imageHeight;
-            }
-
-            high++;
-
-            // If we reach the max batch size, draw the current batch and reset for the next one
-            if(high > this.maxBatchSize) {
-                this.draw(high, atlas, low, high, opacity, x, y, _skipSetup);
-                _skipSetup = true;
-
-                high = 0;
-                atlas = null;
-            }
-        }
-
-        if(high > 0) {
-            this.draw(high, atlas, low, high, opacity, x, y, _skipSetup);
-        }
+    render(container, x = container.data[SDi.x], y = container.data[SDi.y], opacity = container.opacity, delta, now, _skipSetup = false) {
+        this.renderer.renderScene(container, this, x, y, opacity, delta, now, _skipSetup);
     }
 
     draw(count, atlas, low = 0, high = 0, opacity = null, x = null, y = null, _skipSetup = false) {
@@ -1444,8 +1387,9 @@ void main() {
         // Todo: sadly, drawArraysInstanced does not support low, meaning the only way would be to rebind the array, which i am yet to test the performance of.
         // This means that we are sadly forced to rebuid nearly every time which limits the optimization potential a lot.
     }
-}
 
+    draw3d(count, atlas, low = 0, high = 0, opacity = null, x = null, y = null, _skipSetup = false) {}
+}
 
 /**
  * A basic asset loader.
