@@ -385,25 +385,7 @@ class Sprite {
 
     _updatePosition(axis) {
         // There is more potential for optimization here, though to keep accuracy of all transform features, either a more complex system needs to be implemented, or we could add flags for this
-
         this.positionDirty = true;
-
-        // if(axis !== undefined) {
-        //     switch(axis) {
-        //         case 0: { if(this.data[SDi.anchorX] === 0) { this._transformMatrix[12] = this.data[SDi.x] + this.data[SDi.offsetX]; return; } break; }
-        //         case 1: { if(this.data[SDi.anchorX] === 0) { this._transformMatrix[13] = this.data[SDi.y] + this.data[SDi.offsetY]; return; } break; }
-        //         case 2: { if(this.data[SDi.anchorX] === 0) { this._transformMatrix[14] = this.data[SDi.z] + this.data[SDi.offsetZ]; return; } break; }
-        //     }
-
-        //     this.matrixDirty = true;
-        //     return;
-        // }
-
-        // if(this._transformMatrix && this.data[SDi.anchorX] === 0 && this.data[SDi.anchorY] === 0 && this.data[SDi.anchorZ] === 0) {
-        //     this._transformMatrix[12] = this.data[SDi.x] + this.data[SDi.offsetX];
-        //     this._transformMatrix[13] = this.data[SDi.y] + this.data[SDi.offsetY];
-        //     this._transformMatrix[14] = this.data[SDi.z] + this.data[SDi.offsetZ];
-        // } else this.matrixDirty = true;
     }
 
     setSize(width, height, depth) {
@@ -529,6 +511,45 @@ class Sprite {
 
         this.texture = null;
         this.destroyed = true;
+    }
+}
+
+class InstanceSprite extends Sprite {
+    /**
+     * InstanceSprite is a Sprite that can be rendered multiple times with different options.
+     * It is useful for rendering many copies of the same sprite with different positions, rotations, colors, and scales.
+     * @param {SpriteOptions} options Options for the sprite
+     * @param {Function} generator A function that generates the options for each instance
+     * 
+     * @experimental
+     */
+    constructor(options = {}, generator = null) {
+        super(options);
+
+        if(options.count     !== undefined) this.count     = options.count;
+        if(options.generator !== undefined) this.generator = options.generator;
+
+        if(generator !== null) this.generator = generator;
+    }
+
+    isInstanceSprite = true;
+    count   = 0;
+    counter = 0;
+
+    next(delta, now) {
+        if(this.generator) {
+            this.generator(this.counter, this.data, delta, now);
+            this.matrixDirty = true;
+        }
+
+        this.counter++;
+
+        if(this.counter < this.count) {
+            return true;
+        }
+
+        this.counter = 0;
+        return false;
     }
 }
 
@@ -1349,8 +1370,12 @@ class BatchedSpriteRenderer extends LSGL.Renderable {
         this.renderer.renderScene(container, this, x, y, opacity, delta, now, _skipSetup);
     }
 
-    draw(count, atlas, low = 0, high = 0, opacity = null, x = null, y = null, _skipSetup = false) {
+    draw(count, atlas, low = 0, high = 0, opacity = null, x = null, y = null, delta = 0, now = 0, _skipSetup = false) {
         if(!atlas || count === 0 || (opacity !== null && opacity <= 0)) return;
+
+        const projectionMatrix = this.renderer.activeCamera.projectionMatrix;
+        const uniforms = this.uniforms;
+        const buffers = this.buffers;
 
         const gl = this.renderer.gl;
         if(!_skipSetup) {
@@ -1358,20 +1383,16 @@ class BatchedSpriteRenderer extends LSGL.Renderable {
             gl.bindVertexArray(this.vao);
         }
 
-        const projectionMatrix = this.renderer.activeCamera.projectionMatrix;
-        const uniforms = this.uniforms;
-        const buffers = this.buffers;
-
         // -- Upload changed buffers
         if(high) {
-            buffers.iMatrix.updateWithStride (low, high);
+            buffers.iMatrix.updateWithStride(low, high);
 
             if(buffers.iColor) {
-                buffers.iColor.updateWithStride  (low, high);
+                buffers.iColor.updateWithStride(low, high);
             }
 
             if(buffers.iUVRect) {
-                buffers.iUVRect.updateWithStride (low, high);
+                buffers.iUVRect.updateWithStride(low, high);
             }
         }
 
@@ -1383,7 +1404,7 @@ class BatchedSpriteRenderer extends LSGL.Renderable {
         // -- Uniforms
         if(x !== null || y !== null) gl.uniform2f(uniforms.uOffset, x || 0, y || 0);
         gl.uniform1f(uniforms.uOpacity, 1);
-        gl.uniform1f(uniforms.uTime, performance.now());
+        gl.uniform1f(uniforms.uTime, now);
 
         // -- Projection matrix
         gl.uniformMatrix4fv(uniforms.uProjection, false, projectionMatrix);
@@ -2137,6 +2158,7 @@ function htmlParser(code, root = null, factory = () => {}) {
 
 if(true) {
     LS.GL.Sprite = Sprite;
+    LS.GL.InstanceSprite = InstanceSprite;
     LS.GL.Mesh = Mesh;
     LS.GL.MeshBuilder = MeshBuilder;
     LS.GL.Vector = Vector;
@@ -2156,6 +2178,7 @@ if(true) {
 /*@ls-export*/ if(typeof module !== "undefined"){
     module.exports = {
         Sprite,
+        InstanceSprite,
         Mesh,
         MeshBuilder,
         Vector,
@@ -2172,4 +2195,4 @@ if(true) {
     };
 }
 
-export { Sprite, Mesh, MeshBuilder, Vector, VectorView, Container, LayoutContainer, Scene, Texture, TextureAtlas, AssetLoader, GlImage, BatchedSpriteRenderer, htmlParser };
+export { Sprite, InstanceSprite, Mesh, MeshBuilder, Vector, VectorView, Container, LayoutContainer, Scene, Texture, TextureAtlas, AssetLoader, GlImage, BatchedSpriteRenderer, htmlParser };

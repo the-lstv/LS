@@ -563,7 +563,7 @@ class WebGLRenderer extends Renderer {
 
         // -- Buffers
         const buffers    = renderer.buffers;
-        const matrixData = buffers.iMatrix.data;  // Transformation matrix
+        const matrixData = buffers.iMatrix .data; // Transformation matrix
         const colorData  = buffers.iColor ?.data; // Color (optional)
         const uvRectData = buffers.iUVRect?.data; // UV Rect (texture region, optional)
 
@@ -591,6 +591,7 @@ class WebGLRenderer extends Renderer {
                 if(depth === 0) break;
                 depth--;
 
+                // todo: draw to framebuffers for proper container opacity
                 parentOpacity /= currentContainer.opacity;
                 continue;
             }
@@ -602,17 +603,17 @@ class WebGLRenderer extends Renderer {
             if(child.isContainer) {
                 if(child.children.length === 0) continue;
 
+                /**@glitter_transform inline*/ LSGL.multiplyMatrix(
+                    parentMatrix,
+                    child.transformMatrix,
+                    child.worldMatrix
+                );
+
                 if(child.layoutDirty) {
                     if(typeof child.recompute === "function") {
                         child.recompute();
                     }
                 }
-
-                LSGL.multiplyMatrix(
-                    parentMatrix,
-                    child.transformMatrix,
-                    child.worldMatrix
-                );
 
                 depth++;
                 stackM[depth] = child.worldMatrix;
@@ -625,16 +626,21 @@ class WebGLRenderer extends Renderer {
 
             if(!child.texture) continue;
 
+            if(child.isInstanceSprite) {
+                if(child.next(delta, now)) {
+                    stackI[depth]--;
+                }
+            }
+
             const data          = child.data;
             const combinedAlpha = data[SDi.a] * data[SDi.alphaMultiplier] * parentOpacity;
             if(combinedAlpha <= 0) continue;
 
             const texture   = child.texture;
-            const uvRect    = texture.region || [0, 0, texture.imageWidth, texture.imageHeight];
             const glTexture = texture.getGLTexture(gl);
 
             if(atlas && atlas !== glTexture) {
-                renderer.draw(high, atlas, low, high, opacity, x, y, _skipSetup);
+                renderer.draw(high, atlas, low, high, opacity, x, y, delta, now, _skipSetup);
                 _skipSetup = true;
 
                 high  = 0;
@@ -651,7 +657,6 @@ class WebGLRenderer extends Renderer {
             // TODO: we are now doing a lot of the calculation here which eh, it is not ideal
 
             // Copy the child transform matrix into the buffer
-            const uMatrix = child.transformMatrix;
 
             const sWidth  = child.width;
             const sHeight = child.height;
@@ -659,49 +664,67 @@ class WebGLRenderer extends Renderer {
 
             // we could use the subarray to upload to GPU directly but idk about w/h and if frequent uploads weren't worse
 
-            matrix[0]  = uMatrix[0]  * sWidth;
-            matrix[1]  = uMatrix[1]  * sWidth;
-            matrix[2]  = uMatrix[2]  * sWidth;
-            matrix[3]  = uMatrix[3];
-            matrix[4]  = uMatrix[4]  * sHeight;
-            matrix[5]  = uMatrix[5]  * sHeight;
-            matrix[6]  = uMatrix[6]  * sHeight;
-            matrix[7]  = uMatrix[7];
-            matrix[8]  = uMatrix[8]  * sDepth;
-            matrix[9]  = uMatrix[9]  * sDepth;
-            matrix[10] = uMatrix[10] * sDepth;
-            matrix[11] = uMatrix[11];
+            const a00 = parentMatrix[0],  a01 = parentMatrix[1],  a02 = parentMatrix[2],  a03 = parentMatrix[3];
+            const a10 = parentMatrix[4],  a11 = parentMatrix[5],  a12 = parentMatrix[6],  a13 = parentMatrix[7];
+            const a20 = parentMatrix[8],  a21 = parentMatrix[9],  a22 = parentMatrix[10], a23 = parentMatrix[11];
+            const a30 = parentMatrix[12], a31 = parentMatrix[13], a32 = parentMatrix[14], a33 = parentMatrix[15];
 
-            matrix[12] = uMatrix[12];
-            matrix[13] = uMatrix[13];
-            matrix[14] = uMatrix[14];
-            matrix[15] = uMatrix[15];
+            const uMatrix = child.transformMatrix;
+            const b00 = uMatrix[0] * sWidth,  b01 = uMatrix[1] * sWidth,  b02 = uMatrix[2] * sWidth,  b03 = uMatrix[3];
+            const b10 = uMatrix[4] * sHeight, b11 = uMatrix[5] * sHeight, b12 = uMatrix[6] * sHeight, b13 = uMatrix[7];
+            const b20 = uMatrix[8] * sDepth,  b21 = uMatrix[9] * sDepth,  b22 = uMatrix[10] * sDepth, b23 = uMatrix[11];
+            const b30 = uMatrix[12],          b31 = uMatrix[13],          b32 = uMatrix[14],          b33 = uMatrix[15];
 
-            // Apply parent transformation
-            if(parentMatrix) LSGL.multiplyMatrix(parentMatrix, matrix, matrix);
+            // Apply parent transform
+            matrix[0]  = a00 * b00 + a10 * b01 + a20 * b02 + a30 * b03;
+            matrix[1]  = a01 * b00 + a11 * b01 + a21 * b02 + a31 * b03;
+            matrix[2]  = a02 * b00 + a12 * b01 + a22 * b02 + a32 * b03;
+            matrix[3]  = a03 * b00 + a13 * b01 + a23 * b02 + a33 * b03;
 
-            // sizeData  [high * 2 + 0] = child.width;
-            // sizeData  [high * 2 + 1] = child.height;
+            matrix[4]  = a00 * b10 + a10 * b11 + a20 * b12 + a30 * b13;
+            matrix[5]  = a01 * b10 + a11 * b11 + a21 * b12 + a31 * b13;
+            matrix[6]  = a02 * b10 + a12 * b11 + a22 * b12 + a32 * b13;
+            matrix[7]  = a03 * b10 + a13 * b11 + a23 * b12 + a33 * b13;
+
+            matrix[8]  = a00 * b20 + a10 * b21 + a20 * b22 + a30 * b23;
+            matrix[9]  = a01 * b20 + a11 * b21 + a21 * b22 + a31 * b23;
+            matrix[10] = a02 * b20 + a12 * b21 + a22 * b22 + a32 * b23;
+            matrix[11] = a03 * b20 + a13 * b21 + a23 * b22 + a33 * b23;
+
+            matrix[12] = a00 * b30 + a10 * b31 + a20 * b32 + a30 * b33;
+            matrix[13] = a01 * b30 + a11 * b31 + a21 * b32 + a31 * b33;
+            matrix[14] = a02 * b30 + a12 * b31 + a22 * b32 + a32 * b33;
+            matrix[15] = a03 * b30 + a13 * b31 + a23 * b32 + a33 * b33;
+
+            const f4h = high * 4;
 
             if(colorData) {
-                colorData[high * 4 + 0] = data[SDi.r];
-                colorData[high * 4 + 1] = data[SDi.g];
-                colorData[high * 4 + 2] = data[SDi.b];
-                colorData[high * 4 + 3] = combinedAlpha;
+                colorData[f4h + 0] = data[SDi.r];
+                colorData[f4h + 1] = data[SDi.g];
+                colorData[f4h + 2] = data[SDi.b];
+                colorData[f4h + 3] = combinedAlpha;
             }
 
             if(uvRectData) {
-                uvRectData[high * 4 + 0] = uvRect[0] / texture.imageWidth;
-                uvRectData[high * 4 + 1] = uvRect[1] / texture.imageHeight;
-                uvRectData[high * 4 + 2] = uvRect[2] / texture.imageWidth;
-                uvRectData[high * 4 + 3] = uvRect[3] / texture.imageHeight;
+                const uvRect = texture.region;
+                if(uvRect) {
+                    uvRectData[f4h + 0] = (uvRect[0] || 0) / texture.imageWidth;
+                    uvRectData[f4h + 1] = (uvRect[1] || 0) / texture.imageHeight;
+                    uvRectData[f4h + 2] = (uvRect[2] || 0) / texture.imageWidth;
+                    uvRectData[f4h + 3] = (uvRect[3] || 0) / texture.imageHeight;
+                } else {
+                    uvRectData[f4h + 0] = 0;
+                    uvRectData[f4h + 1] = 0;
+                    uvRectData[f4h + 2] = 1;
+                    uvRectData[f4h + 3] = 1;
+                }
             }
 
             high++;
 
             // If we reach the max batch size, draw the current batch and reset for the next one
             if(high > renderer.maxBatchSize) {
-                renderer.draw(high, atlas, low, high, opacity, x, y, _skipSetup);
+                renderer.draw(high, atlas, low, high, opacity, x, y, delta, now, _skipSetup);
                 _skipSetup = true;
 
                 high = 0;
@@ -710,7 +733,7 @@ class WebGLRenderer extends Renderer {
         }
 
         if(high > 0) {
-            renderer.draw(high, atlas, low, high, opacity, x, y, _skipSetup);
+            renderer.draw(high, atlas, low, high, opacity, x, y, delta, now, _skipSetup);
         }
     }
 
@@ -1998,6 +2021,8 @@ function updateMatrix(spriteData, out = new Float32Array(16), w = 1, h = 1, d = 
  * @param {Float32Array} b - The second matrix.
  * @param {Float32Array} out - An optional Float32Array to store the resulting matrix.
  * @returns {Float32Array} The resulting matrix after multiplication.
+ * 
+ * @glitter_transform inline
  */
 function multiplyMatrix(a, b, out = new Float32Array(16)) {
     const a00 = a[0],  a01 = a[1],  a02 = a[2],  a03 = a[3];
