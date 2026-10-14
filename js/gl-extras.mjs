@@ -297,11 +297,18 @@ class Sprite {
     set rotationOrder(value) { if(typeof value === "string") value = SDi["ORDER_" + value.toUpperCase()]; this.data[SDi.rotationOrder] = value; this.rotationDirty = true; }
     get rotationOrder() { return this.data[SDi.rotationOrder]; }
 
+    /** @type {LS.Color} */
     get color() { return new LS.Color(this.data[SDi.r], this.data[SDi.g], this.data[SDi.b], this.data[SDi.a]); }
     set color(value) { this.setColor(value); }
 
     get matrixDirty()      { return this.rotationDirty || this.positionDirty         }
     set matrixDirty(value) { this.rotationDirty = value; this.positionDirty = value; }
+
+    /** @type {typeof LS.Animation2.animate} */
+    animate(keyframes, options) {
+        if(!LS.Animation2) return; // 
+        return LS.Animation2.animate(this, keyframes, options);
+    }
 
     /**
      * Gets the transform matrix.
