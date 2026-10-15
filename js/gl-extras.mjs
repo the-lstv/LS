@@ -62,7 +62,7 @@ class Sprite {
      * The texture used by the sprite.
      * @type {Texture}
      */
-    texture = null;
+    texture = Texture.WHITE;
 
     /**
      * @type {number[]} data Packed array
@@ -516,12 +516,20 @@ class Sprite {
 
 class InstanceSprite extends Sprite {
     /**
-     * InstanceSprite is a Sprite that can be rendered multiple times with different options.
+     * InstanceSprite is a Sprite that can be rendered multiple times with different options without multiple sprite instances.
      * It is useful for rendering many copies of the same sprite with different positions, rotations, colors, and scales.
      * @param {SpriteOptions} options Options for the sprite
      * @param {Function} generator A function that generates the options for each instance
      * 
      * @experimental
+     * 
+     * @example
+     * const myInstanceSprite = new InstanceSprite({ texture: new Texture(myAsset), count: 100 }, (index, data, delta, now) => {
+     *   data[SDi.x] = Math.random() * 100;
+     *   data[SDi.y] = Math.random() * 100;
+     * });
+     * 
+     * // Rendering this sprite will now render it 100x with different positions each.
      */
     constructor(options = {}, generator = null) {
         super(options);
@@ -1232,16 +1240,25 @@ precision mediump float;
 
 in vec2 vTexCoord;
 in vec4 vColor;
+in vec2 vUv;
+in vec2 vSize;
 
 uniform sampler2D uTexture;
 uniform float uOpacity;
 
 out vec4 fragColor;
 
+${LSGL.utils.roundedBoxSDF}
+
 void main() {
     vec4 texColor = texture(uTexture, vTexCoord);
     fragColor = texColor * vColor;
     fragColor.a *= uOpacity;
+
+    // // Border radius
+    // float d  = roundedBoxSDF((vUv - 0.5) * vSize, vSize * 0.5, 12.0);
+    // float aa = fwidth(d);
+    // fragColor.a *= 1.0 - smoothstep(0.0, aa, d);
 }`;
 
 const vert2d = `#version 300 es
@@ -1258,6 +1275,7 @@ uniform vec2 uOffset;
 out vec2 vTexCoord;
 out vec4 vColor;
 out vec2 vUv;
+out vec2 vSize;
 
 void main() {
     vec2 quadCoord = positions[gl_VertexID] * 0.5 + 0.5;
@@ -1269,6 +1287,7 @@ void main() {
     vColor = iColor;
 
     vUv = quadCoord;
+    vSize = vec2(iMatrix[0][0], iMatrix[1][1]);
 }`;
 
 const vert3d = `#version 300 es

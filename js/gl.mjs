@@ -2360,35 +2360,35 @@ uniform uvec3 uColor;
 ${roundedBoxSDF}
 
 void main() {
-vec3 color = vec3(uColor) / 255.0;
+    vec3 color = vec3(uColor) / 255.0;
 
-vec2 p = (vUV - 0.5) * uSize;
-vec2 halfSize = uSize * 0.5;
+    vec2 p = (vUV - 0.5) * uSize;
+    vec2 halfSize = uSize * 0.5;
 
-float radius = 6.0;
+    float radius = 6.0;
 
-// Outer rounded box
-float outer = roundedBoxSDF(p, halfSize, radius);
+    // Outer rounded box
+    float outer = roundedBoxSDF(p, halfSize, radius);
 
-// Inner rounded box (border thickness)
-float borderWidth = 2.0;
-float inner = roundedBoxSDF(
-    p,
-    halfSize - vec2(borderWidth),
-    max(radius - borderWidth, 0.0)
-);
+    // Inner rounded box (border thickness)
+    float borderWidth = 2.0;
+    float inner = roundedBoxSDF(
+        p,
+        halfSize - vec2(borderWidth),
+        max(radius - borderWidth, 0.0)
+    );
 
-float aa = fwidth(outer);
+    float aa = fwidth(outer);
 
-float shapeAlpha = 1.0 - smoothstep(0.0, aa, outer);
+    float shapeAlpha = 1.0 - smoothstep(0.0, aa, outer);
 
-// Border area between outer and inner rounded boxes
-float border = smoothstep(-aa, aa, inner) * shapeAlpha;
+    // Border area between outer and inner rounded boxes
+    float border = smoothstep(-aa, aa, inner) * shapeAlpha;
 
-// Fill area
-float fill = (1.0 - smoothstep(-aa, aa, inner)) * shapeAlpha;
+    // Fill area
+    float fill = (1.0 - smoothstep(-aa, aa, inner)) * shapeAlpha;
 
-fragColor = vec4(color, border + fill * 0.2);
+    fragColor = vec4(color, border + fill * 0.2);
 }`,
 
         basic_color_fragment: `#version 300 es
