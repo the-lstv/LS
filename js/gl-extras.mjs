@@ -204,6 +204,7 @@ class Sprite {
         if(options.anchorX       !== undefined) this.anchorX       = options.anchorX;
         if(options.anchorY       !== undefined) this.anchorY       = options.anchorY;
         if(options.anchorZ       !== undefined) this.anchorZ       = options.anchorZ;
+        if(options.anchorAffectsPosition !== undefined) this.data[SDi.transformFlags] = options.anchorAffectsPosition? (this.data[SDi.transformFlags] | SDi.ANCHOR_AFFECTS_POSITION): (this.data[SDi.transformFlags] & ~SDi.ANCHOR_AFFECTS_POSITION);
 
         if(options.scale                      ) this.setScale(options.scale);
         if(options.scaleX        !== undefined) this.scaleX        = options.scaleX;
@@ -228,10 +229,34 @@ class Sprite {
         if(options.colorA        !== undefined) this.data[SDi.a]   = options.colorA;
     }
 
-    get width()      { return this.data[SDi.width] < 0 && this.texture? this.texture.width: this.data[SDi.width]; }
+    get width() {
+        if(this.data[SDi.width] < 0 && this.texture) {
+            // Account for aspect ratio
+            if(this.data[SDi.height] >= 0) {
+                return this.data[SDi.height] * this.texture.width / this.texture.height;
+            }
+
+            return this.texture.width;
+        }
+
+        return this.data[SDi.width];
+    }
+
     set width(value) { this.data[SDi.width] = value; }
 
-    get height()      { return this.data[SDi.height] < 0 && this.texture? this.texture.height: this.data[SDi.height]; }
+    get height() {
+        if(this.data[SDi.height] < 0 && this.texture) {
+            // Account for aspect ratio
+            if(this.data[SDi.width] >= 0) {
+                return this.data[SDi.width] * this.texture.height / this.texture.width;
+            }
+
+            return this.texture.height;
+        }
+
+        return this.data[SDi.height];
+    }
+
     set height(value) { this.data[SDi.height] = value; }
 
     get depth()      { return this.data[SDi.depth]; }
@@ -1194,10 +1219,11 @@ class VectorView extends Vector {
  * scene.destroy();
  */
 class Scene extends LS.Context {
-    constructor(parent) {
+    constructor(parent, options = {}) {
         super();
 
-        this.parent = parent;
+        this.parent    = parent;
+        this.container = new Container(options.children || [], options);
 
         parent.once("destroy", () => {
             this.destroy();
@@ -1229,6 +1255,11 @@ class Scene extends LS.Context {
     renderCallback() {}
 
     destroy() {
+        if(this.destroyed) return;
+        if(this.container) {
+            this.container.destroy();
+            this.container = null;
+        }
         this.disable();
         this.parent = null;
         super.destroy();
@@ -1856,6 +1887,10 @@ class Texture {
 
     get imageHeight() {
         return this.asset?.resource?.height || 0;
+    }
+
+    get aspectRatio() {
+        return this.width / this.height;
     }
 
     getGLTexture(gl) {

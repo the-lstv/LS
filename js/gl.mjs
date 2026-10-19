@@ -155,7 +155,7 @@ class Renderer extends LS.Context {
     }
 
     setOptions(options) {
-        this.width = options.width || this.canvas?.width || 800;
+        this.width  = options.width  || this.canvas?.width  || 800;
         this.height = options.height || this.canvas?.height || 600;
 
         if (options.camera) {
@@ -190,7 +190,7 @@ class Renderer extends LS.Context {
     }
 
     resize(width, height) {
-        this.width = width;
+        this.width  = width;
         this.height = height;
     }
 
@@ -312,7 +312,7 @@ class WebGLRenderer extends Renderer {
 
         this.x = null;
         this.y = null;
-        this.width = null;
+        this.width  = null;
         this.height = null;
 
         this.width = null;
@@ -350,11 +350,11 @@ class WebGLRenderer extends Renderer {
         if (this.initialized) return;
         this.initialized = true;
 
-        if(!this.width) this.width = options.width || 800;
+        if(!this.width) this.width   = options.width  || 800;
         if(!this.height) this.height = options.height || 600;
 
         this.canvas = options.canvas || document.createElement('canvas');
-        this.canvas.width = this.width;
+        this.canvas.width  = this.width;
         this.canvas.height = this.height;
 
         // WebGL2 context
@@ -491,6 +491,14 @@ class WebGLRenderer extends Renderer {
     renderOne(renderable, delta = 0, now = null, camera = null, clear = false, updateDimensions = false) {
         if(!renderable || renderable.enabled === false || renderable.destroyed) return;
 
+        if(renderable.isContainer) {
+            if(!renderable.renderer) {
+                console.warn("Renderable container", renderable, "does not have a renderer. It will not be rendered.");
+                return;
+            }
+            return this.renderScene(renderable, renderable.renderer, renderable.x, renderable.y, renderable.opacity, delta, now, updateDimensions);
+        }
+
         const hasRenderMethod = typeof renderable.renderCallback === "function";
 
         if(!hasRenderMethod && typeof renderable.render === "function") {
@@ -524,7 +532,7 @@ class WebGLRenderer extends Renderer {
         }
 
         const gl = this.gl;
-        const cw = this.viewportWidth || this.width;
+        const cw = this.viewportWidth  || this.width;
         const ch = this.viewportHeight || this.height;
 
         if(clear) {
@@ -542,7 +550,6 @@ class WebGLRenderer extends Renderer {
         }
 
         const bindVAO = renderable.bindVAO && renderable.vao;
-
         if(bindVAO) {
             gl.bindVertexArray(renderable.vao);
         }
@@ -562,10 +569,10 @@ class WebGLRenderer extends Renderer {
         const gl = renderer.renderer.gl;
 
         // -- Buffers
-        const buffers    = renderer.buffers;
-        const matrixData = buffers.iMatrix .data; // Transformation matrix
-        const colorData  = buffers.iColor ?.data; // Color (optional)
-        const uvRectData = buffers.iUVRect?.data; // UV Rect (texture region, optional)
+        let buffers    = renderer.buffers;
+        let matrixData = buffers.iMatrix .data; // Transformation matrix
+        let colorData  = buffers.iColor ?.data; // Color (optional)
+        let uvRectData = buffers.iUVRect?.data; // UV Rect (texture region, optional)
 
         // Stack for parent matrices
         const stackM = [container.transformMatrix];
@@ -575,10 +582,19 @@ class WebGLRenderer extends Renderer {
 
         // Stack for parent containers
         const stackC = [container];
-        
+
         let parentOpacity = opacity;
 
         let depth = 0;
+
+        /**@glitter_transform inline()*/
+        const flush = () => {
+            // The goal is to minimize calls to flush()
+            renderer.draw(high, atlas, low, high, opacity, x, y, delta, now, _skipSetup);
+            _skipSetup = true;
+            high  = 0;
+            atlas = null;
+        }
 
         while (depth >= 0) {
             const currentContainer = stackC[depth];
@@ -640,11 +656,7 @@ class WebGLRenderer extends Renderer {
             const glTexture = texture.getGLTexture(gl);
 
             if(atlas && atlas !== glTexture) {
-                renderer.draw(high, atlas, low, high, opacity, x, y, delta, now, _skipSetup);
-                _skipSetup = true;
-
-                high  = 0;
-                atlas = null;
+                flush();
             }
 
             atlas = glTexture;
@@ -724,17 +736,11 @@ class WebGLRenderer extends Renderer {
 
             // If we reach the max batch size, draw the current batch and reset for the next one
             if(high > renderer.maxBatchSize) {
-                renderer.draw(high, atlas, low, high, opacity, x, y, delta, now, _skipSetup);
-                _skipSetup = true;
-
-                high = 0;
-                atlas = null;
+                flush();
             }
         }
 
-        if(high > 0) {
-            renderer.draw(high, atlas, low, high, opacity, x, y, delta, now, _skipSetup);
-        }
+        if(high > 0) flush();
     }
 
     renderMany(renderables, delta = 0, now = null, camera = null, clear = false) {
@@ -1449,19 +1455,19 @@ class Camera {
      */
     static ortho(out, left, right, bottom, top, near, far) {
         out[0] = 2 / (right - left);
-        // out[1] = 0;
-        // out[2] = 0;
-        // out[3] = 0;
+        out[1] = 0;
+        out[2] = 0;
+        out[3] = 0;
 
-        // out[4] = 0;
+        out[4] = 0;
         out[5] = 2 / (top - bottom);
-        // out[6] = 0;
-        // out[7] = 0;
+        out[6] = 0;
+        out[7] = 0;
 
-        // out[8] = 0;
-        // out[9] = 0;
+        out[8] = 0;
+        out[9] = 0;
         out[10] = -2 / (far - near);
-        // out[11] = 0;
+        out[11] = 0;
 
         out[12] = -(right + left) / (right - left);
         out[13] = -(top + bottom) / (top - bottom);
@@ -1475,19 +1481,19 @@ class Camera {
         const nf = 1 / (near - far);
 
         out[0] = f / aspect;
-        // out[1] = 0;
-        // out[2] = 0;
-        // out[3] = 0;
+        out[1] = 0;
+        out[2] = 0;
+        out[3] = 0;
 
-        // out[4] = 0;
+        out[4] = 0;
         out[5] = f;
-        // out[6] = 0;
-        // out[7] = 0;
+        out[6] = 0;
+        out[7] = 0;
 
-        // out[8] = 0;
-        // out[9] = 0;
+        out[8] = 0;
+        out[9] = 0;
         out[10] = (far + near) * nf;
-        // out[11] = -1;
+        out[11] = -1;
 
         out[12] = 0;
         out[13] = 0;

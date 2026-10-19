@@ -1012,6 +1012,24 @@ class TextBlock {
         return { width: maxX - startX, height: y - startY + size };
     }
 
+    /**
+     * Write text to the text block at a specific position with specific color and style.
+     * @param {*} text
+     * @param {*} startIdx 
+     * @param {*} len 
+     * @param {*} x 
+     * @param {*} y 
+     * @param {*} r 
+     * @param {*} g 
+     * @param {*} b 
+     * @param {*} a 
+     * @param {*} size 
+     * @param {*} style 
+     * @param {*} weight 
+     * @param {*} depth 
+     * @param {*} breakLines 
+     * @returns {Object} An object containing the width, height, and cell count of the written text.
+     */
     writeTextAt(text, startIdx = 0, len = null, x, y, r = 255, g = 255, b = 255, a = 255, size = this.engine.defaultFontSize, style, weight, depth, breakLines = true) {
         if(r && typeof r !== 'number') {
             [r, g, b, a] = LS.Color.parse(r, g, b, a);
@@ -1024,8 +1042,8 @@ class TextBlock {
 
         let maxX = x;
 
-        let idx = startIdx;
-        for (let i = 0; i < len; i++) {
+        let idx = startIdx, i = 0;
+        for (; i < len; i++) {
             const charCode = i < text.length ? typeof text === 'number' ? text : typeof text === 'string' ? text.charCodeAt(i) : text[i] : 0;
             const advance = this.setChar(idx, x, y, charCode, r, g, b, a, size, style, weight, depth);
             idx++;
@@ -1045,7 +1063,39 @@ class TextBlock {
             maxX = Math.max(maxX, x);
         }
 
-        return { width: maxX - startX, height: y - startY + size };
+        return { width: maxX - startX, height: y - startY + size, cells: i, startIdx: this.startIdx + startIdx, endIdx: this.startIdx + idx };
+    }
+
+    /**
+     * @typedef {Object} TextOptions
+     * @property {number} [x] - The x position to start writing the text.
+     * @property {number} [y] - The y position to start writing the text.
+     * @property {number} [r=255] - Red color component (0-255).
+     * @property {number} [g=255] - Green color component (0-255).
+     * @property {number} [b=255] - Blue color component (0-255).
+     * @property {number} [a=255] - Alpha component (0-255).
+     * @property {any} [color] - Color in any format accepted by LS.Color.parse (e.g., hex string, array, etc.). Overrides r, g, b, a if provided.
+     * @property {number} [size=this.engine.defaultFontSize] - Font size.
+     * @property {number} [style] - Font style.
+     * @property {number} [weight] - Font weight.
+     * @property {number} [depth] - Glyph depth.
+     * @property {boolean} [breakLines=true] - Whether to break lines on newline characters.
+     */
+
+    /**
+     * Writes text to the text block at the specified position with the given options.
+     * @param {string|Array|TypedArray} text Text to write
+     * @param {*} startIdx Start cell index
+     * @param {*} len Length of text to write
+     * @param {TextOptions} options 
+     * @returns {Object} An object containing the width, height, and other information about the written text.
+     */
+    writeText(text, startIdx = 0, len = null, { x, y, r = 255, g = 255, b = 255, a = 255, color, size = this.engine.defaultFontSize, style, weight, depth, breakLines = true } = {}) {
+        if(color) {
+            [r, g, b, a] = LS.Color.parse(color);
+        }
+
+        return this.writeTextAt(text, startIdx, len, x, y, r, g, b, a, size, style, weight, depth, breakLines);
     }
 
     get cellHeight() {
@@ -1056,7 +1106,6 @@ class TextBlock {
         startIdx = Math.max(0, Math.floor(startIdx));
         len = Math.max(0, Math.floor(len));
 
-        let idx = this.startIdx + startIdx;
         for (let i = this.startIdx + startIdx; i < this.startIdx + startIdx + len; i++) {
             if (i >= this.startIdx + this.size) {
                 break;
@@ -1104,6 +1153,11 @@ class TextBlock {
     render() {
         if(this.__clippedStartIdx >= this.__clippedEndIdx) return;
         this.engine.renderRange(this.__clippedStartIdx, this.__clippedEndIdx);
+    }
+
+    renderCallback(delta, now, gl, cw, ch, updatedDimensions, uniforms, attributes, projectionMatrix) {
+        if(this.__clippedStartIdx >= this.__clippedEndIdx) return;
+        this.engine.renderRange(this.__clippedStartIdx, this.__clippedEndIdx, projectionMatrix);
     }
 
     changeColor(r = 255, g = 255, b = 255, a = 255) {

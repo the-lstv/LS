@@ -58,6 +58,10 @@ class SoundBox {
             this.registerMany(options.sounds);
         }
 
+        if(options.analyserOptions) {
+            this.createAnalyser(options.analyserOptions || {});
+        }
+
         if(options.logger) {
             this.log = options.logger;
         } else this.log = LS.DEFAULT_LOG_OUTPUT;
@@ -85,6 +89,25 @@ class SoundBox {
 
     set volume(value) {
         this.setVolume(value);
+    }
+
+    createAnalyser(options = {}) {
+        if(this.destroyed) return;
+        if(this.analyser) return this.analyser;
+        this.analyser = this.ctx.createAnalyser();
+        this.gainNode.connect(this.analyser);
+        this.analyser.connect(this.ctx.destination);
+        this.analyser.fftSize = options.analyserFFTSize || 2048;
+        this.analyser.smoothingTimeConstant = options.analyserSmoothingTimeConstant || 0.8;
+        this.analyserDataArray = new Uint8Array(this.analyser.frequencyBinCount);
+        return this.analyser;
+    }
+
+    getAnalyserData() {
+        if(this.destroyed) return;
+        this.analyser ??= this.createAnalyser();
+        this.analyser.getByteFrequencyData(this.analyserDataArray);
+        return this.analyserDataArray;
     }
 
     /**
@@ -416,7 +439,9 @@ class SoundBoxThread {
             this.gainNode.gain.linearRampToValueAtTime(0, this.parent.ctx.currentTime + duration);
         }
 
-        this.completedPromise().then(() => {
+        const promise = this.completedPromise();
+
+        promise.then(() => {
             if(this.destroyed) return;
 
             if(this.options.ephemeral) {
@@ -428,6 +453,8 @@ class SoundBoxThread {
                 this.source = null;
             }
         });
+
+        return promise;
     }
 
     /**

@@ -14,6 +14,7 @@ interface LSGLExtensions {
     readonly MeshBuilder           : typeof LSGLExtras.MeshBuilder;
     readonly Vector                : typeof LSGLExtras.Vector;
     readonly VectorView            : typeof LSGLExtras.VectorView;
+    readonly InstanceSprite        : typeof LSGLExtras.InstanceSprite;
     readonly Container             : typeof LSGLExtras.Container;
     readonly LayoutContainer       : typeof LSGLExtras.LayoutContainer;
     readonly Scene                 : typeof LSGLExtras.Scene;
