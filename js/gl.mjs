@@ -561,15 +561,27 @@ class WebGLRenderer extends Renderer {
         }
     }
 
-    renderScene(container, renderer, x = container.data[SDi.x], y = container.data[SDi.y], opacity = container.opacity, delta, now, _skipSetup = false) {
+    /**
+     * Renders a scene graph starting from the given container.
+     * @param {*} container Container to render
+     * @param {*} renderer Renderer to use for rendering
+     * @param {*} x Optional X offset
+     * @param {*} y Optional Y offset
+     * @param {*} opacity Optional opacity
+     * @param {*} delta Optional delta time
+     * @param {*} now Optional current time
+     * 
+     * TODO: faster framebuffers for composition, clip rect, masking
+     */
+    renderScene(container, defaultRenderer, x = container.data[SDi.x], y = container.data[SDi.y], opacity = container.opacity, delta, now, _skipSetup = false) {
         if(!container || !container.children || container.children.length === 0 || (opacity !== null && opacity <= 0)) return;
 
         let low = 0, high = 0, atlas = null;
 
-        const gl = renderer.renderer.gl;
+        const gl = defaultRenderer.renderer.gl;
 
         // -- Buffers
-        let buffers    = renderer.buffers;
+        let buffers    = defaultRenderer.buffers;
         let matrixData = buffers.iMatrix .data; // Transformation matrix
         let colorData  = buffers.iColor ?.data; // Color (optional)
         let uvRectData = buffers.iUVRect?.data; // UV Rect (texture region, optional)
@@ -583,12 +595,15 @@ class WebGLRenderer extends Renderer {
         // Stack for parent containers
         const stackC = [container];
 
-        let parentOpacity = opacity;
+        // Stack for render targets
+        const stackT = [null];
 
         let depth = 0;
 
         /**@glitter_transform inline()*/
-        const flush = () => {
+        const flush = (renderer = defaultRenderer) => {
+            if(high === 0) return;
+
             // The goal is to minimize calls to flush()
             renderer.draw(high, atlas, low, high, opacity, x, y, delta, now, _skipSetup);
             _skipSetup = true;
@@ -599,7 +614,9 @@ class WebGLRenderer extends Renderer {
         while (depth >= 0) {
             const currentContainer = stackC[depth];
             const parentMatrix     = stackM[depth];
+            const renderTarget     = stackT[depth];
             const i                = stackI[depth];
+            const renderer         = defaultRenderer;
             stackI[depth]++;
 
             // -- Leave container
@@ -607,8 +624,9 @@ class WebGLRenderer extends Renderer {
                 if(depth === 0) break;
                 depth--;
 
-                // todo: draw to framebuffers for proper container opacity
-                parentOpacity /= currentContainer.opacity;
+                if(stackT[depth] !== renderTarget) {
+                    this.switchRenderTarget(stackT[depth]);
+                }
                 continue;
             }
 
@@ -631,12 +649,20 @@ class WebGLRenderer extends Renderer {
                     }
                 }
 
+                const needsComposition = child.forceComposition || child.opacity !== 1 || child.blendMode !== "normal" || child.effects?.length > 0;
+
+                // if(needsComposition) {
+                //     // console.log("Composition required for", child, "due to opacity, blend mode, or effects.");
+                //     flush();
+                //     child.renderTarget ??= this.createRenderTarget(child.width, child.height);
+                //     this.switchRenderTarget(child.renderTarget);
+                // }
+
                 depth++;
+                stackT[depth] = child.renderTarget || renderTarget;
                 stackM[depth] = child.worldMatrix;
                 stackC[depth] = child;
                 stackI[depth] = 0;
-
-                parentOpacity *= child.opacity;
                 continue;
             }
 
@@ -649,7 +675,7 @@ class WebGLRenderer extends Renderer {
             }
 
             const data          = child.data;
-            const combinedAlpha = data[SDi.a] * data[SDi.alphaMultiplier] * parentOpacity;
+            const combinedAlpha = data[SDi.a] * data[SDi.alphaMultiplier];
             if(combinedAlpha <= 0) continue;
 
             const texture   = child.texture;
@@ -741,6 +767,52 @@ class WebGLRenderer extends Renderer {
         }
 
         if(high > 0) flush();
+    }
+
+    createRenderTarget(width, height) {
+        const gl = this.gl;
+        const texture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+
+        gl.texImage2D(
+            gl.TEXTURE_2D, 0, gl.RGBA8,
+            width, height, 0,
+            gl.RGBA, gl.UNSIGNED_BYTE, null
+        );
+
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+        const framebuffer = gl.createFramebuffer();
+        gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+        gl.framebufferTexture2D(
+            gl.FRAMEBUFFER,
+            gl.COLOR_ATTACHMENT0,
+            gl.TEXTURE_2D,
+            texture,
+            0
+        );
+
+        if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+            throw new Error("Framebuffer is incomplete");
+        }
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+        return { framebuffer, texture, width, height };
+    }
+
+    switchRenderTarget(target) {
+        const gl = this.gl;
+        if (target) {
+            gl.bindFramebuffer(gl.FRAMEBUFFER, target.framebuffer);
+            gl.viewport(0, 0, target.width, target.height);
+        } else {
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+            gl.viewport(0, 0, this.width, this.height);
+        }
     }
 
     renderMany(renderables, delta = 0, now = null, camera = null, clear = false) {
@@ -1380,6 +1452,16 @@ class Renderable {
     }
 }
 
+const compositorVertex = `#version 300 es
+
+`
+
+class CompositorProgram extends Renderable {
+    constructor(renderer) {
+        super({ renderer, vertex: compositorVertex, fragment: LS.GL.shaders.compositor_fragment });
+    }
+}
+
 /**
  * A simple camera class.
  * Work in progress
@@ -1562,7 +1644,7 @@ class WebGLBuffer {
             return;
         }
 
-        console.log("bindToAttribute: location=" + location + ", size=" + size + ", type=" + type + ", normalized=" + normalized + ", stride=" + stride + ", offset=" + offset + ", divisor=" + divisor);
+        // console.log("bindToAttribute: location=" + location + ", size=" + size + ", type=" + type + ", normalized=" + normalized + ", stride=" + stride + ", offset=" + offset + ", divisor=" + divisor);
 
         if(typeof location !== 'number' || location < 0) {
             throw new Error("bindToAttribute expects a valid attribute location (non-negative integer) as the first argument. Got: " + location);
@@ -1775,6 +1857,7 @@ const roundedBoxSDF = `float roundedBoxSDF(vec2 CenterPosition, vec2 Size, float
  * @enum {number}
  * @readonly
  * @constant
+ * @glitter_transform inline()
  */
 const SDi = {
     // --- Transforms
@@ -2060,6 +2143,66 @@ function multiplyMatrix(a, b, out = new Float32Array(16)) {
     out[13] = a01 * b30 + a11 * b31 + a21 * b32 + a31 * b33;
     out[14] = a02 * b30 + a12 * b31 + a22 * b32 + a32 * b33;
     out[15] = a03 * b30 + a13 * b31 + a23 * b32 + a33 * b33;
+    return out;
+}
+
+// Source - https://stackoverflow.com/a/44446912
+// Posted by willnode, modified by community. See post 'Timeline' for change history
+// License - CC BY-SA 4.0
+function inverseMatrix(m, out = new Float32Array(16)) {
+    const m00 = m[0],  m01 = m[1],  m02 = m[2],  m03 = m[3];
+    const m10 = m[4],  m11 = m[5],  m12 = m[6],  m13 = m[7];
+    const m20 = m[8],  m21 = m[9],  m22 = m[10], m23 = m[11];
+    const m30 = m[12], m31 = m[13], m32 = m[14], m33 = m[15];
+
+    const A2323 = m22 * m33 - m23 * m32;
+    const A1323 = m21 * m33 - m23 * m31;
+    const A1223 = m21 * m32 - m22 * m31;
+    const A0323 = m20 * m33 - m23 * m30;
+    const A0223 = m20 * m32 - m22 * m30;
+    const A0123 = m20 * m31 - m21 * m30;
+    const A2313 = m12 * m33 - m13 * m32;
+    const A1313 = m11 * m33 - m13 * m31;
+    const A1213 = m11 * m32 - m12 * m31;
+    const A2312 = m12 * m23 - m13 * m22;
+    const A1312 = m11 * m23 - m13 * m21;
+    const A1212 = m11 * m22 - m12 * m21;
+    const A0313 = m10 * m33 - m13 * m30;
+    const A0213 = m10 * m32 - m12 * m30;
+    const A0312 = m10 * m23 - m13 * m20;
+    const A0212 = m10 * m22 - m12 * m20;
+    const A0113 = m10 * m31 - m11 * m30;
+    const A0112 = m10 * m21 - m11 * m20;
+
+    let det =
+        m00 * (m11 * A2323 - m12 * A1323 + m13 * A1223)
+        - m01 * (m10 * A2323 - m12 * A0323 + m13 * A0223)
+        + m02 * (m10 * A1323 - m11 * A0323 + m13 * A0123)
+        - m03 * (m10 * A1223 - m11 * A0223 + m12 * A0123);
+
+    if (det === 0) return null;
+
+    det = 1 / det;
+
+    out[0]  = det *  (m11 * A2323 - m12 * A1323 + m13 * A1223);
+    out[1]  = det * -(m01 * A2323 - m02 * A1323 + m03 * A1223);
+    out[2]  = det *  (m01 * A2313 - m02 * A1313 + m03 * A1213);
+    out[3]  = det * -(m01 * A2312 - m02 * A1312 + m03 * A1212);
+
+    out[4]  = det * -(m10 * A2323 - m12 * A0323 + m13 * A0223);
+    out[5]  = det *  (m00 * A2323 - m02 * A0323 + m03 * A0223);
+    out[6]  = det * -(m00 * A2313 - m02 * A0313 + m03 * A0213);
+    out[7]  = det *  (m00 * A2312 - m02 * A0312 + m03 * A0212);
+
+    out[8]  = det *  (m10 * A1323 - m11 * A0323 + m13 * A0123);
+    out[9]  = det * -(m00 * A1323 - m01 * A0323 + m03 * A0123);
+    out[10] = det *  (m00 * A1313 - m01 * A0313 + m03 * A0113);
+    out[11] = det * -(m00 * A1312 - m01 * A0312 + m03 * A0112);
+
+    out[12] = det * -(m10 * A1223 - m11 * A0223 + m12 * A0123);
+    out[13] = det *  (m00 * A1223 - m01 * A0223 + m02 * A0123);
+    out[14] = det * -(m00 * A1213 - m01 * A0213 + m02 * A0113);
+    out[15] = det *  (m00 * A1212 - m01 * A0212 + m02 * A0112);
     return out;
 }
 

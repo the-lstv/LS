@@ -318,7 +318,7 @@ class Animation {
                 return this.promise;
             }
 
-            console.log(this.keyframes[0])
+            // console.log(this.keyframes[0])
 
             if(this.keyframes.length === 1 || this.keyframes[0]?.at > 0) {
                 // Generate a default keyframe at the start with the current values of the target

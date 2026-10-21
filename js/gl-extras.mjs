@@ -1276,14 +1276,19 @@ in vec2 vSize;
 
 uniform sampler2D uTexture;
 uniform float uOpacity;
+uniform float uTime;
 
 out vec4 fragColor;
 
-${LSGL.utils.roundedBoxSDF}
+// ${LSGL.utils.roundedBoxSDF}
 
 void main() {
-    vec4 texColor = texture(uTexture, vTexCoord);
+    vec2 coord = vTexCoord;
+    float asdf = sin(uTime * 0.001) * 0.5;
+    coord.y *= asdf * vUv.x;
+    vec4 texColor = texture(uTexture, coord);
     fragColor = texColor * vColor;
+    fragColor.r *= asdf;
     fragColor.a *= uOpacity;
 
     // // Border radius
@@ -1405,6 +1410,8 @@ class BatchedSpriteRenderer extends LSGL.Renderable {
         });
 
         this.maxBatchSize = batchSize;
+
+        this.frameBuffer = lsgli.gl.createFramebuffer();
     }
 
     /**
@@ -1425,13 +1432,15 @@ class BatchedSpriteRenderer extends LSGL.Renderable {
 
         const projectionMatrix = this.renderer.activeCamera.projectionMatrix;
         const uniforms = this.uniforms;
-        const buffers = this.buffers;
+        const buffers  = this.buffers;
 
         const gl = this.renderer.gl;
         if(!_skipSetup) {
             gl.useProgram(this.program);
             gl.bindVertexArray(this.vao);
         }
+
+        // gl.bindFramebuffer(gl.FRAMEBUFFER, this.frameBuffer);
 
         // -- Upload changed buffers
         if(high) {
