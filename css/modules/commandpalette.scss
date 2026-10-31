@@ -143,7 +143,6 @@
     background: var(--surface-1);
     border: 1px solid var(--surface-0);
     position: absolute;
-    top: 90%;
     display: flex;
     flex-direction: column;
     max-height: 300px;
@@ -152,6 +151,12 @@
     border-radius: var(--border-radius-medium);
     outline: 1px solid var(--surface-2);
     box-shadow: 0 10px 20px 0 rgba(0, 0, 0, .14);
+    top: 90%;
+    
+    &.top {
+        top: auto;
+        bottom: 90%;
+    }
 }
 
 [ls-theme=light] .completion-menu, [data-ls-theme=light] .completion-menu {

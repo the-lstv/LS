@@ -33,6 +33,9 @@
  * 
  * soundBox.stopAll();
  * soundBox.destroy();
+ * 
+ * 
+ * TODO: use AssetManager
  */
 class SoundBox {
     static { LS.register(this, { name: "SoundBox", global: true }) }

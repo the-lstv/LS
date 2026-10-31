@@ -1297,55 +1297,6 @@ void main() {
     // fragColor.a *= 1.0 - smoothstep(0.0, aa, d);
 }`;
 
-const vert2d = `#version 300 es
-
-${LSGL.utils.quad}
-
-layout(location = 0) in vec4 iUVRect;
-layout(location = 1) in vec4 iColor;
-layout(location = 2) in mat4 iMatrix;
-
-uniform mat4 uProjection;
-uniform vec2 uOffset;
-
-out vec2 vTexCoord;
-out vec4 vColor;
-out vec2 vUv;
-out vec2 vSize;
-
-void main() {
-    vec2 quadCoord = positions[gl_VertexID] * 0.5 + 0.5;
-
-    vec3 p = vec3(quadCoord - uOffset, 0.0);
-    gl_Position = uProjection * iMatrix * vec4(p, 1.0);
-
-    vTexCoord = iUVRect.xy + quadCoord * iUVRect.zw;
-    vColor = iColor;
-
-    vUv = quadCoord;
-    vSize = vec2(iMatrix[0][0], iMatrix[1][1]);
-}`;
-
-const vert3d = `#version 300 es
-
-layout(location = 0) in vec3 iPosition;
-layout(location = 1) in vec3 iNormal;
-layout(location = 2) in vec2 iUV;
-
-uniform mat4 uProjection;
-uniform mat4 uView;
-uniform mat4 uModel;
-
-out vec3 vNormal;
-out vec2 vUV;
-
-void main() {
-    gl_Position = uProjection * uView * uModel * vec4(iPosition, 1.0);
-    vNormal = mat3(uModel) * iNormal;
-    vUV = iUV;
-}
-`
-
 /**
  * Draws 2D sprites with batching, reducing the number of draw calls when possible. Possible to switch sprite shaders.
  * For best performance, put sprites that share the same texture next to eachother, as every texture switch causes a new draw call and removes the possibilty of reusing buffers.
@@ -1406,7 +1357,7 @@ class BatchedSpriteRenderer extends LSGL.Renderable {
             },
 
             frag: frag || defaultFrag,
-            vert: vert || vert2d
+            vert: vert || LS.GL.vert2d
         });
 
         this.maxBatchSize = batchSize;
@@ -1476,6 +1427,37 @@ class BatchedSpriteRenderer extends LSGL.Renderable {
     }
 
     draw3d(count, atlas, low = 0, high = 0, opacity = null, x = null, y = null, _skipSetup = false) {}
+}
+
+class FramebufferRenderer extends BatchedSpriteRenderer {
+    constructor(lsgli, options = {}) {
+        super(lsgli, options);
+    }
+
+    prepareFramebuffer(renderTarget, container) {
+        const gl = this.renderer.gl;
+
+        // -- Buffers
+        let buffers    = defaultRenderer.buffers;
+        let matrixData = buffers.iMatrix .data; // Transformation matrix
+        let colorData  = buffers.iColor ?.data; // Color (optional)
+        let uvRectData = buffers.iUVRect?.data; // UV Rect (texture region, optional)
+
+        // TODO: calculate the parent matrix here
+        // This is nearly identical to the batched sprite renderer; copying the sprite data to draw buffers
+
+        const high = 0;
+        const low  = 0;
+
+        /**
+         * @type {Float32Array}
+         */
+        const matrix = matrixData.subarray(high * 16, high * 16 + 16);
+
+        matrix.set(container.worldMatrix);
+
+        // This should be enough i guess
+    }
 }
 
 /**
@@ -2236,6 +2218,7 @@ if(true) {
     LS.GL.GlImage = GlImage;
     LS.GL.htmlParser = htmlParser;
     LS.GL.BatchedSpriteRenderer = BatchedSpriteRenderer;
+    LS.GL.FramebufferRenderer = FramebufferRenderer;
 }
 
 /*@ls-export*/ if(typeof module !== "undefined"){
@@ -2254,8 +2237,9 @@ if(true) {
         AssetLoader,
         GlImage,
         BatchedSpriteRenderer,
+        FramebufferRenderer,
         htmlParser
     };
 }
 
-export { Sprite, InstanceSprite, Mesh, MeshBuilder, Vector, VectorView, Container, LayoutContainer, Scene, Texture, TextureAtlas, AssetLoader, GlImage, BatchedSpriteRenderer, htmlParser };
+export { Sprite, InstanceSprite, Mesh, MeshBuilder, Vector, VectorView, Container, LayoutContainer, Scene, Texture, TextureAtlas, AssetLoader, GlImage, BatchedSpriteRenderer, FramebufferRenderer, htmlParser };

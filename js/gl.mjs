@@ -624,8 +624,17 @@ class WebGLRenderer extends Renderer {
                 if(depth === 0) break;
                 depth--;
 
+                this.switchRenderTarget(stackT[depth]);
+
                 if(stackT[depth] !== renderTarget) {
-                    this.switchRenderTarget(stackT[depth]);
+                    // Draw the framebuffer
+                    if(!this.framebufferRenderer) {
+                        console.warn("No renderer was provided for rendering a framebuffer.");
+                        continue;
+                    }
+
+                    this.framebufferRenderer.prepareFramebuffer(renderTarget, currentContainer);
+                    this.framebufferRenderer.draw(1, renderTarget.texture, 0, 1, currentContainer.opacity, x, y, delta, now, false);                    
                 }
                 continue;
             }
@@ -651,12 +660,12 @@ class WebGLRenderer extends Renderer {
 
                 const needsComposition = child.forceComposition || child.opacity !== 1 || child.blendMode !== "normal" || child.effects?.length > 0;
 
-                // if(needsComposition) {
-                //     // console.log("Composition required for", child, "due to opacity, blend mode, or effects.");
-                //     flush();
-                //     child.renderTarget ??= this.createRenderTarget(child.width, child.height);
-                //     this.switchRenderTarget(child.renderTarget);
-                // }
+                // When a container requires composition, we switch to rendering to a framebuffer
+                if(needsComposition) {
+                    flush();
+                    child.renderTarget ??= this.createRenderTarget(child.width, child.height);
+                    this.switchRenderTarget(child.renderTarget);
+                }
 
                 depth++;
                 stackT[depth] = child.renderTarget || renderTarget;
@@ -1452,15 +1461,54 @@ class Renderable {
     }
 }
 
-const compositorVertex = `#version 300 es
+const vert2d = `#version 300 es
 
-`
+${quad}
 
-class CompositorProgram extends Renderable {
-    constructor(renderer) {
-        super({ renderer, vertex: compositorVertex, fragment: LS.GL.shaders.compositor_fragment });
-    }
+layout(location = 0) in vec4 iUVRect;
+layout(location = 1) in vec4 iColor;
+layout(location = 2) in mat4 iMatrix;
+
+uniform mat4 uProjection;
+uniform vec2 uOffset;
+
+out vec2 vTexCoord;
+out vec4 vColor;
+out vec2 vUv;
+out vec2 vSize;
+
+void main() {
+    vec2 quadCoord = positions[gl_VertexID] * 0.5 + 0.5;
+
+    vec3 p = vec3(quadCoord - uOffset, 0.0);
+    gl_Position = uProjection * iMatrix * vec4(p, 1.0);
+
+    vTexCoord = iUVRect.xy + quadCoord * iUVRect.zw;
+    vColor = iColor;
+
+    vUv = quadCoord;
+    vSize = vec2(iMatrix[0][0], iMatrix[1][1]);
+}`;
+
+const vert3d = `#version 300 es
+
+layout(location = 0) in vec3 iPosition;
+layout(location = 1) in vec3 iNormal;
+layout(location = 2) in vec2 iUV;
+
+uniform mat4 uProjection;
+uniform mat4 uView;
+uniform mat4 uModel;
+
+out vec3 vNormal;
+out vec2 vUV;
+
+void main() {
+    gl_Position = uProjection * uView * uModel * vec4(iPosition, 1.0);
+    vNormal = mat3(uModel) * iNormal;
+    vUV = iUV;
 }
+`;
 
 /**
  * A simple camera class.
@@ -2233,6 +2281,9 @@ const obj = {
     rotateMatrix,
     transformMatrix,
     multiplyMatrix,
+
+    vert2d,
+    vert3d,
 
     /**
      * Creates a global WebGLRenderer instance that is composited on top of your application and resizes to your window.

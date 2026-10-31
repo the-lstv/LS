@@ -177,9 +177,9 @@ class CommandPalette extends LS.Component {
         const textContainer = this.options.textContainer   || LS.Create(".textContainer").addTo(this.container);
 
         this.selectionHighlight = this.options.selectionHighlight    ||
-            this.container?.querySelector('.command-selection') || LS.Create("span.command-selection").addTo(textContainer);
+            this.container?.querySelector('.command-selection')      || LS.Create("span.command-selection").addTo(textContainer);
 
-        this.caretElement = this.options.caretElement ||
+        this.caretElement = this.options.caretElement           ||
             this.container?.querySelector('.command-caret')     || LS.Create("span.command-caret").addTo(textContainer);
 
         this.textDisplayElement = this.options.textDisplayElement ?? LS.Create("span.command-text").addTo(textContainer);
