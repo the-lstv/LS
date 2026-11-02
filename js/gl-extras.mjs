@@ -1283,12 +1283,8 @@ out vec4 fragColor;
 // ${LSGL.utils.roundedBoxSDF}
 
 void main() {
-    vec2 coord = vTexCoord;
-    float asdf = sin(uTime * 0.001) * 0.5;
-    coord.y *= asdf * vUv.x;
-    vec4 texColor = texture(uTexture, coord);
+    vec4 texColor = texture(uTexture, vTexCoord);
     fragColor = texColor * vColor;
-    fragColor.r *= asdf;
     fragColor.a *= uOpacity;
 
     // // Border radius

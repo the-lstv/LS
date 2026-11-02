@@ -53,9 +53,10 @@ class Toast {
 
         this.open = true;
 
+        LS.quickEmit("toast", this);
+
         setTimeout(() => {
             if(!this.open) return;
-            // this.element.class("open");
             if(LS.Animation) LS.Animation.fadeIn(this.element, "upBackward", 400);
         }, 1);
 

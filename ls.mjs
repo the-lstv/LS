@@ -1309,20 +1309,24 @@ class Stack {
         this.container = document.createElement("div");
         this.container.className = "ls-modal-layer level-1";
 
-        // The DOM click event is dumb and gives the last element rather than the actual initially clicked element.
-        // This causes modals to be closed on accident a lot (eg. mouse brushed outside, certain window resize situations, etc.), which is frustrating.
-        // So we need to track the pointerdown event manually.
-        let startedInsideChild = false;
+        // The DOM click event is dumb and gives the last element hovered rather than the actually clicked element.
+        // This causes modals to be closed on accident a lot (eg. mouse brushed outside, certain window resize situations, etc.), which can often be very frustrating (the amount of unfinished posts i lost because of this one bug! someone should fix it).
+        // So we need to track the events separately to make sure that the clicked element was, well, actually clicked.
+        let startedInShade = false;
 
-        this.container.addEventListener("pointerdown", (event) => {
-            startedInsideChild = event.target !== this.container;
+        this.shadeElement = LS.Create(".ls-modal-shade");
+
+        this.shadeElement.addEventListener("pointerdown", (event) => {
+            startedInShade = event.target === this.shadeElement;
         });
 
-        this.container.addEventListener("pointerup", (event) => {
-            if (startedInsideChild || event.target !== this.container) {
-                startedInsideChild = false;
+        this.shadeElement.addEventListener("pointerup", (event) => {
+            console.log(event.target, startedInShade, this.shadeElement);
+            if (!startedInShade || event.target !== this.shadeElement) {
                 return;
             }
+
+            startedInShade = false;
 
             if (LS.Stack.length > 0 && LS.Stack.top.canClickAway !== false) {
                 LS.Stack.pop();
@@ -1336,7 +1340,6 @@ class Stack {
         }
 
         if(item.hasShade) {
-            this.shadeElement ??= LS.Create(".ls-modal-shade");
             this.container.appendChild(this.shadeElement);
             this.shadeElement.style.zIndex = this.items.length;
         }

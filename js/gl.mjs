@@ -1896,7 +1896,7 @@ class WebGLBuffer {
 }
 
 const sharedColorConversionBuffer = new Uint8Array(4);
-const roundedBoxSDF = `float roundedBoxSDF(vec2 CenterPosition, vec2 Size, float Radius) {\nreturn length(max(abs(CenterPosition)-Size+Radius,0.0))-Radius;\n}`;
+const roundedBoxSDF = `float roundedBoxSDF(vec2 CenterPosition, vec2 Size, float Radius) {return length(max(abs(CenterPosition)-Size+Radius,0.0))-Radius;}`;
 
 /**
  * Temporary & should be inlined at compile time

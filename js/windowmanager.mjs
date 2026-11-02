@@ -826,6 +826,8 @@ class Window extends LS.Slot {
         const centerX = Math.round((window.innerWidth - this.width) / 2);
         const centerY = Math.round(bounds.top + Math.max(0, (bounds.maxHeight - this.height) / 2));
         this.setPosition(centerX, centerY, false, true);
+
+        this.emit("layout-adjusted", [this.x, this.y, this.width, this.height]);
     }
 
     toggleView(forceState = null) {
