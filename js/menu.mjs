@@ -45,7 +45,8 @@ class Menu extends LS.Component {
         ephemeral: false,
         searchable: false,
         inheritAdjacentWidth: false,
-        group: null
+        group: null,
+        animationDirection: "right"
     });
 
     constructor(element, options) {
@@ -125,6 +126,7 @@ class Menu extends LS.Component {
                     this.adjacentElement = null;
                 } else {
                     this.adjacentElement.addEventListener('pointerdown', this.__adjacentClickHandler = (e) => {
+                        if(e.button !== 0) return;
                         e.stopPropagation();
                         this.toggle();
                     });
@@ -220,6 +222,19 @@ class Menu extends LS.Component {
         return menu;
     }
 
+    static someOpen() {
+        for (const menu of this.menus) {
+            if (menu.isOpen) return true;
+        }
+        return false;
+    }
+
+    static closeAll() {
+        for (const menu of this.menus) {
+            if (menu.isOpen) menu.close(false);
+        }
+    }
+
     renderItems() {
         let required = 0;
         let hasIcons = false;
@@ -288,7 +303,7 @@ class Menu extends LS.Component {
             iconContainer.style.display = 'none';
         }
 
-        const labelContainer = node.querySelector('.ls-menu-item-label') || LS.Create('.ls-menu-item-label');
+        const labelContainer = LS.SelectOrCreate('.ls-menu-item-label', node);
         switch (item.type) {
             case 'separator':
                 node.className = 'ls-menu-separator';
@@ -305,7 +320,18 @@ class Menu extends LS.Component {
 
             default:
                 node.className = 'ls-list-item ls-menu-item';
-                labelContainer.textContent = item.text || item.label || item.value || '';
+                const label = item.text || item.label || item.value || '';
+
+                const iOfAnd = label.indexOf("&");
+                if(iOfAnd === -1) {
+                    labelContainer.textContent = label;
+                } else {
+                    const before = label.substring(0, iOfAnd);
+                    const after = label.substring(iOfAnd + 1);
+                    labelContainer.innerHTML = `${before}<span class="ls-menu-item-accelerator">${after.charAt(0)}</span>${after.substring(1)}`;
+                    item.accelerator = after.charAt(0).toLowerCase();
+                }
+
                 node.setAttribute('role', 'menuitem');
                 node.appendChild(labelContainer);
                 break;
@@ -802,15 +828,37 @@ class Menu extends LS.Component {
         } else if (key === 'Tab') {
             this.close();
         } else if (key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
-            // todo
             const char = key.toLowerCase();
+
+            // -- Check accelerator key
+            for (let i = 0; i < this.items.length; i++) {
+                const item = this.items[i];
+                if(!this.isSelectable(item)) continue;
+
+                if(item.accelerator === char) {
+                    const node = this.domMap.get(item);
+                    if (node) {
+                        LS.Misc.blink(node, 400);
+                    }
+
+                    this.clickItem(item);
+                    break;
+                }
+            }
+  
+            // -- Search
+            // todo
             const startIndex = this.focusedItem ? this.items.indexOf(this.focusedItem) + 1 : 0;
             const ic = this.items.length;
 
             for (let i = 0; i < ic; i++) {
                 const index = (startIndex + i) % ic;
                 const item = this.items[index];
+
+                if(!this.isSelectable(item)) continue;
+
                 const label = item?.text || item?.label || item?.value || '';
+
                 if (item && label.toLowerCase().startsWith(char)) {
                     this.focus(item);
                     break;
@@ -860,12 +908,13 @@ customElements.define('ls-select', class LSSelect extends HTMLElement {
             return;
         }
 
-        this.menu = new LS.Menu({
+        this.menu = new Menu({
             fixed: true,
             searchable: this.hasAttribute('searchable'),
             selectable: true,
             adjacentElement: this,
-            inheritAdjacentWidth: true
+            inheritAdjacentWidth: true,
+            animationDirection: this.getAttribute('animation-direction') || 'down'
         });
 
         this.menu.on("select", (item) => {

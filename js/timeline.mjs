@@ -105,8 +105,8 @@ class TimelineGL extends LS.Component {
 
         renderImmediately: true,
 
-        // There are 3 versions for font, UbuntuMono/mtsdf, UbuntuMono/softmask (bitmap), and UbuntuMono/msdf (msdf).
-        // softmask is the smallest and most efficient and also has all glyphs, and good enough quality for the timeline (when the text stays small).
+        // There are 3 font types, UbuntuMono/mtsdf, UbuntuMono/softmask (bitmap), and UbuntuMono/msdf (msdf).
+        // softmask (bitmap) is the most efficient (pre-calculated AA & simple shader), but the text CAN'T be scaled.
         // If you want to scale up the font or it looks blurry or pixelated, use either the mtsdf or msdf versions, which can handle larger text sizes.
         fontName: "UbuntuMono/softmask",
         fontType: "softmask",
@@ -246,6 +246,7 @@ class TimelineGL extends LS.Component {
          */
         this.textEngine = this.options.textEngine || new LS.GL.WebGLTextEngine({
             renderer: this.renderer,
+            fontSrc: this.options.fontSrc,
             fontName: this.options.fontName,
             type: this.options.fontType, // TODO: the engine should extract this from the font file automatically
 
@@ -2849,14 +2850,6 @@ void main() {
     }
 
     // --- Legacy methods (for compatibility with TimelineDOM)
-    reserveRows() {
-        console.warn("Timeline.reserveRows() is deprecated and does nothing. You have unlimited rows now!");
-    }
-
-    clearUnusedRows() {
-        console.warn("Timeline.clearUnusedRows() is deprecated and does nothing. You have unlimited rows now!");
-    }
-
     addTrack() {
         console.warn("Timeline.addTrack() is deprecated and does nothing. You have unlimited tracks now!");
     }

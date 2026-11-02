@@ -156,29 +156,21 @@ in uint i_style;
 
 in float glyphDepth;
 
-uniform mat4 uProjection;
-uniform vec2 uOffset;
-
-#ifdef USE_THREE_MATRICES
 uniform mat4 projectionMatrix;
 uniform mat4 modelViewMatrix;
-#endif
+uniform vec2 uOffset;
 
-out vec2 v_texCoord;
-out vec4 v_color;
+out  vec2 v_texCoord;
+out  vec4 v_color;
 flat out uint v_style;
-out float v_weight;
+out  float v_weight;
 
 void main() {
     vec2 pos = (i_pos + (positions[gl_VertexID] * i_size)) + uOffset;
 
-#ifdef USE_THREE_MATRICES
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, glyphDepth, 1.0);
-#else
-    vec4 p = uProjection * vec4(pos, 0.0, 1.0);
-    p.z = glyphDepth;
-    gl_Position = p;
-#endif
+    // gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 0.0, 1.0);
+    gl_Position = projectionMatrix * vec4(pos, 0.0, 1.0);
+    gl_Position.z = glyphDepth;
 
     vec2 uv = i_uvRect.xy + (positions[gl_VertexID] * 0.5 + 0.5) * i_uvRect.zw;
 
@@ -192,8 +184,19 @@ void main() {
 const globalFontCache = new Map();
 
 class WebGLMSDFFont {
+    static root = "./assets/fonts/";
+
+    glTextures = new WeakMap();
+
+    /**
+     * @param {*} options Options for the font
+     * @param {string} [options.fontSrc] - The source path for the font files (JSON and PNG). Defaults to './assets/fonts/JetBrainsMono'.
+     * @param {string} [options.fontName] - Don't use if specifying fontSrc. Sets fontSrc to WebGLMSDFFont.root + fontName.
+     * @param {string} [options.atlasFile] - The name of the atlas image file. Defaults to 'atlas.png'.
+     * @param {string} [options.fontDataFile] - The name of the font data JSON file. Defaults to 'font.json'.
+     */
     constructor(options = {}) {
-        const src = LS.Util.normalizePath(options.fontSrc || ('./assets/fonts/' + (options.fontName || 'JetBrainsMono')));
+        const src = LS.Util.normalizePath(options.fontSrc || (WebGLMSDFFont.root + (options.fontName || 'JetBrainsMono')));
         if(globalFontCache.has(src)) {
             console.debug(`Font "${src}" is already loaded. Using cached version.`);
             return globalFontCache.get(src);
@@ -384,16 +387,18 @@ class WebGLMSDFFont {
         this.loading = false;
     }
 
-    createTexture(renderer) {
+    getTexture(gl) {
         if(this.destroyed) {
             throw new Error("Font has been destroyed. Cannot create texture.");
         }
+
+        const existing = this.glTextures.get(gl);
+        if(existing) return existing;
 
         if (!this.loaded) {
             throw new Error("Font not loaded yet. Await loadFont() first.");
         }
 
-        const gl = renderer.gl;
         const texture = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, texture);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.image);
@@ -409,6 +414,7 @@ class WebGLMSDFFont {
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
         gl.bindTexture(gl.TEXTURE_2D, null);
+        this.glTextures.set(gl, texture);
         return texture;
     }
 
@@ -437,6 +443,7 @@ class WebGLMSDFFont {
         this.options = null;
         this.fontData = null;
         this.loading = false;
+        this.glTextures = null;
         this.destroyed = true;
     }
 }
@@ -458,11 +465,21 @@ const fragmentsByType = {
 };
 
 class WebGLTextEngine extends LS.GL.Renderable {
+    /**
+     * @type {WebGLMSDFFont}
+     */
+    font;
+
+    /**
+     * @param {*} options Options
+     * @param {string} [options.type="msdf"] - The type of font rendering to use. Options are "msdf", "mtsdf", or "softmask".
+     * @param {WebGLMSDFFont} [options.font] - An instance of WebGLMSDFFont to use for rendering. If not provided, a new font will be created based on the options.
+     */
     constructor(options = {}) {
         super({
             fragment: fragmentsByType[options.type || "msdf"] || msdfFragment,
             vertex: fontVertex,
-            uniforms: ["uProjection", "uOffset", "uTexture", "uPxRange", "uGamma", "uOpacity"],
+            uniforms: ["projectionMatrix", "modelViewMatrix", "uOffset", "uTexture", "uPxRange", "uGamma", "uOpacity"],
             attributes: ["i_pos", "i_size", "i_weight", "i_style", "i_uvRect", "i_color", "glyphDepth"],
             vao: true,
             ...options
@@ -487,6 +504,8 @@ class WebGLTextEngine extends LS.GL.Renderable {
         this.cellSizeF = 0;
 
         this.opacity = 1.0;
+
+        this.matrix = LS.GL.createMatrix();
 
         if(typeof options.manualRendering === "undefined") {
             // Default to manual rendering (text won't be auto-rendered in the main render loop)
@@ -535,14 +554,13 @@ class WebGLTextEngine extends LS.GL.Renderable {
         this._setArrayOffset(0, true);
         this.setBufferSize(options.bufferSize || 2048);
 
-        // TODO: reuse texture across multiple TextEngine instances for the same renderer
-        this.texture = this.font.createTexture(this.renderer);
+        this.texture = this.font.getTexture(this.renderer.gl);
         this.font.setUniforms(gl, uniforms);
 
         if(!this.lineHeight) this.lineHeight = options.lineHeight || this.font.metrics.lineHeight || 1.2;
 
-        this.baseScale = 16 / this.font.atlas.size;
-        this.cellWidth = this.font.baseCellWidth * this.baseScale;
+        this.baseScale  = 16 / this.font.atlas.size;
+        this.cellWidth  = this.font.baseCellWidth * this.baseScale;
         this.cellHeight = this.font.baseCellHeight * this.baseScale;
 
         if(this.defaultFontSize === null) {
@@ -556,7 +574,7 @@ class WebGLTextEngine extends LS.GL.Renderable {
 
     setBufferSize(numCells) {
         // Backing buffers to remember grid state for resizing & skipping updates
-        this.gridBuffer      = new Uint16Array(numCells);
+        this.gridBuffer      = new Uint16Array (numCells);
         this.vertexData      = new Float32Array(numCells * this.cellSizeF);
         this.vertexByteView  = new Uint8Array  (this.vertexData.buffer);
         this.vertexShortView = new Uint16Array (this.vertexData.buffer);
@@ -651,8 +669,10 @@ class WebGLTextEngine extends LS.GL.Renderable {
         // -- Render text grid
         // Scale the MSDF pixel range to keep edges crisp at different font sizes
         if(updatedDimensions) {
-            gl.uniformMatrix4fv(uniforms.uProjection, false, projectionMatrix);
+            gl.uniformMatrix4fv(uniforms.projectionMatrix, false, projectionMatrix);
         }
+
+        gl.uniformMatrix4fv(uniforms.modelViewMatrix, false, this.matrix);
 
         gl.uniform2f(uniforms.uOffset, this.offsetX, this.offsetY);
 
@@ -679,7 +699,8 @@ class WebGLTextEngine extends LS.GL.Renderable {
         this.updateBuffers();
         this._setArrayOffset(startIdx);
 
-        gl.uniformMatrix4fv(uniforms.uProjection, false, projectionMatrix || this.renderer.activeCamera?.projectionMatrix);
+        gl.uniformMatrix4fv(uniforms.projectionMatrix, false, projectionMatrix || this.renderer.activeCamera?.projectionMatrix);
+        gl.uniformMatrix4fv(uniforms.modelViewMatrix, false, this.matrix);
 
         gl.uniform2f(uniforms.uOffset, this.offsetX, this.offsetY);
 
@@ -1257,6 +1278,7 @@ class TextBlock {
 
     /**
      * A high-level method for obtaining character data.
+     * Warning: this may not be fully reliable, use for information purposes only.
      * Don't use too frequently.
      */
     readCharData(index, property = null) {

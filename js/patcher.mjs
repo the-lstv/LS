@@ -200,6 +200,7 @@ class Patcher extends LS.Component {
          */
         this.textEngine = this.options.textEngine || new LS.GL.WebGLTextEngine({
             renderer: this.renderer,
+            fontSrc: this.options.fontSrc,
             fontName: this.options.fontName,
             type: this.options.fontType,
 
@@ -215,6 +216,7 @@ class Patcher extends LS.Component {
          */
         this.iconEngine = this.options.iconEngine || new LS.GL.WebGLTextEngine({
             renderer: this.renderer,
+            fontSrc: this.options.iconFontSrc,
             fontName: this.options.iconFontName,
             type: this.options.iconFontType,
 

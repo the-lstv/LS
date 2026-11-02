@@ -100,7 +100,7 @@ class Modal extends LS.Component {
     }
 
     open(options = {}) {
-        if (this.isOpen || this.destroyed) return;
+        if (this.isOpen || this.destroyed) return this;
         this.previousFocus = document.activeElement;
         this.isOpen = true;
 
@@ -116,7 +116,7 @@ class Modal extends LS.Component {
         this.container.classList.add("ls-top-modal");
 
         if(options.focus !== false) this.setTimeout(() => {
-            if(!this.isOpen || this.destroyed) return;
+            if(!this.isOpen || this.destroyed) return this;
 
             const focusable = options.focusTarget instanceof HTMLElement ? options.focusTarget : this.container.querySelector(typeof options.focusTarget === "string" ? options.focusTarget : "input, button, select, textarea, [tabindex]:not([tabindex='-1'])");
             if (focusable) {
@@ -137,7 +137,7 @@ class Modal extends LS.Component {
     }
 
     close(refocus = true) {
-        if (!this.isOpen || this.destroyed) return;
+        if (!this.isOpen || this.destroyed) return this;
 
         this.isOpen = false;
         this.container.classList.remove("open");
@@ -145,7 +145,7 @@ class Modal extends LS.Component {
         LS.Stack.remove(this);
 
         this.setTimeout(() => {
-            if(this.isOpen || this.destroyed) return;
+            if(this.isOpen || this.destroyed) return this;
 
             if (LS.Stack.length === 0) {
                 if (refocus) (this.previousFocus || document.body).focus();
@@ -408,6 +408,10 @@ class Modal extends LS.Component {
         if (modal && modal.lsComponent instanceof LS.Modal) {
             modal.lsComponent.close();
         }
+    }
+
+    static someOpen() {
+        return LS.Stack.items.some(item => item instanceof LS.Modal && item.isOpen);
     }
 }
 

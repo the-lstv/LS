@@ -565,9 +565,11 @@ button#{priority(".ls-toast-close", 3)} {
     z-index: 1;
 }
 
-.ls-modal-layer.ls-modal-layer.is-open {
+.ls-modal-shade {
+    position: fixed;
     background: rgba(0, 0, 0, 0.5);
     pointer-events: auto;
+    inset: 0;
 }
 
 .ls-modal-styled {
@@ -578,6 +580,7 @@ button#{priority(".ls-toast-close", 3)} {
 
 .ls-modal {
     position: absolute;
+    pointer-events: auto;
 }
 
 .ls-image-cropper {
@@ -842,6 +845,10 @@ button#{priority(".ls-toast-close", 3)} {
 .ls-menu-item-icon {
     display: block;
     min-width: 18px;
+}
+
+.ls-menu-item-accelerator {
+    text-decoration: underline;
 }
 
 .ls-menu-search {

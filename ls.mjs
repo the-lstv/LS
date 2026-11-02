@@ -1012,7 +1012,7 @@ function toCSSSize(value, defaultUnit = "px") {
  * It unifies the concept & APIs of various input types.
  */
 class Input {
-    ELEMENT_MAP = {
+    static ELEMENT_MAP = {
         select: "ls-select",
         knob: "ls-knob",
         textarea: "textarea",
@@ -1035,7 +1035,7 @@ class Input {
         this.valueType = options?.valueType ?? null;                    // Describes the desired data unit/type of the value
 
         this.options = options || {};
-        this.id = options?.id || LS.Misc.uuidv4();
+        this.id = options?.id  || LS.Misc.uuidv4();
         this.group = options?.group || null;
 
         this.userData = options?.userData || null;
@@ -1074,7 +1074,7 @@ class Input {
     createElement() {
         const type = this.inputType || "text";
 
-        const tagName = this.ELEMENT_MAP[type] || "input";
+        const tagName = Input.ELEMENT_MAP[type] || "input";
 
         this.isBinary = type === "checkbox" || type === "radio" || type === "switch";
         this.isText = type === "text" || type === "textarea";
@@ -1088,8 +1088,8 @@ class Input {
             ...(this.options.placeholder? { placeholder: this.options.placeholder }: null),
             ...(type === "textarea"? null: { type: this.isBinary? type === "radio" ? "radio" : "checkbox" : type }),
 
-            min: this.options.min ?? null,
-            max: this.options.max ?? null,
+            min:  this.options.min  ?? null,
+            max:  this.options.max  ?? null,
             step: this.options.step ?? null,
 
             oninput: () => {
@@ -1296,6 +1296,8 @@ class Stack {
         this.items = [];
     }
 
+    static shadeElement = null;
+
     static _init() {
         if(this.container) return;
         window.addEventListener("keydown", (event) => {
@@ -1334,7 +1336,9 @@ class Stack {
         }
 
         if(item.hasShade) {
-            this.container.classList.add("is-open");
+            this.shadeElement ??= LS.Create(".ls-modal-shade");
+            this.container.appendChild(this.shadeElement);
+            this.shadeElement.style.zIndex = this.items.length;
         }
 
         this.items.push(item);
@@ -1360,8 +1364,10 @@ class Stack {
             this.items.splice(index, 1);
         }
 
-        if(this.items.length === 0 || !this.items.some(i => i.hasShade)) {
-            this.container.classList.remove("is-open");
+        this.shadeElement.style.zIndex = this.items.length - 1;
+
+        if(this.shadeElement && (this.items.length === 0 || !this.items.some(i => i.hasShade))) {
+            this.shadeElement.remove();
         }
     }
 
@@ -3539,13 +3545,19 @@ const LS = new class LSMain extends EventEmitter {
                     ? { inner: content }
                     : content || {};
 
-        const { class: className, tooltip, ns, inner, content: innerContent, i18n, html, text, accent, style, parent, reactive, attr, options, attributes, sanitize, state, ephemeral, effects, animation, animationOptions, ...rest } = content;
+        const { class: className, tooltip, ns, inner, content: innerContent, i18n, html, text, accent, style, parent, reactive, attr, options, attributes, sanitize, state, count, ephemeral, effects, animation, animationOptions, ...rest } = content;
 
         // Create the element
         if(!element) element = Object.assign(
             LS.Util.parseEmmet(emmet, { ns, singleNode: true }),
             rest
         );
+
+        // if(count && count > 1) {
+        //     for(let i = 0; i < count; i++) {
+        //         const clone = element.cloneNode(true);
+        //     }
+        // }
 
         // ! don't use ephemeral, animation, animationOptions in production, they are not in final implementation yet.
 
@@ -3772,9 +3784,11 @@ const LS = new class LSMain extends EventEmitter {
 
     /**
      * Misc utilities. Used to contain controls, now primarily contains UID/UUID utils.
-     * @deprecated
      */
     Misc = {
+        /**
+         * @deprecated
+         */
         globalState: {
             count: 0,
             _prefix: null,
@@ -3819,10 +3833,31 @@ const LS = new class LSMain extends EventEmitter {
         uuidv4() {
             if(crypto && crypto.randomUUID) return crypto.randomUUID();
 
-            let i = 0;
-            const rv = crypto.getRandomValues(new Uint8Array(31));
-            return "10000000-1000-4000-8000-100000000000"
-                .replace(/[018]/g, c => (+c ^ rv[i++] & 15 >> +c / 4).toString(16));
+            let i = 0, rv = crypto.getRandomValues(new Uint8Array(31));
+            return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, c => (+c ^ rv[i++] & 15 >> +c / 4).toString(16));
+        },
+
+        /**
+         * Brings attention to an target element by creating a temporary outline around it.
+         * @param {Element} target - The target element to highlight.
+         * @returns {Element} The temporary outline element.
+         */
+        blink(target, duration = 1200) {
+            const box = target.getBoundingClientRect();
+
+            return LS.Create({
+                style: `position: fixed; top: ${box.top}px; left: ${box.left}px; width: ${box.width}px; height: ${box.height}px; z-index: 9999; outline: 2px solid var(--accent-70); opacity: .4; border-radius: var(--border-radius-small); pointer-events: none;`,
+                parent: "top",
+                ephemeral: true,
+                animation: [
+                    { transform: "scale(1)", opacity: 1 },
+                    { transform: "scale(.98)", opacity: 0 },
+                ],
+                animationOptions: {
+                    duration,
+                    easing: "ease-out"
+                },
+            });
         }
     }
 

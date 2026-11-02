@@ -2144,7 +2144,9 @@ function transformMatrix(spriteData, out = new Float32Array(16), w = 1, h = 1, d
 function createMatrix(spriteData, out = new Float32Array(16), w = 1, h = 1, d = 1) {
     out ??= new Float32Array(16);
     out[15] = 1;
-    updateMatrix(spriteData, out, w, h, d);
+    if(spriteData) {
+        updateMatrix(spriteData, out, w, h, d);
+    }
     return out;
 }
 

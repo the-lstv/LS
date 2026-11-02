@@ -255,7 +255,7 @@ class ShortcutManager extends LS.EventEmitter {
         if (shortcut.meta  !== event.metaKey)  return false;
 
         // Test main key
-        if (event.key.toLowerCase() !== shortcut.key) return false;
+        if (shortcut.key && event.key.toLowerCase() !== shortcut.key) return false;
 
         // Test filter function
         if (typeof this.filterFunc === 'function' && !this.filterFunc(event, shortcut)) return false;

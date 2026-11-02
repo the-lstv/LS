@@ -1,6 +1,3 @@
-todo:
-- LS.Modal apply shade to the top modal rather than the layer
-
 # Version 6.0.0
 
 Major update (2026 release)!
@@ -69,6 +66,8 @@ Major update (2026 release)!
 - LS.Resize now uses LS.Effect instead of per-target handles, which further reduces statefulness (not sure whether this is beneficial & it only adds a dependency for LS.Effect so I may reconsider). Also improved API & management.
 - Added a special "mat4" type to LS.GL attribute buffer bindings
 - Split LS.GL into multiple files
+- LS.Menu accelerator support
+- LS.Modal apply shade to the top modal rather than the layer
 - Fixes
 - LS attributes are being deprecated in favor of data attributes:
   - `ls` -> class `.ls`
