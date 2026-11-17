@@ -501,10 +501,6 @@ class WebGLRenderer extends Renderer {
 
         const hasRenderMethod = typeof renderable.renderCallback === "function";
 
-        if(!hasRenderMethod && typeof renderable.render === "function") {
-            console.warn("Renderable has a render() method but no renderCallback. It is possible it is using the legacy renderable API, which is no longer supported");
-        }
-
         if(this.reEvaluateComponentSizes && renderable.boundingContainer) {
             this.recomputeBoundingRect(renderable, false);
         }
@@ -517,6 +513,8 @@ class WebGLRenderer extends Renderer {
 
         if(renderable.renderables || renderable.children) {
             renderable = renderable.renderable || renderable.renderables || renderable.children;
+        } else if(!hasRenderMethod && typeof renderable.render === "function") {
+            console.warn("Renderable", renderable, " has a render() method but no renderCallback. It is possible it is using the legacy renderable API, which is no longer supported");
         }
 
         if(Array.isArray(renderable)) {

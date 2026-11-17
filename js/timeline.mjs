@@ -961,6 +961,9 @@ class TimelineGL extends LS.Component {
         this.renderer.schedule(this);
     }
 
+    // to surpress warning
+    renderCallback() {}
+
     // --- Undo / redo action management
 
     /**

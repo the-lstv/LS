@@ -797,9 +797,6 @@ class Tree extends LS.Component {
             domNode.setAttribute("aria-posinset", nodeData.state.posinset || 1);
             if (nodeData.label) domNode.setAttribute("aria-label", nodeData.label);
             domNode.setAttribute("data-index", dataIndex);
-            
-            if (nodeData.isLastChild) domNode.setAttribute("data-last-element", "true");
-            else domNode.removeAttribute("data-last-element");
 
             // domNode.setAttribute("data-parity", dataIndex % 2 === 0 ? "even" : "odd");
             

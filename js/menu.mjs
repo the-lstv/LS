@@ -8,8 +8,18 @@
  * * May not be used for AI training.
  */
 class Menu extends LS.Component {
+    static dropdownLayer = document.createElement('div');
+
     static {
         LS.register(this, { name: "Menu", global: true });
+
+        this.dropdownLayer.className = 'ls-dropdown-layer';
+        this.dropdownLayer.style.position = 'fixed';
+        this.dropdownLayer.style.top = '0';
+
+        LS.once("ready", () => {
+            LS._topLayer.appendChild(this.dropdownLayer);
+        });
 
         document.addEventListener('pointerdown', (e) => {
             if (Menu.menus.size < 1) return;
@@ -19,15 +29,43 @@ class Menu extends LS.Component {
                 if(menu.adjacentElement && menu.adjacentElement.contains(e.target) && menu.adjacentMode !== 'context') continue;
 
                 // There's gotta be a better way :)
-                let parent = menu.parentMenu;
+                // (Prevent closing a parent menu when clicking in a child menu)
+                let parent = menu.parentMenu, closed = false;
                 while(parent) {
-                    if(parent.container.contains(e.target)) return;
+                    if(parent.container.contains(e.target)) {
+                        closed = true;
+                        break;
+                    }
+
                     parent = parent.parentMenu;
                 }
 
-                menu.close();
+                if(!closed) {
+                    menu.close();
+                }
             }
         }, true);
+
+        // This listener is now global for contextmenus
+        document.addEventListener('contextmenu', (event) => {
+            const target = event.target && event.target.closest('.ls-menu-adjacent-context');
+            const contextMenu = Menu.contextMenuBindings.get(target);
+            if (!contextMenu || !target) return;
+
+            event.preventDefault();
+            event.stopPropagation();
+
+            LS.quickEmit('contextmenu', { menu: contextMenu, event });
+
+            // Close other context menus that are open
+            for(const menu of Menu.menus) {
+                if (contextMenu !== menu && menu.isOpen && menu.addjacentMode === 'context') {
+                    menu.close();
+                }
+            }
+
+            contextMenu.open(event.clientX, event.clientY);
+        });
     }
 
     static menus = new Set();
@@ -79,12 +117,6 @@ class Menu extends LS.Component {
         this.container.classList.add("ls-menu-container");
         this.container.tabIndex = -1;
 
-        if(options.topLayer) {
-            LS.once("ready", () => {
-                LS.SelectOrCreate('.ls-dropdown-layer').addTo(LS._topLayer).appendChild(this.container);
-            });
-        }
-
         this.__itemProvider = null;
         if (options.items) {
             if(typeof options.items === 'function') {
@@ -108,24 +140,13 @@ class Menu extends LS.Component {
 
             if (this.options.openOnAdjacentClick) {
                 if (this.adjacentMode === 'context') {
-                    this.adjacentElement.addEventListener('contextmenu', this.__adjacentClickHandler = (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-
-                        LS.quickEmit('contextmenu', { menu: this, event: e });
-                        this.open(e.clientX, e.clientY);
-                    });
-
-                    this.addExternalEventListener(LS, 'contextmenu', (data) => {
-                        if (data.menu !== this) {
-                            this.close();
-                        }
-                    });
+                    Menu.contextMenuBindings.set(this.adjacentElement, this);
+                    this.adjacentElement.classList.add('ls-menu-adjacent-context');
 
                     // Clear the reference since we don't need it anymore
                     this.adjacentElement = null;
                 } else {
-                    this.adjacentElement.addEventListener('pointerdown', this.__adjacentClickHandler = (e) => {
+                    this.adjacentElement.addEventListener('pointerdown', (e) => {
                         if(e.button !== 0) return;
                         e.stopPropagation();
                         this.toggle();
@@ -212,8 +233,6 @@ class Menu extends LS.Component {
                 items: itemsProvider,
                 ...options
             });
-
-            this.contextMenuBindings.set(element, menu);
         } else {
             menu.__itemProvider = itemsProvider;
             // menu.setOptions(options);
@@ -445,6 +464,10 @@ class Menu extends LS.Component {
         this.focusedItem = null;
         this.__previousActiveElement = document.activeElement;
         this.container.style.zIndex = ++this.constructor.zIndexCounter;
+
+        if(this.options.topLayer) {
+            Menu.dropdownLayer.appendChild(this.container);
+        }
 
         if (this.options.fixed) {
             let posX = x;
