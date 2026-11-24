@@ -18,9 +18,14 @@
     --surface-10: var(--base-40);
     --surface-top: var(--base-10);
 
-    --ui-element: var(--base-95);
+    --ui-element-n1: var(--surface-n3);
+    --ui-element:    var(--surface-n1);
+    --ui-element-1:  var(--surface-1);
     --ui-border: var(--base-40);
 
+    --ls-shadow-small:   0 4px 8px 0 #0005;
+    --ls-shadow:         0 4px 18px 0 #0006;
+    --ls-shadow-medium:  0 10px 20px 0 #00000024;
 
     &, [ls-accent], :disabled, [data-ls-accent] {
         --on-background: var(--accent-40);
@@ -32,9 +37,26 @@
         --accent: var(--accent-10);
         --on-accent: var(--accent-95);
     }
+
+    &.ls-contrast {
+        --surface-n3: var(--base-100);
+        --surface-n2: var(--base-98);
+        --surface-n1: var(--base-95);
+        --surface-0:  var(--base-90);
+        --surface-1:  var(--base-80);
+        --surface-2:  var(--base-70);
+        --surface-3:  var(--base-60);
+        --surface-4:  var(--base-50);
+        --surface-5:  var(--base-30);
+        --surface-6:  var(--base-20);
+        --surface-7:  var(--base-15);
+        --surface-8:  var(--base-10);
+        --surface-9:  var(--base-8);
+        --surface-10: var(--base-6);
+    }
 }
 
-#{priority('[ls-theme="dark"], [data-ls-theme="dark"]', 3)}, body:not([ls-theme]), [ls-theme="dark"][ls-accent], [ls-theme="dark"] [ls-accent], [data-ls-theme="dark"][data-ls-accent], [data-ls-theme="dark"] [data-ls-accent] {
+#{priority('[ls-theme="dark"], [data-ls-theme="dark"]', 3)}, body:not([data-ls-theme]), [ls-theme="dark"][ls-accent], [ls-theme="dark"] [ls-accent], [data-ls-theme="dark"][data-ls-accent], [data-ls-theme="dark"] [data-ls-accent] {
     --background: var(--base-10);
     --color: var(--accent-90);
 
@@ -54,8 +76,14 @@
     --surface-10: var(--base-60);
     --surface-top: var(--base-100);
 
-    --ui-element: var(--base-20);
+    --ui-element-1: var(--surface-0);
+    --ui-element:    var(--surface-2);
+    --ui-element-n1:  var(--surface-4);
     --ui-border: var(--base-0);
+
+    --ls-shadow-small:   0 4px 8px 0 #0005;
+    --ls-shadow:         0 4px 18px 0 #0006;
+    --ls-shadow-medium:  0 10px 20px 0 #00000024;
 
     &, [ls-accent], [data-ls-accent], :disabled {
         --on-background: var(--accent-70);
@@ -67,4 +95,22 @@
         --accent: var(--accent-90);
         --on-accent: var(--accent-10);
     }
+
+    &.ls-contrast {
+        --surface-n3: var(--base-0);
+        --surface-n2: var(--base-6);
+        --surface-n1: var(--base-6);
+        --surface-0:  var(--base-8);
+        --surface-1:  var(--base-20);
+        --surface-2:  var(--base-30);
+        --surface-3:  var(--base-40);
+        --surface-4:  var(--base-50);
+        --surface-5:  var(--base-60);
+        --surface-6:  var(--base-70);
+        --surface-7:  var(--base-80);
+        --surface-8:  var(--base-85);
+        --surface-9:  var(--base-90);
+        --surface-10: var(--base-95);
+    }
 }
+

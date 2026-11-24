@@ -34,11 +34,11 @@
     }
 
     &.focused .command-caret {
-        background: var(--accent-50);
+        background-color: var(--accent-50);
     }
 
     &.focused .command-caret.blink {
-        background: var(--accent-mix-80);
+        background-color: var(--accent-mix-80);
     }
 }
 
@@ -86,7 +86,7 @@
     width: 100%;
     border-radius: var(--border-radius);
     outline: 1px solid var(--surface-2);
-    box-shadow: 0 10px 20px 0 rgba(0, 0, 0, .1333333333);
+    box-shadow: var(--ls-shadow-medium);
 }
 
 #commandTerminal {
@@ -101,7 +101,7 @@
 }
 
 .terminal-line:hover {
-    background: var(--elevate-1);
+    background-color: var(--elevate-1);
 }
 
 .terminal-line.level-info {
@@ -140,7 +140,7 @@
 }
 
 .completion-menu {
-    background: var(--surface-1);
+    background-color: var(--surface-1);
     border: 1px solid var(--surface-0);
     position: absolute;
     display: flex;
@@ -150,7 +150,7 @@
     padding: 5px;
     border-radius: var(--border-radius-medium);
     outline: 1px solid var(--surface-2);
-    box-shadow: 0 10px 20px 0 rgba(0, 0, 0, .14);
+    box-shadow: var(--ls-shadow-medium);
     top: 90%;
     
     &.top {
@@ -160,7 +160,7 @@
 }
 
 [ls-theme=light] .completion-menu, [data-ls-theme=light] .completion-menu {
-    background: var(--surface-n2);
+    background-color: var(--surface-n2);
 }
 
 [ls-theme=light] .completion-item.has-accent, [data-ls-theme=light] .completion-item.has-accent {
@@ -187,19 +187,19 @@
 }
 
 .completion-item:hover {
-    background: var(--surface-3);
+    background-color: var(--surface-3);
 }
 
 [ls-theme=light] .completion-item:hover, [data-ls-theme=light] .completion-item:hover {
-    background: var(--surface-1);
+    background-color: var(--surface-1);
 }
 
 .completion-item.selected {
-    background: var(--surface-4);
+    background-color: var(--surface-4);
 }
 
 [ls-theme=light] .completion-item.selected, [data-ls-theme=light] .completion-item.selected {
-    background: var(--surface-0);
+    background-color: var(--surface-0);
 }
 
 .command-hint {
@@ -213,5 +213,5 @@
 }
 
 .command-selection {
-    background: var(--accent-mix-80);
+    background-color: var(--accent-mix-80);
 }

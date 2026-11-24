@@ -51,7 +51,7 @@
 
 .ls-range-label {
     position: absolute;
-    top: calc(-100% - 2px);
+    top: calc(-100% - 4px);
     white-space: nowrap;
 }
 
@@ -62,7 +62,7 @@
     left: var(--range-value-clamped);
     aspect-ratio: 1 / 1;
     border-radius: var(--border-radius-circle);
-    background: var(--elevate);
+    background-color: var(--elevate);
     transform: translate(-50%, -50%);
     border: 2px solid var(--elevate-2);
     cursor: grab;
@@ -76,7 +76,7 @@
 .ls-range-bar {
     height: 100%;
     width: var(--range-value-clamped);
-    background: var(--accent);
+    background-color: var(--accent);
 }
 
 .ls-range-vertical {
@@ -116,7 +116,7 @@
     height: 100%;
     overflow: hidden;
     border-radius: var(--border-radius-full);
-    background: var(--surface-n2);
+    background-color: var(--surface-n2);
     border: 2px solid var(--elevate);
     display: flex;
 }
@@ -139,7 +139,7 @@
     width: 4px;
     height: 4px;
     border-radius: var(--border-radius-circle);
-    background: var(--elevate-2);
+    background-color: var(--elevate-2);
     opacity: 0.75;
 }
 
@@ -177,7 +177,7 @@
     content: "";
     width: .5em;
     height: .5em;
-    background: var(--on-accent);
+    background-color: var(--on-accent);
     display: none;
 }
 
@@ -185,7 +185,7 @@ ls-box {
     display: block;
 
     &:not(.contained, .color, .inline) {
-        box-shadow: 0 10px 20px 0 #0002;
+        box-shadow: var(--ls-shadow-medium);
     }
 
     :first-child {
@@ -220,13 +220,13 @@ ls-box {
 
     &.elevated {
         padding: var(--padding-content-v);
-        background: var(--elevate-0);
+        background-color: var(--elevate-0);
         border-radius: var(--border-radius-medium);
         outline: 1px solid var(--elevate-1);
     }
     
     &::selection {
-        background: var(--accent-mix-40);
+        background-color: var(--accent-mix-40);
     }
 }
 
@@ -291,14 +291,14 @@ ls-group {
     pointer-events: all;
     border-radius: var(--border-radius-xxlarge);
     padding: 4px var(--padding-control-h-pill);
-    background: var(--surface-n3) !important;
+    background-color: var(--surface-n3) !important;
     color: var(--accent);
     overflow: hidden;
     -webkit-user-select: none;
     user-select: none;
     display: flex;
     align-items: center;
-    box-shadow: 0 10px 20px 0 #0002;
+    box-shadow: var(--ls-shadow-medium);
     max-width: 100%;
     word-break: break-word;
     opacity: 0;
@@ -361,7 +361,7 @@ button#{priority(".ls-toast-close", 3)} {
     cursor: pointer;
     border-radius: var(--border-radius);
     padding: var(--padding-content-v) var(--padding-content-h);
-    background: var(--elevate);
+    background-color: var(--elevate);
 }
 
 @media screen and (max-width: 860px) {
@@ -437,7 +437,7 @@ button#{priority(".ls-toast-close", 3)} {
             align-items: center;
             gap: 8px;
             
-            background: var(--background);
+            background-color: var(--background);
             transition: background-color 0.1s;
             white-space: nowrap;
             user-select: none;
@@ -524,16 +524,16 @@ button#{priority(".ls-toast-close", 3)} {
 
 .ls-tooltip-content {
     position: absolute;
-    background: var(--surface-1);
+    background-color: var(--surface-1);
     padding: 4px 12px;
     border: 1px solid var(--ui-border);
-    box-shadow: inset 0 1px 0 0 var(--ui-element), 0px 8px 20px 0 #00000054;
+    box-shadow: inset 0 1px 0 0 var(--ui-element), var(--ls-shadow-medium);
     border-radius: var(--border-radius);
     white-space: pre-wrap;
 }
 
 .ls-tooltip-content kbd {
-    background: var(--surface-3);
+    background-color: var(--surface-3);
     padding: 0 5px;
     border-radius: var(--border-radius);
     font-size: smaller;
@@ -566,7 +566,7 @@ button#{priority(".ls-toast-close", 3)} {
 
 .ls-modal-shade {
     position: fixed;
-    background: rgba(0, 0, 0, 0.5);
+    background-color: rgba(0, 0, 0, 0.5);
     pointer-events: auto;
     inset: 0;
 }
@@ -601,7 +601,7 @@ button#{priority(".ls-toast-close", 3)} {
 
 .ls-image-cropper-styled {
     border-radius: var(--border-radius);
-    background: black;
+    background-color: black;
 }
 
 .ls-image-cropper-image {
@@ -627,7 +627,7 @@ button#{priority(".ls-toast-close", 3)} {
 .ls-image-cropper-processing {
     position: absolute;
     inset: 0px;
-    background: rgba(0, 0, 0, .8);
+    background-color: rgba(0, 0, 0, .8);
     color: #fff;
     padding: 10px;
     z-index: 5;
@@ -760,10 +760,10 @@ button#{priority(".ls-toast-close", 3)} {
 }
 
 .ls-menu-container {
-    background: var(--elevate, var(--surface-1));
+    background-color: var(--ui-element, var(--surface-1));
     outline: 1px solid var(--elevate-1, var(--surface-2));
     border-radius: var(--border-radius);
-    box-shadow: 0 4px 8px 0 #0005;
+    box-shadow: var(--ls-shadow-medium);
     display: flex;
     flex-direction: column;
     user-select: none;
@@ -800,11 +800,11 @@ button#{priority(".ls-toast-close", 3)} {
 }
 
 .ls-list-item:hover, .ls-list-item.selected {
-    background: var(--elevate-1, var(--surface-2));
+    background-color: var(--ui-element-1);
 }
 
 .ls-list-item:active, .ls-list-item:focus {
-    background: var(--elevate-0, var(--surface-n1));
+    background-color: var(--ui-element-1);
 }
 
 .ls-menu-item-label {
@@ -986,7 +986,7 @@ ls-select ls-option, ls-select option, ls-select optgroup {
 }
 
 .ls-tree-node[aria-selected="true"] {
-    background: var(--elevate);
+    background-color: var(--elevate);
     // outline: 1px solid var(--surface-10);
     // outline-offset: -1px;
 }
@@ -1005,7 +1005,7 @@ ls-select ls-option, ls-select option, ls-select optgroup {
     }
 
     .ls-tree-node:hover {
-        background: var(--elevate);
+        background-color: var(--elevate);
     }
 
     .ls-tree-node-expandable {
@@ -1080,7 +1080,7 @@ ls-select ls-option, ls-select option, ls-select optgroup {
     height: 25px;
     display: flex;
     align-items: center;
-    background: var(--surface-n2);
+    background-color: var(--surface-n2);
     padding: 0 10px;
     justify-content: space-between;
     overflow: hidden;
@@ -1117,7 +1117,7 @@ ls-select ls-option, ls-select option, ls-select optgroup {
         content: "";
         position: absolute;
         inset: 0;
-        background: rgba(0, 0, 0, 0.35);
+        background-color: rgba(0, 0, 0, 0.35);
         z-index: 1000;
         pointer-events: none;
     }
@@ -1133,7 +1133,7 @@ ls-select ls-option, ls-select option, ls-select optgroup {
         top: 50%;
         transform: translate(-50%, -50%);
         border-radius: 8px;
-        background: var(--surface-2);
+        background-color: var(--surface-2);
         border: 1px solid var(--accent);
         z-index: 1000;
         pointer-events: none;
@@ -1160,12 +1160,12 @@ ls-select ls-option, ls-select option, ls-select optgroup {
         padding: 5px 20px;
         border-right: 1px solid var(--elevate-n1);
         border-top: 1px solid var(--elevate-n1);
-        background: var(--elevate);
+        background-color: var(--elevate);
     }
 
     .ls-tab-handle.active {
         cursor: default;
-        background: var(--elevate-n1);
+        background-color: var(--elevate-n1);
         padding: 7px 20px 4px;
         border-top: none;
         border-bottom: 3px solid var(--accent);

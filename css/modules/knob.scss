@@ -38,7 +38,7 @@ ls-knob * {
 }
 
 .ls-knob-stator {
-    transition: all var(--ls-animation-duration, 0.2s) ease;
+    transition: all var(--ls-animation-duration) ease;
     border-radius: 50%;
     position: absolute;
     width: var(--gear-size);
@@ -123,7 +123,7 @@ ls-knob[preset=numeric] {
         transform: translateX(-50%);
         border-left: 3px solid transparent;
         border-right: 3px solid transparent;
-        transition: all var(--ls-animation-duration, 0.2s) ease;
+        transition: all var(--ls-animation-duration) ease;
     }
 
     /* Up arrow */

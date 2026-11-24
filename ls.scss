@@ -58,7 +58,12 @@ body {
 
     --control-content-gap: 8px;
 
-    background: var(--background);
+    --ls-animation-duration:       450ms;
+    --ls-animation-duration-short: calc(var(--ls-animation-duration) * 0.5);
+    --ls-animation-duration-long:  calc(var(--ls-animation-duration) * 2);
+    --ls-animation-spring:         linear(0, 0.0018, 0.007 1.17%, 0.0334, 0.0758, 0.1306 5.54%, 0.2505 8.16%, 0.6477 16.03%, 0.7622 18.65%, 0.8498, 0.9229 23.32%, 0.9878 25.94%, 1.0308 28.27%, 1.0643 30.9%, 1.0791, 1.0886 34.39%, 1.094, 1.0944 38.48%, 1.0903 40.81%, 1.0814 43.43%, 1.0362 53.05%, 1.0184 57.42%, 1.0059, 0.9976 65.58%, 0.9925 70.25%, 0.991 75.79%, 0.9996 99.98%);
+
+    background-color: var(--background);
     color: var(--color);
     overflow-y: overlay;
 
@@ -164,10 +169,10 @@ body {
         border-collapse: collapse;
         overflow: hidden;
         outline: 1px solid var(--elevate-1);
-        box-shadow: 0 10px 20px 0 #0002;
+        box-shadow: var(--ls-shadow-medium);
 
         thead, tfoot {
-            background: var(--elevate);
+            background-color: var(--elevate);
         }
 
         th {
@@ -193,19 +198,19 @@ body {
     outline: 1px solid var(--elevate-1);
     border-radius: var(--border-radius);
     background-color: var(--elevate-0);
-    box-shadow: 0 10px 20px 0 #0002;
+    box-shadow: var(--ls-shadow-medium);
 
     > table {
         outline: none;
         border-radius: 0;
-        background: none;
+        background-color: transparent;
         width: 100%;
         box-shadow: none;
     }
 }
 
 .ls-tfoot {
-    background: var(--elevate);
+    background-color: var(--elevate);
     padding: var(--space-tiny);
     display: flex;
     justify-content: space-between;
@@ -215,23 +220,24 @@ body {
 
 // Disable transitions (eg. on theme change)
 .no-transitions *, .no-transitions *:before, .no-transitions *:after {
+    --ls-animation-duration: 0 !important;
     transition: none !important;
 }
 
 // Generated margin classes
 @each $size in tiny, small, medium, large, xlarge, xxlarge, xxxlarge, huge {
     @each $direction in top, bottom, left, right {
-        .margin-#{$direction}-#{$size}.margin-#{$direction}-#{$size}.margin-#{$direction}-#{$size} {
+        .margin-#{$direction}-#{$size}.margin-#{$direction}-#{$size}.margin-#{$direction}-#{$size}.margin-#{$direction}-#{$size} {
             margin-#{$direction}: var(--space-#{$size});
         }
     }
 
-    .margin-v-#{$size}#{if($size == medium, ', ls-div', '')}.margin-v-#{$size}#{if($size == medium, ', ls-div', '')}.margin-v-#{$size}#{if($size == medium, ', ls-div', '')} {
+    .margin-v-#{$size}#{if($size == medium, ', ls-div', '')}.margin-v-#{$size}#{if($size == medium, ', ls-div', '')}.margin-v-#{$size}#{if($size == medium, ', ls-div', '')}.margin-v-#{$size}#{if($size == medium, ', ls-div', '')} {
         margin-top: var(--space-#{$size});
         margin-bottom: var(--space-#{$size});
     }
 
-    .margin-h-#{$size}.margin-h-#{$size}.margin-h-#{$size} {
+    .margin-h-#{$size}.margin-h-#{$size}.margin-h-#{$size}.margin-h-#{$size}.margin-h-#{$size}.margin-h-#{$size}.margin-h-#{$size}.margin-h-#{$size}.margin-h-#{$size}.margin-h-#{$size}.margin-h-#{$size}.margin-h-#{$size} {
         margin-left: var(--space-#{$size});
         margin-right: var(--space-#{$size});
     }

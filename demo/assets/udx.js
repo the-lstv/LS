@@ -12,7 +12,7 @@ const version_specific = {
     6: { banner: "https://cdn.extragon.cloud/file/19613b60f986c5f6.webp", accent: "rusty-red" }
 }
 
-document.body.setAttribute("ls-accent", version_specific[LS_VERSION]?.accent);
+document.body.setAttribute("data-ls-accent", version_specific[LS_VERSION]?.accent);
 
 function section(title, inner) {
     return {

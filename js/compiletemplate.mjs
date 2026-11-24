@@ -537,7 +537,7 @@ if(true) LS.CompileTemplate = (() => {
 
             // Handle accent attribute
             if (accent) {
-                lines.push(`${varName}.setAttribute("ls-accent",${jsValue(accent, iterVar)});`);
+                lines.push(`${varName}.setAttribute("data-ls-accent",${jsValue(accent, iterVar)});`);
             }
 
             // Handle tooltip

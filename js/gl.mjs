@@ -877,7 +877,7 @@ class WebGLRenderer extends Renderer {
 
         if (cw === 0 || ch === 0) return;
 
-        this.gl.viewport(0, 0, cw, ch);
+        this.gl && this.gl.viewport(0, 0, cw, ch);
         this.quickEmit("resized", cw, ch);
     }
 

@@ -1030,7 +1030,7 @@ class Input {
         this.element = null;
         this.inputElement = null;
 
-        this.default = options?.default ?? null;
+        this.default = options?.default ?? options?.defaultValue ?? null;
         this.inputType = options?.inputType ?? options?.type ?? "text"; // Describes the type of the input element
         this.valueType = options?.valueType ?? null;                    // Describes the desired data unit/type of the value
 
@@ -1079,10 +1079,27 @@ class Input {
         this.isBinary = type === "checkbox" || type === "radio" || type === "switch";
         this.isText = type === "text" || type === "textarea";
 
-        this.inputElement = LS.Create({
-            ...this.options.attributes || {},
+        if(tagName !== "ls-select" && typeof this.options.options === "object") {
+            const opt = this.options.options ?? {};
+
+            opt.min  ??= this.options.min   ?? null;
+            opt.max  ??= this.options.max   ?? null;
+            opt.step ??= this.options.step  ?? null;
+            opt.defaultValue ??= this.default;
+
+            switch (tagName) {
+                case "ls-knob":
+                    this.inputElement = new LS.Knob(opt).element;
+                    break;
+            
+                default:
+                    console.warn("No constructor for input type " + tagName)
+                    break;
+            }
+        }
+
+        if(!this.inputElement) this.inputElement = LS.Create({
             tag: tagName,
-            class: (this.options.className || "") + (type === "select" ? " clear" : ""),
             options: this.options.options || null,
             
             ...(this.options.placeholder? { placeholder: this.options.placeholder }: null),
@@ -1090,19 +1107,26 @@ class Input {
 
             min:  this.options.min  ?? null,
             max:  this.options.max  ?? null,
-            step: this.options.step ?? null,
+            step: this.options.step ?? null
+        });
 
-            oninput: () => {
-                this.processChange(false);
-            },
+        // Assign attributes
+        if(typeof this.options.attributes === "object") this.inputElement.attrAssign(this.options.attributes);
 
-            onchange: () => {
-                this.processChange(true);
-            },
+        // Set class
+        this.inputElement.className = (this.options.className || "") + (type === "select" ? " clear" : "");
 
-            ondblclick: (event) => {
-                if(type === "knob") this.reset();
-            }
+        // Event listeners
+        this.inputElement.addEventListener("input", () => {
+            this.processChange(false);
+        });
+
+        this.inputElement.addEventListener("change", () => {
+            this.processChange(true);
+        });
+
+        if(type === "knob") this.inputElement.addEventListener("ondblclick", () => {
+            this.reset();
         });
 
         if(this.options.width) this.inputElement.style.width = toCSSSize(this.options.width);
@@ -3570,7 +3594,7 @@ const LS = new class LSMain extends EventEmitter {
         }
 
         // Handle attributes
-        if (accent) element.setAttribute("ls-accent", accent);
+        if (accent) element.setAttribute("data-ls-accent", accent);
         if (attr || attributes) LS.TinyFactory.attrAssign.call(element, attr || attributes);
 
         // Handle tooltips

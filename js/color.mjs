@@ -868,6 +868,10 @@ class Color {
 
     // --- Special methods for theme management
 
+    static #contrast = 1;
+    static get contrast() { return this.#contrast };
+    static set contrast(v) { if(v === this.#contrast) return; this.#contrast = v; this.setContrast(v) };
+
     static #settingAccent = null;
     static #settingTheme = null;
     static autoSchemeEnabled = false;
@@ -1369,7 +1373,7 @@ class Color {
     }
 
     static get theme(){
-        return document.body.getAttribute("ls-theme");
+        return document.body.getAttribute("data-ls-theme");
     }
 
     static set theme(theme){
@@ -1377,7 +1381,7 @@ class Color {
     }
 
     static get accent(){
-        return document.body.getAttribute("ls-accent");
+        return document.body.getAttribute("data-ls-accent");
     }
 
     static set accent(color){
@@ -1439,6 +1443,27 @@ class Color {
         return style;
     }
 
+    /**
+     * Change theme light-spread (contrast between light levels).
+     * @param {*} value Value, usually between 1 (default) and 1.6.
+     * @param {*} light Whether using light or dark schemes
+     * @experimental
+     */
+    static setContrast(value = 1, light = this.theme === "light", target = document.body) {
+        const list   = [0, 6, 8, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100];
+        const levels = [-3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+        // value = Math.min(value, list.length / levels.length);
+
+        if(light) list.reverse();
+
+        for(let i = 0; i < levels.length; i++) {
+            target.style.setProperty(`--surface-${String(levels[i]).replace("-", "n")}`, `var(--base-${list[Math.floor(i * value)]})`);
+        }
+
+        return target;
+    }
+
     static add(name, r, g, b){
         if(this.colors.has(name)) return false;
         return this.update(name, r, g, b);
@@ -1482,7 +1507,7 @@ class Color {
     static apply(element, r, g, b){
         let color = (r instanceof Color)? r: new Color(r, g, b);
         element.style.cssText += this.generate(color);
-        element.setAttribute("ls-accent", "");
+        element.setAttribute("data-ls-accent", "");
     }
 
     static remove(name){
@@ -1546,9 +1571,9 @@ class Color {
             accent = color.hex;
 
             Color.update('custom', color);
-            document.body.setAttribute("ls-accent", "custom");
+            document.body.setAttribute("data-ls-accent", "custom");
         } else {
-            document.body.setAttribute("ls-accent", accent);
+            document.body.setAttribute("data-ls-accent", accent);
         }
 
         this.events.emit("accent-changed", [accent]);
@@ -1556,9 +1581,9 @@ class Color {
 
         if(store) {
             if(accent === "white") {
-                localStorage.removeItem("ls-accent");
+                localStorage.removeItem("data-ls-accent");
             } else {
-                localStorage.setItem("ls-accent", accent);
+                localStorage.setItem("data-ls-accent", accent);
             }
         }
 
@@ -1571,7 +1596,7 @@ class Color {
     }
 
     static getAccentColorValueOf(element, target) {
-        const name = element.getAttribute("ls-accent");
+        // const name = element.getAttribute("data-ls-accent");
         // const level = (name === "yellow" || name === "orange") ? "10" : "40";
         return Color.parse(getComputedStyle(element).getPropertyValue("--accent-40"), null, null, null, target);
     }
@@ -1610,11 +1635,15 @@ class Color {
         if(!this.#settingTheme) return;
         const theme = this.#settingTheme;
 
-        document.body.setAttribute("ls-theme", theme);
+        document.body.setAttribute("data-ls-theme", theme);
+
+        if(!(this.contrast === 1 && document.body.style.getPropertyValue("--surface-0") === "")) this.setContrast(this.contrast, theme === "light");
+
         document.body.classList.add("no-transitions");
+
         this.events.emit("theme-changed", [theme]);
 
-        if(store) localStorage.setItem("ls-theme", theme);
+        if(store) localStorage.setItem("data-ls-theme", theme);
 
         this.#settingTheme = null;
 
@@ -1625,7 +1654,7 @@ class Color {
     }
 
     static setAdaptiveTheme(){
-        Color.setTheme(localStorage.getItem("ls-theme") || (this.lightModePreffered? "light": "dark"), false);
+        Color.setTheme(localStorage.getItem("data-ls-theme") || (this.lightModePreffered? "light": "dark"), false);
         return this;
     }
 
@@ -1639,8 +1668,8 @@ class Color {
     }
 
     static autoAccent(){
-        if(localStorage.hasOwnProperty("ls-accent")){
-            const accent = localStorage.getItem("ls-accent");
+        if(localStorage.hasOwnProperty("data-ls-accent")){
+            const accent = localStorage.getItem("data-ls-accent");
             Color.setAccent(accent, false);
         }
 

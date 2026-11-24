@@ -848,7 +848,7 @@ class CommandPalette extends LS.Component {
         menuItem.children[1].textContent = command.name;
         menuItem.children[2].textContent = command.description? ` - ${command.description}` : '';
 
-        menuItem.setAttribute("ls-accent", command.accentColor || '');
+        menuItem.setAttribute("data-ls-accent", command.accentColor || '');
         menuItem.classList.toggle("has-accent", !!command.accentColor);
 
         menuItem.style.display = "flex";

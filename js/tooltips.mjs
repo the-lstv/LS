@@ -28,6 +28,9 @@ class Tooltips extends LS.Component {
      */
     SCAN_LOCAL = "local";
 
+    __animationEnabled = false;
+    alwaysDetached     = false;
+
     constructor(options = {}){
         super();
 
@@ -37,7 +40,8 @@ class Tooltips extends LS.Component {
         this.container.append(this.contentElement);
 
         this.scanMode = options.scanMode || this.SCAN_GLOBAL;
-        this.animationEnabled = options.animationEnabled;
+        this.__animationEnabled = options.animationEnabled;
+        this.alwaysDetached = options.alwaysDetached;
 
         this.shown = false;
 
@@ -71,6 +75,18 @@ class Tooltips extends LS.Component {
                 this.rescan();
             }
         });
+    }
+
+    get animationEnabled() {
+        return this.__animationEnabled;
+    }
+
+    // Temporary solution to avoid any potential issues
+    set animationEnabled(v) {
+        v = !!v;
+        if(v === this.__animationEnabled) return;
+        this.__animationEnabled = v;
+        this.resetGlobalInstance({ animationEnabled: v, alwaysDetached: this.alwaysDetached });
     }
 
     position(x, y, anchor = 0.5){
@@ -147,9 +163,9 @@ class Tooltips extends LS.Component {
                 }
 
                 this.__pendingPosition = false;
-                let isDetached = element?.hasAttribute?.("ls-tooltip-detached") && typeof y?.clientX === "number";
+                let isDetached = this.alwaysDetached || element?.hasAttribute?.("ls-tooltip-detached") && typeof y?.clientX === "number";
 
-                if(isDetached) {
+                if(isDetached && y && typeof y.clientX === "number") {
                     // Follow cursor for detached tooltips
                     x = y.clientX + 12;
                     y = y.clientY + 12;

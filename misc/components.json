@@ -37,6 +37,7 @@
     ],
     "css": [
         "flat",
+        "shiny",
         "knob",
         "timeline",
         "timeline-dom",

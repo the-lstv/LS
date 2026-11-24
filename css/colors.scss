@@ -112,7 +112,7 @@ $colors: (
 }
 
 [class*="level-"], ls-box {
-    background: var(--background);
+    background-color: var(--background);
 }
 
 @for $i from -3 through 10 {

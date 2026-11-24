@@ -38,7 +38,8 @@ const obj = {
 
     set DEFAULT_DURATION(value) {
         DEFAULT_DURATION = value;
-        document.documentElement.style.setProperty('--ls-animation-duration', `${value}ms`);
+        // document.documentElement.style.setProperty('--ls-animation-duration', `${value}ms`);
+        document.body.style.setProperty('--ls-animation-duration', `${value}ms`);
     },
 
     DEFAULT_EASING: 'linear(0, 0.0018, 0.007 1.17%, 0.0334, 0.0758, 0.1306 5.54%, 0.2505 8.16%, 0.6477 16.03%, 0.7622 18.65%, 0.8498, 0.9229 23.32%, 0.9878 25.94%, 1.0308 28.27%, 1.0643 30.9%, 1.0791, 1.0886 34.39%, 1.094, 1.0944 38.48%, 1.0903 40.81%, 1.0814 43.43%, 1.0362 53.05%, 1.0184 57.42%, 1.0059, 0.9976 65.58%, 0.9925 70.25%, 0.991 75.79%, 0.9996 99.98%)',
